@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using api.Data;
+﻿using api.Data;
 using api.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 // READ DTOs
 public record CardPrintingDto(int Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
@@ -144,5 +145,33 @@ namespace api.Controllers
             await _db.SaveChangesAsync();
             return NoContent();
         }
+
+        // PATCH /api/card/{id}
+        // Supported fields: Game, Name, CardType, Description
+        [HttpPatch("{id:int}")]
+        public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
+        {
+            var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);
+            if (card is null) return NotFound();
+
+            // Apply only fields present in the payload
+            if (updates.TryGetProperty("game", out var gameProp) && gameProp.ValueKind == JsonValueKind.String)
+                card.Game = gameProp.GetString()!;
+
+            if (updates.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
+                card.Name = nameProp.GetString()!;
+
+            if (updates.TryGetProperty("cardType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
+                card.CardType = typeProp.GetString()!;
+
+            // Allows setting Description to null explicitly
+            if (updates.TryGetProperty("description", out var descProp))
+                card.Description = descProp.ValueKind == JsonValueKind.Null ? null :
+                                   descProp.ValueKind == JsonValueKind.String ? descProp.GetString() : card.Description;
+
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
     }
 }
