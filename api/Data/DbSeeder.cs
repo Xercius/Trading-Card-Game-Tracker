@@ -3,7 +3,7 @@ using api.Models;
 using System;
 using System.Linq;
 
-namespace api.Models // Update to match your folder/namespace
+namespace api.Data // Update to match your folder/namespace
 {
     public static class DbSeeder
     {

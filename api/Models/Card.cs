@@ -3,10 +3,10 @@
     public class Card
     {
         public int Id { get; set; }
-        public string Game { get; set; } = null!; // Magic, Lorcana, Star Wars Unlimited etc..
-        public string Name { get; set; } = null!; // Name of card
-        public string CardType { get; set; } = null!; // Unit, Instant, Sorcery, Upgrade, Enchatment etc..
-        public string Description { get; set; } // Optional rules text
-        public ICollection<CardPrinting> Printings { get; set; }
+        public required string Game { get; set; } // Magic, Lorcana, Star Wars Unlimited etc..
+        public required string Name { get; set; } // Name of card
+        public required string CardType { get; set; } // Unit, Instant, Sorcery, Upgrade, Enchatment etc..
+        public string? Description { get; set; } // Optional rules text
+        public ICollection<CardPrinting> Printings { get; set; } = new List<CardPrinting>();
     }
 }
