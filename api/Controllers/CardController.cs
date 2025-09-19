@@ -3,13 +3,15 @@ using Microsoft.EntityFrameworkCore;
 using api.Data;
 using api.Models;
 
-// Read DTOs
+// READ DTOs
 public record CardPrintingDto(int Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
 public record CardDto(int Id, string Game, string Name, string CardType, string? Description, List<CardPrintingDto> Printings);
 
-// Write DTOs (for POST)
+// WRITE DTOs
 public record CreateCardPrintingDto(string Set, string Number, string Rarity, string Style, string? ImageUrl);
 public record CreateCardDto(string Game, string Name, string CardType, string? Description, List<CreateCardPrintingDto> Printings);
+public record UpdateCardPrintingDto(int? Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
+public record UpdateCardDto(string Game, string Name, string CardType, string? Description, List<UpdateCardPrintingDto> Printings);
 
 namespace api.Controllers
 {
@@ -20,7 +22,7 @@ namespace api.Controllers
         private readonly AppDbContext _db;
         public CardController(AppDbContext db) => _db = db;
 
-        // GET: /api/card
+        // GET /api/card
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CardDto>>> GetAll()
         {
@@ -32,11 +34,10 @@ namespace api.Controllers
                     )).ToList()
                 ))
                 .ToListAsync();
-
             return Ok(data);
         }
 
-        // GET: /api/card/{id}
+        // GET /api/card/{id}
         [HttpGet("{id:int}")]
         public async Task<ActionResult<CardDto>> GetOne(int id)
         {
@@ -50,11 +51,10 @@ namespace api.Controllers
                 ))
                 .FirstOrDefaultAsync();
 
-            if (c is null) return NotFound();
-            return Ok(c);
+            return c is null ? NotFound() : Ok(c);
         }
 
-        // POST: /api/card
+        // POST /api/card
         [HttpPost]
         public async Task<ActionResult<CardDto>> Create([FromBody] CreateCardDto dto)
         {
@@ -66,28 +66,83 @@ namespace api.Controllers
                 Name = dto.Name,
                 CardType = dto.CardType,
                 Description = dto.Description,
-                Printings = (dto.Printings ?? new List<CreateCardPrintingDto>())
-                    .Select(p => new CardPrinting
+                Printings = (dto.Printings ?? new()).Select(p => new CardPrinting
+                {
+                    Set = p.Set,
+                    Number = p.Number,
+                    Rarity = p.Rarity,
+                    Style = p.Style,
+                    ImageUrl = p.ImageUrl
+                }).ToList()
+            };
+
+            _db.Cards.Add(card);
+            await _db.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetOne), new { id = card.Id }, new CardDto(
+                card.Id, card.Game, card.Name, card.CardType, card.Description,
+                card.Printings.Select(p => new CardPrintingDto(p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl)).ToList()
+            ));
+        }
+
+        // PUT /api/card/{id}  (full update; replaces printings list)
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateCardDto dto)
+        {
+            var card = await _db.Cards.Include(c => c.Printings).FirstOrDefaultAsync(c => c.Id == id);
+            if (card is null) return NotFound();
+
+            card.Game = dto.Game;
+            card.Name = dto.Name;
+            card.CardType = dto.CardType;
+            card.Description = dto.Description;
+
+            // Replace printings: update matching by Id, add new where Id is null, remove missing
+            var incoming = dto.Printings ?? new();
+            var byId = card.Printings.ToDictionary(p => p.Id);
+
+            // mark all existing as unseen
+            var seen = new HashSet<int>();
+
+            foreach (var p in incoming)
+            {
+                if (p.Id is int pid && byId.TryGetValue(pid, out var existing))
+                {
+                    existing.Set = p.Set; existing.Number = p.Number; existing.Rarity = p.Rarity;
+                    existing.Style = p.Style; existing.ImageUrl = p.ImageUrl;
+                    seen.Add(pid);
+                }
+                else
+                {
+                    card.Printings.Add(new CardPrinting
                     {
                         Set = p.Set,
                         Number = p.Number,
                         Rarity = p.Rarity,
                         Style = p.Style,
                         ImageUrl = p.ImageUrl
-                    }).ToList()
-            };
+                    });
+                }
+            }
 
-            _db.Cards.Add(card);
+            // delete any not seen
+            var toRemove = card.Printings.Where(p => !seen.Contains(p.Id) && incoming.All(x => x.Id != p.Id)).ToList();
+            foreach (var r in toRemove) _db.CardPrintings.Remove(r);
+
             await _db.SaveChangesAsync();
+            return NoContent();
+        }
 
-            var result = new CardDto(
-                card.Id, card.Game, card.Name, card.CardType, card.Description,
-                card.Printings.Select(p => new CardPrintingDto(
-                    p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl
-                )).ToList()
-            );
+        // DELETE /api/card/{id}
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);
+            if (card is null) return NotFound();
 
-            return CreatedAtAction(nameof(GetOne), new { id = card.Id }, result);
+            _db.Cards.Remove(card);
+            await _db.SaveChangesAsync();
+            return NoContent();
         }
     }
 }
