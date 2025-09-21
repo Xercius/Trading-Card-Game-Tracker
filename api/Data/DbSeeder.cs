@@ -16,8 +16,9 @@ namespace api.Data // Update to match your folder/namespace
             if (context.Cards.Any()) return;
 
             // Seed Users
-            var user1 = new User { Username = "Grayson" };
-            var user2 = new User { Username = "Perrin" };
+            var user1 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
+            var user2 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = false };
+
             context.Users.AddRange(user1, user2);
 
             // Seed Cards
