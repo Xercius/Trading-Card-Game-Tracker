@@ -5,7 +5,7 @@
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class AddCardAndOwnedCard : Migration
+    public partial class Init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -19,7 +19,7 @@ namespace api.Migrations
                     Game = table.Column<string>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
                     CardType = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: false)
+                    Description = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -52,7 +52,7 @@ namespace api.Migrations
                     Number = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Style = table.Column<string>(type: "TEXT", nullable: false),
-                    ImageUrl = table.Column<string>(type: "TEXT", nullable: false)
+                    ImageUrl = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -66,11 +66,31 @@ namespace api.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "UserCards",
+                name: "Decks",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
+                    UserId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Game = table.Column<string>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    Description = table.Column<string>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Decks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Decks_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserCards",
+                columns: table => new
+                {
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
                     QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false),
@@ -78,17 +98,46 @@ namespace api.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_UserCards", x => x.Id);
+                    table.PrimaryKey("PK_UserCards", x => new { x.UserId, x.CardPrintingId });
                     table.ForeignKey(
                         name: "FK_UserCards_CardPrintings_CardPrintingId",
                         column: x => x.CardPrintingId,
                         principalTable: "CardPrintings",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_UserCards_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DeckCards",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    DeckId = table.Column<int>(type: "INTEGER", nullable: false),
+                    CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuantityInDeck = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuantityIdea = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuantityAcquire = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DeckCards", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_DeckCards_CardPrintings_CardPrintingId",
+                        column: x => x.CardPrintingId,
+                        principalTable: "CardPrintings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_DeckCards_Decks_DeckId",
+                        column: x => x.DeckId,
+                        principalTable: "Decks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -99,21 +148,38 @@ namespace api.Migrations
                 column: "CardId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserCards_CardPrintingId",
-                table: "UserCards",
+                name: "IX_DeckCards_CardPrintingId",
+                table: "DeckCards",
                 column: "CardPrintingId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserCards_UserId",
-                table: "UserCards",
+                name: "IX_DeckCards_DeckId_CardPrintingId",
+                table: "DeckCards",
+                columns: new[] { "DeckId", "CardPrintingId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Decks_UserId",
+                table: "Decks",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserCards_CardPrintingId",
+                table: "UserCards",
+                column: "CardPrintingId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "DeckCards");
+
+            migrationBuilder.DropTable(
                 name: "UserCards");
+
+            migrationBuilder.DropTable(
+                name: "Decks");
 
             migrationBuilder.DropTable(
                 name: "CardPrintings");

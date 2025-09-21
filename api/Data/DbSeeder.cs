@@ -16,8 +16,9 @@ namespace api.Data // Update to match your folder/namespace
             if (context.Cards.Any()) return;
 
             // Seed Users
-            var user1 = new User { Username = "Grayson" };
-            var user2 = new User { Username = "Perrin" };
+            var user1 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
+            var user2 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = false };
+
             context.Users.AddRange(user1, user2);
 
             // Seed Cards
@@ -179,6 +180,20 @@ namespace api.Data // Update to match your folder/namespace
             };
             context.UserCards.AddRange(userCard1a, userCard1b, userCard1c, userCard1d, userCard1e, userCard1f, userCard1g, userCard1h, userCard2a, userCard2b, userCard2c, userCard2d, userCard2e, userCard2f, userCard2g, userCard2h, userCard2i, userCard2j);
 
+            context.SaveChanges();
+
+            // Seed Decks
+            var deck1 = new Deck { UserId = user1.Id, Name = "Grayson's Deck", Description = "A sample deck for Grayson.", Game = "Star Wars Unlimited" };
+            var deck2 = new Deck { UserId = user2.Id, Name = "Perrin's Deck", Description = "A sample deck for Perrin.", Game = "Star Wars Unlimited" };
+            context.Decks.AddRange(deck1, deck2);
+            context.SaveChanges(); // Save to get IDs for relationships
+
+            // Seed DeckCards
+            var deck1Card1 = new DeckCard { DeckId = deck1.Id, CardPrintingId = printing1a.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 1 };
+            var deck1Card2 = new DeckCard { DeckId = deck1.Id, CardPrintingId = printing1b.Id, QuantityInDeck = 1, QuantityIdea = 0, QuantityAcquire = 0 };
+            var deck2Card1 = new DeckCard { DeckId = deck2.Id, CardPrintingId = printing2a.Id, QuantityInDeck = 3, QuantityIdea = 3, QuantityAcquire = 0 };
+            var deck2Card2 = new DeckCard { DeckId = deck2.Id, CardPrintingId = printing2b.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2 };
+            context.DeckCards.AddRange(deck1Card1, deck1Card2, deck2Card1, deck2Card2);
             context.SaveChanges();
         }
     }

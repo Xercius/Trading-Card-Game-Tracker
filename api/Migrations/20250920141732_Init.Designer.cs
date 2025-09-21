@@ -10,14 +10,14 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250808140714_AddCardAndOwnedCard")]
-    partial class AddCardAndOwnedCard
+    [Migration("20250920141732_Init")]
+    partial class Init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.6");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
@@ -30,7 +30,6 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Game")
@@ -56,7 +55,6 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ImageUrl")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Number")
@@ -82,19 +80,62 @@ namespace api.Migrations
                     b.ToTable("CardPrintings");
                 });
 
-            modelBuilder.Entity("api.Models.Fruit", b =>
+            modelBuilder.Entity("api.Models.Deck", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Game")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
-                    b.ToTable("Fruits");
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Decks");
+                });
+
+            modelBuilder.Entity("api.Models.DeckCard", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CardPrintingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DeckId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityAcquire")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityIdea")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityInDeck")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardPrintingId");
+
+                    b.HasIndex("DeckId", "CardPrintingId")
+                        .IsUnique();
+
+                    b.ToTable("DeckCards");
                 });
 
             modelBuilder.Entity("api.Models.User", b =>
@@ -122,8 +163,7 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.UserCard", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("CardPrintingId")
@@ -135,14 +175,9 @@ namespace api.Migrations
                     b.Property<int>("QuantityWanted")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
+                    b.HasKey("UserId", "CardPrintingId");
 
                     b.HasIndex("CardPrintingId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("UserCards");
                 });
@@ -158,26 +193,63 @@ namespace api.Migrations
                     b.Navigation("Card");
                 });
 
+            modelBuilder.Entity("api.Models.Deck", b =>
+                {
+                    b.HasOne("api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("api.Models.DeckCard", b =>
+                {
+                    b.HasOne("api.Models.CardPrinting", "CardPrinting")
+                        .WithMany()
+                        .HasForeignKey("CardPrintingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Deck", "Deck")
+                        .WithMany("Cards")
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CardPrinting");
+
+                    b.Navigation("Deck");
+                });
+
             modelBuilder.Entity("api.Models.UserCard", b =>
                 {
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
                         .WithMany()
                         .HasForeignKey("CardPrintingId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("api.Models.User", null)
+                    b.HasOne("api.Models.User", "User")
                         .WithMany("UserCards")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("CardPrinting");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
                     b.Navigation("Printings");
+                });
+
+            modelBuilder.Entity("api.Models.Deck", b =>
+                {
+                    b.Navigation("Cards");
                 });
 
             modelBuilder.Entity("api.Models.User", b =>
