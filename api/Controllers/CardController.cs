@@ -1,8 +1,10 @@
 ﻿using api.Data;
 using api.Models;
+using api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using System.Collections.Generic;
 
 // READ DTOs
 public record CardPrintingDto(int Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
@@ -57,6 +59,7 @@ namespace api.Controllers
 
         // POST /api/card
         [HttpPost]
+        [AdminGuard]
         public async Task<ActionResult<CardDto>> Create([FromBody] CreateCardDto dto)
         {
             if (dto is null) return BadRequest();
@@ -88,6 +91,7 @@ namespace api.Controllers
 
         // PUT /api/card/{id}  (full update; replaces printings list)
         [HttpPut("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateCardDto dto)
         {
             var card = await _db.Cards.Include(c => c.Printings).FirstOrDefaultAsync(c => c.Id == id);
@@ -136,6 +140,7 @@ namespace api.Controllers
 
         // DELETE /api/card/{id}
         [HttpDelete("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Delete(int id)
         {
             var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);
@@ -149,6 +154,7 @@ namespace api.Controllers
         // PATCH /api/card/{id}
         // Supported fields: Game, Name, CardType, Description
         [HttpPatch("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
         {
             var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);

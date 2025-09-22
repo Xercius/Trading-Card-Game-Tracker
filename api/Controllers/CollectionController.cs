@@ -1,11 +1,11 @@
-﻿using System;
-using System.Linq;
-using System.Text.Json;
+﻿using api.Data;
+using api.Middleware;
+using api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using api.Data;
-using api.Models;
-using api.Middleware;
+using System;
+using System.Linq;
+using System.Text.Json;
 
 // READ DTOs
 public record UserCardItemDto(
@@ -37,7 +37,10 @@ namespace api.Controllers
         public CollectionController(AppDbContext db) => _db = db;
 
         private bool UserMismatch(int userId)
-        => HttpContext.GetCurrentUser() is { Id: var cid } && cid != userId;
+        {
+            var me = HttpContext.GetCurrentUser();
+            return me is null || (!me.IsAdmin && me.Id != userId);
+        }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserCardItemDto>>> GetAll(int userId)

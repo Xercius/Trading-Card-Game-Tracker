@@ -1,9 +1,10 @@
-﻿using System.Text.Json;
+﻿using api.Data;
+using api.Filters;
+using api.Middleware;
+using api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using api.Data;
-using api.Models;
-using api.Middleware;
+using System.Text.Json;
 
 public record DeckDto(int Id, int UserId, string Game, string Name, string? Description);
 public record CreateDeckDto(string Game, string Name, string? Description);
@@ -69,6 +70,7 @@ namespace api.Controllers
 
         // GET /api/deck/{deckId}
         [HttpGet("api/deck/{deckId:int}")]
+        [RequireUserHeader]
         public async Task<ActionResult<DeckDto>> GetDeck(int deckId)
         {
             var d = await _db.Decks.FindAsync(deckId);
@@ -77,6 +79,7 @@ namespace api.Controllers
 
         // PATCH /api/deck/{deckId}
         [HttpPatch("api/deck/{deckId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
@@ -96,6 +99,7 @@ namespace api.Controllers
 
         // PUT /api/deck/{deckId}
         [HttpPut("api/deck/{deckId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> UpdateDeck(int deckId, [FromBody] UpdateDeckDto dto)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
@@ -112,6 +116,7 @@ namespace api.Controllers
 
         // DELETE /api/deck/{deckId}
         [HttpDelete("api/deck/{deckId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> DeleteDeck(int deckId)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
@@ -125,6 +130,7 @@ namespace api.Controllers
 
         // GET /api/deck/{deckId}/cards
         [HttpGet("api/deck/{deckId:int}/cards")]
+        [RequireUserHeader]
         public async Task<ActionResult<IEnumerable<DeckCardItemDto>>> GetDeckCards(int deckId)
         {
             var deck = await _db.Decks.FindAsync(deckId);
@@ -151,6 +157,7 @@ namespace api.Controllers
 
         // POST /api/deck/{deckId}/cards  (upsert one printing)
         [HttpPost("api/deck/{deckId:int}/cards")]
+        [RequireUserHeader]
         public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] UpsertDeckCardDto dto)
         {
             var deck = await _db.Decks.FindAsync(deckId);
@@ -188,6 +195,7 @@ namespace api.Controllers
 
         // PUT /api/deck/{deckId}/cards/{cardPrintingId}  (set all three counts)
         [HttpPut("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> SetDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] SetDeckCardQuantitiesDto dto)
         {
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
@@ -202,6 +210,7 @@ namespace api.Controllers
 
         // PATCH /api/deck/{deckId}/cards/{cardPrintingId}  (partial counts)
         [HttpPatch("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
         {
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
@@ -217,6 +226,7 @@ namespace api.Controllers
 
         // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
         [HttpDelete("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [RequireUserHeader]
         public async Task<IActionResult> RemoveDeckCard(int deckId, int cardPrintingId)
         {
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
