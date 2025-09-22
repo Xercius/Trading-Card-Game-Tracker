@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using api.Data;
 using api.Models;
+using api.Middleware;
 
 // READ DTOs
 public record UserCardItemDto(
@@ -28,15 +29,20 @@ public record SetQuantitiesDto(int QuantityOwned, int QuantityWanted);
 namespace api.Controllers
 {
     [ApiController]
+    [RequireUserHeader]
     [Route("api/user/{userId:int}/collection")]
     public class CollectionController : ControllerBase
     {
         private readonly AppDbContext _db;
         public CollectionController(AppDbContext db) => _db = db;
 
+        private bool UserMismatch(int userId)
+        => HttpContext.GetCurrentUser() is { Id: var cid } && cid != userId;
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserCardItemDto>>> GetAll(int userId)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
 
             var rows = await _db.UserCards
@@ -64,6 +70,7 @@ namespace api.Controllers
         [HttpPost]
         public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardDto dto)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
             if (await _db.Users.FindAsync(userId) is null) return NotFound("User not found.");
             if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
@@ -95,6 +102,7 @@ namespace api.Controllers
         [HttpPut("{cardPrintingId:int}")]
         public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetQuantitiesDto dto)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             var uc = await _db.UserCards
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();
@@ -109,6 +117,7 @@ namespace api.Controllers
         [HttpPatch("{cardPrintingId:int}")]
         public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             var uc = await _db.UserCards
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();
@@ -126,6 +135,7 @@ namespace api.Controllers
         [HttpDelete("{cardPrintingId:int}")]
         public async Task<IActionResult> Remove(int userId, int cardPrintingId)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             var uc = await _db.UserCards
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();

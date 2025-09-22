@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using api.Data;
 using api.Models;
+using api.Middleware;
 
 public record DeckDto(int Id, int UserId, string Game, string Name, string? Description);
 public record CreateDeckDto(string Game, string Name, string? Description);
@@ -29,13 +30,17 @@ namespace api.Controllers
     {
         private readonly AppDbContext _db;
         public DeckController(AppDbContext db) => _db = db;
+        private bool UserMismatch(int userId)
+        => HttpContext.GetCurrentUser() is { Id: var cid } && cid != userId;
 
         // ----- User's decks ---------------------------------------------------
 
         // GET /api/user/{userId}/deck
         [HttpGet("api/user/{userId:int}/deck")]
+        [RequireUserHeader]
         public async Task<ActionResult<IEnumerable<DeckDto>>> GetUserDecks(int userId)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
             var decks = await _db.Decks.Where(d => d.UserId == userId)
                 .Select(d => new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description))
@@ -45,8 +50,10 @@ namespace api.Controllers
 
         // POST /api/user/{userId}/deck
         [HttpPost("api/user/{userId:int}/deck")]
+        [RequireUserHeader]
         public async Task<ActionResult<DeckDto>> CreateDeck(int userId, [FromBody] CreateDeckDto dto)
         {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
