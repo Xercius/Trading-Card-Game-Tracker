@@ -1,9 +1,11 @@
-﻿using System.Linq;
-using System.Text.Json;
+﻿using api.Data;
+using api.Filters;
+using api.Middleware;
+using api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using api.Data;
-using api.Models;
+using System.Linq;
+using System.Text.Json;
 
 public record UserDto(int Id, string Username, string DisplayName, bool IsAdmin);
 public record CreateUserDto(string Username, string DisplayName, bool IsAdmin);
@@ -20,10 +22,12 @@ namespace api.Controllers
         public UserController(AppDbContext db) => _db = db;
 
         [HttpGet]
+        [AdminGuard]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
             => Ok(await _db.Users.Select(u => new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin)).ToListAsync());
 
         [HttpGet("{id:int}")]
+        [RequireUserHeader]
         public async Task<ActionResult<UserDto>> GetOne(int id)
         {
             var u = await _db.Users.FindAsync(id);
@@ -31,6 +35,7 @@ namespace api.Controllers
         }
 
         [HttpPost]
+        [AdminGuard]
         public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Username)) return BadRequest("Username required.");
@@ -43,6 +48,7 @@ namespace api.Controllers
         }
 
         [HttpPut("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
@@ -58,6 +64,7 @@ namespace api.Controllers
         }
 
         [HttpPatch("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
@@ -92,6 +99,7 @@ namespace api.Controllers
         }
 
         [HttpDelete("{id:int}")]
+        [AdminGuard]
         public async Task<IActionResult> Delete(int id)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
