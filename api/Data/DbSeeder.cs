@@ -9,9 +9,6 @@ namespace api.Data // Update to match your folder/namespace
     {
         public static void Seed(AppDbContext context)
         {
-            // Ensure DB is created
-            context.Database.EnsureCreated();
-
             // Skip if already seeded
             if (context.Cards.Any()) return;
 
