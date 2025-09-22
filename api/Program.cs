@@ -1,5 +1,6 @@
 using api.Models;
 using api.Data;
+using api.Middleware;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +37,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowReact");
 
 app.UseAuthorization();
+app.UseMiddleware<UserContextMiddleware>();
 
 app.MapControllers();
 
