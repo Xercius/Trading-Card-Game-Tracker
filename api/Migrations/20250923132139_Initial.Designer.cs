@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250922115239_Init")]
-    partial class Init
+    [Migration("20250923132139_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -87,15 +87,21 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Game")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("UserId")
@@ -127,6 +133,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityInDeck")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityProxy")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -231,7 +240,7 @@ namespace api.Migrations
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
                         .WithMany()
                         .HasForeignKey("CardPrintingId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("api.Models.User", "User")
