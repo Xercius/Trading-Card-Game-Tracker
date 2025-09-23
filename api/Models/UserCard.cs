@@ -1,5 +1,8 @@
-﻿namespace api.Models
+﻿using Microsoft.EntityFrameworkCore;
+
+namespace api.Models
 {
+    [PrimaryKey(nameof(UserId), nameof(CardPrintingId))]
     public class UserCard
     {
         public int UserId { get; set; }

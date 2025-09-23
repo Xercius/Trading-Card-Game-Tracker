@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class Init : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -74,9 +74,11 @@ namespace api.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    Game = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: true)
+                    Name = table.Column<string>(type: "TEXT", maxLength: 120, nullable: false),
+                    Game = table.Column<string>(type: "TEXT", nullable: true),
+                    Description = table.Column<string>(type: "TEXT", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UpdatedUtc = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -106,7 +108,7 @@ namespace api.Migrations
                         column: x => x.CardPrintingId,
                         principalTable: "CardPrintings",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_UserCards_Users_UserId",
                         column: x => x.UserId,
@@ -125,6 +127,7 @@ namespace api.Migrations
                     CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
                     QuantityInDeck = table.Column<int>(type: "INTEGER", nullable: false),
                     QuantityIdea = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuantityProxy = table.Column<int>(type: "INTEGER", nullable: false),
                     QuantityAcquire = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
