@@ -1,6 +1,7 @@
 @api_HostAddress = http://localhost:5229
 
-GET {{api_HostAddress}}/weatherforecast/
+### Retrieve all cards
+GET {{api_HostAddress}}/api/card
 Accept: application/json
 
 ###

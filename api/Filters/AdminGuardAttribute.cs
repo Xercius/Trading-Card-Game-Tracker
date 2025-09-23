@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using api.Models; // for User
+using api.Middleware; // for CurrentUser extension
 
 namespace api.Filters
 {
@@ -22,8 +22,8 @@ namespace api.Filters
                 (http.Request.Host.Host?.Equals("localhost", StringComparison.OrdinalIgnoreCase) ?? false);
 
             // 2) User.IsAdmin check (set by your UserContextMiddleware)
-            var userObj = http.Items.TryGetValue("User", out var u) ? u as User : null;
-            var isAdmin = userObj?.IsAdmin == true;
+            var currentUser = http.GetCurrentUser();
+            var isAdmin = currentUser?.IsAdmin == true;
 
             if (isLocal || isAdmin)
             {
