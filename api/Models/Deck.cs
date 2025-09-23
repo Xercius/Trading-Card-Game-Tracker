@@ -1,14 +1,18 @@
-﻿namespace api.Models
+﻿using System.ComponentModel.DataAnnotations;
+namespace api.Models
 {
     public class Deck
     {
-        public int Id { get; set; }
-        public int UserId { get; set; }                  // owner
-        public string Game { get; set; } = string.Empty; // must match Card.Game
-        public string Name { get; set; } = string.Empty; // per-user deck name
+        [Key] public int Id { get; set; }
+        [Required] public int UserId { get; set; }
+        public User? User { get; set; }
+        [Required, MaxLength(120)] public string Name { get; set; } = "";
+        public string? Game { get; set; }
         public string? Description { get; set; }
 
-        public User User { get; set; } = null!;
+        public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedUtc { get; set; }
+
         public ICollection<DeckCard> Cards { get; set; } = new List<DeckCard>();
     }
 }

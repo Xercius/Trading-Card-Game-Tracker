@@ -1,17 +1,22 @@
-﻿namespace api.Models
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace api.Models
 {
     public class DeckCard
     {
-        public int Id { get; set; }
+        [Key] public int Id { get; set; }
 
-        public int DeckId { get; set; }
-        public Deck Deck { get; set; } = null!;
+        [Required] public int DeckId { get; set; }
+        public Deck? Deck { get; set; }
 
-        public int CardPrintingId { get; set; }
-        public CardPrinting CardPrinting { get; set; } = null!;
+        [Required] public int CardPrintingId { get; set; }
+        public CardPrinting? CardPrinting { get; set; }
 
-        public int QuantityInDeck { get; set; }   // copies actually in deck
-        public int QuantityIdea { get; set; }     // ideas to try
-        public int QuantityAcquire { get; set; }  // want to acquire for this deck
+        // How many copies of this printing are in the deck, ideas for the deck, proxies in the deck and how many need to be acquired to be in the deck
+        public int QuantityInDeck { get; set; } = 0;
+        public int QuantityIdea { get; set; } = 0;
+        public int QuantityProxy { get; set; } = 0;
+        public int QuantityAcquire { get; set; } = 0;
     }
 }
