@@ -7,8 +7,22 @@ using System.Text.Json;
 using System.Collections.Generic;
 
 // READ DTOs
-public record CardPrintingDto(int Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
-public record CardDto(int Id, string Game, string Name, string CardType, string? Description, List<CardPrintingDto> Printings);
+public record CardPrintingDto(
+    int Id,
+    string Set,
+    string Number,
+    string Rarity,
+    string Style,
+    string? ImageUrl
+);
+public record CardDto(
+    int Id,
+    string Game,
+    string Name,
+    string CardType,
+    string? Description,
+    List<CardPrintingDto> Printings
+);
 
 // WRITE DTOs
 public record CreateCardPrintingDto(string Set, string Number, string Rarity, string Style, string? ImageUrl);

@@ -6,23 +6,47 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-public record DeckDto(int Id, int UserId, string Game, string Name, string? Description);
-public record CreateDeckDto(string Game, string Name, string? Description);
-public record UpdateDeckDto(string Game, string Name, string? Description);
-
+public record DeckDto(
+    int Id,
+    int UserId,
+    string Game,
+    string Name,
+    string? Description);
+public record CreateDeckDto(
+    string Game,
+    string Name,
+    string? Description
+);
+public record UpdateDeckDto(
+    string Game,
+    string Name,
+    string? Description
+);
 public record DeckCardItemDto(
     int CardPrintingId,
     int QuantityInDeck,
     int QuantityIdea,
     int QuantityAcquire,
+    int QuantityProxy,
     string CardName,
     string Set,
     string Number,
     string Rarity,
     string Style
 );
-public record UpsertDeckCardDto(int CardPrintingId, int QuantityInDeck, int QuantityIdea, int QuantityAcquire);
-public record SetDeckCardQuantitiesDto(int QuantityInDeck, int QuantityIdea, int QuantityAcquire);
+public record UpsertDeckCardDto(
+    int CardPrintingId,
+    int QuantityInDeck,
+    int QuantityIdea,
+    int QuantityAcquire,
+    int QuantityProxy
+);
+public record SetDeckCardQuantitiesDto(
+    int QuantityInDeck,
+    int QuantityIdea,
+    int QuantityAcquire,
+    int QuantityProxy
+);
 
 namespace api.Controllers
 {
@@ -44,7 +68,14 @@ namespace api.Controllers
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
             var decks = await _db.Decks.Where(d => d.UserId == userId)
-                .Select(d => new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description))
+                .Select(d => new DeckDto(
+                    d.Id,
+                    d.UserId,
+                    d.Game,
+                    d.Name,
+                    d.Description
+                )
+            )
                 .ToListAsync();
             return Ok(decks);
         }
@@ -59,11 +90,25 @@ namespace api.Controllers
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
 
-            var deck = new Deck { UserId = userId, Game = dto.Game.Trim(), Name = dto.Name.Trim(), Description = dto.Description };
+            var deck = new Deck {
+                UserId = userId,
+                Game = dto.Game.Trim(),
+                Name = dto.Name.Trim(),
+                Description = dto.Description
+            };
             _db.Decks.Add(deck);
             await _db.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetDeck), new { deckId = deck.Id }, new DeckDto(deck.Id, deck.UserId, deck.Game, deck.Name, deck.Description));
+            return CreatedAtAction(nameof(GetDeck),
+                new { deckId = deck.Id },
+                new DeckDto(
+                    deck.Id,
+                    deck.UserId,
+                    deck.Game,
+                    deck.Name,
+                    deck.Description
+                )
+            );
         }
 
         // ----- Deck metadata --------------------------------------------------
@@ -144,6 +189,7 @@ namespace api.Controllers
                     dc.QuantityInDeck,
                     dc.QuantityIdea,
                     dc.QuantityAcquire,
+                    dc.QuantityProxy,
                     dc.CardPrinting.Card.Name,
                     dc.CardPrinting.Set,
                     dc.CardPrinting.Number,
@@ -179,7 +225,8 @@ namespace api.Controllers
                     CardPrintingId = dto.CardPrintingId,
                     QuantityInDeck = Math.Max(0, dto.QuantityInDeck),
                     QuantityIdea = Math.Max(0, dto.QuantityIdea),
-                    QuantityAcquire = Math.Max(0, dto.QuantityAcquire)
+                    QuantityAcquire = Math.Max(0, dto.QuantityAcquire),
+                    QuantityProxy = Math.Max(0, dto.QuantityProxy)
                 });
             }
             else
@@ -187,6 +234,7 @@ namespace api.Controllers
                 existing.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
                 existing.QuantityIdea = Math.Max(0, dto.QuantityIdea);
                 existing.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
+                existing.QuantityProxy = Math.Max(0, dto.QuantityProxy);
             }
 
             await _db.SaveChangesAsync();
@@ -204,6 +252,7 @@ namespace api.Controllers
             dc.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
             dc.QuantityIdea = Math.Max(0, dto.QuantityIdea);
             dc.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
+            dc.QuantityProxy = Math.Max(0, dto.QuantityProxy);
             await _db.SaveChangesAsync();
             return NoContent();
         }
@@ -219,6 +268,7 @@ namespace api.Controllers
             if (updates.TryGetProperty("quantityInDeck", out var qd) && qd.TryGetInt32(out var v1)) dc.QuantityInDeck = Math.Max(0, v1);
             if (updates.TryGetProperty("quantityIdea", out var qi) && qi.TryGetInt32(out var v2)) dc.QuantityIdea = Math.Max(0, v2);
             if (updates.TryGetProperty("quantityAcquire", out var qa) && qa.TryGetInt32(out var v3)) dc.QuantityAcquire = Math.Max(0, v3);
+            if (updates.TryGetProperty("quantityProxy", out var qp) && qp.TryGetInt32(out var v4)) dc.QuantityProxy = Math.Max(0, v4);
 
             await _db.SaveChangesAsync();
             return NoContent();

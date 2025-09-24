@@ -7,10 +7,22 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Text.Json;
 
-public record UserDto(int Id, string Username, string DisplayName, bool IsAdmin);
-public record CreateUserDto(string Username, string DisplayName, bool IsAdmin);
-public record UpdateUserDto(string Username, string DisplayName, bool IsAdmin);
-
+public record UserDto(
+    int Id,
+    string Username,
+    string DisplayName,
+    bool IsAdmin
+);
+public record CreateUserDto(
+    string Username,
+    string DisplayName,
+    bool IsAdmin
+);
+public record UpdateUserDto(
+    string Username,
+    string DisplayName,
+    bool IsAdmin
+);
 
 namespace api.Controllers
 {

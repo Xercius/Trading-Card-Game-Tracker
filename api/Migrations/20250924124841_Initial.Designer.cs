@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251010120000_UserCardRestrictDelete")]
-    partial class UserCardRestrictDelete
+    [Migration("20250924124841_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -94,6 +94,7 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Game")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -182,6 +183,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityOwned")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityProxyOwned")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityWanted")

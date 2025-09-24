@@ -12,6 +12,7 @@ public record UserCardItemDto(
     int CardPrintingId,
     int QuantityOwned,
     int QuantityWanted,
+    int QuantityProxyOwned,
     int CardId,
     string CardName,
     string Game,
@@ -21,10 +22,18 @@ public record UserCardItemDto(
     string Style,
     string? ImageUrl
 );
-
 // WRITE DTOs
-public record UpsertUserCardDto(int CardPrintingId, int QuantityOwned, int QuantityWanted);
-public record SetQuantitiesDto(int QuantityOwned, int QuantityWanted);
+public record UpsertUserCardDto(
+    int CardPrintingId,
+    int QuantityOwned,
+    int QuantityWanted,
+    int QuantityProxyOwned
+);
+public record SetQuantitiesDto(
+    int QuantityOwned,
+    int QuantityWanted,
+    int QuantityProxyOwned
+);
 
 namespace api.Controllers
 {
@@ -55,6 +64,7 @@ namespace api.Controllers
                     uc.CardPrintingId,
                     uc.QuantityOwned,
                     uc.QuantityWanted,
+                    uc.QuantityProxyOwned,
                     uc.CardPrinting.CardId,
                     uc.CardPrinting.Card.Name,
                     uc.CardPrinting.Card.Game,
@@ -88,13 +98,15 @@ namespace api.Controllers
                     UserId = userId,
                     CardPrintingId = dto.CardPrintingId,
                     QuantityOwned = Math.Max(0, dto.QuantityOwned),
-                    QuantityWanted = Math.Max(0, dto.QuantityWanted)
+                    QuantityWanted = Math.Max(0, dto.QuantityWanted),
+                    QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
                 });
             }
             else
             {
                 existing.QuantityOwned = Math.Max(0, dto.QuantityOwned);
                 existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
+                existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
             }
 
             await _db.SaveChangesAsync();
@@ -112,6 +124,7 @@ namespace api.Controllers
 
             uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
             uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
+            uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
             await _db.SaveChangesAsync();
             return NoContent();
         }
@@ -130,6 +143,8 @@ namespace api.Controllers
 
             if (updates.TryGetProperty("quantityWanted", out var qw) && qw.TryGetInt32(out var wanted))
                 uc.QuantityWanted = Math.Max(0, wanted);
+            if (updates.TryGetProperty("quantityProxyOwned", out var qpo) && qpo.TryGetInt32(out var proxyOwned))
+                uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
 
             await _db.SaveChangesAsync();
             return NoContent();

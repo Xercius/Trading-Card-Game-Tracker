@@ -75,7 +75,7 @@ namespace api.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 120, nullable: false),
-                    Game = table.Column<string>(type: "TEXT", nullable: true),
+                    Game = table.Column<string>(type: "TEXT", nullable: false),
                     Description = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedUtc = table.Column<DateTime>(type: "TEXT", nullable: true)
@@ -98,7 +98,8 @@ namespace api.Migrations
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
                     QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false)
+                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false),
+                    QuantityProxyOwned = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -108,7 +109,7 @@ namespace api.Migrations
                         column: x => x.CardPrintingId,
                         principalTable: "CardPrintings",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_UserCards_Users_UserId",
                         column: x => x.UserId,
