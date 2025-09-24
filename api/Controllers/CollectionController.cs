@@ -4,6 +4,7 @@ using api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
@@ -34,6 +35,12 @@ public record SetQuantitiesDto(
     int QuantityWanted,
     int QuantityProxyOwned
 );
+public record CollectionDeltaDto(
+    int CardPrintingId,
+    int DeltaOwned,
+    int DeltaWanted,
+    int DeltaProxyOwned
+);
 
 namespace api.Controllers
 {
@@ -45,6 +52,7 @@ namespace api.Controllers
         private readonly AppDbContext _db;
         public CollectionController(AppDbContext db) => _db = db;
 
+        // TODO: Derive the current user ID from the auth context instead of relying on the userId route parameter.
         private bool UserMismatch(int userId)
         {
             var me = HttpContext.GetCurrentUser();
@@ -52,14 +60,37 @@ namespace api.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserCardItemDto>>> GetAll(int userId)
+        public async Task<ActionResult<IEnumerable<UserCardItemDto>>> GetAll(
+            int userId,
+            [FromQuery] string? game,
+            [FromQuery] string? set,
+            [FromQuery] string? rarity,
+            [FromQuery] string? name,
+            [FromQuery] int? cardPrintingId)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
 
-            var rows = await _db.UserCards
+            var query = _db.UserCards
                 .Where(uc => uc.UserId == userId)
                 .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(game))
+                query = query.Where(uc => uc.CardPrinting.Card.Game == game);
+            if (!string.IsNullOrWhiteSpace(set))
+                query = query.Where(uc => uc.CardPrinting.Set == set);
+            if (!string.IsNullOrWhiteSpace(rarity))
+                query = query.Where(uc => uc.CardPrinting.Rarity == rarity);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var loweredName = name.ToLower();
+                query = query.Where(uc => uc.CardPrinting.Card.Name.ToLower().Contains(loweredName));
+            }
+            if (cardPrintingId.HasValue)
+                query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
+
+            var rows = await query
                 .Select(uc => new UserCardItemDto(
                     uc.CardPrintingId,
                     uc.QuantityOwned,
@@ -145,6 +176,60 @@ namespace api.Controllers
                 uc.QuantityWanted = Math.Max(0, wanted);
             if (updates.TryGetProperty("quantityProxyOwned", out var qpo) && qpo.TryGetInt32(out var proxyOwned))
                 uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
+
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // Issue 7 delta add/remove endpoint
+        [HttpPost("delta")]
+        public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<CollectionDeltaDto> deltas)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (deltas is null) return BadRequest("Deltas payload required.");
+            if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+
+            var deltaList = deltas.ToList();
+            if (deltaList.Any(d => d.CardPrintingId <= 0))
+                return BadRequest("CardPrintingId must be positive.");
+
+            if (deltaList.Count == 0)
+                return NoContent();
+
+            var printingIds = deltaList.Select(d => d.CardPrintingId).Distinct().ToList();
+            var existingPrintings = await _db.CardPrintings
+                .Where(cp => printingIds.Contains(cp.Id))
+                .Select(cp => cp.Id)
+                .ToListAsync();
+
+            var missingPrintingId = printingIds.FirstOrDefault(id => !existingPrintings.Contains(id));
+            if (missingPrintingId != 0)
+                return NotFound($"CardPrinting {missingPrintingId} not found.");
+
+            var userCards = await _db.UserCards
+                .Where(uc => uc.UserId == userId && printingIds.Contains(uc.CardPrintingId))
+                .ToDictionaryAsync(uc => uc.CardPrintingId);
+
+            foreach (var delta in deltaList)
+            {
+                if (!userCards.TryGetValue(delta.CardPrintingId, out var userCard))
+                {
+                    userCard = new UserCard
+                    {
+                        UserId = userId,
+                        CardPrintingId = delta.CardPrintingId,
+                        QuantityOwned = 0,
+                        QuantityWanted = 0,
+                        QuantityProxyOwned = 0
+                    };
+                    _db.UserCards.Add(userCard);
+                    userCards[delta.CardPrintingId] = userCard;
+                }
+
+                userCard.QuantityOwned = Math.Max(0, userCard.QuantityOwned + delta.DeltaOwned);
+                userCard.QuantityWanted = Math.Max(0, userCard.QuantityWanted + delta.DeltaWanted);
+                userCard.QuantityProxyOwned = Math.Max(0, userCard.QuantityProxyOwned + delta.DeltaProxyOwned);
+            }
 
             await _db.SaveChangesAsync();
             return NoContent();
