@@ -10,6 +10,7 @@ namespace api.Models
 
         public int QuantityOwned { get; set; }
         public int QuantityWanted { get; set; }
+        public int QuantityProxyOwned { get; set; }
 
         public User User { get; set; } = null!;
         public CardPrinting CardPrinting { get; set; } = null!;

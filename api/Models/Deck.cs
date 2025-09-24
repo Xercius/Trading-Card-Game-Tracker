@@ -7,7 +7,7 @@ namespace api.Models
         [Required] public int UserId { get; set; }
         public User? User { get; set; }
         [Required, MaxLength(120)] public string Name { get; set; } = "";
-        public string? Game { get; set; }
+        public required string Game { get; set; }
         public string? Description { get; set; }
 
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;

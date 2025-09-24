@@ -91,6 +91,7 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Game")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -179,6 +180,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityOwned")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantityProxyOwned")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityWanted")
