@@ -44,7 +44,9 @@ public sealed class FabDbImporter : ISourceImporter
             using var resp = await _http.GetAsync($"cards?set={options.SetCode}&page={page}", ct);
             resp.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            var data = doc.RootElement.TryGetProperty("data", out var arr) && arr.ValueKind == JsonValueKind.Array ? arr.EnumerateArray().ToList() : new();
+            var data = doc.RootElement.TryGetProperty("data", out var arr) && arr.ValueKind == JsonValueKind.Array
+                ? arr.EnumerateArray().Select(e => e.Clone()).ToList()
+                : new();
             if (data.Count == 0) break;
             all.AddRange(data);
             if (!doc.RootElement.TryGetProperty("links", out var links) || !links.TryGetProperty("next", out var next) || next.ValueKind == JsonValueKind.Null) break;
@@ -122,7 +124,8 @@ public sealed class FabDbImporter : ISourceImporter
         }, J);
 
         // Upsert Card by (Game, Name)
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
+            ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         if (card is null)
         {
             card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson };
