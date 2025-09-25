@@ -80,7 +80,8 @@ public sealed class ScryfallImporter : ISourceImporter
         string? desc = BuildRulesText(c);
 
         // Find or create Card by (Game, Name)
-        var card = await _db.Cards.Where(x => x.Game == game && x.Name == name).FirstOrDefaultAsync(ct);
+        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
+            ?? await _db.Cards.Where(x => x.Game == game && x.Name == name).FirstOrDefaultAsync(ct);
         if (card is null)
         {
             card = new Card { Game = game, Name = name, CardType = cardType, Description = desc };
