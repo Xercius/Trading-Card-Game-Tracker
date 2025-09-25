@@ -18,6 +18,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.Scryfall
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwccgdbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.LorcanaJsonImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwuDbImporter>();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.PokemonTcgImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 
