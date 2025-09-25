@@ -1,0 +1,26 @@
+using api.Data;
+
+namespace api.Importing;
+
+public sealed class DummyImporter : ISourceImporter
+{
+    private readonly AppDbContext _db;
+    public DummyImporter(AppDbContext db) => _db = db;
+    public string Key => "dummy";
+
+    public Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
+        => ImportFromFileAsync(Stream.Null, options, ct);
+
+    public async Task<ImportSummary> ImportFromFileAsync(Stream _, ImportOptions options, CancellationToken ct = default)
+    {
+        return await _db.WithDryRunAsync(options.DryRun, async () =>
+        {
+            // no-op example; replace with real creates/updates, then _db.SaveChanges();
+            await Task.CompletedTask;
+            return new ImportSummary(Key, options.DryRun, 0, 0, 0, 0, 0)
+            {
+                Messages = { "Dummy importer ran" }
+            };
+        });
+    }
+}
