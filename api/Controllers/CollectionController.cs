@@ -47,12 +47,12 @@ namespace api.Controllers
     [ApiController]
     [RequireUserHeader]
     [Route("api/user/{userId:int}/collection")]
+    // TODO: Derive the current user ID from the auth context instead of relying on the userId route parameter.
     public class CollectionController : ControllerBase
     {
         private readonly AppDbContext _db;
         public CollectionController(AppDbContext db) => _db = db;
 
-        // TODO: Derive the current user ID from the auth context instead of relying on the userId route parameter.
         private bool UserMismatch(int userId)
         {
             var me = HttpContext.GetCurrentUser();
@@ -130,6 +130,7 @@ namespace api.Controllers
                     CardPrintingId = dto.CardPrintingId,
                     QuantityOwned = Math.Max(0, dto.QuantityOwned),
                     QuantityWanted = Math.Max(0, dto.QuantityWanted),
+                    // Issue 9: proxy quantities clamped ≥ 0
                     QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
                 });
             }
@@ -137,6 +138,7 @@ namespace api.Controllers
             {
                 existing.QuantityOwned = Math.Max(0, dto.QuantityOwned);
                 existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
+                // Issue 9: proxy quantities clamped ≥ 0
                 existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
             }
 
@@ -155,6 +157,7 @@ namespace api.Controllers
 
             uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
             uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
+            // Issue 9: proxy quantities clamped ≥ 0
             uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
             await _db.SaveChangesAsync();
             return NoContent();
@@ -175,6 +178,7 @@ namespace api.Controllers
             if (updates.TryGetProperty("quantityWanted", out var qw) && qw.TryGetInt32(out var wanted))
                 uc.QuantityWanted = Math.Max(0, wanted);
             if (updates.TryGetProperty("quantityProxyOwned", out var qpo) && qpo.TryGetInt32(out var proxyOwned))
+                // Issue 9: proxy quantities clamped ≥ 0
                 uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
 
             await _db.SaveChangesAsync();
@@ -228,6 +232,7 @@ namespace api.Controllers
 
                 userCard.QuantityOwned = Math.Max(0, userCard.QuantityOwned + delta.DeltaOwned);
                 userCard.QuantityWanted = Math.Max(0, userCard.QuantityWanted + delta.DeltaWanted);
+                // Issue 9: proxy quantities clamped ≥ 0
                 userCard.QuantityProxyOwned = Math.Max(0, userCard.QuantityProxyOwned + delta.DeltaProxyOwned);
             }
 
