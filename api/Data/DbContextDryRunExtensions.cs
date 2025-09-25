@@ -1,3 +1,5 @@
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace api.Data;
@@ -12,8 +14,19 @@ public static class DbContextDryRunExtensions
     {
         await using IDbContextTransaction tx = await db.Database.BeginTransactionAsync();
         T result = await work();
-        if (dryRun) await tx.RollbackAsync();
-        else await tx.CommitAsync();
+
+        if (dryRun)
+        {
+            await tx.RollbackAsync();
+            foreach (var entry in db.ChangeTracker.Entries().ToList())
+            {
+                entry.State = EntityState.Detached;
+            }
+        }
+        else
+        {
+            await tx.CommitAsync();
+        }
         return result;
     }
 }
