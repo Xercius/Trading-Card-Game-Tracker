@@ -87,7 +87,8 @@ public sealed class SwuDbImporter : ISourceImporter
                          ?? source.FrontImage
                          ?? (source.Leader == true ? source.ImageFront : null);
 
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
+                   ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         var cardJson = JsonSerializer.Serialize(new
         {
             source.Subtitle,
