@@ -1,6 +1,7 @@
 ﻿using api.Data;
 using api.Middleware;
 using api.Models;
+using api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -41,17 +42,27 @@ public record CollectionDeltaDto(
     int DeltaWanted,
     int DeltaProxyOwned
 );
+public record DeltaUserCardDto(
+    int CardPrintingId,
+    int DeltaOwned,
+    int DeltaWanted,
+    int DeltaProxyOwned
+);
 
 namespace api.Controllers
 {
     [ApiController]
     [RequireUserHeader]
     [Route("api/user/{userId:int}/collection")]
-    // TODO: Derive the current user ID from the auth context instead of relying on the userId route parameter.
+    // TODO: Eventually remove legacy userId routes after clients migrate to /api/collection.
     public class CollectionController : ControllerBase
     {
         private readonly AppDbContext _db;
         public CollectionController(AppDbContext db) => _db = db;
+
+        // -----------------------------
+        // Helpers
+        // -----------------------------
 
         private bool UserMismatch(int userId)
         {
@@ -59,16 +70,25 @@ namespace api.Controllers
             return me is null || (!me.IsAdmin && me.Id != userId);
         }
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserCardItemDto>>> GetAll(
-            int userId,
-            [FromQuery] string? game,
-            [FromQuery] string? set,
-            [FromQuery] string? rarity,
-            [FromQuery] string? name,
-            [FromQuery] int? cardPrintingId)
+        private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            var me = HttpContext.GetCurrentUser();
+            if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+            error = null; userId = me.Id; return true;
+        }
+
+        // -----------------------------
+        // Core (single source of logic)
+        // -----------------------------
+
+        private async Task<IActionResult> GetAllCore(
+            int userId,
+            string? game,
+            string? set,
+            string? rarity,
+            string? name,
+            int? cardPrintingId)
+        {
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
 
             var query = _db.UserCards
@@ -110,11 +130,9 @@ namespace api.Controllers
             return Ok(rows);
         }
 
-        // Upsert one entry
-        [HttpPost]
-        public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardDto dto)
+        private async Task<IActionResult> UpsertCore(int userId, UpsertUserCardDto dto)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (dto is null) return BadRequest();
             if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
             if (await _db.Users.FindAsync(userId) is null) return NotFound("User not found.");
             if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
@@ -130,7 +148,6 @@ namespace api.Controllers
                     CardPrintingId = dto.CardPrintingId,
                     QuantityOwned = Math.Max(0, dto.QuantityOwned),
                     QuantityWanted = Math.Max(0, dto.QuantityWanted),
-                    // Issue 9: proxy quantities clamped ≥ 0
                     QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
                 });
             }
@@ -138,7 +155,6 @@ namespace api.Controllers
             {
                 existing.QuantityOwned = Math.Max(0, dto.QuantityOwned);
                 existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
-                // Issue 9: proxy quantities clamped ≥ 0
                 existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
             }
 
@@ -146,28 +162,22 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // Set owned, wanted, and proxy quantities in one request
-        [HttpPut("{cardPrintingId:int}")]
-        public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetQuantitiesDto dto)
+        private async Task<IActionResult> SetQuantitiesCore(int userId, int cardPrintingId, SetQuantitiesDto dto)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             var uc = await _db.UserCards
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();
 
             uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
             uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
-            // Issue 9: proxy quantities clamped ≥ 0
             uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
+
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // Partial update
-        [HttpPatch("{cardPrintingId:int}")]
-        public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
+        private async Task<IActionResult> PatchQuantitiesCore(int userId, int cardPrintingId, JsonElement updates)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             var uc = await _db.UserCards
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();
@@ -177,80 +187,173 @@ namespace api.Controllers
 
             if (updates.TryGetProperty("quantityWanted", out var qw) && qw.TryGetInt32(out var wanted))
                 uc.QuantityWanted = Math.Max(0, wanted);
+
             if (updates.TryGetProperty("quantityProxyOwned", out var qpo) && qpo.TryGetInt32(out var proxyOwned))
-                // Issue 9: proxy quantities clamped ≥ 0
                 uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
 
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // Issue 7 delta add/remove endpoint
-        [HttpPost("delta")]
-        public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<CollectionDeltaDto> deltas)
+        private async Task<IActionResult> ApplyDeltaCore(int userId, IEnumerable<DeltaUserCardDto> deltas)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (deltas is null) return BadRequest("Deltas payload required.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
 
             var deltaList = deltas.ToList();
+            if (deltaList.Count == 0) return NoContent();
             if (deltaList.Any(d => d.CardPrintingId <= 0))
                 return BadRequest("CardPrintingId must be positive.");
 
-            if (deltaList.Count == 0)
-                return NoContent();
-
             var printingIds = deltaList.Select(d => d.CardPrintingId).Distinct().ToList();
-            var existingPrintings = await _db.CardPrintings
+            var validIds = await _db.CardPrintings
                 .Where(cp => printingIds.Contains(cp.Id))
                 .Select(cp => cp.Id)
                 .ToListAsync();
 
-            var missingPrintingId = printingIds.FirstOrDefault(id => !existingPrintings.Contains(id));
-            if (missingPrintingId != 0)
-                return NotFound($"CardPrinting {missingPrintingId} not found.");
+            var missing = printingIds.FirstOrDefault(id => !validIds.Contains(id));
+            if (missing != 0) return NotFound($"CardPrinting not found: {missing}");
 
-            var userCards = await _db.UserCards
+            var map = await _db.UserCards
                 .Where(uc => uc.UserId == userId && printingIds.Contains(uc.CardPrintingId))
                 .ToDictionaryAsync(uc => uc.CardPrintingId);
 
-            foreach (var delta in deltaList)
+            foreach (var d in deltaList)
             {
-                if (!userCards.TryGetValue(delta.CardPrintingId, out var userCard))
+                if (!map.TryGetValue(d.CardPrintingId, out var row))
                 {
-                    userCard = new UserCard
+                    row = new UserCard
                     {
                         UserId = userId,
-                        CardPrintingId = delta.CardPrintingId,
+                        CardPrintingId = d.CardPrintingId,
                         QuantityOwned = 0,
                         QuantityWanted = 0,
                         QuantityProxyOwned = 0
                     };
-                    _db.UserCards.Add(userCard);
-                    userCards[delta.CardPrintingId] = userCard;
+                    _db.UserCards.Add(row);
+                    map[d.CardPrintingId] = row;
                 }
 
-                userCard.QuantityOwned = Math.Max(0, userCard.QuantityOwned + delta.DeltaOwned);
-                userCard.QuantityWanted = Math.Max(0, userCard.QuantityWanted + delta.DeltaWanted);
-                // Issue 9: proxy quantities clamped ≥ 0
-                userCard.QuantityProxyOwned = Math.Max(0, userCard.QuantityProxyOwned + delta.DeltaProxyOwned);
+                row.QuantityOwned = Math.Max(0, row.QuantityOwned + d.DeltaOwned);
+                row.QuantityWanted = Math.Max(0, row.QuantityWanted + d.DeltaWanted);
+                row.QuantityProxyOwned = Math.Max(0, row.QuantityProxyOwned + d.DeltaProxyOwned);
             }
 
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
+        private async Task<IActionResult> RemoveCore(int userId, int cardPrintingId)
+        {
+            var uc = await _db.UserCards
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
+            if (uc is null) return NotFound();
+            _db.UserCards.Remove(uc);
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // -----------------------------------------
+        // Legacy routes (userId in the URL)
+        // -----------------------------------------
+
+        [HttpGet]
+        public async Task<IActionResult> GetAll(
+            int userId,
+            [FromQuery] string? game,
+            [FromQuery] string? set,
+            [FromQuery] string? rarity,
+            [FromQuery] string? name,
+            [FromQuery] int? cardPrintingId)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await GetAllCore(userId, game, set, rarity, name, cardPrintingId);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardDto dto)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await UpsertCore(userId, dto);
+        }
+
+        [HttpPut("{cardPrintingId:int}")]
+        public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetQuantitiesDto dto)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await SetQuantitiesCore(userId, cardPrintingId, dto);
+        }
+
+        [HttpPatch("{cardPrintingId:int}")]
+        public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await PatchQuantitiesCore(userId, cardPrintingId, updates);
+        }
+
+        [HttpPost("delta")]
+        public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardDto> deltas)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await ApplyDeltaCore(userId, deltas);
+        }
+
         [HttpDelete("{cardPrintingId:int}")]
         public async Task<IActionResult> Remove(int userId, int cardPrintingId)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-            var uc = await _db.UserCards
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-            if (uc is null) return NotFound();
+            return await RemoveCore(userId, cardPrintingId);
+        }
 
-            _db.UserCards.Remove(uc);
-            await _db.SaveChangesAsync();
-            return NoContent();
+        // -----------------------------------------
+        // Auth-derived alias routes (/api/collection)
+        // -----------------------------------------
+
+        [HttpGet("/api/collection")]
+        public async Task<IActionResult> GetAllForCurrent(
+            [FromQuery] string? game,
+            [FromQuery] string? set,
+            [FromQuery] string? rarity,
+            [FromQuery] string? name,
+            [FromQuery] int? cardPrintingId)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await GetAllCore(uid, game, set, rarity, name, cardPrintingId);
+        }
+
+        [HttpPost("/api/collection")]
+        public async Task<IActionResult> UpsertForCurrent([FromBody] UpsertUserCardDto dto)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await UpsertCore(uid, dto);
+        }
+
+        [HttpPut("/api/collection/{cardPrintingId:int}")]
+        public async Task<IActionResult> SetQuantitiesForCurrent(int cardPrintingId, [FromBody] SetQuantitiesDto dto)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await SetQuantitiesCore(uid, cardPrintingId, dto);
+        }
+
+        [HttpPatch("/api/collection/{cardPrintingId:int}")]
+        public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement updates)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await PatchQuantitiesCore(uid, cardPrintingId, updates);
+        }
+
+        [HttpPost("/api/collection/delta")]
+        public async Task<IActionResult> ApplyDeltaForCurrent([FromBody] IEnumerable<DeltaUserCardDto> deltas)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await ApplyDeltaCore(uid, deltas);
+        }
+
+        [HttpDelete("/api/collection/{cardPrintingId:int}")]
+        public async Task<IActionResult> RemoveForCurrent(int cardPrintingId)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await RemoveCore(uid, cardPrintingId);
         }
     }
 }
