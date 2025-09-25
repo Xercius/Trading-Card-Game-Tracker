@@ -146,7 +146,7 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // Set both quantities
+        // Set owned, wanted, and proxy quantities in one request
         [HttpPut("{cardPrintingId:int}")]
         public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetQuantitiesDto dto)
         {
