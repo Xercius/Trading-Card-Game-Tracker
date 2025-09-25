@@ -27,98 +27,212 @@ public record UpdateUserDto(
 namespace api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [RequireUserHeader]
+    // Legacy, userId-in-route endpoints kept for compatibility:
+    [Route("api/user/{userId:int}")]
     public class UserController : ControllerBase
     {
         private readonly AppDbContext _db;
         public UserController(AppDbContext db) => _db = db;
 
-        [HttpGet]
-        [AdminGuard]
-        public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
-            => Ok(await _db.Users.Select(u => new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin)).ToListAsync());
+        // -----------------------------
+        // Helpers
+        // -----------------------------
 
-        [HttpGet("{id:int}")]
-        [RequireUserHeader]
-        public async Task<ActionResult<UserDto>> GetOne(int id)
+        private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
         {
-            var u = await _db.Users.FindAsync(id);
-            return u is null ? NotFound() : Ok(new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin));
+            var me = HttpContext.GetCurrentUser();
+            if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+            error = null; userId = me.Id; return true;
         }
 
-        [HttpPost]
-        [AdminGuard]
-        public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
+        private bool UserMismatch(int userId)
         {
-            if (string.IsNullOrWhiteSpace(dto.Username)) return BadRequest("Username required.");
-            if (await _db.Users.AnyAsync(x => x.Username == dto.Username)) return Conflict("Username exists.");
-
-            var u = new User { Username = dto.Username, DisplayName = dto.DisplayName, IsAdmin = dto.IsAdmin };
-            _db.Users.Add(u);
-            await _db.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetOne), new { id = u.Id }, new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin));
+            var me = HttpContext.GetCurrentUser();
+            return me is null || (!me.IsAdmin && me.Id != userId);
         }
 
-        [HttpPut("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
+        private bool NotAdmin()
         {
-            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+            var me = HttpContext.GetCurrentUser();
+            return me is null || !me.IsAdmin;
+        }
+
+        // -----------------------------
+        // Core (single source of truth)
+        // -----------------------------
+
+        private async Task<IActionResult> GetUserCore(int userId)
+        {
+            var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
             if (u is null) return NotFound();
-            if (string.IsNullOrWhiteSpace(dto.Username)) return BadRequest("Username required.");
-            if (await _db.Users.AnyAsync(x => x.Username == dto.Username && x.Id != id)) return Conflict("Username exists.");
+            return Ok(new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin));
+        }
 
-            u.Username = dto.Username;
-            u.DisplayName = dto.DisplayName;
-            u.IsAdmin = dto.IsAdmin;
+        private async Task<IActionResult> PatchUserCore(int userId, JsonElement updates)
+        {
+            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
+            if (u is null) return NotFound();
+
+            if (updates.TryGetProperty("userName", out var n) && n.ValueKind == JsonValueKind.String)
+                u.Username = n.GetString()!.Trim();
+
+            if (updates.TryGetProperty("email", out var e) && e.ValueKind == JsonValueKind.String)
+                u.DisplayName = e.GetString()!.Trim();
+
+            // IsAdmin changes are admin-only; handled via dedicated admin endpoints.
+
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        [HttpPatch("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
+        private async Task<IActionResult> PutUserCore(int userId, UpdateUserDto dto)
         {
-            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+            if (dto is null) return BadRequest();
+
+            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
             if (u is null) return NotFound();
 
-            if (updates.TryGetProperty("username", out var un) && un.ValueKind == JsonValueKind.String)
-            {
-                var name = un.GetString()!;
-                if (string.IsNullOrWhiteSpace(name)) return BadRequest("Username required.");
-                if (await _db.Users.AnyAsync(x => x.Username == name && x.Id != id)) return Conflict("Username exists.");
-                u.Username = name;
-            }
-            if (updates.TryGetProperty("displayName", out var dn) && dn.ValueKind == JsonValueKind.String)
-            {
-                var v = dn.GetString()!;
-                if (string.IsNullOrWhiteSpace(v)) return BadRequest("DisplayName required.");
-                u.DisplayName = v;
-            }
-            if (updates.TryGetProperty("isAdmin", out var ia) ||
-                updates.TryGetProperty("IsAdmin", out ia))
-            {
-                if (ia.ValueKind == JsonValueKind.True || ia.ValueKind == JsonValueKind.False)
-                    u.IsAdmin = ia.GetBoolean();
-                else if (ia.ValueKind == JsonValueKind.Number && ia.TryGetInt32(out var n))
-                    u.IsAdmin = n != 0;
-                else
-                    return BadRequest("isAdmin must be boolean.");
-            }
+            u.Username = dto.Username?.Trim() ?? u.Username;
+            u.DisplayName = dto.DisplayName?.Trim() ?? u.DisplayName;
 
-        await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        [HttpDelete("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Delete(int id)
+        // Admin-only: list users
+        private async Task<IActionResult> ListUsersCore(string? name, string? email, bool? isAdmin)
         {
-            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == id);
+            if (NotAdmin()) return StatusCode(403, "Admin required.");
+
+            var q = _db.Users.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var n = name.Trim();
+                q = q.Where(u => u.Username!.Contains(n));
+            }
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                var e = email.Trim();
+                q = q.Where(u => u.DisplayName!.Contains(e));
+            }
+            if (isAdmin.HasValue) q = q.Where(u => u.IsAdmin == isAdmin.Value);
+
+            var rows = await q
+                .OrderBy(u => u.Username)
+                .Select(u => new UserDto(u.Id, u.Username, u.DisplayName, u.IsAdmin))
+                .ToListAsync();
+
+            return Ok(rows);
+        }
+
+        // Admin-only: set IsAdmin
+        private async Task<IActionResult> SetAdminCore(int userId, bool isAdmin)
+        {
+            if (NotAdmin()) return StatusCode(403, "Admin required.");
+
+            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
             if (u is null) return NotFound();
+
+            u.IsAdmin = isAdmin;
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // Admin-only: delete user
+        private async Task<IActionResult> DeleteUserCore(int userId)
+        {
+            if (NotAdmin()) return StatusCode(403, "Admin required.");
+
+            var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
+            if (u is null) return NotFound();
+
+            // Optional: cascade checks (collections, decks, etc.) if not configured via FK cascade.
             _db.Users.Remove(u);
             await _db.SaveChangesAsync();
             return NoContent();
         }
+
+        // -----------------------------
+        // Legacy routes (userId in URL)
+        // -----------------------------
+
+        // GET /api/user/{userId}
+        [HttpGet]
+        public async Task<IActionResult> GetUser(int userId)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await GetUserCore(userId);
+        }
+
+        // PATCH /api/user/{userId}
+        [HttpPatch]
+        public async Task<IActionResult> PatchUser(int userId, [FromBody] JsonElement updates)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await PatchUserCore(userId, updates);
+        }
+
+        // PUT /api/user/{userId}
+        [HttpPut]
+        public async Task<IActionResult> PutUser(int userId, [FromBody] UpdateUserDto dto)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await PutUserCore(userId, dto);
+        }
+
+        // Admin: DELETE /api/user/{userId}
+        [HttpDelete]
+        public async Task<IActionResult> DeleteUser(int userId) => await DeleteUserCore(userId);
+
+        // Admin: PUT /api/user/{userId}/admin?value=true|false
+        [HttpPut("admin")]
+        public async Task<IActionResult> SetAdmin(int userId, [FromQuery] bool value = true)
+            => await SetAdminCore(userId, value);
+
+        // -----------------------------
+        // Auth-derived aliases (preferred)
+        // -----------------------------
+
+        // GET /api/user/me
+        [HttpGet("/api/user/me")]
+        public async Task<IActionResult> GetMe()
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await GetUserCore(uid);
+        }
+
+        // PATCH /api/user/me
+        [HttpPatch("/api/user/me")]
+        public async Task<IActionResult> PatchMe([FromBody] JsonElement updates)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await PatchUserCore(uid, updates);
+        }
+
+        // PUT /api/user/me
+        [HttpPut("/api/user/me")]
+        public async Task<IActionResult> PutMe([FromBody] UpdateUserDto dto)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await PutUserCore(uid, dto);
+        }
+
+        // Admin: GET /api/users
+        [HttpGet("/api/users")]
+        public async Task<IActionResult> ListUsers([FromQuery] string? name = null, [FromQuery] string? email = null, [FromQuery] bool? isAdmin = null)
+            => await ListUsersCore(name, email, isAdmin);
+
+        // Admin: PUT /api/users/{userId}/admin?value=true|false
+        [HttpPut("/api/users/{targetUserId:int}/admin")]
+        public async Task<IActionResult> SetAdminById(int targetUserId, [FromQuery] bool value = true)
+            => await SetAdminCore(targetUserId, value);
+
+        // Admin: DELETE /api/users/{userId}
+        [HttpDelete("/api/users/{targetUserId:int}")]
+        public async Task<IActionResult> DeleteUserById(int targetUserId)
+            => await DeleteUserCore(targetUserId);
     }
 }
+
