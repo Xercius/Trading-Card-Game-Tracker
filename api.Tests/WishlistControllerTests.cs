@@ -5,6 +5,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using api.Features.Collections.Dtos;
+using api.Features.Wishlists.Dtos;
 using api.Tests.Fixtures;
 using Xunit;
 
@@ -130,7 +132,7 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
 
         var collectionResponse = await client.GetAsync($"/api/collection?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
         collectionResponse.EnsureSuccessStatusCode();
-        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<CollectionItemDto>>(_jsonOptions);
+        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
         var collectionItem = Assert.Single(collectionItems!);
         Assert.Equal(1, collectionItem.QuantityOwned);
     }
@@ -168,37 +170,11 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task<List<WishlistItemDto>> GetWishlistAsync(HttpClient client, string query)
+    private async Task<List<WishlistItemResponse>> GetWishlistAsync(HttpClient client, string query)
     {
         var response = await client.GetAsync($"/api/wishlist{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemDto>>(_jsonOptions);
-        return payload ?? new List<WishlistItemDto>();
+        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemResponse>>(_jsonOptions);
+        return payload ?? new List<WishlistItemResponse>();
     }
-
-    private sealed record WishlistItemDto(
-        int CardPrintingId,
-        int QuantityWanted,
-        int CardId,
-        string CardName,
-        string Game,
-        string Set,
-        string Number,
-        string Rarity,
-        string Style,
-        string? ImageUrl);
-
-    private sealed record CollectionItemDto(
-        int CardPrintingId,
-        int QuantityOwned,
-        int QuantityWanted,
-        int QuantityProxyOwned,
-        int CardId,
-        string CardName,
-        string Game,
-        string Set,
-        string Number,
-        string Rarity,
-        string Style,
-        string? ImageUrl);
 }
