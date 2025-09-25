@@ -1,0 +1,204 @@
+// Run these tests with `dotnet test` or from Visual Studio Test Explorer.
+// Validates /api/wishlist endpoints and legacy routes via full HTTP calls.
+
+using System.Linq;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using api.Tests.Fixtures;
+using Xunit;
+
+namespace api.Tests;
+
+public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory>
+{
+    private readonly CustomWebApplicationFactory _factory;
+    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public WishlistControllerTests(CustomWebApplicationFactory factory)
+    {
+        _factory = factory;
+    }
+
+    [Fact]
+    public async Task Wishlist_Get_CurrentUser_FiltersWantedOnly()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var items = await GetWishlistAsync(client, string.Empty);
+        Assert.Equal(2, items.Count);
+        Assert.All(items, item => Assert.True(item.QuantityWanted > 0));
+
+        var magicOnly = await GetWishlistAsync(client, "?game=Magic");
+        Assert.Equal(2, magicOnly.Count);
+
+        var filter = await GetWishlistAsync(client, "?name=bolt&set=Beta");
+        var single = Assert.Single(filter);
+        Assert.Equal(TestDataSeeder.LightningBoltBetaPrintingId, single.CardPrintingId);
+
+        var specific = await GetWishlistAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var alpha = Assert.Single(specific);
+        Assert.Equal("Lightning Bolt", alpha.CardName);
+    }
+
+    [Fact]
+    public async Task Wishlist_Post_Upsert_ClampsToZero()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/wishlist",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ElsaPrintingId,
+                quantityWanted = 3
+            });
+        Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
+
+        var created = await GetWishlistAsync(client, $"?cardPrintingId={TestDataSeeder.ElsaPrintingId}");
+        var createdItem = Assert.Single(created);
+        Assert.Equal(3, createdItem.QuantityWanted);
+
+        var updateResponse = await client.PostAsJsonAsync(
+            "/api/wishlist",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ElsaPrintingId,
+                quantityWanted = -2
+            });
+        Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
+
+        var afterUpdate = await GetWishlistAsync(client, $"?cardPrintingId={TestDataSeeder.ElsaPrintingId}");
+        Assert.Empty(afterUpdate);
+    }
+
+    [Fact]
+    public async Task Wishlist_BulkSet_CreatesMissingAndValidates()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+
+        var payload = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.MickeyPrintingId, quantityWanted = 5 },
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, quantityWanted = 2 }
+        };
+
+        var response = await client.PutAsJsonAsync("/api/wishlist", payload);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var items = await GetWishlistAsync(client, string.Empty);
+        Assert.Equal(3, items.Count);
+        var mickey = Assert.Single(items.Where(i => i.CardPrintingId == TestDataSeeder.MickeyPrintingId));
+        Assert.Equal(5, mickey.QuantityWanted);
+        var lightning = Assert.Single(items.Where(i => i.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId));
+        Assert.Equal(2, lightning.QuantityWanted);
+
+        var invalidResponse = await client.PutAsJsonAsync(
+            "/api/wishlist",
+            new[]
+            {
+                new { cardPrintingId = 9999, quantityWanted = 1 }
+            });
+        Assert.Equal(HttpStatusCode.NotFound, invalidResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Wishlist_MoveToCollection_DecrementsWanted_IncrementsOwned()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/wishlist/move-to-collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                quantity = 1,
+                useProxy = false
+            });
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var wishlist = await GetWishlistAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        var item = Assert.Single(wishlist);
+        Assert.Equal(1, item.QuantityWanted);
+
+        var collectionResponse = await client.GetAsync($"/api/collection?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        collectionResponse.EnsureSuccessStatusCode();
+        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<CollectionItemDto>>(_jsonOptions);
+        var collectionItem = Assert.Single(collectionItems!);
+        Assert.Equal(1, collectionItem.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Wishlist_Delete_SetsWantedZeroAndRemovesWhenEmpty()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/wishlist/{TestDataSeeder.MickeyPrintingId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var wishlist = await GetWishlistAsync(client, string.Empty);
+        Assert.DoesNotContain(wishlist, item => item.CardPrintingId == TestDataSeeder.MickeyPrintingId);
+    }
+
+    [Fact]
+    public async Task Wishlist_LegacyRoute_UserMismatch_Returns403()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.GetAsync($"/api/user/{TestDataSeeder.BobUserId}/wishlist");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Wishlist_Endpoints_RequireHeader()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/wishlist");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private async Task<List<WishlistItemDto>> GetWishlistAsync(HttpClient client, string query)
+    {
+        var response = await client.GetAsync($"/api/wishlist{query}");
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemDto>>(_jsonOptions);
+        return payload ?? new List<WishlistItemDto>();
+    }
+
+    private sealed record WishlistItemDto(
+        int CardPrintingId,
+        int QuantityWanted,
+        int CardId,
+        string CardName,
+        string Game,
+        string Set,
+        string Number,
+        string Rarity,
+        string Style,
+        string? ImageUrl);
+
+    private sealed record CollectionItemDto(
+        int CardPrintingId,
+        int QuantityOwned,
+        int QuantityWanted,
+        int QuantityProxyOwned,
+        int CardId,
+        string CardName,
+        string Game,
+        string Set,
+        string Number,
+        string Rarity,
+        string Style,
+        string? ImageUrl);
+}
