@@ -49,4 +49,23 @@ public sealed class AdminImportController : ControllerBase
         var result = await importer.ImportFromRemoteAsync(options, ct);
         return Ok(result);
     }
+
+    /// POST /api/admin/import/lorcana?source=lorcanajson&set=TFC&dryRun=true&limit=500
+    [HttpPost("lorcana")]
+    public async Task<ActionResult<ImportSummary>> ImportLorcana(
+        [FromQuery] string source = "lorcanajson",
+        [FromQuery] string? set = null,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet(source, out var importer))
+            return NotFound(new { error = $"Importer '{source}' not registered." });
+
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id, SetCode: set);
+
+        var result = await importer.ImportFromRemoteAsync(options, ct);
+        return Ok(result);
+    }
 }
