@@ -20,6 +20,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.LorcanaJ
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwuDbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.PokemonTcgImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.FabDbImporter>();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.GuardiansLocalImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 
