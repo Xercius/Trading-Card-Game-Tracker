@@ -31,4 +31,22 @@ public sealed class AdminImportController : ControllerBase
         var result = await importer.ImportFromRemoteAsync(options, ct);
         return Ok(result);
     }
+
+    /// POST /api/admin/import/swccgdb?set=Premiere&dryRun=true&limit=500
+    [HttpPost("swccgdb")]
+    public async Task<ActionResult<ImportSummary>> ImportSwccgdb(
+        [FromQuery] string set,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet("swccgdb", out var importer))
+            return NotFound(new { error = "SWCCGDB importer not registered." });
+
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id, SetCode: set);
+
+        var result = await importer.ImportFromRemoteAsync(options, ct);
+        return Ok(result);
+    }
 }

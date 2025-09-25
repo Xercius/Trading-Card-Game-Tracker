@@ -33,6 +33,9 @@ namespace api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Game")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -56,6 +59,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ImageUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Number")

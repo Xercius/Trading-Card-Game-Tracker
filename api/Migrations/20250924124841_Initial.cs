@@ -20,7 +20,8 @@ namespace api.Migrations
                     Game = table.Column<string>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
                     CardType = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: true)
+                    Description = table.Column<string>(type: "TEXT", nullable: true),
+                    DetailsJson = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -54,7 +55,8 @@ namespace api.Migrations
                     Number = table.Column<string>(type: "TEXT", nullable: false),
                     Rarity = table.Column<string>(type: "TEXT", nullable: false),
                     Style = table.Column<string>(type: "TEXT", nullable: false),
-                    ImageUrl = table.Column<string>(type: "TEXT", nullable: true)
+                    ImageUrl = table.Column<string>(type: "TEXT", nullable: true),
+                    DetailsJson = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
