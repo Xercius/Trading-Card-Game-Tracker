@@ -13,6 +13,7 @@ namespace api.Data
         public DbSet<UserCard> UserCards => Set<UserCard>();
         public DbSet<Deck> Decks => Set<Deck>();
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
+        public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
