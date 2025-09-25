@@ -142,6 +142,43 @@ public sealed class AdminImportController : ControllerBase
         return Ok(result);
     }
 
+    /// POST /api/admin/import/tftcg?set=wave-1&dryRun=true&limit=500
+    [HttpPost("tftcg")]
+    public async Task<ActionResult<ImportSummary>> ImportTransformers(
+        [FromQuery] string set,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet("tftcg", out var importer))
+            return NotFound(new { error = "Transformers importer not registered." });
+
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id, SetCode: set);
+
+        var result = await importer.ImportFromRemoteAsync(options, ct);
+        return Ok(result);
+    }
+
+    /// POST /api/admin/import/tftcg/file?dryRun=true
+    [HttpPost("tftcg/file")]
+    public async Task<ActionResult<ImportSummary>> ImportTransformersFromFile(
+        IFormFile file,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet("tftcg", out var importer))
+            return NotFound(new { error = "Transformers importer not registered." });
+
+        await using var s = file.OpenReadStream();
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id);
+
+        var result = await importer.ImportFromFileAsync(s, options, ct);
+        return Ok(result);
+    }
+
     /// POST /api/admin/import/lorcana?source=lorcanajson&set=TFC&dryRun=true&limit=500
     [HttpPost("lorcana")]
     public async Task<ActionResult<ImportSummary>> ImportLorcana(

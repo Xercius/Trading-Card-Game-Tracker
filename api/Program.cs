@@ -22,6 +22,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.PokemonT
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.FabDbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.GuardiansLocalImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.DiceMastersDbImporter>();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.TransformersFmImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 
