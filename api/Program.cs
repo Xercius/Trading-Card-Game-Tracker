@@ -17,6 +17,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.ScryfallImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwccgdbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.LorcanaJsonImporter>();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwuDbImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 

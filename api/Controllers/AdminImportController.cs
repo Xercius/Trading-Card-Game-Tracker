@@ -32,6 +32,24 @@ public sealed class AdminImportController : ControllerBase
         return Ok(result);
     }
 
+    /// POST /api/admin/import/swu?set=sor&dryRun=true&limit=500
+    [HttpPost("swu")]
+    public async Task<ActionResult<ImportSummary>> ImportSwu(
+        [FromQuery] string set,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet("swu", out var importer))
+            return NotFound(new { error = "SWU importer not registered." });
+
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id, SetCode: set);
+
+        var result = await importer.ImportFromRemoteAsync(options, ct);
+        return Ok(result);
+    }
+
     /// POST /api/admin/import/swccgdb?set=Premiere&dryRun=true&limit=500
     [HttpPost("swccgdb")]
     public async Task<ActionResult<ImportSummary>> ImportSwccgdb(
