@@ -1,6 +1,7 @@
 using api.Filters;
 using api.Importing;
 using api.Middleware;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers;
@@ -120,6 +121,25 @@ public sealed class AdminImportController : ControllerBase
         var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id, SetCode: set);
 
         var result = await importer.ImportFromRemoteAsync(options, ct);
+        return Ok(result);
+    }
+
+    /// POST /api/admin/import/guardians/file?dryRun=true&limit=500
+    [HttpPost("guardians/file")]
+    public async Task<ActionResult<ImportSummary>> ImportGuardiansFromFile(
+        IFormFile file,
+        [FromQuery] bool dryRun = true,
+        [FromQuery] int? limit = null,
+        CancellationToken ct = default)
+    {
+        if (!_registry.TryGet("guardians", out var importer))
+            return NotFound(new { error = "Guardians importer not registered." });
+
+        await using var stream = file.OpenReadStream();
+        var currentUser = HttpContext.GetCurrentUser();
+        var options = new ImportOptions(DryRun: dryRun, Upsert: true, Limit: limit, UserId: currentUser?.Id);
+
+        var result = await importer.ImportFromFileAsync(stream, options, ct);
         return Ok(result);
     }
 }
