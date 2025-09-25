@@ -100,12 +100,21 @@ namespace api.Controllers
             return me is null || (!me.IsAdmin && me.Id != d.UserId);
         }
 
-        private async Task<Deck?> FindDeckOr403(int deckId)
+        private async Task<(Deck? deck, IActionResult? error)> GetDeckForCaller(int deckId)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-            if (d is null) return null;
-            if (NotOwnerAndNotAdmin(d)) return null; // caller not allowed
-            return d;
+            if (d is null) return (null, NotFound());
+            if (NotOwnerAndNotAdmin(d)) return (null, StatusCode(403, "Forbidden"));
+            return (d, null);
+        }
+
+        private static int NN(long v) => v < 0 ? 0 : v > int.MaxValue ? int.MaxValue : (int)v;
+
+        private static bool TryI32(JsonElement e, string a, string b, out int v)
+        {
+            v = 0;
+            return (e.TryGetProperty(a, out var p) && p.TryGetInt32(out v))
+                || (e.TryGetProperty(b, out p) && p.TryGetInt32(out v));
         }
 
         // -----------------------------
@@ -125,8 +134,8 @@ namespace api.Controllers
             }
             if (!string.IsNullOrWhiteSpace(name))
             {
-                var n = name.Trim();
-                q = q.Where(d => d.Name.Contains(n));
+                var pat = $"%{name.Trim()}%";
+                q = q.Where(d => EF.Functions.Like(d.Name, pat));
             }
 
             var decks = await q
@@ -158,9 +167,8 @@ namespace api.Controllers
             var name = dto.Name.Trim();
             var game = dto.Game.Trim();
 
-            // optional: prevent duplicate names per user
-            if (await _db.Decks.AnyAsync(x => x.UserId == userId && x.Name == name))
-                return Conflict("A deck with this name already exists for this user.");
+            if (await _db.Decks.AnyAsync(x => x.UserId == userId && x.Name.ToLower() == name.ToLower()))
+                return Conflict("Duplicate deck name for user.");
 
             var d = new Deck { UserId = userId, Game = game, Name = name, Description = dto.Description };
             _db.Decks.Add(d);
@@ -186,8 +194,14 @@ namespace api.Controllers
 
             if (updates.TryGetProperty("game", out var g) && g.ValueKind == JsonValueKind.String)
                 d.Game = g.GetString()!.Trim();
+
             if (updates.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
-                d.Name = n.GetString()!.Trim();
+            {
+                var targetName = n.GetString()!.Trim();
+                if (await _db.Decks.AnyAsync(x => x.UserId == d.UserId && x.Id != d.Id && x.Name.ToLower() == targetName.ToLower()))
+                    return Conflict("Duplicate deck name for user.");
+                d.Name = targetName;
+            }
             if (updates.TryGetProperty("description", out var desc))
                 d.Description = desc.ValueKind == JsonValueKind.Null ? null :
                                 desc.ValueKind == JsonValueKind.String ? desc.GetString() : d.Description;
@@ -204,8 +218,12 @@ namespace api.Controllers
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
 
+            var targetName = dto.Name.Trim();
+            if (await _db.Decks.AnyAsync(x => x.UserId == d.UserId && x.Id != d.Id && x.Name.ToLower() == targetName.ToLower()))
+                return Conflict("Duplicate deck name for user.");
+
             d.Game = dto.Game.Trim();
-            d.Name = dto.Name.Trim();
+            d.Name = targetName;
             d.Description = dto.Description;
             await _db.SaveChangesAsync();
             return NoContent();
@@ -227,8 +245,8 @@ namespace api.Controllers
 
         private async Task<IActionResult> GetDeckCardsCore(int deckId)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found."); // 403 preferred
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
 
             var rows = await _db.DeckCards
                 .Where(dc => dc.DeckId == deckId)
@@ -255,14 +273,14 @@ namespace api.Controllers
 
         private async Task<IActionResult> UpsertDeckCardCore(int deckId, UpsertDeckCardDto dto)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
             if (dto is null) return BadRequest();
             if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
 
             var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
             if (cp is null) return NotFound("CardPrinting not found.");
-            if (!string.Equals(d.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(deck.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
                 return BadRequest("Card game does not match deck game.");
 
             var dc = await _db.DeckCards
@@ -274,19 +292,19 @@ namespace api.Controllers
                 {
                     DeckId = deckId,
                     CardPrintingId = dto.CardPrintingId,
-                    QuantityInDeck = Math.Max(0, dto.QuantityInDeck),
-                    QuantityIdea = Math.Max(0, dto.QuantityIdea),
-                    QuantityAcquire = Math.Max(0, dto.QuantityAcquire),
-                    QuantityProxy = Math.Max(0, dto.QuantityProxy)
+                    QuantityInDeck = NN(dto.QuantityInDeck),
+                    QuantityIdea = NN(dto.QuantityIdea),
+                    QuantityAcquire = NN(dto.QuantityAcquire),
+                    QuantityProxy = NN(dto.QuantityProxy)
                 };
                 _db.DeckCards.Add(dc);
             }
             else
             {
-                dc.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
-                dc.QuantityIdea = Math.Max(0, dto.QuantityIdea);
-                dc.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
-                dc.QuantityProxy = Math.Max(0, dto.QuantityProxy);
+                dc.QuantityInDeck = NN(dto.QuantityInDeck);
+                dc.QuantityIdea = NN(dto.QuantityIdea);
+                dc.QuantityAcquire = NN(dto.QuantityAcquire);
+                dc.QuantityProxy = NN(dto.QuantityProxy);
             }
 
             await _db.SaveChangesAsync();
@@ -295,8 +313,8 @@ namespace api.Controllers
 
         private async Task<IActionResult> ApplyDeckCardDeltaCore(int deckId, IEnumerable<DeckCardDeltaDto> deltas)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
             if (deltas is null) return BadRequest("Deltas payload required.");
 
             var list = deltas.ToList();
@@ -309,8 +327,10 @@ namespace api.Controllers
                 .ToListAsync();
 
             if (printings.Count != ids.Count) return NotFound("One or more CardPrintings not found.");
-            if (printings.Any(cp => !string.Equals(d.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase)))
+            if (printings.Any(cp => !string.Equals(deck.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase)))
                 return BadRequest("One or more card games do not match deck game.");
+
+            using var tx = await _db.Database.BeginTransactionAsync();
 
             var map = await _db.DeckCards
                 .Where(dc => dc.DeckId == deckId && ids.Contains(dc.CardPrintingId))
@@ -333,28 +353,40 @@ namespace api.Controllers
                     map[delta.CardPrintingId] = row;
                 }
 
-                row.QuantityInDeck = Math.Max(0, row.QuantityInDeck + delta.DeltaInDeck);
-                row.QuantityIdea = Math.Max(0, row.QuantityIdea + delta.DeltaIdea);
-                row.QuantityAcquire = Math.Max(0, row.QuantityAcquire + delta.DeltaAcquire);
-                row.QuantityProxy = Math.Max(0, row.QuantityProxy + delta.DeltaProxy);
+                row.QuantityInDeck = NN((long)row.QuantityInDeck + delta.DeltaInDeck);
+                row.QuantityIdea = NN((long)row.QuantityIdea + delta.DeltaIdea);
+                row.QuantityAcquire = NN((long)row.QuantityAcquire + delta.DeltaAcquire);
+                row.QuantityProxy = NN((long)row.QuantityProxy + delta.DeltaProxy);
+            }
+
+            var remove = map.Values
+                .Where(dc => dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+                .ToList();
+            if (remove.Count > 0)
+            {
+                _db.DeckCards.RemoveRange(remove);
             }
 
             await _db.SaveChangesAsync();
+            await tx.CommitAsync();
             return NoContent();
         }
 
         private async Task<IActionResult> SetDeckCardQuantitiesCore(int deckId, int cardPrintingId, SetDeckCardQuantitiesDto dto)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
 
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
 
-            dc.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
-            dc.QuantityIdea = Math.Max(0, dto.QuantityIdea);
-            dc.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
-            dc.QuantityProxy = Math.Max(0, dto.QuantityProxy);
+            dc.QuantityInDeck = NN(dto.QuantityInDeck);
+            dc.QuantityIdea = NN(dto.QuantityIdea);
+            dc.QuantityAcquire = NN(dto.QuantityAcquire);
+            dc.QuantityProxy = NN(dto.QuantityProxy);
+
+            if (dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+                _db.DeckCards.Remove(dc);
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -362,16 +394,19 @@ namespace api.Controllers
 
         private async Task<IActionResult> PatchDeckCardQuantitiesCore(int deckId, int cardPrintingId, JsonElement updates)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
 
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
 
-            if (updates.TryGetProperty("quantityInDeck", out var qd) && qd.TryGetInt32(out var v1)) dc.QuantityInDeck = Math.Max(0, v1);
-            if (updates.TryGetProperty("quantityIdea", out var qi) && qi.TryGetInt32(out var v2)) dc.QuantityIdea = Math.Max(0, v2);
-            if (updates.TryGetProperty("quantityAcquire", out var qa) && qa.TryGetInt32(out var v3)) dc.QuantityAcquire = Math.Max(0, v3);
-            if (updates.TryGetProperty("quantityProxy", out var qp) && qp.TryGetInt32(out var v4)) dc.QuantityProxy = Math.Max(0, v4);
+            if (TryI32(updates, "quantityInDeck", "QuantityInDeck", out var v1)) dc.QuantityInDeck = NN(v1);
+            if (TryI32(updates, "quantityIdea", "QuantityIdea", out var v2)) dc.QuantityIdea = NN(v2);
+            if (TryI32(updates, "quantityAcquire", "QuantityAcquire", out var v3)) dc.QuantityAcquire = NN(v3);
+            if (TryI32(updates, "quantityProxy", "QuantityProxy", out var v4)) dc.QuantityProxy = NN(v4);
+
+            if (dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+                _db.DeckCards.Remove(dc);
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -379,8 +414,8 @@ namespace api.Controllers
 
         private async Task<IActionResult> RemoveDeckCardCore(int deckId, int cardPrintingId)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
 
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
@@ -392,18 +427,17 @@ namespace api.Controllers
 
         private async Task<IActionResult> GetDeckAvailabilityCore(int deckId, bool includeProxies)
         {
-            var d = await FindDeckOr403(deckId);
-            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            var (deck, err) = await GetDeckForCaller(deckId);
+            if (err != null) return err;
+
+            var deckEntity = deck!;
 
             var deckCards = await _db.DeckCards.Where(dc => dc.DeckId == deckId).ToListAsync();
             if (!deckCards.Any()) return Ok(Array.Empty<DeckAvailabilityItemDto>());
 
-            var me = HttpContext.GetCurrentUser();
-            if (me is null) return StatusCode(403, "User missing.");
-
             var printIds = deckCards.Select(dc => dc.CardPrintingId).ToList();
             var userCards = await _db.UserCards
-                .Where(uc => uc.UserId == me.Id && printIds.Contains(uc.CardPrintingId))
+                .Where(uc => uc.UserId == deckEntity.UserId && printIds.Contains(uc.CardPrintingId))
                 .ToDictionaryAsync(uc => uc.CardPrintingId);
 
             var result = new List<DeckAvailabilityItemDto>();
@@ -438,6 +472,7 @@ namespace api.Controllers
 
         // POST /api/user/{userId}/deck
         [HttpPost]
+        [Consumes("application/json")]
         public async Task<IActionResult> CreateDeck(int userId, [FromBody] CreateDeckDto dto)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
@@ -459,6 +494,7 @@ namespace api.Controllers
 
         // POST /api/deck  (create for current user)
         [HttpPost("/api/deck")]
+        [Consumes("application/json")]
         public async Task<IActionResult> CreateMyDeck([FromBody] CreateDeckDto dto)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
@@ -475,11 +511,13 @@ namespace api.Controllers
         // PATCH /api/deck/{deckId}
         [HttpPatch("/api/deck/{deckId:int}")]
         [HttpPatch("/api/decks/{deckId:int}")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates) => await PatchDeckCore(deckId, updates);
 
         // PUT /api/deck/{deckId}
         [HttpPut("/api/deck/{deckId:int}")]
         [HttpPut("/api/decks/{deckId:int}")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> UpdateDeck(int deckId, [FromBody] UpdateDeckDto dto) => await UpdateDeckCore(deckId, dto);
 
         // DELETE /api/deck/{deckId}
@@ -497,24 +535,28 @@ namespace api.Controllers
         // POST /api/deck/{deckId}/cards  (upsert one)
         [HttpPost("/api/deck/{deckId:int}/cards")]
         [HttpPost("/api/decks/{deckId:int}/cards")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] UpsertDeckCardDto dto)
             => await UpsertDeckCardCore(deckId, dto);
 
         // POST /api/deck/{deckId}/cards/delta
         [HttpPost("/api/deck/{deckId:int}/cards/delta")]
         [HttpPost("/api/decks/{deckId:int}/cards/delta")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> ApplyDeckCardDelta(int deckId, [FromBody] IEnumerable<DeckCardDeltaDto> deltas)
             => await ApplyDeckCardDeltaCore(deckId, deltas);
 
         // PUT /api/deck/{deckId}/cards/{cardPrintingId}
         [HttpPut("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
         [HttpPut("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> SetDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] SetDeckCardQuantitiesDto dto)
             => await SetDeckCardQuantitiesCore(deckId, cardPrintingId, dto);
 
         // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
         [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
         [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+        [Consumes("application/json")]
         public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
             => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
 
