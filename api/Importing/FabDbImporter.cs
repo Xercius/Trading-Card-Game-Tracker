@@ -124,7 +124,10 @@ public sealed class FabDbImporter : ISourceImporter
         }, J);
 
         // Upsert Card by (Game, Name)
-        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
+        var card = _db.ChangeTracker.Entries<Card>()
+            .Where(e => e.State != EntityState.Deleted)
+            .Select(e => e.Entity)
+            .FirstOrDefault(x => x.Game == game && x.Name == name)
             ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         if (card is null)
         {
