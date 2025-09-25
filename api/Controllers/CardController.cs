@@ -1,12 +1,12 @@
 ﻿using api.Data;
-using api.Models;
 using api.Filters;
+using api.Middleware;
+using api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 using System.Collections.Generic;
+using System.Text.Json;
 
-// READ DTOs
 public record CardPrintingDto(
     int Id,
     string Set,
@@ -24,175 +24,261 @@ public record CardDto(
     List<CardPrintingDto> Printings
 );
 
-// WRITE DTOs
 public record CreateCardPrintingDto(string Set, string Number, string Rarity, string Style, string? ImageUrl);
 public record CreateCardDto(string Game, string Name, string CardType, string? Description, List<CreateCardPrintingDto> Printings);
 public record UpdateCardPrintingDto(int? Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
 public record UpdateCardDto(string Game, string Name, string CardType, string? Description, List<UpdateCardPrintingDto> Printings);
+public record CardListItemDto(int CardId, string Name, string Game);
+public record CardDetailDto(int CardId, string Name, string Game, List<CardPrintingDto> Printings);
+
+// Upsert for a printing. If Id is null → create; otherwise update that Id.
+// ImageUrlSet: lets callers intentionally null out ImageUrl (true + ImageUrl=null).
+public record UpsertPrintingDto(
+    int? Id,
+    int CardId,
+    string? Set,
+    string? Number,
+    string? Rarity,
+    string? Style,
+    string? ImageUrl,
+    bool ImageUrlSet = false
+);
+
+// Simple paged wrapper for lists
+public record PagedResult<T>(int Total, int Page, int PageSize, List<T> Items);
+
+
 
 namespace api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [RequireUserHeader] // remove this if you want /api/card to be public
+    [Route("api/card")]
     public class CardController : ControllerBase
     {
         private readonly AppDbContext _db;
         public CardController(AppDbContext db) => _db = db;
 
-        // GET /api/card
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<CardDto>>> GetAll()
+        // -----------------------------
+        // Helpers
+        // -----------------------------
+
+        private bool NotAdmin()
         {
-            var data = await _db.Cards
-                .Select(c => new CardDto(
-                    c.Id, c.Game, c.Name, c.CardType, c.Description,
-                    c.Printings.Select(p => new CardPrintingDto(
-                        p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl
-                    )).ToList()
-                ))
+            var me = HttpContext.GetCurrentUser();
+            return me is null || !me.IsAdmin;
+        }
+
+        // -----------------------------
+        // Core (single source of logic)
+        // -----------------------------
+
+        // GET list of unique cards (optionally filter + paginate)
+        private async Task<IActionResult> ListCardsCore(
+            string? game, string? name,
+            bool includePrintings,
+            int page, int pageSize)
+        {
+            if (page <= 0) page = 1;
+            if (pageSize <= 0 || pageSize > 200) pageSize = 50;
+
+            var q = _db.Cards.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(game))
+            {
+                var g = game.Trim();
+                q = q.Where(c => c.Game == g);
+            }
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var n = name.Trim().ToLower();
+                q = q.Where(c => c.Name.ToLower().Contains(n));
+            }
+
+            var total = await q.CountAsync();
+
+            var cards = await q
+                .OrderBy(c => c.Name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
-            return Ok(data);
-        }
 
-        // GET /api/card/{id}
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<CardDto>> GetOne(int id)
-        {
-            var c = await _db.Cards
-                .Where(x => x.Id == id)
-                .Select(x => new CardDto(
-                    x.Id, x.Game, x.Name, x.CardType, x.Description,
-                    x.Printings.Select(p => new CardPrintingDto(
+            if (!includePrintings)
+            {
+                var rows = cards.Select(c => new CardListItemDto(
+                    c.Id,
+                    c.Name,
+                    c.Game
+                )).ToList();
+
+                return Ok(new PagedResult<CardListItemDto>(total, page, pageSize, rows));
+            }
+
+            // include printings
+            var cardIds = cards.Select(c => c.Id).ToList();
+            var printings = await _db.CardPrintings
+                .Where(cp => cardIds.Contains(cp.CardId))
+                .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
+                .ToListAsync();
+
+            var map = printings.GroupBy(p => p.CardId).ToDictionary(g => g.Key, g => g.ToList());
+
+            var detailed = cards.Select(c => new CardDetailDto(
+                c.Id,
+                c.Name,
+                c.Game,
+                map.TryGetValue(c.Id, out var list)
+                    ? list.Select(p => new CardPrintingDto(
                         p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl
-                    )).ToList()
-                ))
-                .FirstOrDefaultAsync();
+                      )).ToList()
+                    : new List<CardPrintingDto>()
+            )).ToList();
 
-            return c is null ? NotFound() : Ok(c);
+            return Ok(new PagedResult<CardDetailDto>(total, page, pageSize, detailed));
         }
 
-        // POST /api/card
-        [HttpPost]
-        [AdminGuard]
-        public async Task<ActionResult<CardDto>> Create([FromBody] CreateCardDto dto)
+        // GET a single card + all printings
+        private async Task<IActionResult> GetCardCore(int cardId)
         {
+            var c = await _db.Cards.FirstOrDefaultAsync(x => x.Id == cardId);
+            if (c is null) return NotFound();
+
+            var printings = await _db.CardPrintings
+                .Where(cp => cp.CardId == cardId)
+                .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
+                .ToListAsync();
+
+            var dto = new CardDetailDto(
+                c.Id,
+                c.Name,
+                c.Game,
+                printings.Select(p => new CardPrintingDto(
+                    p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl
+                )).ToList()
+            );
+
+            return Ok(dto);
+        }
+
+        // Admin: upsert/patch a single printing (minimal example)
+        private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingDto dto)
+        {
+            if (NotAdmin()) return StatusCode(403, "Admin required.");
             if (dto is null) return BadRequest();
+            if (dto.CardId <= 0) return BadRequest("CardId required.");
+            if (await _db.Cards.FindAsync(dto.CardId) is null) return NotFound("Card not found.");
 
-            var card = new Card
+            CardPrinting? cp = null;
+            if (dto.Id.HasValue)
+                cp = await _db.CardPrintings.FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
+
+            if (cp is null)
             {
-                Game = dto.Game,
-                Name = dto.Name,
-                CardType = dto.CardType,
-                Description = dto.Description,
-                Printings = (dto.Printings ?? new()).Select(p => new CardPrinting
+                cp = new CardPrinting
                 {
-                    Set = p.Set,
-                    Number = p.Number,
-                    Rarity = p.Rarity,
-                    Style = p.Style,
-                    ImageUrl = p.ImageUrl
-                }).ToList()
-            };
+                    CardId = dto.CardId,
+                    Set = dto.Set?.Trim(),
+                    Number = dto.Number?.Trim(),
+                    Rarity = dto.Rarity?.Trim(),
+                    Style = dto.Style?.Trim(),
+                    ImageUrl = dto.ImageUrl
+                };
+                _db.CardPrintings.Add(cp);
+            }
+            else
+            {
+                if (dto.Set is not null) cp.Set = dto.Set.Trim();
+                if (dto.Number is not null) cp.Number = dto.Number.Trim();
+                if (dto.Rarity is not null) cp.Rarity = dto.Rarity.Trim();
+                if (dto.Style is not null) cp.Style = dto.Style.Trim();
+                if (dto.ImageUrlSet) cp.ImageUrl = dto.ImageUrl; // only set when caller intends to
+            }
 
-            _db.Cards.Add(card);
             await _db.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetOne), new { id = card.Id }, new CardDto(
-                card.Id, card.Game, card.Name, card.CardType, card.Description,
-                card.Printings.Select(p => new CardPrintingDto(p.Id, p.Set, p.Number, p.Rarity, p.Style, p.ImageUrl)).ToList()
-            ));
+            return NoContent();
         }
 
-        // PUT /api/card/{id}  (full update; replaces printings list)
-        [HttpPut("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateCardDto dto)
+        // Admin: bulk import printings for a card (idempotent-ish by Set+Number+Style)
+        private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingDto> items)
         {
-            var card = await _db.Cards.Include(c => c.Printings).FirstOrDefaultAsync(c => c.Id == id);
-            if (card is null) return NotFound();
+            if (NotAdmin()) return StatusCode(403, "Admin required.");
+            if (cardId <= 0) return BadRequest("CardId required.");
+            if (items is null) return BadRequest("Payload required.");
+            if (await _db.Cards.FindAsync(cardId) is null) return NotFound("Card not found.");
 
-            card.Game = dto.Game;
-            card.Name = dto.Name;
-            card.CardType = dto.CardType;
-            card.Description = dto.Description;
+            var list = items.ToList();
+            if (list.Count == 0) return NoContent();
 
-            // Replace printings: update matching by Id, add new where Id is null, remove missing
-            var incoming = dto.Printings ?? new();
-            var byId = card.Printings.ToDictionary(p => p.Id);
-            var existingPrintings = card.Printings.ToList();
+            // Load existing for match-up
+            var existing = await _db.CardPrintings
+                .Where(cp => cp.CardId == cardId)
+                .ToListAsync();
 
-            // mark all existing as unseen
-            var seen = new HashSet<int>();
-
-            foreach (var p in incoming)
+            foreach (var dto in list)
             {
-                if (p.Id is int pid && byId.TryGetValue(pid, out var existing))
+                if (string.IsNullOrWhiteSpace(dto.Set) || string.IsNullOrWhiteSpace(dto.Number))
+                    continue;
+
+                var match = existing.FirstOrDefault(x =>
+                    x.Set == dto.Set!.Trim() &&
+                    x.Number == dto.Number!.Trim() &&
+                    (x.Style ?? "") == (dto.Style ?? "").Trim()
+                );
+
+                if (match is null)
                 {
-                    existing.Set = p.Set; existing.Number = p.Number; existing.Rarity = p.Rarity;
-                    existing.Style = p.Style; existing.ImageUrl = p.ImageUrl;
-                    seen.Add(pid);
+                    _db.CardPrintings.Add(new CardPrinting
+                    {
+                        CardId = cardId,
+                        Set = dto.Set!.Trim(),
+                        Number = dto.Number!.Trim(),
+                        Rarity = dto.Rarity?.Trim(),
+                        Style = dto.Style?.Trim(),
+                        ImageUrl = dto.ImageUrl
+                    });
                 }
                 else
                 {
-                    card.Printings.Add(new CardPrinting
-                    {
-                        Set = p.Set,
-                        Number = p.Number,
-                        Rarity = p.Rarity,
-                        Style = p.Style,
-                        ImageUrl = p.ImageUrl
-                    });
+                    if (dto.Rarity is not null) match.Rarity = dto.Rarity.Trim();
+                    if (dto.ImageUrlSet) match.ImageUrl = dto.ImageUrl;
                 }
             }
 
-            // delete any not seen
-            var toRemove = existingPrintings.Where(p => !seen.Contains(p.Id)).ToList();
-            foreach (var r in toRemove) _db.CardPrintings.Remove(r);
-
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE /api/card/{id}
-        [HttpDelete("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);
-            if (card is null) return NotFound();
+        // -----------------------------
+        // Public endpoints (thin wrappers)
+        // -----------------------------
 
-            _db.Cards.Remove(card);
-            await _db.SaveChangesAsync();
-            return NoContent();
-        }
+        // GET /api/card?game=&name=&includePrintings=false&page=1&pageSize=50
+        [HttpGet]
+        public async Task<IActionResult> ListCards(
+            [FromQuery] string? game,
+            [FromQuery] string? name,
+            [FromQuery] bool includePrintings = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50)
+            => await ListCardsCore(game, name, includePrintings, page, pageSize);
 
-        // PATCH /api/card/{id}
-        // Supported fields: Game, Name, CardType, Description
-        [HttpPatch("{id:int}")]
-        [AdminGuard]
-        public async Task<IActionResult> Patch(int id, [FromBody] JsonElement updates)
-        {
-            var card = await _db.Cards.FirstOrDefaultAsync(c => c.Id == id);
-            if (card is null) return NotFound();
+        // GET /api/card/{cardId}
+        [HttpGet("{cardId:int}")]
+        public async Task<IActionResult> GetCard(int cardId)
+            => await GetCardCore(cardId);
 
-            // Apply only fields present in the payload
-            if (updates.TryGetProperty("game", out var gameProp) && gameProp.ValueKind == JsonValueKind.String)
-                card.Game = gameProp.GetString()!;
+        // -----------------------------
+        // Admin endpoints
+        // -----------------------------
 
-            if (updates.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
-                card.Name = nameProp.GetString()!;
+        // POST /api/card/printing    (create or update a single printing)
+        [HttpPost("printing")]
+        public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingDto dto)
+            => await UpsertPrintingCore(dto);
 
-            if (updates.TryGetProperty("cardType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
-                card.CardType = typeProp.GetString()!;
-
-            // Allows setting Description to null explicitly
-            if (updates.TryGetProperty("description", out var descProp))
-                card.Description = descProp.ValueKind == JsonValueKind.Null ? null :
-                                   descProp.ValueKind == JsonValueKind.String ? descProp.GetString() : card.Description;
-
-            await _db.SaveChangesAsync();
-            return NoContent();
-        }
-
+        // POST /api/card/{cardId}/printings/import   (bulk import/merge)
+        [HttpPost("{cardId:int}/printings/import")]
+        public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingDto> items)
+            => await BulkImportPrintingsCore(cardId, items);
     }
 }
