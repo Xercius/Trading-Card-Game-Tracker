@@ -10,11 +10,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-builder.Services.AddScoped<ImporterRegistry>();
-builder.Services.AddScoped<ISourceImporter, DummyImporter>();
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));
+
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.ScryfallImporter>();
+builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 
 builder.Services.AddCors(options =>
