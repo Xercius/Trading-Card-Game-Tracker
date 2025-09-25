@@ -4,7 +4,8 @@ public record ImportOptions(
     bool DryRun = true,
     bool Upsert = true,
     int? Limit = null,
-    int? UserId = null // optional: tag who ran it
+    int? UserId = null,
+    string? SetCode = null // e.g. "khm"
 );
 
 public record ImportSummary(
