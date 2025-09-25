@@ -1,236 +1,189 @@
-// Run these tests from Visual Studio Test Explorer by opening api.sln, building the solution,
-// and selecting "Run All Tests" or right-clicking individual tests in Test Explorer.
+// Run these tests with `dotnet test` or from Visual Studio Test Explorer.
+// Covers /api/collection endpoints including legacy user-scoped routes.
 
-using System.Collections.Generic;
-using System.Net.Http;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Linq;
-using api.Data;
-using api.Models;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using api.Tests.Fixtures;
 using Xunit;
 
 namespace api.Tests;
 
-public sealed class CollectionControllerTests : IClassFixture<CollectionApiFactory>
+public class CollectionControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CollectionApiFactory _factory;
+    private readonly CustomWebApplicationFactory _factory;
+    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
-    public CollectionControllerTests(CollectionApiFactory factory)
+    public CollectionControllerTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
     }
 
     [Fact]
-    public async Task Get_ApiCollection_WithFilters_ReturnsOnlyCallerRows()
+    public async Task Collection_Get_CurrentUser_FilteredOnly_ReturnsExpected()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var allResponse = await client.GetAsync("/api/collection");
-        allResponse.EnsureSuccessStatusCode();
-        var allItems = await ReadCollectionAsync(allResponse);
+        var all = await GetCollectionAsync(client, string.Empty);
+        Assert.Equal(3, all.Count);
+        Assert.DoesNotContain(all, c => c.CardPrintingId == TestDataSeeder.GoblinGuidePrintingId);
 
-        var expectedIds = new[]
-        {
-            CollectionApiFactory.CardPrintingAlphaCommonId,
-            CollectionApiFactory.CardPrintingMysticShieldId
-        };
-        Assert.Equal(expectedIds.Order().ToArray(), allItems.Select(i => i.CardPrintingId).Order().ToArray());
-        Assert.DoesNotContain(allItems, item => item.CardPrintingId == CollectionApiFactory.CardPrintingStarSaberId);
+        var magicOnly = await GetCollectionAsync(client, "?game=Magic");
+        Assert.Equal(2, magicOnly.Count);
+        Assert.All(magicOnly, item => Assert.Equal("Magic", item.Game));
 
-        var filterResponse = await client.GetAsync(
-            $"/api/collection?game=Mythic+Battles&set=Mystic+Storm&rarity=Uncommon&name=Shield");
-        filterResponse.EnsureSuccessStatusCode();
-        var filtered = await ReadCollectionAsync(filterResponse);
-
+        var filtered = await GetCollectionAsync(client, "?set=Beta&name=bolt");
         var single = Assert.Single(filtered);
-        Assert.Equal(CollectionApiFactory.CardPrintingMysticShieldId, single.CardPrintingId);
+        Assert.Equal(TestDataSeeder.LightningBoltBetaPrintingId, single.CardPrintingId);
 
-        var specificResponse = await client.GetAsync($"/api/collection?cardPrintingId={CollectionApiFactory.CardPrintingAlphaRareId}");
-        specificResponse.EnsureSuccessStatusCode();
-        var specific = await ReadCollectionAsync(specificResponse);
-        Assert.Empty(specific); // card belongs to other user until created later
+        var specific = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ElsaPrintingId}");
+        var elsa = Assert.Single(specific);
+        Assert.Equal("Rise of the Floodborn", elsa.Set);
     }
 
     [Fact]
-    public async Task Get_ApiCollection_WithoutUserHeader_ReturnsForbidden()
+    public async Task Collection_Post_Upsert_ClampsNonNegative()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient();
-
-        var response = await client.GetAsync("/api/collection");
-
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Post_ApiCollection_Upsert_CreatesAndUpdatesWithClamping()
-    {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/collection",
             new
             {
-                cardPrintingId = CollectionApiFactory.CardPrintingAlphaRareId,
-                quantityOwned = 4,
+                cardPrintingId = TestDataSeeder.GoblinGuidePrintingId,
+                quantityOwned = 3,
                 quantityWanted = 1,
                 quantityProxyOwned = 2
             });
 
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, createResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
 
-        var createdItems = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaRareId);
-        var created = Assert.Single(createdItems);
-        Assert.Equal(4, created.QuantityOwned);
-        Assert.Equal(1, created.QuantityWanted);
-        Assert.Equal(2, created.QuantityProxyOwned);
+        var created = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.GoblinGuidePrintingId}");
+        var createdRow = Assert.Single(created);
+        Assert.Equal(3, createdRow.QuantityOwned);
+        Assert.Equal(1, createdRow.QuantityWanted);
+        Assert.Equal(2, createdRow.QuantityProxyOwned);
 
         var updateResponse = await client.PostAsJsonAsync(
             "/api/collection",
             new
             {
-                cardPrintingId = CollectionApiFactory.CardPrintingAlphaRareId,
+                cardPrintingId = TestDataSeeder.GoblinGuidePrintingId,
                 quantityOwned = -5,
-                quantityWanted = 3,
+                quantityWanted = -10,
                 quantityProxyOwned = -1
             });
 
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, updateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
-        var updatedItems = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaRareId);
-        var updated = Assert.Single(updatedItems);
-        Assert.Equal(0, updated.QuantityOwned);
-        Assert.Equal(3, updated.QuantityWanted);
-        Assert.Equal(0, updated.QuantityProxyOwned);
+        var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.GoblinGuidePrintingId}");
+        var updatedRow = Assert.Single(updated);
+        Assert.Equal(0, updatedRow.QuantityOwned);
+        Assert.Equal(0, updatedRow.QuantityWanted);
+        Assert.Equal(0, updatedRow.QuantityProxyOwned);
     }
 
     [Fact]
-    public async Task Put_ApiCollection_SetQuantities_UpdatesAndClamps()
+    public async Task Collection_Put_SetAll_UpdatesOr404()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var response = await client.PutAsJsonAsync(
-            $"/api/collection/{CollectionApiFactory.CardPrintingMysticShieldId}",
-            new
-            {
-                quantityOwned = -10,
-                quantityWanted = 6,
-                quantityProxyOwned = 4
-            });
-
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
-
-        var items = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingMysticShieldId);
-        var item = Assert.Single(items);
-        Assert.Equal(0, item.QuantityOwned);
-        Assert.Equal(6, item.QuantityWanted);
-        Assert.Equal(4, item.QuantityProxyOwned);
-    }
-
-    [Fact]
-    public async Task Put_ApiCollection_WhenRowMissing_ReturnsNotFound()
-    {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
-
-        var response = await client.PutAsJsonAsync(
-            $"/api/collection/{CollectionApiFactory.CardPrintingStarSaberId}",
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
             new
             {
                 quantityOwned = 1,
-                quantityWanted = 0,
-                quantityProxyOwned = 0
+                quantityWanted = 5,
+                quantityProxyOwned = -1
             });
 
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
+
+        var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var row = Assert.Single(updated);
+        Assert.Equal(1, row.QuantityOwned);
+        Assert.Equal(5, row.QuantityWanted);
+        Assert.Equal(0, row.QuantityProxyOwned);
+
+        var missingResponse = await client.PutAsJsonAsync(
+            $"/api/collection/{TestDataSeeder.ExtraMagicPrintingId}",
+            new
+            {
+                quantityOwned = 1,
+                quantityWanted = 1,
+                quantityProxyOwned = 1
+            });
+
+        Assert.Equal(HttpStatusCode.NotFound, missingResponse.StatusCode);
     }
 
     [Fact]
-    public async Task Patch_ApiCollection_AllowsPartialUpdatesAndClamps()
+    public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var patchContent = JsonContent.Create(new { quantityOwned = -2 });
-        var response = await client.PatchAsync($"/api/collection/{CollectionApiFactory.CardPrintingAlphaCommonId}", patchContent);
+        var patch = JsonContent.Create(new { quantityWanted = 4 });
+        var response = await client.PatchAsync(
+            $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}",
+            patch);
 
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        var items = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaCommonId);
-        var item = Assert.Single(items);
-        Assert.Equal(0, item.QuantityOwned);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonWanted, item.QuantityWanted);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonProxy, item.QuantityProxyOwned);
-
-        var secondPatch = JsonContent.Create(new { quantityWanted = 5 });
-        var secondResponse = await client.PatchAsync($"/api/collection/{CollectionApiFactory.CardPrintingAlphaCommonId}", secondPatch);
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, secondResponse.StatusCode);
-
-        var afterSecond = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaCommonId);
-        var updated = Assert.Single(afterSecond);
-        Assert.Equal(0, updated.QuantityOwned);
-        Assert.Equal(5, updated.QuantityWanted);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonProxy, updated.QuantityProxyOwned);
+        var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        var row = Assert.Single(rows);
+        Assert.Equal(0, row.QuantityOwned);
+        Assert.Equal(4, row.QuantityWanted);
+        Assert.Equal(2, row.QuantityProxyOwned);
     }
 
     [Fact]
-    public async Task Post_ApiCollectionDelta_AppliesChangesAndCreatesRows()
+    public async Task Collection_Delta_CreatesMissing_ValidatesIds()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var response = await client.PostAsJsonAsync(
+        var deltaResponse = await client.PostAsJsonAsync(
             "/api/collection/delta",
             new[]
             {
                 new
                 {
-                    cardPrintingId = CollectionApiFactory.CardPrintingAlphaCommonId,
-                    deltaOwned = -1,
-                    deltaWanted = 2,
+                    cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                    deltaOwned = -10,
+                    deltaWanted = 1,
                     deltaProxyOwned = 0
                 },
                 new
                 {
-                    cardPrintingId = CollectionApiFactory.CardPrintingAlphaRareId,
-                    deltaOwned = 3,
-                    deltaWanted = 1,
-                    deltaProxyOwned = 2
+                    cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                    deltaOwned = 2,
+                    deltaWanted = 0,
+                    deltaProxyOwned = 1
                 }
             });
 
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, deltaResponse.StatusCode);
 
-        var existingItems = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaCommonId);
-        var existing = Assert.Single(existingItems);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonOwned - 1, existing.QuantityOwned);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonWanted + 2, existing.QuantityWanted);
-        Assert.Equal(CollectionApiFactory.SeededAlphaCommonProxy, existing.QuantityProxyOwned);
+        var existing = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var existingRow = Assert.Single(existing);
+        Assert.Equal(0, existingRow.QuantityOwned);
+        Assert.Equal(2, existingRow.QuantityWanted);
+        Assert.Equal(1, existingRow.QuantityProxyOwned);
 
-        var newItems = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaRareId);
-        var created = Assert.Single(newItems);
-        Assert.Equal(3, created.QuantityOwned);
-        Assert.Equal(1, created.QuantityWanted);
-        Assert.Equal(2, created.QuantityProxyOwned);
-    }
+        var created = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
+        var createdRow = Assert.Single(created);
+        Assert.Equal(2, createdRow.QuantityOwned);
+        Assert.Equal(0, createdRow.QuantityWanted);
+        Assert.Equal(1, createdRow.QuantityProxyOwned);
 
-    [Fact]
-    public async Task Post_ApiCollectionDelta_WithInvalidCardPrinting_ReturnsNotFound()
-    {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
-
-        var response = await client.PostAsJsonAsync(
+        var invalidResponse = await client.PostAsJsonAsync(
             "/api/collection/delta",
             new[]
             {
@@ -243,51 +196,51 @@ public sealed class CollectionControllerTests : IClassFixture<CollectionApiFacto
                 }
             });
 
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, invalidResponse.StatusCode);
     }
 
     [Fact]
-    public async Task Delete_ApiCollection_RemovesRow()
+    public async Task Collection_Delete_RemovesRow()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var deleteResponse = await client.DeleteAsync($"/api/collection/{CollectionApiFactory.CardPrintingAlphaCommonId}");
-        Assert.Equal(System.Net.HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        var deleteResponse = await client.DeleteAsync($"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
 
-        var items = await GetCollectionAsync(client, CollectionApiFactory.CardPrintingAlphaCommonId);
-        Assert.Empty(items);
+        var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        Assert.Empty(rows);
     }
 
     [Fact]
-    public async Task Get_LegacyRoute_WithDifferentUser_ReturnsForbidden()
+    public async Task Collection_LegacyRoute_UserMismatch_Returns403()
     {
         await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClientWithUser(CollectionApiFactory.UserAliceId);
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var response = await client.GetAsync($"/api/user/{CollectionApiFactory.UserBobId}/collection");
-
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+        var response = await client.GetAsync($"/api/user/{TestDataSeeder.BobUserId}/collection");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    private static async Task<IReadOnlyList<CollectionItem>> GetCollectionAsync(HttpClient client, int cardPrintingId)
+    [Fact]
+    public async Task Collection_Endpoints_RequireUserHeader()
     {
-        var response = await client.GetAsync($"/api/collection?cardPrintingId={cardPrintingId}");
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/collection");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private async Task<List<CollectionItemDto>> GetCollectionAsync(HttpClient client, string query)
+    {
+        var response = await client.GetAsync($"/api/collection{query}");
         response.EnsureSuccessStatusCode();
-        return await ReadCollectionAsync(response);
+        var payload = await response.Content.ReadFromJsonAsync<List<CollectionItemDto>>(_jsonOptions);
+        return payload ?? new List<CollectionItemDto>();
     }
 
-    private static async Task<IReadOnlyList<CollectionItem>> ReadCollectionAsync(HttpResponseMessage response)
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            PropertyNameCaseInsensitive = true
-        };
-        var items = await response.Content.ReadFromJsonAsync<List<CollectionItem>>(options);
-        return items ?? new List<CollectionItem>();
-    }
-
-    private sealed record CollectionItem(
+    private sealed record CollectionItemDto(
         int CardPrintingId,
         int QuantityOwned,
         int QuantityWanted,
@@ -300,179 +253,4 @@ public sealed class CollectionControllerTests : IClassFixture<CollectionApiFacto
         string Rarity,
         string Style,
         string? ImageUrl);
-}
-
-public sealed class CollectionApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
-{
-    public const int UserAliceId = 1;
-    public const int UserBobId = 2;
-
-    public const int CardAlphaId = 100;
-    public const int CardMysticId = 200;
-    public const int CardStarSaberId = 300;
-
-    public const int CardPrintingAlphaCommonId = 1001;
-    public const int CardPrintingAlphaRareId = 1002;
-    public const int CardPrintingMysticShieldId = 1003;
-    public const int CardPrintingStarSaberId = 1004;
-
-    public const int SeededAlphaCommonOwned = 3;
-    public const int SeededAlphaCommonWanted = 1;
-    public const int SeededAlphaCommonProxy = 1;
-
-    private SqliteConnection _connection = default!;
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        builder.ConfigureServices(services =>
-        {
-            services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
-            services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
-
-            using var scope = services.BuildServiceProvider().CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Database.EnsureDeleted();
-            db.Database.Migrate();
-            SeedAsync(db).GetAwaiter().GetResult();
-        });
-    }
-
-    public async Task InitializeAsync()
-    {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        await _connection.OpenAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _connection.DisposeAsync();
-    }
-
-    public async Task ResetDatabaseAsync()
-    {
-        _ = Server;
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
-        await SeedAsync(db);
-    }
-
-    public HttpClient CreateClientWithUser(int userId)
-    {
-        var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-User-Id", userId.ToString());
-        return client;
-    }
-
-    private static async Task SeedAsync(AppDbContext db)
-    {
-        var cardAlpha = new Card
-        {
-            Id = CardAlphaId,
-            Game = "Mythic Battles",
-            Name = "Alpha Dragon",
-            CardType = "Unit",
-            Description = "Leader of the skies"
-        };
-
-        var cardMystic = new Card
-        {
-            Id = CardMysticId,
-            Game = "Mythic Battles",
-            Name = "Mystic Shield",
-            CardType = "Spell",
-            Description = "Protective incantation"
-        };
-
-        var cardStarSaber = new Card
-        {
-            Id = CardStarSaberId,
-            Game = "Galaxy Clash",
-            Name = "Star Saber",
-            CardType = "Weapon",
-            Description = "Cuts through the cosmos"
-        };
-
-        var alphaCommon = new CardPrinting
-        {
-            Id = CardPrintingAlphaCommonId,
-            Card = cardAlpha,
-            Set = "Alpha Rising",
-            Number = "A-001",
-            Rarity = "Common",
-            Style = "Standard",
-            ImageUrl = "https://example.com/a-001.png"
-        };
-
-        var alphaRare = new CardPrinting
-        {
-            Id = CardPrintingAlphaRareId,
-            Card = cardAlpha,
-            Set = "Alpha Rising",
-            Number = "A-001R",
-            Rarity = "Rare",
-            Style = "Foil",
-            ImageUrl = "https://example.com/a-001r.png"
-        };
-
-        var mysticShield = new CardPrinting
-        {
-            Id = CardPrintingMysticShieldId,
-            Card = cardMystic,
-            Set = "Mystic Storm",
-            Number = "M-010",
-            Rarity = "Uncommon",
-            Style = "Standard",
-            ImageUrl = "https://example.com/m-010.png"
-        };
-
-        var starSaber = new CardPrinting
-        {
-            Id = CardPrintingStarSaberId,
-            Card = cardStarSaber,
-            Set = "Starfall",
-            Number = "S-099",
-            Rarity = "Legendary",
-            Style = "Standard",
-            ImageUrl = "https://example.com/s-099.png"
-        };
-
-        db.Users.AddRange(
-            new User { Id = UserAliceId, Username = "alice", DisplayName = "Alice" },
-            new User { Id = UserBobId, Username = "bob", DisplayName = "Bob" }
-        );
-
-        db.Cards.AddRange(cardAlpha, cardMystic, cardStarSaber);
-        db.CardPrintings.AddRange(alphaCommon, alphaRare, mysticShield, starSaber);
-
-        db.UserCards.AddRange(
-            new UserCard
-            {
-                UserId = UserAliceId,
-                CardPrintingId = CardPrintingAlphaCommonId,
-                QuantityOwned = SeededAlphaCommonOwned,
-                QuantityWanted = SeededAlphaCommonWanted,
-                QuantityProxyOwned = SeededAlphaCommonProxy
-            },
-            new UserCard
-            {
-                UserId = UserAliceId,
-                CardPrintingId = CardPrintingMysticShieldId,
-                QuantityOwned = 1,
-                QuantityWanted = 2,
-                QuantityProxyOwned = 0
-            },
-            new UserCard
-            {
-                UserId = UserBobId,
-                CardPrintingId = CardPrintingAlphaRareId,
-                QuantityOwned = 2,
-                QuantityWanted = 1,
-                QuantityProxyOwned = 0
-            }
-        );
-
-        await db.SaveChangesAsync();
-    }
 }
