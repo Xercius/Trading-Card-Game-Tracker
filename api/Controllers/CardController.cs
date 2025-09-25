@@ -119,6 +119,7 @@ namespace api.Controllers
             // Replace printings: update matching by Id, add new where Id is null, remove missing
             var incoming = dto.Printings ?? new();
             var byId = card.Printings.ToDictionary(p => p.Id);
+            var existingPrintings = card.Printings.ToList();
 
             // mark all existing as unseen
             var seen = new HashSet<int>();
@@ -145,7 +146,7 @@ namespace api.Controllers
             }
 
             // delete any not seen
-            var toRemove = card.Printings.Where(p => !seen.Contains(p.Id) && incoming.All(x => x.Id != p.Id)).ToList();
+            var toRemove = existingPrintings.Where(p => !seen.Contains(p.Id)).ToList();
             foreach (var r in toRemove) _db.CardPrintings.Remove(r);
 
             await _db.SaveChangesAsync();
