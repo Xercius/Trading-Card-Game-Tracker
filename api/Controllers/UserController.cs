@@ -77,8 +77,8 @@ namespace api.Controllers
             if (updates.TryGetProperty("userName", out var n) && n.ValueKind == JsonValueKind.String)
                 u.Username = n.GetString()!.Trim();
 
-            if (updates.TryGetProperty("email", out var e) && e.ValueKind == JsonValueKind.String)
-                u.DisplayName = e.GetString()!.Trim();
+            if (updates.TryGetProperty("displayName", out var d) && d.ValueKind == JsonValueKind.String)
+                u.DisplayName = d.GetString()!.Trim();
 
             // IsAdmin changes are admin-only; handled via dedicated admin endpoints.
 
@@ -101,7 +101,7 @@ namespace api.Controllers
         }
 
         // Admin-only: list users
-        private async Task<IActionResult> ListUsersCore(string? name, string? email, bool? isAdmin)
+        private async Task<IActionResult> ListUsersCore(string? name, string? displayName, bool? isAdmin)
         {
             if (NotAdmin()) return StatusCode(403, "Admin required.");
 
@@ -112,10 +112,10 @@ namespace api.Controllers
                 var n = name.Trim();
                 q = q.Where(u => u.Username!.Contains(n));
             }
-            if (!string.IsNullOrWhiteSpace(email))
+            if (!string.IsNullOrWhiteSpace(displayName))
             {
-                var e = email.Trim();
-                q = q.Where(u => u.DisplayName!.Contains(e));
+                var d = displayName.Trim();
+                q = q.Where(u => u.DisplayName!.Contains(d));
             }
             if (isAdmin.HasValue) q = q.Where(u => u.IsAdmin == isAdmin.Value);
 
@@ -221,8 +221,8 @@ namespace api.Controllers
 
         // Admin: GET /api/users
         [HttpGet("/api/users")]
-        public async Task<IActionResult> ListUsers([FromQuery] string? name = null, [FromQuery] string? email = null, [FromQuery] bool? isAdmin = null)
-            => await ListUsersCore(name, email, isAdmin);
+        public async Task<IActionResult> ListUsers([FromQuery] string? name = null, [FromQuery] string? displayName = null, [FromQuery] bool? isAdmin = null)
+            => await ListUsersCore(name, displayName, isAdmin);
 
         // Admin: PUT /api/users/{userId}/admin?value=true|false
         [HttpPut("/api/users/{targetUserId:int}/admin")]
