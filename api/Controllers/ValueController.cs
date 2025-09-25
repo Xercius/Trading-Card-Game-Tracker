@@ -53,7 +53,7 @@ public class ValueController : ControllerBase
 
         await _db.SaveChangesAsync();
         var inserted = items.Count(x => validSet.Contains(x.CardPrintingId));
-        var ignored = items.Count - validSet.Count;
+        var ignored = items.Count - inserted;
         return Ok(new { inserted, ignored });
     }
 

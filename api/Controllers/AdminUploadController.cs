@@ -70,7 +70,7 @@ public sealed class AdminUploadController : ControllerBase
 
         await using var s = file.OpenReadStream();
 
-        // Schema check: array of objects; each must have set+number+name (sample first 100)
+        // Schema check: array of objects; each must have set/set_code + number/collector_number + name (sample first 100)
         using var doc = await JsonDocument.ParseAsync(s, cancellationToken: ct);
         if (doc.RootElement.ValueKind != JsonValueKind.Array) return BadRequest(new { error = "Top-level JSON must be an array." });
         int idx = 0;
