@@ -11,6 +11,7 @@ namespace api.Data
         public DbSet<CardPrinting> CardPrintings => Set<CardPrinting>();
         public DbSet<User> Users => Set<User>();
         public DbSet<UserCard> UserCards => Set<UserCard>();
+        public DbSet<WishlistEntry> WishlistEntries => Set<WishlistEntry>();
         public DbSet<Deck> Decks => Set<Deck>();
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
 
@@ -35,6 +36,16 @@ namespace api.Data
                 .WithMany()
                 .HasForeignKey(uc => uc.CardPrintingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            b.Entity<WishlistEntry>()
+                .HasOne(w => w.CardPrinting)
+                .WithMany()
+                .HasForeignKey(w => w.CardPrintingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.Entity<WishlistEntry>()
+                .HasIndex(w => new { w.UserId, w.CardPrintingId })
+                .IsUnique();
 
             b.Entity<DeckCard>()
                 .HasIndex(dc => new { dc.DeckId, dc.CardPrintingId })
