@@ -68,7 +68,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
     }
 
     public Task<ImportSummary> ImportFromFileAsync(Stream file, ImportOptions options, CancellationToken ct = default)
-        => new GuardiansLocalImporter(_db).ImportFromFileAsync(file, options, ct);
+        => ImportFromJsonAsync(file, options, ct);
 
     private static async Task<List<string>> ParseCardLinksAsync(string html, string baseUrl, CancellationToken ct)
     {
@@ -132,6 +132,181 @@ public sealed class DiceMastersDbImporter : ISourceImporter
             Text = string.IsNullOrWhiteSpace(text) ? null : text.Trim(),
             ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl
         };
+    }
+
+    private async Task<ImportSummary> ImportFromJsonAsync(Stream json, ImportOptions options, CancellationToken ct)
+    {
+        using var doc = await JsonDocument.ParseAsync(json, cancellationToken: ct);
+
+        var summary = new ImportSummary(Key, options.DryRun, 0, 0, 0, 0, 0);
+        var limit = options.Limit ?? int.MaxValue;
+
+        static IEnumerable<JsonElement> EnumerateCards(JsonElement root)
+        {
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in root.EnumerateArray())
+                    yield return item;
+                yield break;
+            }
+
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                yield break;
+            }
+
+            if (TryGetProperty(root, "cards", out var cards) && cards.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in cards.EnumerateArray())
+                    yield return item;
+                yield break;
+            }
+
+            if (TryGetProperty(root, "data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in data.EnumerateArray())
+                    yield return item;
+                yield break;
+            }
+
+            yield return root;
+        }
+
+        var cards = EnumerateCards(doc.RootElement).ToList();
+
+        return await _db.WithDryRunAsync(options.DryRun, async () =>
+        {
+            int processed = 0;
+
+            foreach (var element in cards)
+            {
+                if (processed++ >= limit) break;
+
+                try
+                {
+                    var card = ParseCard(element);
+                    await UpsertAsync(card, summary, ct);
+                }
+                catch (Exception ex)
+                {
+                    summary.Errors++;
+                    summary.Messages.Add($"Error importing card entry: {ex.Message}");
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            summary.Messages.Add($"Processed {Math.Min(processed, cards.Count)} records from file.");
+            return summary;
+        });
+    }
+
+    private static DmCard ParseCard(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("Expected card object.");
+
+        string set = (GetString(element, "set", "setCode", "set_code", "setSlug") ?? "UNK").Trim().ToUpperInvariant();
+        string number = (GetString(element, "number", "cardNumber", "collectorNumber", "card_number") ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
+            throw new InvalidOperationException("Missing set or number in card entry.");
+
+        string name = (GetString(element, "name", "title", "cardName", "card_name") ?? "Unknown").Trim();
+        string rarity = (GetString(element, "rarity") ?? "Unknown").Trim();
+
+        var diceFaces = GetStringArray(element, "diceFaces", "dice_faces", "dice") ?? new List<string>();
+
+        return new DmCard
+        {
+            Set = set,
+            Number = number,
+            Name = name,
+            Rarity = rarity,
+            CardType = GetString(element, "cardType", "type", "category"),
+            Subtitle = GetString(element, "subtitle", "subTitle", "version"),
+            Energy = GetString(element, "energy", "energyType", "energy_type"),
+            PurchaseCost = GetString(element, "purchaseCost", "cost", "purchase_cost", "purchase"),
+            DiceFaces = diceFaces,
+            Text = GetString(element, "text", "cardText", "rulesText", "gameText", "ability"),
+            ImageUrl = GetString(element, "imageUrl", "image_url", "image", "imageUri", "image_uri")
+        };
+    }
+
+    private static string? GetString(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            if (TryGetProperty(element, name, out var value))
+            {
+                return value.ValueKind switch
+                {
+                    JsonValueKind.String => value.GetString(),
+                    JsonValueKind.Number => value.ToString(),
+                    JsonValueKind.True => bool.TrueString,
+                    JsonValueKind.False => bool.FalseString,
+                    _ => value.ValueKind == JsonValueKind.Null ? null : value.ToString()
+                };
+            }
+        }
+
+        return null;
+    }
+
+    private static List<string>? GetStringArray(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!TryGetProperty(element, name, out var value))
+                continue;
+
+            if (value.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<string>();
+                foreach (var item in value.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                        list.Add(item.GetString()!);
+                    else if (item.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+                        list.Add(item.ToString());
+                }
+                return list;
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var raw = value.GetString();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return new List<string>();
+
+                var list = raw
+                    .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(part => part.Trim())
+                    .Where(part => part.Length > 0)
+                    .ToList();
+                return list;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in element.EnumerateObject())
+            {
+                if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = prop.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static string MakeAbsolute(string baseUrl, string? value)
