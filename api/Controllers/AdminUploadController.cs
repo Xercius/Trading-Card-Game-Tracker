@@ -37,7 +37,8 @@ public sealed class AdminUploadController : ControllerBase
         using var ms = new MemoryStream();
         await s.CopyToAsync(ms, ct);
         ms.Position = 0;
-        using var p = new TextFieldParser(ms) { TextFieldType = FieldType.Delimited };
+        using var parserStream = new MemoryStream(ms.ToArray(), writable: false);
+        using var p = new TextFieldParser(parserStream) { TextFieldType = FieldType.Delimited };
         p.SetDelimiters(",");
         if (p.EndOfData) return BadRequest(new { error = "Empty CSV." });
         var header = p.ReadFields() ?? Array.Empty<string>();
