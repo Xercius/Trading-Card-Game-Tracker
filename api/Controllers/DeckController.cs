@@ -34,6 +34,14 @@ public record DeckCardItemDto(
     string Rarity,
     string Style
 );
+public record DeckAvailabilityItemDto(
+    int CardPrintingId,
+    int Owned,
+    int Proxy,
+    int Assigned,
+    int Available,
+    int AvailableWithProxy
+);
 public record UpsertDeckCardDto(
     int CardPrintingId,
     int QuantityInDeck,
@@ -387,6 +395,54 @@ namespace api.Controllers
             _db.DeckCards.Remove(dc);
             await _db.SaveChangesAsync();
             return NoContent();
+        }
+
+        // Issue 12: deck availability counts
+        // GET /api/deck/{deckId}/availability
+        [HttpGet("api/deck/{deckId:int}/availability")]
+        [RequireUserHeader]
+        public async Task<ActionResult<IEnumerable<DeckAvailabilityItemDto>>> GetDeckAvailability(
+            int deckId,
+            [FromQuery] bool includeProxies = false)
+        {
+            var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId);
+            if (deck is null) return NotFound();
+            if (NotOwnerAndNotAdmin(deck)) return StatusCode(403, "User mismatch.");
+
+            var deckCards = await _db.DeckCards
+                .Where(dc => dc.DeckId == deckId)
+                .ToListAsync();
+
+            if (!deckCards.Any())
+                return Ok(Array.Empty<DeckAvailabilityItemDto>());
+
+            var currentUser = HttpContext.GetCurrentUser();
+            if (currentUser is null) return StatusCode(403, "User missing.");
+
+            var printIds = deckCards.Select(dc => dc.CardPrintingId).ToList();
+            var userCards = await _db.UserCards
+                .Where(uc => uc.UserId == currentUser.Id && printIds.Contains(uc.CardPrintingId))
+                .ToDictionaryAsync(uc => uc.CardPrintingId);
+
+            var result = new List<DeckAvailabilityItemDto>();
+            foreach (var dc in deckCards)
+            {
+                userCards.TryGetValue(dc.CardPrintingId, out var uc);
+                var owned = uc?.QuantityOwned ?? 0;
+                var proxy = uc?.QuantityProxyOwned ?? 0;
+                var assigned = dc.QuantityInDeck;
+
+                var available = Math.Max(0, owned - assigned);
+                var availableWithProxy = includeProxies
+                    ? Math.Max(0, owned + proxy - assigned)
+                    : available;
+
+                result.Add(new DeckAvailabilityItemDto(
+                    dc.CardPrintingId, owned, proxy, assigned, available, availableWithProxy
+                ));
+            }
+
+            return Ok(result);
         }
     }
 }
