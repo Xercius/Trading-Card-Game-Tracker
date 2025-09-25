@@ -1,6 +1,7 @@
-using api.Models;
 using api.Data;
 using api.Middleware;
+using api.Models;
+using api.Importing;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers();
+
+builder.Services.AddScoped<ImporterRegistry>();
+builder.Services.AddScoped<ISourceImporter, DummyImporter>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));
