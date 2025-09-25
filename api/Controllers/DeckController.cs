@@ -41,6 +41,13 @@ public record UpsertDeckCardDto(
     int QuantityAcquire,
     int QuantityProxy
 );
+public record DeckCardDeltaDto(
+    int CardPrintingId,
+    int DeltaInDeck,
+    int DeltaIdea,
+    int DeltaAcquire,
+    int DeltaProxy
+);
 public record SetDeckCardQuantitiesDto(
     int QuantityInDeck,
     int QuantityIdea,
@@ -280,6 +287,57 @@ namespace api.Controllers
                 existing.QuantityIdea = Math.Max(0, dto.QuantityIdea);
                 existing.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
                 existing.QuantityProxy = Math.Max(0, dto.QuantityProxy);
+            }
+
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // Issue 11: delta add/remove for deck cards; ensures counts never go negative.
+        [HttpPost("api/deck/{deckId:int}/cards/delta")]
+        [RequireUserHeader]
+        public async Task<IActionResult> ApplyDeckCardDelta(int deckId, [FromBody] IEnumerable<DeckCardDeltaDto> deltas)
+        {
+            var deck = await _db.Decks.FindAsync(deckId);
+            if (deck is null) return NotFound("Deck not found.");
+
+            var deltaList = deltas.ToList();
+            var cardPrintingIds = deltaList.Select(d => d.CardPrintingId).ToList();
+            var printings = await _db.CardPrintings.Where(cp => cardPrintingIds.Contains(cp.Id))
+                                                   .Include(cp => cp.Card)
+                                                   .ToListAsync();
+            if (printings.Count != deltaList.Count) return NotFound("One or more CardPrintings not found.");
+            foreach (var cp in printings)
+            {
+                if (!string.Equals(deck.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
+                    return BadRequest("Card game does not match deck game.");
+            }
+
+            var existing = await _db.DeckCards
+                .Where(dc => dc.DeckId == deckId && cardPrintingIds.Contains(dc.CardPrintingId))
+                .ToDictionaryAsync(dc => dc.CardPrintingId);
+
+            foreach (var delta in deltaList)
+            {
+                if (!existing.TryGetValue(delta.CardPrintingId, out var row))
+                {
+                    row = new DeckCard
+                    {
+                        DeckId = deckId,
+                        CardPrintingId = delta.CardPrintingId,
+                        QuantityInDeck = 0,
+                        QuantityIdea = 0,
+                        QuantityAcquire = 0,
+                        QuantityProxy = 0
+                    };
+                    _db.DeckCards.Add(row);
+                    existing[delta.CardPrintingId] = row;
+                }
+
+                row.QuantityInDeck = Math.Max(0, row.QuantityInDeck + delta.DeltaInDeck);
+                row.QuantityIdea = Math.Max(0, row.QuantityIdea + delta.DeltaIdea);
+                row.QuantityAcquire = Math.Max(0, row.QuantityAcquire + delta.DeltaAcquire);
+                row.QuantityProxy = Math.Max(0, row.QuantityProxy + delta.DeltaProxy);
             }
 
             await _db.SaveChangesAsync();
