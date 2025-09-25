@@ -74,7 +74,7 @@ namespace api.Controllers
             var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
             if (u is null) return NotFound();
 
-            if (updates.TryGetProperty("userName", out var n) && n.ValueKind == JsonValueKind.String)
+            if (updates.TryGetProperty("username", out var n) && n.ValueKind == JsonValueKind.String)
                 u.Username = n.GetString()!.Trim();
 
             if (updates.TryGetProperty("displayName", out var d) && d.ValueKind == JsonValueKind.String)
