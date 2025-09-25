@@ -21,6 +21,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwuDbImp
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.PokemonTcgImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.FabDbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.GuardiansLocalImporter>();
+builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.DiceMastersDbImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
 
