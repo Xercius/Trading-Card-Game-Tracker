@@ -28,11 +28,14 @@ public record DeckCardItemDto(
     int QuantityIdea,
     int QuantityAcquire,
     int QuantityProxy,
+    int CardId,
     string CardName,
+    string Game,
     string Set,
     string Number,
     string Rarity,
-    string Style
+    string Style,
+    string? ImageUrl
 );
 public record DeckAvailabilityItemDto(
     int CardPrintingId,
@@ -65,14 +68,31 @@ public record SetDeckCardQuantitiesDto(
 
 namespace api.Controllers
 {
-    // Issue 10: user-scoped deck CRUD tightening (ownership checks + optional filters)
     [ApiController]
+    [RequireUserHeader]
+    // Legacy, user-scoped routes for compatibility:
+    [Route("api/user/{userId:int}/deck")]
     public class DeckController : ControllerBase
     {
         private readonly AppDbContext _db;
         public DeckController(AppDbContext db) => _db = db;
+
+        // -----------------------------
+        // Helpers
+        // -----------------------------
+
+        private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
+        {
+            var me = HttpContext.GetCurrentUser();
+            if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+            error = null; userId = me.Id; return true;
+        }
+
         private bool UserMismatch(int userId)
-        => HttpContext.GetCurrentUser() is { Id: var cid } && cid != userId;
+        {
+            var me = HttpContext.GetCurrentUser();
+            return me is null || (!me.IsAdmin && me.Id != userId);
+        }
 
         private bool NotOwnerAndNotAdmin(Deck d)
         {
@@ -80,107 +100,85 @@ namespace api.Controllers
             return me is null || (!me.IsAdmin && me.Id != d.UserId);
         }
 
-        // ----- User's decks ---------------------------------------------------
-
-        // Issue 10
-        // GET /api/user/{userId}/deck
-        [HttpGet("api/user/{userId:int}/deck")]
-        [RequireUserHeader]
-        public async Task<ActionResult<IEnumerable<DeckDto>>> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
+        private async Task<Deck?> FindDeckOr403(int deckId)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
+            if (d is null) return null;
+            if (NotOwnerAndNotAdmin(d)) return null; // caller not allowed
+            return d;
+        }
+
+        // -----------------------------
+        // Core: Decks (single source of truth)
+        // -----------------------------
+
+        private async Task<IActionResult> ListUserDecksCore(int userId, string? game, string? name, bool? hasCards)
+        {
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
-            var decks = await _db.Decks.Where(d => d.UserId == userId)
-                .Select(d => new DeckDto(
-                    d.Id,
-                    d.UserId,
-                    d.Game,
-                    d.Name,
-                    d.Description
-                )
-            )
-                .ToListAsync();
+
+            var q = _db.Decks.Where(d => d.UserId == userId).AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(game))
             {
-                var trimmedGame = game.Trim();
-                decks = decks.Where(d => d.Game == trimmedGame).ToList();
+                var g = game.Trim();
+                q = q.Where(d => d.Game == g);
             }
             if (!string.IsNullOrWhiteSpace(name))
             {
-                var trimmedName = name.Trim();
-                decks = decks.Where(d => d.Name.Contains(trimmedName, StringComparison.OrdinalIgnoreCase)).ToList();
+                var n = name.Trim();
+                q = q.Where(d => d.Name.Contains(n));
             }
-            if (hasCards.HasValue && hasCards.Value)
+
+            var decks = await q
+                .Select(d => new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description))
+                .ToListAsync();
+
+            if (hasCards == true && decks.Count > 0)
             {
-                var deckIds = decks.Select(x => x.Id).ToList();
-                var counts = await _db.DeckCards.Where(dc => deckIds.Contains(dc.DeckId))
-                                            .GroupBy(dc => dc.DeckId)
-                                            .Select(g => new { DeckId = g.Key, C = g.Count() })
-                                            .ToListAsync();
-                var withCards = counts.Select(x => x.DeckId).ToHashSet();
-                decks = decks.Where(d => withCards.Contains(d.Id)).ToList();
+                var ids = decks.Select(d => d.Id).ToList();
+                var withCards = await _db.DeckCards
+                    .Where(dc => ids.Contains(dc.DeckId))
+                    .GroupBy(dc => dc.DeckId)
+                    .Select(g => g.Key)
+                    .ToListAsync();
+                var set = withCards.ToHashSet();
+                decks = decks.Where(d => set.Contains(d.Id)).ToList();
             }
+
             return Ok(decks);
         }
 
-        // Issue 10
-        // POST /api/user/{userId}/deck
-        [HttpPost("api/user/{userId:int}/deck")]
-        [RequireUserHeader]
-        public async Task<ActionResult<DeckDto>> CreateDeck(int userId, [FromBody] CreateDeckDto dto)
+        private async Task<IActionResult> CreateDeckCore(int userId, CreateDeckDto dto)
         {
-            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-            if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+            if (dto is null) return BadRequest();
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
+            if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
 
             var name = dto.Name.Trim();
             var game = dto.Game.Trim();
-            // Optional: Prevent duplicate deck names per user.
+
+            // optional: prevent duplicate names per user
             if (await _db.Decks.AnyAsync(x => x.UserId == userId && x.Name == name))
                 return Conflict("A deck with this name already exists for this user.");
 
-            var deck = new Deck {
-                UserId = userId,
-                Game = game,
-                Name = name,
-                Description = dto.Description
-            };
-            _db.Decks.Add(deck);
+            var d = new Deck { UserId = userId, Game = game, Name = name, Description = dto.Description };
+            _db.Decks.Add(d);
             await _db.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetDeck),
-                new { deckId = deck.Id },
-                new DeckDto(
-                    deck.Id,
-                    deck.UserId,
-                    deck.Game,
-                    deck.Name,
-                    deck.Description
-                )
-            );
+            return CreatedAtAction(nameof(GetDeck), new { deckId = d.Id },
+                new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description));
         }
 
-        // ----- Deck metadata --------------------------------------------------
-
-        // Issue 10
-        // GET /api/deck/{deckId}
-        [HttpGet("api/deck/{deckId:int}")]
-        [RequireUserHeader]
-        public async Task<ActionResult<DeckDto>> GetDeck(int deckId)
+        private async Task<IActionResult> GetDeckCore(int deckId)
         {
-            var d = await _db.Decks.FindAsync(deckId);
+            var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
             if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
             return Ok(new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description));
         }
 
-        // Issue 10
-        // PATCH /api/deck/{deckId}
-        [HttpPatch("api/deck/{deckId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates)
+        private async Task<IActionResult> PatchDeckCore(int deckId, JsonElement updates)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
@@ -198,11 +196,7 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // Issue 10
-        // PUT /api/deck/{deckId}
-        [HttpPut("api/deck/{deckId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> UpdateDeck(int deckId, [FromBody] UpdateDeckDto dto)
+        private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckDto dto)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
@@ -217,11 +211,7 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // Issue 10
-        // DELETE /api/deck/{deckId}
-        [HttpDelete("api/deck/{deckId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> DeleteDeck(int deckId)
+        private async Task<IActionResult> DeleteDeckCore(int deckId)
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
@@ -231,17 +221,16 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // ----- Deck cards -----------------------------------------------------
+        // -----------------------------
+        // Core: Deck Cards (ownership enforced)
+        // -----------------------------
 
-        // GET /api/deck/{deckId}/cards
-        [HttpGet("api/deck/{deckId:int}/cards")]
-        [RequireUserHeader]
-        public async Task<ActionResult<IEnumerable<DeckCardItemDto>>> GetDeckCards(int deckId)
+        private async Task<IActionResult> GetDeckCardsCore(int deckId)
         {
-            var deck = await _db.Decks.FindAsync(deckId);
-            if (deck is null) return NotFound();
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found."); // 403 preferred
 
-            var items = await _db.DeckCards
+            var rows = await _db.DeckCards
                 .Where(dc => dc.DeckId == deckId)
                 .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
                 .Select(dc => new DeckCardItemDto(
@@ -250,36 +239,38 @@ namespace api.Controllers
                     dc.QuantityIdea,
                     dc.QuantityAcquire,
                     dc.QuantityProxy,
+                    dc.CardPrinting.CardId,
                     dc.CardPrinting.Card.Name,
+                    dc.CardPrinting.Card.Game,
                     dc.CardPrinting.Set,
                     dc.CardPrinting.Number,
                     dc.CardPrinting.Rarity,
-                    dc.CardPrinting.Style
+                    dc.CardPrinting.Style,
+                    dc.CardPrinting.ImageUrl
                 ))
                 .ToListAsync();
 
-            return Ok(items);
+            return Ok(rows);
         }
 
-        // POST /api/deck/{deckId}/cards  (upsert one printing)
-        [HttpPost("api/deck/{deckId:int}/cards")]
-        [RequireUserHeader]
-        public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] UpsertDeckCardDto dto)
+        private async Task<IActionResult> UpsertDeckCardCore(int deckId, UpsertDeckCardDto dto)
         {
-            var deck = await _db.Decks.FindAsync(deckId);
-            if (deck is null) return NotFound("Deck not found.");
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            if (dto is null) return BadRequest();
+            if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
 
-            var printing = await _db.CardPrintings.Include(cp => cp.Card).FirstOrDefaultAsync(cp => cp.Id == dto.CardPrintingId);
-            if (printing is null) return NotFound("CardPrinting not found.");
-
-            // Enforce same game
-            if (!string.Equals(deck.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
+            var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
+            if (cp is null) return NotFound("CardPrinting not found.");
+            if (!string.Equals(d.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
                 return BadRequest("Card game does not match deck game.");
 
-            var existing = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == dto.CardPrintingId);
-            if (existing is null)
+            var dc = await _db.DeckCards
+                .FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == dto.CardPrintingId);
+
+            if (dc is null)
             {
-                _db.DeckCards.Add(new DeckCard
+                dc = new DeckCard
                 {
                     DeckId = deckId,
                     CardPrintingId = dto.CardPrintingId,
@@ -287,47 +278,47 @@ namespace api.Controllers
                     QuantityIdea = Math.Max(0, dto.QuantityIdea),
                     QuantityAcquire = Math.Max(0, dto.QuantityAcquire),
                     QuantityProxy = Math.Max(0, dto.QuantityProxy)
-                });
+                };
+                _db.DeckCards.Add(dc);
             }
             else
             {
-                existing.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
-                existing.QuantityIdea = Math.Max(0, dto.QuantityIdea);
-                existing.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
-                existing.QuantityProxy = Math.Max(0, dto.QuantityProxy);
+                dc.QuantityInDeck = Math.Max(0, dto.QuantityInDeck);
+                dc.QuantityIdea = Math.Max(0, dto.QuantityIdea);
+                dc.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
+                dc.QuantityProxy = Math.Max(0, dto.QuantityProxy);
             }
 
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // Issue 11: delta add/remove for deck cards; ensures counts never go negative.
-        [HttpPost("api/deck/{deckId:int}/cards/delta")]
-        [RequireUserHeader]
-        public async Task<IActionResult> ApplyDeckCardDelta(int deckId, [FromBody] IEnumerable<DeckCardDeltaDto> deltas)
+        private async Task<IActionResult> ApplyDeckCardDeltaCore(int deckId, IEnumerable<DeckCardDeltaDto> deltas)
         {
-            var deck = await _db.Decks.FindAsync(deckId);
-            if (deck is null) return NotFound("Deck not found.");
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+            if (deltas is null) return BadRequest("Deltas payload required.");
 
-            var deltaList = deltas.ToList();
-            var cardPrintingIds = deltaList.Select(d => d.CardPrintingId).ToList();
-            var printings = await _db.CardPrintings.Where(cp => cardPrintingIds.Contains(cp.Id))
-                                                   .Include(cp => cp.Card)
-                                                   .ToListAsync();
-            if (printings.Count != deltaList.Count) return NotFound("One or more CardPrintings not found.");
-            foreach (var cp in printings)
-            {
-                if (!string.Equals(deck.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
-                    return BadRequest("Card game does not match deck game.");
-            }
+            var list = deltas.ToList();
+            if (list.Count == 0) return NoContent();
 
-            var existing = await _db.DeckCards
-                .Where(dc => dc.DeckId == deckId && cardPrintingIds.Contains(dc.CardPrintingId))
+            var ids = list.Select(x => x.CardPrintingId).Distinct().ToList();
+            var printings = await _db.CardPrintings
+                .Where(cp => ids.Contains(cp.Id))
+                .Include(cp => cp.Card)
+                .ToListAsync();
+
+            if (printings.Count != ids.Count) return NotFound("One or more CardPrintings not found.");
+            if (printings.Any(cp => !string.Equals(d.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase)))
+                return BadRequest("One or more card games do not match deck game.");
+
+            var map = await _db.DeckCards
+                .Where(dc => dc.DeckId == deckId && ids.Contains(dc.CardPrintingId))
                 .ToDictionaryAsync(dc => dc.CardPrintingId);
 
-            foreach (var delta in deltaList)
+            foreach (var delta in list)
             {
-                if (!existing.TryGetValue(delta.CardPrintingId, out var row))
+                if (!map.TryGetValue(delta.CardPrintingId, out var row))
                 {
                     row = new DeckCard
                     {
@@ -339,7 +330,7 @@ namespace api.Controllers
                         QuantityProxy = 0
                     };
                     _db.DeckCards.Add(row);
-                    existing[delta.CardPrintingId] = row;
+                    map[delta.CardPrintingId] = row;
                 }
 
                 row.QuantityInDeck = Math.Max(0, row.QuantityInDeck + delta.DeltaInDeck);
@@ -352,11 +343,11 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // PUT /api/deck/{deckId}/cards/{cardPrintingId}  (set all three counts)
-        [HttpPut("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> SetDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] SetDeckCardQuantitiesDto dto)
+        private async Task<IActionResult> SetDeckCardQuantitiesCore(int deckId, int cardPrintingId, SetDeckCardQuantitiesDto dto)
         {
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
 
@@ -364,15 +355,16 @@ namespace api.Controllers
             dc.QuantityIdea = Math.Max(0, dto.QuantityIdea);
             dc.QuantityAcquire = Math.Max(0, dto.QuantityAcquire);
             dc.QuantityProxy = Math.Max(0, dto.QuantityProxy);
+
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // PATCH /api/deck/{deckId}/cards/{cardPrintingId}  (partial counts)
-        [HttpPatch("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
+        private async Task<IActionResult> PatchDeckCardQuantitiesCore(int deckId, int cardPrintingId, JsonElement updates)
         {
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
 
@@ -385,43 +377,33 @@ namespace api.Controllers
             return NoContent();
         }
 
-        // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
-        [HttpDelete("api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
-        [RequireUserHeader]
-        public async Task<IActionResult> RemoveDeckCard(int deckId, int cardPrintingId)
+        private async Task<IActionResult> RemoveDeckCardCore(int deckId, int cardPrintingId)
         {
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
+
             var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
             if (dc is null) return NotFound();
+
             _db.DeckCards.Remove(dc);
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // Issue 12: deck availability counts
-        // GET /api/deck/{deckId}/availability
-        [HttpGet("api/deck/{deckId:int}/availability")]
-        [RequireUserHeader]
-        public async Task<ActionResult<IEnumerable<DeckAvailabilityItemDto>>> GetDeckAvailability(
-            int deckId,
-            [FromQuery] bool includeProxies = false)
+        private async Task<IActionResult> GetDeckAvailabilityCore(int deckId, bool includeProxies)
         {
-            var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId);
-            if (deck is null) return NotFound();
-            if (NotOwnerAndNotAdmin(deck)) return StatusCode(403, "User mismatch.");
+            var d = await FindDeckOr403(deckId);
+            if (d is null) return StatusCode(403, "User mismatch or deck not found.");
 
-            var deckCards = await _db.DeckCards
-                .Where(dc => dc.DeckId == deckId)
-                .ToListAsync();
+            var deckCards = await _db.DeckCards.Where(dc => dc.DeckId == deckId).ToListAsync();
+            if (!deckCards.Any()) return Ok(Array.Empty<DeckAvailabilityItemDto>());
 
-            if (!deckCards.Any())
-                return Ok(Array.Empty<DeckAvailabilityItemDto>());
-
-            var currentUser = HttpContext.GetCurrentUser();
-            if (currentUser is null) return StatusCode(403, "User missing.");
+            var me = HttpContext.GetCurrentUser();
+            if (me is null) return StatusCode(403, "User missing.");
 
             var printIds = deckCards.Select(dc => dc.CardPrintingId).ToList();
             var userCards = await _db.UserCards
-                .Where(uc => uc.UserId == currentUser.Id && printIds.Contains(uc.CardPrintingId))
+                .Where(uc => uc.UserId == me.Id && printIds.Contains(uc.CardPrintingId))
                 .ToDictionaryAsync(uc => uc.CardPrintingId);
 
             var result = new List<DeckAvailabilityItemDto>();
@@ -431,11 +413,8 @@ namespace api.Controllers
                 var owned = uc?.QuantityOwned ?? 0;
                 var proxy = uc?.QuantityProxyOwned ?? 0;
                 var assigned = dc.QuantityInDeck;
-
                 var available = Math.Max(0, owned - assigned);
-                var availableWithProxy = includeProxies
-                    ? Math.Max(0, owned + proxy - assigned)
-                    : available;
+                var availableWithProxy = includeProxies ? Math.Max(0, owned + proxy - assigned) : available;
 
                 result.Add(new DeckAvailabilityItemDto(
                     dc.CardPrintingId, owned, proxy, assigned, available, availableWithProxy
@@ -444,5 +423,113 @@ namespace api.Controllers
 
             return Ok(result);
         }
+
+        // -----------------------------------------
+        // Legacy (userId in URL)
+        // -----------------------------------------
+
+        // GET /api/user/{userId}/deck
+        [HttpGet]
+        public async Task<IActionResult> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await ListUserDecksCore(userId, game, name, hasCards);
+        }
+
+        // POST /api/user/{userId}/deck
+        [HttpPost]
+        public async Task<IActionResult> CreateDeck(int userId, [FromBody] CreateDeckDto dto)
+        {
+            if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            return await CreateDeckCore(userId, dto);
+        }
+
+        // -----------------------------------------
+        // Auth-derived aliases (preferred)
+        // -----------------------------------------
+
+        // GET /api/deck  (list current user's decks)
+        [HttpGet("/api/deck")]
+        [HttpGet("/api/decks")] // alias, optional
+        public async Task<IActionResult> GetMyDecks([FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await ListUserDecksCore(uid, game, name, hasCards);
+        }
+
+        // POST /api/deck  (create for current user)
+        [HttpPost("/api/deck")]
+        public async Task<IActionResult> CreateMyDeck([FromBody] CreateDeckDto dto)
+        {
+            if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            return await CreateDeckCore(uid, dto);
+        }
+
+        // ----- Deck metadata (ownership enforced) -----
+
+        // GET /api/deck/{deckId}
+        [HttpGet("/api/deck/{deckId:int}")]
+        [HttpGet("/api/decks/{deckId:int}")] // alias
+        public async Task<IActionResult> GetDeck(int deckId) => await GetDeckCore(deckId);
+
+        // PATCH /api/deck/{deckId}
+        [HttpPatch("/api/deck/{deckId:int}")]
+        [HttpPatch("/api/decks/{deckId:int}")] // alias
+        public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates) => await PatchDeckCore(deckId, updates);
+
+        // PUT /api/deck/{deckId}
+        [HttpPut("/api/deck/{deckId:int}")]
+        [HttpPut("/api/decks/{deckId:int}")] // alias
+        public async Task<IActionResult> UpdateDeck(int deckId, [FromBody] UpdateDeckDto dto) => await UpdateDeckCore(deckId, dto);
+
+        // DELETE /api/deck/{deckId}
+        [HttpDelete("/api/deck/{deckId:int}")]
+        [HttpDelete("/api/decks/{deckId:int}")] // alias
+        public async Task<IActionResult> DeleteDeck(int deckId) => await DeleteDeckCore(deckId);
+
+        // ----- Deck cards (ownership enforced) -----
+
+        // GET /api/deck/{deckId}/cards
+        [HttpGet("/api/deck/{deckId:int}/cards")]
+        [HttpGet("/api/decks/{deckId:int}/cards")] // alias
+        public async Task<IActionResult> GetDeckCards(int deckId) => await GetDeckCardsCore(deckId);
+
+        // POST /api/deck/{deckId}/cards  (upsert one)
+        [HttpPost("/api/deck/{deckId:int}/cards")]
+        [HttpPost("/api/decks/{deckId:int}/cards")] // alias
+        public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] UpsertDeckCardDto dto)
+            => await UpsertDeckCardCore(deckId, dto);
+
+        // POST /api/deck/{deckId}/cards/delta
+        [HttpPost("/api/deck/{deckId:int}/cards/delta")]
+        [HttpPost("/api/decks/{deckId:int}/cards/delta")] // alias
+        public async Task<IActionResult> ApplyDeckCardDelta(int deckId, [FromBody] IEnumerable<DeckCardDeltaDto> deltas)
+            => await ApplyDeckCardDeltaCore(deckId, deltas);
+
+        // PUT /api/deck/{deckId}/cards/{cardPrintingId}
+        [HttpPut("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [HttpPut("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+        public async Task<IActionResult> SetDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] SetDeckCardQuantitiesDto dto)
+            => await SetDeckCardQuantitiesCore(deckId, cardPrintingId, dto);
+
+        // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
+        [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+        public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
+            => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
+
+        // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
+        [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+        [HttpDelete("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+        public async Task<IActionResult> RemoveDeckCard(int deckId, int cardPrintingId)
+            => await RemoveDeckCardCore(deckId, cardPrintingId);
+
+        // ----- Availability -----
+
+        // GET /api/deck/{deckId}/availability?includeProxies=
+        [HttpGet("/api/deck/{deckId:int}/availability")]
+        [HttpGet("/api/decks/{deckId:int}/availability")] // alias
+        public async Task<IActionResult> GetDeckAvailability(int deckId, [FromQuery] bool includeProxies = false)
+            => await GetDeckAvailabilityCore(deckId, includeProxies);
     }
 }
