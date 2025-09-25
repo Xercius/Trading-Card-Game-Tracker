@@ -50,6 +50,7 @@ public record SetDeckCardQuantitiesDto(
 
 namespace api.Controllers
 {
+    // Issue 10: user-scoped deck CRUD tightening (ownership checks + optional filters)
     [ApiController]
     public class DeckController : ControllerBase
     {
@@ -58,12 +59,19 @@ namespace api.Controllers
         private bool UserMismatch(int userId)
         => HttpContext.GetCurrentUser() is { Id: var cid } && cid != userId;
 
+        private bool NotOwnerAndNotAdmin(Deck d)
+        {
+            var me = HttpContext.GetCurrentUser();
+            return me is null || (!me.IsAdmin && me.Id != d.UserId);
+        }
+
         // ----- User's decks ---------------------------------------------------
 
+        // Issue 10
         // GET /api/user/{userId}/deck
         [HttpGet("api/user/{userId:int}/deck")]
         [RequireUserHeader]
-        public async Task<ActionResult<IEnumerable<DeckDto>>> GetUserDecks(int userId)
+        public async Task<ActionResult<IEnumerable<DeckDto>>> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
             if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
@@ -77,9 +85,31 @@ namespace api.Controllers
                 )
             )
                 .ToListAsync();
+
+            if (!string.IsNullOrWhiteSpace(game))
+            {
+                var trimmedGame = game.Trim();
+                decks = decks.Where(d => d.Game == trimmedGame).ToList();
+            }
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var trimmedName = name.Trim();
+                decks = decks.Where(d => d.Name.Contains(trimmedName, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            if (hasCards.HasValue && hasCards.Value)
+            {
+                var deckIds = decks.Select(x => x.Id).ToList();
+                var counts = await _db.DeckCards.Where(dc => deckIds.Contains(dc.DeckId))
+                                            .GroupBy(dc => dc.DeckId)
+                                            .Select(g => new { DeckId = g.Key, C = g.Count() })
+                                            .ToListAsync();
+                var withCards = counts.Select(x => x.DeckId).ToHashSet();
+                decks = decks.Where(d => withCards.Contains(d.Id)).ToList();
+            }
             return Ok(decks);
         }
 
+        // Issue 10
         // POST /api/user/{userId}/deck
         [HttpPost("api/user/{userId:int}/deck")]
         [RequireUserHeader]
@@ -90,10 +120,16 @@ namespace api.Controllers
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
 
+            var name = dto.Name.Trim();
+            var game = dto.Game.Trim();
+            // Optional: Prevent duplicate deck names per user.
+            if (await _db.Decks.AnyAsync(x => x.UserId == userId && x.Name == name))
+                return Conflict("A deck with this name already exists for this user.");
+
             var deck = new Deck {
                 UserId = userId,
-                Game = dto.Game.Trim(),
-                Name = dto.Name.Trim(),
+                Game = game,
+                Name = name,
                 Description = dto.Description
             };
             _db.Decks.Add(deck);
@@ -113,15 +149,19 @@ namespace api.Controllers
 
         // ----- Deck metadata --------------------------------------------------
 
+        // Issue 10
         // GET /api/deck/{deckId}
         [HttpGet("api/deck/{deckId:int}")]
         [RequireUserHeader]
         public async Task<ActionResult<DeckDto>> GetDeck(int deckId)
         {
             var d = await _db.Decks.FindAsync(deckId);
-            return d is null ? NotFound() : Ok(new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description));
+            if (d is null) return NotFound();
+            if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
+            return Ok(new DeckDto(d.Id, d.UserId, d.Game, d.Name, d.Description));
         }
 
+        // Issue 10
         // PATCH /api/deck/{deckId}
         [HttpPatch("api/deck/{deckId:int}")]
         [RequireUserHeader]
@@ -129,6 +169,7 @@ namespace api.Controllers
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
+            if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
 
             if (updates.TryGetProperty("game", out var g) && g.ValueKind == JsonValueKind.String)
                 d.Game = g.GetString()!.Trim();
@@ -142,6 +183,7 @@ namespace api.Controllers
             return NoContent();
         }
 
+        // Issue 10
         // PUT /api/deck/{deckId}
         [HttpPut("api/deck/{deckId:int}")]
         [RequireUserHeader]
@@ -149,6 +191,7 @@ namespace api.Controllers
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
+            if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
             if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
                 return BadRequest("Game and Name required.");
 
@@ -159,6 +202,7 @@ namespace api.Controllers
             return NoContent();
         }
 
+        // Issue 10
         // DELETE /api/deck/{deckId}
         [HttpDelete("api/deck/{deckId:int}")]
         [RequireUserHeader]
@@ -166,6 +210,7 @@ namespace api.Controllers
         {
             var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
             if (d is null) return NotFound();
+            if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
             _db.Decks.Remove(d);
             await _db.SaveChangesAsync();
             return NoContent();
