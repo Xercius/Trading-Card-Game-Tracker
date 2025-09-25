@@ -70,6 +70,21 @@ namespace api.Controllers
             return me is null || (!me.IsAdmin && me.Id != userId);
         }
 
+        private bool IsAdmin() => HttpContext.GetCurrentUser()?.IsAdmin == true;
+
+        private static bool TryGetInt(JsonElement obj, string camelName, string pascalName, out int value)
+        {
+            value = 0;
+            return (obj.TryGetProperty(camelName, out var camel) && camel.TryGetInt32(out value))
+                || (obj.TryGetProperty(pascalName, out var pascal) && pascal.TryGetInt32(out value));
+        }
+
+        private static bool IsZero(UserCard card) =>
+            card.QuantityOwned == 0 && card.QuantityWanted == 0 && card.QuantityProxyOwned == 0;
+
+        private static int ClampNonNegative(long value) =>
+            value < 0 ? 0 : (value > int.MaxValue ? int.MaxValue : (int)value);
+
         private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
         {
             var me = HttpContext.GetCurrentUser();
@@ -89,7 +104,8 @@ namespace api.Controllers
             string? name,
             int? cardPrintingId)
         {
-            if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+            if (!await _db.Users.AnyAsync(u => u.Id == userId))
+                return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
 
             var query = _db.UserCards
                 .Where(uc => uc.UserId == userId)
@@ -104,8 +120,8 @@ namespace api.Controllers
                 query = query.Where(uc => uc.CardPrinting.Rarity == rarity);
             if (!string.IsNullOrWhiteSpace(name))
             {
-                var loweredName = name.ToLower();
-                query = query.Where(uc => uc.CardPrinting.Card.Name.ToLower().Contains(loweredName));
+                var pattern = $"%{name.Trim()}%";
+                query = query.Where(uc => EF.Functions.Like(uc.CardPrinting.Card.Name, pattern));
             }
             if (cardPrintingId.HasValue)
                 query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
@@ -132,9 +148,10 @@ namespace api.Controllers
 
         private async Task<IActionResult> UpsertCore(int userId, UpsertUserCardDto dto)
         {
-            if (dto is null) return BadRequest();
+            if (dto is null) return BadRequest("Body required.");
             if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
-            if (await _db.Users.FindAsync(userId) is null) return NotFound("User not found.");
+            if (await _db.Users.FindAsync(userId) is null)
+                return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
             if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
 
             var existing = await _db.UserCards
@@ -142,20 +159,32 @@ namespace api.Controllers
 
             if (existing is null)
             {
-                _db.UserCards.Add(new UserCard
+                var newCard = new UserCard
                 {
                     UserId = userId,
                     CardPrintingId = dto.CardPrintingId,
                     QuantityOwned = Math.Max(0, dto.QuantityOwned),
                     QuantityWanted = Math.Max(0, dto.QuantityWanted),
                     QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
-                });
+                };
+
+                if (IsZero(newCard))
+                {
+                    return NoContent();
+                }
+
+                _db.UserCards.Add(newCard);
             }
             else
             {
                 existing.QuantityOwned = Math.Max(0, dto.QuantityOwned);
                 existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
                 existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
+
+                if (IsZero(existing))
+                {
+                    _db.UserCards.Remove(existing);
+                }
             }
 
             await _db.SaveChangesAsync();
@@ -172,6 +201,11 @@ namespace api.Controllers
             uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
             uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
 
+            if (IsZero(uc))
+            {
+                _db.UserCards.Remove(uc);
+            }
+
             await _db.SaveChangesAsync();
             return NoContent();
         }
@@ -182,14 +216,19 @@ namespace api.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
             if (uc is null) return NotFound();
 
-            if (updates.TryGetProperty("quantityOwned", out var qo) && qo.TryGetInt32(out var owned))
+            if (TryGetInt(updates, "quantityOwned", "QuantityOwned", out var owned))
                 uc.QuantityOwned = Math.Max(0, owned);
 
-            if (updates.TryGetProperty("quantityWanted", out var qw) && qw.TryGetInt32(out var wanted))
+            if (TryGetInt(updates, "quantityWanted", "QuantityWanted", out var wanted))
                 uc.QuantityWanted = Math.Max(0, wanted);
 
-            if (updates.TryGetProperty("quantityProxyOwned", out var qpo) && qpo.TryGetInt32(out var proxyOwned))
+            if (TryGetInt(updates, "quantityProxyOwned", "QuantityProxyOwned", out var proxyOwned))
                 uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
+
+            if (IsZero(uc))
+            {
+                _db.UserCards.Remove(uc);
+            }
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -198,13 +237,15 @@ namespace api.Controllers
         private async Task<IActionResult> ApplyDeltaCore(int userId, IEnumerable<DeltaUserCardDto> deltas)
         {
             if (deltas is null) return BadRequest("Deltas payload required.");
-            if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+            if (!await _db.Users.AnyAsync(u => u.Id == userId))
+                return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
 
             var deltaList = deltas.ToList();
             if (deltaList.Count == 0) return NoContent();
             if (deltaList.Any(d => d.CardPrintingId <= 0))
                 return BadRequest("CardPrintingId must be positive.");
 
+            using var tx = await _db.Database.BeginTransactionAsync();
             var printingIds = deltaList.Select(d => d.CardPrintingId).Distinct().ToList();
             var validIds = await _db.CardPrintings
                 .Where(cp => printingIds.Contains(cp.Id))
@@ -234,12 +275,21 @@ namespace api.Controllers
                     map[d.CardPrintingId] = row;
                 }
 
-                row.QuantityOwned = Math.Max(0, row.QuantityOwned + d.DeltaOwned);
-                row.QuantityWanted = Math.Max(0, row.QuantityWanted + d.DeltaWanted);
-                row.QuantityProxyOwned = Math.Max(0, row.QuantityProxyOwned + d.DeltaProxyOwned);
+                row.QuantityOwned = ClampNonNegative((long)row.QuantityOwned + d.DeltaOwned);
+                row.QuantityWanted = ClampNonNegative((long)row.QuantityWanted + d.DeltaWanted);
+                row.QuantityProxyOwned = ClampNonNegative((long)row.QuantityProxyOwned + d.DeltaProxyOwned);
+            }
+
+            foreach (var row in map.Values)
+            {
+                if (IsZero(row))
+                {
+                    _db.UserCards.Remove(row);
+                }
             }
 
             await _db.SaveChangesAsync();
+            await tx.CommitAsync();
             return NoContent();
         }
 
@@ -271,30 +321,38 @@ namespace api.Controllers
         }
 
         [HttpPost]
+        [Consumes("application/json")]
         public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardDto dto)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (dto is null) return BadRequest("Body required.");
             return await UpsertCore(userId, dto);
         }
 
         [HttpPut("{cardPrintingId:int}")]
+        [Consumes("application/json")]
         public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetQuantitiesDto dto)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (dto is null) return BadRequest("Body required.");
             return await SetQuantitiesCore(userId, cardPrintingId, dto);
         }
 
         [HttpPatch("{cardPrintingId:int}")]
+        [Consumes("application/json")]
         public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
             return await PatchQuantitiesCore(userId, cardPrintingId, updates);
         }
 
         [HttpPost("delta")]
+        [Consumes("application/json")]
         public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardDto> deltas)
         {
             if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+            if (deltas is null) return BadRequest("Deltas payload required.");
             return await ApplyDeltaCore(userId, deltas);
         }
 
@@ -310,6 +368,7 @@ namespace api.Controllers
         // -----------------------------------------
 
         [HttpGet("/api/collection")]
+        [HttpGet("/api/collections")]
         public async Task<IActionResult> GetAllForCurrent(
             [FromQuery] string? game,
             [FromQuery] string? set,
@@ -322,34 +381,47 @@ namespace api.Controllers
         }
 
         [HttpPost("/api/collection")]
+        [HttpPost("/api/collections")]
+        [Consumes("application/json")]
         public async Task<IActionResult> UpsertForCurrent([FromBody] UpsertUserCardDto dto)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            if (dto is null) return BadRequest("Body required.");
             return await UpsertCore(uid, dto);
         }
 
         [HttpPut("/api/collection/{cardPrintingId:int}")]
+        [HttpPut("/api/collections/{cardPrintingId:int}")]
+        [Consumes("application/json")]
         public async Task<IActionResult> SetQuantitiesForCurrent(int cardPrintingId, [FromBody] SetQuantitiesDto dto)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            if (dto is null) return BadRequest("Body required.");
             return await SetQuantitiesCore(uid, cardPrintingId, dto);
         }
 
         [HttpPatch("/api/collection/{cardPrintingId:int}")]
+        [HttpPatch("/api/collections/{cardPrintingId:int}")]
+        [Consumes("application/json")]
         public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement updates)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
             return await PatchQuantitiesCore(uid, cardPrintingId, updates);
         }
 
         [HttpPost("/api/collection/delta")]
+        [HttpPost("/api/collections/delta")]
+        [Consumes("application/json")]
         public async Task<IActionResult> ApplyDeltaForCurrent([FromBody] IEnumerable<DeltaUserCardDto> deltas)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+            if (deltas is null) return BadRequest("Deltas payload required.");
             return await ApplyDeltaCore(uid, deltas);
         }
 
         [HttpDelete("/api/collection/{cardPrintingId:int}")]
+        [HttpDelete("/api/collections/{cardPrintingId:int}")]
         public async Task<IActionResult> RemoveForCurrent(int cardPrintingId)
         {
             if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
