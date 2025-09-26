@@ -1,13 +1,16 @@
-using System.Text.Json;
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using api.Data;
 using api.Features.Collections.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace api.Features.Collections;
 
@@ -121,10 +124,8 @@ public class CollectionsController : ControllerBase
                 QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
             };
 
-            if (IsZero(newCard))
-            {
-                return NoContent();
-            }
+            // Optional: skip creating an all-zero row on first insert.
+            if (IsZero(newCard)) return NoContent();
 
             _db.UserCards.Add(newCard);
         }
@@ -134,10 +135,7 @@ public class CollectionsController : ControllerBase
             existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
             existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
 
-            if (IsZero(existing))
-            {
-                _db.UserCards.Remove(existing);
-            }
+            // IMPORTANT: do NOT delete when all quantities are zero.
         }
 
         await _db.SaveChangesAsync();
@@ -154,11 +152,7 @@ public class CollectionsController : ControllerBase
         uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
         uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
 
-        if (IsZero(uc))
-        {
-            _db.UserCards.Remove(uc);
-        }
-
+        // Do NOT remove row when zero.
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -178,11 +172,7 @@ public class CollectionsController : ControllerBase
         if (TryGetInt(updates, "quantityProxyOwned", "QuantityProxyOwned", out var proxyOwned))
             uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
 
-        if (IsZero(uc))
-        {
-            _db.UserCards.Remove(uc);
-        }
-
+        // Do NOT remove row when zero.
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -233,14 +223,7 @@ public class CollectionsController : ControllerBase
             row.QuantityProxyOwned = ClampNonNegative((long)row.QuantityProxyOwned + d.DeltaProxyOwned);
         }
 
-        foreach (var row in map.Values)
-        {
-            if (IsZero(row))
-            {
-                _db.UserCards.Remove(row);
-            }
-        }
-
+        // Do NOT remove rows when zero.
         await _db.SaveChangesAsync();
         await tx.CommitAsync();
         return NoContent();

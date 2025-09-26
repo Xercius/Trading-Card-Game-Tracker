@@ -260,7 +260,8 @@ public static class TestDataSeeder
 
     private static async Task ClearDatabaseAsync(AppDbContext db)
     {
-        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
+        await db.Database.ExecuteSqlAsync($"PRAGMA foreign_keys = OFF;");
+
         var entityTypes = db.Model.GetEntityTypes()
             .Where(t => !t.IsOwned())
             .Select(t => t.GetTableName())
@@ -271,6 +272,7 @@ public static class TestDataSeeder
         {
             await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\";");
         }
-        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
+
+        await db.Database.ExecuteSqlAsync($"PRAGMA foreign_keys = ON;");
     }
 }

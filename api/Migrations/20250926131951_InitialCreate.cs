@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -42,6 +42,23 @@ namespace api.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ValueHistories",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    ScopeType = table.Column<int>(type: "INTEGER", nullable: false),
+                    ScopeId = table.Column<int>(type: "INTEGER", nullable: false),
+                    PriceCents = table.Column<long>(type: "INTEGER", nullable: false),
+                    AsOfUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    Source = table.Column<string>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ValueHistories", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -175,6 +192,11 @@ namespace api.Migrations
                 name: "IX_UserCards_CardPrintingId",
                 table: "UserCards",
                 column: "CardPrintingId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ValueHistories_ScopeType_ScopeId_AsOfUtc",
+                table: "ValueHistories",
+                columns: new[] { "ScopeType", "ScopeId", "AsOfUtc" });
         }
 
         /// <inheritdoc />
@@ -185,6 +207,9 @@ namespace api.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserCards");
+
+            migrationBuilder.DropTable(
+                name: "ValueHistories");
 
             migrationBuilder.DropTable(
                 name: "Decks");

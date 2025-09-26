@@ -13,7 +13,7 @@ namespace api.Middleware
     public static class HttpContextUserExtensions
     {
         public static CurrentUser? GetCurrentUser(this HttpContext ctx)
-            => ctx.Items.TryGetValue("User", out var v) ? (CurrentUser)v : null;
+    => ctx.Items.TryGetValue("User", out var v) && v is CurrentUser cu ? cu : null;
     }
 
     public class UserContextMiddleware

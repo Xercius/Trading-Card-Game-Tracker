@@ -55,10 +55,10 @@ namespace api.Migrations
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ImageUrl")
+                    b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DetailsJson")
+                    b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Number")

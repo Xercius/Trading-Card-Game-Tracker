@@ -37,7 +37,17 @@ public sealed class DiceMastersDbImporter : ISourceImporter
         var ids = await ParseCardLinksAsync(html, listUrl, ct);
 
         var limit = options.Limit ?? int.MaxValue;
-        var summary = new ImportSummary(Key, options.DryRun, 0, 0, 0, 0, 0);
+        var summary = new ImportSummary
+        {
+            Source = Key,
+            DryRun = options.DryRun,
+            CardsCreated = 0,
+            CardsUpdated = 0,
+            PrintingsCreated = 0,
+            PrintingsUpdated = 0,
+            Errors = 0,
+            Messages = { "Dummy importer ran" }
+        };
 
         return await _db.WithDryRunAsync(options.DryRun, async () =>
         {
@@ -138,7 +148,17 @@ public sealed class DiceMastersDbImporter : ISourceImporter
     {
         using var doc = await JsonDocument.ParseAsync(json, cancellationToken: ct);
 
-        var summary = new ImportSummary(Key, options.DryRun, 0, 0, 0, 0, 0);
+        var summary = new ImportSummary
+        {
+            Source = Key,
+            DryRun = options.DryRun,
+            CardsCreated = 0,
+            CardsUpdated = 0,
+            PrintingsCreated = 0,
+            PrintingsUpdated = 0,
+            Errors = 0,
+            Messages = { "Dummy importer ran" }
+        };
         var limit = options.Limit ?? int.MaxValue;
 
         static IEnumerable<JsonElement> EnumerateCards(JsonElement root)

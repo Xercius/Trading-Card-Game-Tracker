@@ -190,23 +190,28 @@ namespace api.Controllers
             if (userId is null) return BadRequest("X-User-Id required.");
 
             var rows = await _db.DeckCards
+                .AsNoTracking()
                 .Include(dc => dc.Deck)
                 .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
-                .Where(dc => dc.Deck!.UserId == userId)
+                .Where(dc =>
+                    dc.Deck != null &&
+                    dc.CardPrinting != null &&
+                    dc.CardPrinting.Card != null &&
+                    dc.Deck.UserId == userId)
                 .OrderBy(r => r.Deck!.Game)
                 .ThenBy(r => r.Deck!.Name)
-                .ThenBy(r => r.CardPrinting.Card.Name)
-                .ThenBy(r => r.CardPrinting.Set)
-                .ThenBy(r => r.CardPrinting.Number)
+                .ThenBy(r => r.CardPrinting!.Card!.Name)
+                .ThenBy(r => r.CardPrinting!.Set ?? "")
+                .ThenBy(r => r.CardPrinting!.Number ?? "")
                 .Select(dc => new
                 {
                     DeckName = dc.Deck!.Name,
                     Game = dc.Deck!.Game,
-                    CardName = dc.CardPrinting.Card.Name,
-                    dc.CardPrinting.Set,
-                    dc.CardPrinting.Number,
-                    dc.CardPrinting.Rarity,
-                    dc.CardPrinting.Style,
+                    CardName = dc.CardPrinting!.Card!.Name,
+                    Set = dc.CardPrinting!.Set ?? "",
+                    Number = dc.CardPrinting!.Number ?? "",
+                    Rarity = dc.CardPrinting!.Rarity ?? "",
+                    Style = dc.CardPrinting!.Style ?? "",
                     dc.CardPrintingId,
                     dc.QuantityInDeck,
                     dc.QuantityIdea,

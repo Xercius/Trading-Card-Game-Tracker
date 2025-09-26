@@ -8,15 +8,16 @@ public record ImportOptions(
     string? SetCode = null // e.g. "khm"
 );
 
-public record ImportSummary(
-    string Source,
-    bool DryRun,
-    int CardsCreated,
-    int CardsUpdated,
-    int PrintingsCreated,
-    int PrintingsUpdated,
-    int Errors
-)
+public sealed class ImportSummary
 {
-    public List<string> Messages { get; } = new();
+    public string Source { get; set; } = "";
+    public bool DryRun { get; set; }
+
+    public int CardsCreated { get; set; }
+    public int CardsUpdated { get; set; }
+    public int PrintingsCreated { get; set; }
+    public int PrintingsUpdated { get; set; }
+    public int Errors { get; set; }
+
+    public List<string> Messages { get; set; } = new();
 }

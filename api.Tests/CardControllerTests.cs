@@ -157,9 +157,11 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
                 number = "MM1",
                 style = "Standard",
                 rarity = "Rare",
-                imageUrl = "https://img.example.com/goblin-mm1.png"
+                imageUrlSet = true,
+                imageUrl = (string?)"https://img.example.com/goblin-mm1.png"
             }
         };
+
 
         var response = await client.PostAsJsonAsync(
             $"/api/card/{TestDataSeeder.GoblinGuideCardId}/printings/import",

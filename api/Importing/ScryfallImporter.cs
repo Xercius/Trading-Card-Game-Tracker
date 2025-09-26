@@ -36,7 +36,17 @@ public sealed class ScryfallImporter : ISourceImporter
 
     private async Task<ImportSummary> ImportSetAsync(string setCode, ImportOptions options, CancellationToken ct)
     {
-        var summary = new ImportSummary(Key, options.DryRun, 0, 0, 0, 0, 0);
+        var summary = new ImportSummary
+        {
+            Source = Key,
+            DryRun = options.DryRun,
+            CardsCreated = 0,
+            CardsUpdated = 0,
+            PrintingsCreated = 0,
+            PrintingsUpdated = 0,
+            Errors = 0,
+            Messages = { "Dummy importer ran" }
+        };
         var limit = options.Limit ?? int.MaxValue;
 
         return await _db.WithDryRunAsync(options.DryRun, async () =>

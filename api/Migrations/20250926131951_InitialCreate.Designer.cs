@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250924124841_Initial")]
-    partial class Initial
+    [Migration("20250926131951_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -58,10 +58,10 @@ namespace api.Migrations
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ImageUrl")
+                    b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DetailsJson")
+                    b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Number")
@@ -202,6 +202,35 @@ namespace api.Migrations
                     b.HasIndex("CardPrintingId");
 
                     b.ToTable("UserCards");
+                });
+
+            modelBuilder.Entity("api.Models.ValueHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AsOfUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("PriceCents")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScopeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScopeType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeType", "ScopeId", "AsOfUtc");
+
+                    b.ToTable("ValueHistories");
                 });
 
             modelBuilder.Entity("api.Models.CardPrinting", b =>

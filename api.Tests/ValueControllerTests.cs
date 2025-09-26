@@ -33,11 +33,12 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var payload = new[]
         {
-            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = "test" },
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" },
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1100L, source = (string?)null },
-            new { cardPrintingId = 999999, priceCents = 9999L, source = "invalid" },
-            new { cardPrintingId = TestDataSeeder.ElsaPrintingId, priceCents = 2000L, source = "wrong-game" }
+            new { cardPrintingId = 999999, priceCents = 9999L, source = (string?)"invalid" },
+            new { cardPrintingId = TestDataSeeder.ElsaPrintingId, priceCents = 2000L, source = (string?)"wrong-game" }
         };
+
 
         var response = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
         response.EnsureSuccessStatusCode();
