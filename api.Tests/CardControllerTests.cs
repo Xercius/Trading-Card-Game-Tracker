@@ -5,6 +5,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using api.Common.Dtos;
+using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
 using Xunit;
 
@@ -31,7 +33,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var pageOneResponse = await client.GetAsync("/api/card?game=Magic&page=1&pageSize=1");
         pageOneResponse.EnsureSuccessStatusCode();
-        var pageOne = await ReadPagedAsync<CardListItemDto>(pageOneResponse);
+        var pageOne = await ReadPagedAsync<CardListItemResponse>(pageOneResponse);
 
         Assert.Equal(2, pageOne.Total);
         Assert.Equal(1, pageOne.Items.Count);
@@ -39,7 +41,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var pageTwoResponse = await client.GetAsync("/api/card?game=Magic&page=2&pageSize=1");
         pageTwoResponse.EnsureSuccessStatusCode();
-        var pageTwo = await ReadPagedAsync<CardListItemDto>(pageTwoResponse);
+        var pageTwo = await ReadPagedAsync<CardListItemResponse>(pageTwoResponse);
 
         Assert.Equal(2, pageTwo.Total);
         Assert.Single(pageTwo.Items);
@@ -47,7 +49,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var filteredResponse = await client.GetAsync("/api/card?includePrintings=true&name=bolt");
         filteredResponse.EnsureSuccessStatusCode();
-        var filtered = await ReadPagedAsync<CardDetailDto>(filteredResponse);
+        var filtered = await ReadPagedAsync<CardDetailResponse>(filteredResponse);
 
         var detail = Assert.Single(filtered.Items);
         Assert.Equal(TestDataSeeder.LightningBoltCardId, detail.CardId);
@@ -65,7 +67,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await client.GetAsync($"/api/card/{TestDataSeeder.LightningBoltCardId}");
         response.EnsureSuccessStatusCode();
-        var detail = await response.Content.ReadFromJsonAsync<CardDetailDto>(_jsonOptions);
+        var detail = await response.Content.ReadFromJsonAsync<CardDetailResponse>(_jsonOptions);
 
         Assert.NotNull(detail);
         Assert.Equal(TestDataSeeder.LightningBoltCardId, detail!.CardId);
@@ -97,7 +99,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
 
-        var createdDetail = await client.GetFromJsonAsync<CardDetailDto>(
+        var createdDetail = await client.GetFromJsonAsync<CardDetailResponse>(
             $"/api/card/{TestDataSeeder.LightningBoltCardId}",
             _jsonOptions);
 
@@ -121,7 +123,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
-        var updatedDetail = await client.GetFromJsonAsync<CardDetailDto>(
+        var updatedDetail = await client.GetFromJsonAsync<CardDetailResponse>(
             $"/api/card/{TestDataSeeder.LightningBoltCardId}",
             _jsonOptions);
 
@@ -165,7 +167,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        var detail = await client.GetFromJsonAsync<CardDetailDto>(
+        var detail = await client.GetFromJsonAsync<CardDetailResponse>(
             $"/api/card/{TestDataSeeder.GoblinGuideCardId}",
             _jsonOptions);
 
@@ -211,14 +213,6 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
     private async Task<PagedResult<T>> ReadPagedAsync<T>(HttpResponseMessage response)
     {
         var payload = await response.Content.ReadFromJsonAsync<PagedResult<T>>(_jsonOptions);
-        return payload ?? new PagedResult<T>(0, 1, 0, new List<T>());
+        return payload ?? new PagedResult<T>(Array.Empty<T>(), 0, 1, 0);
     }
-
-    private sealed record CardListItemDto(int CardId, string Name, string Game);
-
-    private sealed record CardDetailDto(int CardId, string Name, string Game, List<CardPrintingDto> Printings);
-
-    private sealed record CardPrintingDto(int Id, string Set, string Number, string Rarity, string Style, string? ImageUrl);
-
-    private sealed record PagedResult<T>(int Total, int Page, int PageSize, List<T> Items);
 }

@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using api.Features.Collections.Dtos;
 using api.Tests.Fixtures;
 using Xunit;
 
@@ -232,25 +233,11 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task<List<CollectionItemDto>> GetCollectionAsync(HttpClient client, string query)
+    private async Task<List<UserCardItemResponse>> GetCollectionAsync(HttpClient client, string query)
     {
         var response = await client.GetAsync($"/api/collection{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<CollectionItemDto>>(_jsonOptions);
-        return payload ?? new List<CollectionItemDto>();
+        var payload = await response.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
+        return payload ?? new List<UserCardItemResponse>();
     }
-
-    private sealed record CollectionItemDto(
-        int CardPrintingId,
-        int QuantityOwned,
-        int QuantityWanted,
-        int QuantityProxyOwned,
-        int CardId,
-        string CardName,
-        string Game,
-        string Set,
-        string Number,
-        string Rarity,
-        string Style,
-        string? ImageUrl);
 }

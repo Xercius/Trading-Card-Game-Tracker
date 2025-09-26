@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using api.Features.Decks.Dtos;
 using api.Tests.Fixtures;
 using Xunit;
 
@@ -64,7 +65,7 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
             });
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
-        var createdDeck = await createResponse.Content.ReadFromJsonAsync<DeckDto>(_jsonOptions);
+        var createdDeck = await createResponse.Content.ReadFromJsonAsync<DeckResponse>(_jsonOptions);
         Assert.NotNull(createdDeck);
         var deckId = createdDeck!.Id;
 
@@ -267,52 +268,27 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(1, betaWithProxy.AvailableWithProxy);
     }
 
-    private async Task<List<DeckDto>> GetDecksAsync(HttpClient client, string query)
+    private async Task<List<DeckResponse>> GetDecksAsync(HttpClient client, string query)
     {
         var response = await client.GetAsync($"/api/deck{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckDto>>(_jsonOptions);
-        return payload ?? new List<DeckDto>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckResponse>>(_jsonOptions);
+        return payload ?? new List<DeckResponse>();
     }
 
-    private async Task<List<DeckCardItemDto>> GetDeckCardsAsync(HttpClient client, int deckId)
+    private async Task<List<DeckCardItemResponse>> GetDeckCardsAsync(HttpClient client, int deckId)
     {
         var response = await client.GetAsync($"/api/deck/{deckId}/cards");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckCardItemDto>>(_jsonOptions);
-        return payload ?? new List<DeckCardItemDto>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckCardItemResponse>>(_jsonOptions);
+        return payload ?? new List<DeckCardItemResponse>();
     }
 
-    private async Task<List<DeckAvailabilityItemDto>> GetDeckAvailabilityAsync(HttpClient client, bool includeProxies)
+    private async Task<List<DeckAvailabilityItemResponse>> GetDeckAvailabilityAsync(HttpClient client, bool includeProxies)
     {
         var response = await client.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/availability?includeProxies={includeProxies.ToString().ToLowerInvariant()}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckAvailabilityItemDto>>(_jsonOptions);
-        return payload ?? new List<DeckAvailabilityItemDto>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckAvailabilityItemResponse>>(_jsonOptions);
+        return payload ?? new List<DeckAvailabilityItemResponse>();
     }
-
-    private sealed record DeckDto(int Id, int UserId, string Game, string Name, string? Description);
-
-    private sealed record DeckCardItemDto(
-        int CardPrintingId,
-        int QuantityInDeck,
-        int QuantityIdea,
-        int QuantityAcquire,
-        int QuantityProxy,
-        int CardId,
-        string CardName,
-        string Game,
-        string Set,
-        string Number,
-        string Rarity,
-        string Style,
-        string? ImageUrl);
-
-    private sealed record DeckAvailabilityItemDto(
-        int CardPrintingId,
-        int Owned,
-        int Proxy,
-        int Assigned,
-        int Available,
-        int AvailableWithProxy);
 }
