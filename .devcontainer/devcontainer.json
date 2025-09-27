@@ -1,0 +1,26 @@
+{
+  "name": "tcg-tracker",
+  "image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "postCreateCommand": "dotnet --info && dotnet restore ./api/api.sln && dotnet build ./api/api.sln -c Debug && dotnet test ./api/api.sln -c Debug",
+  "forwardPorts": [5173, 5229, 7226],
+  "containerEnv": {
+    "ASPNETCORE_URLS": "http://0.0.0.0:5229;https://0.0.0.0:7226",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-vscode.vscode-typescript-next",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "mounts": [
+    "type=cache,target=/root/.nuget/packages"
+  ]
+}
