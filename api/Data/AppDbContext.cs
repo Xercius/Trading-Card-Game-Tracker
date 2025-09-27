@@ -37,6 +37,10 @@ namespace api.Data
                 .HasForeignKey(uc => uc.CardPrintingId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            b.Entity<CardPrinting>()
+                .HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })
+                .IsUnique();
+
             b.Entity<DeckCard>()
                 .HasIndex(dc => new { dc.DeckId, dc.CardPrintingId })
                 .IsUnique();

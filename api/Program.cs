@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
+// Services
 builder.Services.AddControllers();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
@@ -28,18 +27,21 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.DiceMast
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.TransformersFmImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
 
+// Explicit HTTPS port for redirects
+builder.Services.AddHttpsRedirection(o => o.HttpsPort = 7226);
 
+// CORS: Vite only
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReact",
-        b => b.WithOrigins("http://localhost:3000", "http://localhost:5173")
-              .AllowAnyMethod()
-              .AllowAnyHeader());
+    options.AddPolicy("AllowReact", p => p
+        .WithOrigins("http://localhost:5173")
+        .WithHeaders("X-User-Id", "Content-Type")
+        .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// DB migrate + seed
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -47,11 +49,9 @@ using (var scope = app.Services.CreateScope())
     DbSeeder.Seed(db);
 }
 
-
+// Pipeline
 app.UseHttpsRedirection();
-
 app.UseCors("AllowReact");
-
 app.UseAuthorization();
 app.UseMiddleware<UserContextMiddleware>();
 
@@ -60,8 +60,3 @@ app.MapControllers();
 app.Run();
 
 public partial class Program { }
-
-
-
-
-
