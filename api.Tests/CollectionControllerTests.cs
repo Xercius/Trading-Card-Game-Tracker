@@ -90,6 +90,64 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     }
 
     [Fact]
+    public async Task Collection_Post_Upsert_SkipsInsertingAllZeroRowsAndUpdatesExisting()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var skipResponse = await client.PostAsJsonAsync(
+            "/api/collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                quantityOwned = 0,
+                quantityWanted = 0,
+                quantityProxyOwned = 0
+            });
+
+        Assert.Equal(HttpStatusCode.NoContent, skipResponse.StatusCode);
+
+        var skipped = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
+        Assert.Empty(skipped);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                quantityOwned = 2,
+                quantityWanted = 1,
+                quantityProxyOwned = 3
+            });
+
+        Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
+
+        var created = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
+        var createdRow = Assert.Single(created);
+        Assert.Equal(2, createdRow.QuantityOwned);
+        Assert.Equal(1, createdRow.QuantityWanted);
+        Assert.Equal(3, createdRow.QuantityProxyOwned);
+
+        var updateResponse = await client.PostAsJsonAsync(
+            "/api/collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                quantityOwned = 5,
+                quantityWanted = 4,
+                quantityProxyOwned = 0
+            });
+
+        Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
+
+        var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
+        var row = Assert.Single(updated);
+        Assert.Equal(5, row.QuantityOwned);
+        Assert.Equal(4, row.QuantityWanted);
+        Assert.Equal(0, row.QuantityProxyOwned);
+    }
+
+    [Fact]
     public async Task Collection_Put_SetAll_UpdatesOr404()
     {
         await _factory.ResetDatabaseAsync();
