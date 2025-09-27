@@ -163,6 +163,50 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task DeckCards_Delta_RemovesRowsWhenAllQuantitiesReachZero()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/delta",
+            new[]
+            {
+                new
+                {
+                    cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                    deltaInDeck = 1,
+                    deltaIdea = 0,
+                    deltaAcquire = 0,
+                    deltaProxy = 0
+                },
+                new
+                {
+                    cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                    deltaInDeck = -1,
+                    deltaIdea = 0,
+                    deltaAcquire = 0,
+                    deltaProxy = 0
+                },
+                new
+                {
+                    cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                    deltaInDeck = -4,
+                    deltaIdea = 0,
+                    deltaAcquire = 0,
+                    deltaProxy = 0
+                }
+            });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var cards = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
+        Assert.DoesNotContain(cards, c => c.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+        Assert.DoesNotContain(cards, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
+        Assert.Contains(cards, c => c.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+    }
+
+    [Fact]
     public async Task DeckCards_AllEndpoints_EnforceOwnership_403WhenNotOwner()
     {
         await _factory.ResetDatabaseAsync();
@@ -237,6 +281,56 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var afterDelete = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
         Assert.DoesNotContain(afterDelete, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
+    }
+
+    [Fact]
+    public async Task Deck_Patch_DuplicateName_ReturnsConflict()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PatchAsync(
+            $"/api/deck/{TestDataSeeder.AliceEmptyDeckId}",
+            JsonContent.Create(new { name = "Alice Aggro" }));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Deck_Put_RequiresNameAndGameAndRejectsDuplicates()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var missingName = await client.PutAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}",
+            new
+            {
+                game = "Magic",
+                name = " ",
+                description = "Invalid update"
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, missingName.StatusCode);
+
+        var missingGame = await client.PutAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}",
+            new
+            {
+                game = "",
+                name = "Valid Name",
+                description = "Invalid update"
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, missingGame.StatusCode);
+
+        var duplicateName = await client.PutAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceEmptyDeckId}",
+            new
+            {
+                game = "Magic",
+                name = "Alice Aggro",
+                description = "Duplicate"
+            });
+        Assert.Equal(HttpStatusCode.Conflict, duplicateName.StatusCode);
     }
 
     [Fact]
