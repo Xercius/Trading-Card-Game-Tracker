@@ -5,9 +5,12 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using api.Data;
 using api.Features.Collections.Dtos;
 using api.Features.Wishlists.Dtos;
 using api.Tests.Fixtures;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace api.Tests;
@@ -135,6 +138,34 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
         var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
         var collectionItem = Assert.Single(collectionItems!);
         Assert.Equal(1, collectionItem.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Wishlist_MoveToCollection_UseProxy_FloorsWishlistAndIncrementsProxy()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/wishlist/move-to-collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                quantity = 3,
+                useProxy = true
+            });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.UserCards
+            .SingleAsync(uc => uc.UserId == TestDataSeeder.AliceUserId
+                               && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+
+        Assert.Equal(0, row.QuantityOwned);
+        Assert.Equal(5, row.QuantityProxyOwned); // 2 existing proxies + 3 moved
+        Assert.Equal(0, row.QuantityWanted); // floored at zero even when quantity exceeds wanted
     }
 
     [Fact]
