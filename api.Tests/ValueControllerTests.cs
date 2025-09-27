@@ -25,6 +25,8 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     private sealed record GameSliceResponse(string game, long cents);
 
+    private sealed record DeckSummaryResponse(int deckId, long totalCents);
+
     [Fact]
     public async Task Value_Refresh_CountsDuplicateValidRowsAndInvalidOnesSeparately()
     {
@@ -97,5 +99,35 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var lorcanaSlice = Assert.Single(summary.byGame.Where(s => s.game == "Lorcana"));
         Assert.Equal(expectedLorcana, lorcanaSlice.cents);
+    }
+
+    [Fact]
+    public async Task Value_DeckValue_UsesLatestPricesForCardsInDeck()
+    {
+        await _factory.ResetDatabaseAsync();
+        using var unauthenticated = _factory.CreateClient();
+
+        var initialMagicPrices = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 200L, source = "initial" },
+            new { cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId, priceCents = 300L, source = "initial" }
+        };
+        var initResponse = await unauthenticated.PostAsJsonAsync("/api/value/refresh?game=Magic", initialMagicPrices);
+        initResponse.EnsureSuccessStatusCode();
+
+        var updatedAlphaPrice = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 250L, source = "update" }
+        };
+        var updateResponse = await unauthenticated.PostAsJsonAsync("/api/value/refresh?game=Magic", updatedAlphaPrice);
+        updateResponse.EnsureSuccessStatusCode();
+
+        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var deckValue = await client.GetFromJsonAsync<DeckSummaryResponse>(
+            $"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
+
+        Assert.NotNull(deckValue);
+        var expectedTotal = 250L * 4 + 300L * 1; // Deck has four Alpha and one Beta copies
+        Assert.Equal(expectedTotal, deckValue!.totalCents);
     }
 }
