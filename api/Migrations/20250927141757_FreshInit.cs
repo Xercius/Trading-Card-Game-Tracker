@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class FreshInit : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -168,9 +168,10 @@ namespace api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_CardPrintings_CardId",
+                name: "IX_CardPrintings_CardId_Set_Number_Style",
                 table: "CardPrintings",
-                column: "CardId");
+                columns: new[] { "CardId", "Set", "Number", "Style" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_DeckCards_CardPrintingId",

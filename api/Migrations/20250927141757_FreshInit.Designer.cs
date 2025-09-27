@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250926131951_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20250927141757_FreshInit")]
+    partial class FreshInit
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -82,7 +82,8 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CardId");
+                    b.HasIndex("CardId", "Set", "Number", "Style")
+                        .IsUnique();
 
                     b.ToTable("CardPrintings");
                 });

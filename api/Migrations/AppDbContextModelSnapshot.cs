@@ -79,7 +79,8 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CardId");
+                    b.HasIndex("CardId", "Set", "Number", "Style")
+                        .IsUnique();
 
                     b.ToTable("CardPrintings");
                 });
