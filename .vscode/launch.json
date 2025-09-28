@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "api",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/api/bin/Debug/net8.0/api.dll",
+      "cwd": "${workspaceFolder}/api",
+      "env": {
+        "ASPNETCORE_URLS": "http://0.0.0.0:5229;https://0.0.0.0:7226"
+      },
+      "preLaunchTask": "build"
+    }
+  ]
+}
