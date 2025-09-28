@@ -19,8 +19,5 @@
         "ms-azuretools.vscode-docker"
       ]
     }
-  },
-  "mounts": [
-    "type=cache,target=/root/.nuget/packages"
-  ]
+  }
 }
