@@ -450,7 +450,6 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}
     [HttpPatch("/api/deck/{deckId:int}")]
     [HttpPatch("/api/decks/{deckId:int}")] // alias
-    [Consumes("application/json")]
     public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates) => await PatchDeckCore(deckId, updates);
 
     // PUT /api/deck/{deckId}
@@ -493,11 +492,10 @@ public class DecksController : ControllerBase
         => await SetDeckCardQuantitiesCore(deckId, cardPrintingId, dto);
 
     // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
-    // [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
-    // [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
-    // [Consumes("application/json")]
-    // public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
-        // => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
+    [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
+    [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+    public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
+        => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
 
     // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
