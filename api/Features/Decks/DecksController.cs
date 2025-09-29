@@ -41,10 +41,9 @@ public class DecksController : ControllerBase
     {
         try
         {
-            if (Request.ContentLength.HasValue && Request.ContentLength == 0)
-                return (default, BadRequest(errorMessage));
-
             using var doc = await JsonDocument.ParseAsync(Request.Body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Undefined)
+                return (default, BadRequest(errorMessage));
             return (doc.RootElement.Clone(), null);
         }
         catch (JsonException)
