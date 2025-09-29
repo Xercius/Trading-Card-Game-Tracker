@@ -42,7 +42,7 @@ public class AdminGuardAttributeTests
         var context = CreateContext(
             IPAddress.Parse("203.0.113.42"),
             includeLocalhostHostHeader: false,
-            user: new CurrentUser(Id: 1, Username: "admin", IsAdmin: true));
+            user: new CurrentUser(1, "admin", true));
 
         attribute.OnActionExecuting(context);
 
