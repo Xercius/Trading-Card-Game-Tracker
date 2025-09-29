@@ -275,6 +275,7 @@ public class CollectionsController : ControllerBase
     }
 
     [HttpPatch("{cardPrintingId:int}")]
+    [Consumes("application/json")]
     public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
@@ -337,6 +338,7 @@ public class CollectionsController : ControllerBase
 
     [HttpPatch("/api/collection/{cardPrintingId:int}")]
     [HttpPatch("/api/collections/{cardPrintingId:int}")]
+    [Consumes("application/json")]
     public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement updates)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
