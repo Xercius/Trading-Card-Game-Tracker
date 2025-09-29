@@ -37,6 +37,22 @@ public class DecksController : ControllerBase
         error = null; userId = me.Id; return true;
     }
 
+    private async Task<(JsonElement payload, IActionResult? error)> ReadJsonBodyAsync(string errorMessage)
+    {
+        try
+        {
+            if (Request.ContentLength.HasValue && Request.ContentLength == 0)
+                return (default, BadRequest(errorMessage));
+
+            using var doc = await JsonDocument.ParseAsync(Request.Body);
+            return (doc.RootElement.Clone(), null);
+        }
+        catch (JsonException)
+        {
+            return (default, BadRequest("Invalid JSON payload."));
+        }
+    }
+
     private bool UserMismatch(int userId)
     {
         var me = HttpContext.GetCurrentUser();
@@ -451,7 +467,13 @@ public class DecksController : ControllerBase
     [HttpPatch("/api/deck/{deckId:int}")]
     [HttpPatch("/api/decks/{deckId:int}")] // alias
     [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement updates) => await PatchDeckCore(deckId, updates);
+    public async Task<IActionResult> PatchDeck(int deckId)
+    {
+        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
+        if (error != null) return error;
+        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        return await PatchDeckCore(deckId, updates);
+    }
 
     // PUT /api/deck/{deckId}
     [HttpPut("/api/deck/{deckId:int}")]
@@ -496,8 +518,13 @@ public class DecksController : ControllerBase
     [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
     [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
     [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement updates)
-        => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
+    public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId)
+    {
+        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
+        if (error != null) return error;
+        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        return await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
+    }
 
     // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
