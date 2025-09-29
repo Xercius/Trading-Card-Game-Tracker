@@ -464,7 +464,7 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}
     // PATCH /api/deck/{deckId}
     [HttpPatch("/api/deck/{deckId:int}")]
-    [HttpPatch("/api/decks/{deckId:int}")] // alias
+    [HttpPatch("/api/decks/{deckId:int}")]
     [Consumes("application/json", "application/*+json")]
     public async Task<IActionResult> PatchDeck(int deckId)
     {
@@ -515,7 +515,7 @@ public class DecksController : ControllerBase
 
     // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
-    [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
+    [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")]
     [Consumes("application/json", "application/*+json")]
     public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId)
     {

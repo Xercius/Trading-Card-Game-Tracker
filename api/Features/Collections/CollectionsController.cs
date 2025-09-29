@@ -295,8 +295,10 @@ public class CollectionsController : ControllerBase
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
         var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
-        if (error != null) return error;
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (error != null)
+            return error;
+        if (updates.ValueKind != JsonValueKind.Object)
+            return BadRequest("JSON object required.");
         return await PatchQuantitiesCore(userId, cardPrintingId, updates);
     }
 
@@ -360,8 +362,10 @@ public class CollectionsController : ControllerBase
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
         var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
-        if (error != null) return error;
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (error != null)
+            return error;
+        if (updates.ValueKind != JsonValueKind.Object)
+            return BadRequest("JSON object required.");
         return await PatchQuantitiesCore(uid, cardPrintingId, updates);
     }
 
