@@ -39,6 +39,22 @@ public class CollectionsController : ControllerBase
         return me is null || (!me.IsAdmin && me.Id != userId);
     }
 
+    private async Task<(JsonElement payload, IActionResult? error)> ReadJsonBodyAsync(string errorMessage)
+    {
+        try
+        {
+            if (Request.ContentLength.HasValue && Request.ContentLength == 0)
+                return (default, BadRequest(errorMessage));
+
+            using var doc = await JsonDocument.ParseAsync(Request.Body);
+            return (doc.RootElement.Clone(), null);
+        }
+        catch (JsonException)
+        {
+            return (default, BadRequest("Invalid JSON payload."));
+        }
+    }
+
     private bool IsAdmin() => HttpContext.GetCurrentUser()?.IsAdmin == true;
 
     private static bool TryGetInt(JsonElement obj, string camelName, string pascalName, out int value)
@@ -276,9 +292,11 @@ public class CollectionsController : ControllerBase
 
     [HttpPatch("{cardPrintingId:int}")]
     [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement updates)
+    public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId)
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
+        if (error != null) return error;
         if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
         return await PatchQuantitiesCore(userId, cardPrintingId, updates);
     }
@@ -339,9 +357,11 @@ public class CollectionsController : ControllerBase
     [HttpPatch("/api/collection/{cardPrintingId:int}")]
     [HttpPatch("/api/collections/{cardPrintingId:int}")]
     [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement updates)
+    public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
+        if (error != null) return error;
         if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
         return await PatchQuantitiesCore(uid, cardPrintingId, updates);
     }
