@@ -7,3 +7,7 @@ The goal is to eventually incorporate cards from the following games:
 --Star Wars CCG
 --Guardians
 --Dicemasters
+
+## Development Environment
+- **.NET SDK**: 8.0 (pinned via `global.json`)
+- **Entity Framework Core**: 9.0.9 (Sqlite provider, design, and tools packages)
