@@ -158,6 +158,7 @@ public class UsersController : ControllerBase
 
     // PATCH /api/user/{userId}
     [HttpPatch]
+    [Consumes("application/json", "application/*+json")]
     public async Task<IActionResult> PatchUser(int userId, [FromBody] JsonElement updates)
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
@@ -195,6 +196,7 @@ public class UsersController : ControllerBase
 
     // PATCH /api/user/me
     [HttpPatch("/api/user/me")]
+    [Consumes("application/json", "application/*+json")]
     public async Task<IActionResult> PatchMe([FromBody] JsonElement updates)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
