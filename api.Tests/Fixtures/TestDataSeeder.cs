@@ -161,7 +161,7 @@ public static class TestDataSeeder
                 CardPrintingId = ElsaPrintingId,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
-                QuantityProxyOwned = 0
+                QuantityProxyOwned = 1
             },
             new UserCard
             {
@@ -233,7 +233,7 @@ public static class TestDataSeeder
                 QuantityInDeck = 1,
                 QuantityIdea = 2,
                 QuantityAcquire = 1,
-                QuantityProxy = 0
+                QuantityProxy = 1
             },
             new DeckCard
             {
@@ -251,7 +251,7 @@ public static class TestDataSeeder
                 QuantityInDeck = 3,
                 QuantityIdea = 0,
                 QuantityAcquire = 0,
-                QuantityProxy = 0
+                QuantityProxy = 1
             }
         );
 
