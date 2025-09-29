@@ -2,7 +2,11 @@
 // Covers /api/collection endpoints including legacy user-scoped routes.
 
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using api.Tests.Helpers;
+using System.Text;
 using System.Text.Json;
 using api.Features.Collections.Dtos;
 using api.Tests.Fixtures;
@@ -183,24 +187,32 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     }
 
     [Fact]
-    public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
-    {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
+        {
+            await _factory.ResetDatabaseAsync();
+            using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var patch = JsonContent.Create(new { quantityWanted = 4 });
-        var response = await client.PatchAsync(
-            $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}",
-            patch);
+            var patchReq = new HttpRequestMessage(
+                HttpMethod.Patch,
+                $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}")
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(new { quantityWanted = 4 }),
+                    Encoding.UTF8,
+                    "application/json")
+            };
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            var response = await client.SendAsync(patchReq);
 
-        var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
-        var row = Assert.Single(rows);
-        Assert.Equal(0, row.QuantityOwned);
-        Assert.Equal(4, row.QuantityWanted);
-        Assert.Equal(2, row.QuantityProxyOwned);
-    }
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+            var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+            var row = Assert.Single(rows);
+            Assert.Equal(0, row.QuantityOwned);
+            Assert.Equal(4, row.QuantityWanted);
+            Assert.Equal(2, row.QuantityProxyOwned);
+        }
+
 
     [Fact]
     public async Task Collection_Delta_CreatesMissing_ValidatesIds()
