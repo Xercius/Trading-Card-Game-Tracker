@@ -15,11 +15,8 @@ using api.Tests.Helpers;
 
 namespace api.Tests;
 
-public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-
-    public ValueControllerTests(CustomWebApplicationFactory factory) => _factory = factory;
 
     private sealed record RefreshResponse(int inserted, int ignored);
 
@@ -32,8 +29,8 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Value_Refresh_CountsDuplicateValidRowsAndInvalidOnesSeparately()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient();
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
 
         var payload = new[]
         {
@@ -52,7 +49,7 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(2, result!.inserted);
         Assert.Equal(2, result.ignored);
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var histories = await db.ValueHistories
             .Where(v => v.ScopeType == ValueScopeType.CardPrinting && v.ScopeId == TestDataSeeder.LightningBoltAlphaPrintingId)
@@ -69,8 +66,8 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Value_CollectionSummary_UsesLatestPricesPerGame()
     {
-        await _factory.ResetDatabaseAsync();
-        using var unauthenticated = _factory.CreateClient();
+        await factory.ResetDatabaseAsync();
+        using var unauthenticated = factory.CreateClient();
 
         var magicPrices = new[]
         {
@@ -88,7 +85,7 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
         var lorcanaResponse = await unauthenticated.PostAsJsonAsync("/api/value/refresh?game=Lorcana", lorcanaPrices);
         lorcanaResponse.EnsureSuccessStatusCode();
 
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var summary = await client.GetFromJsonAsync<CollectionSummaryResponse>("/api/value/collection/summary");
 
         Assert.NotNull(summary);
@@ -106,8 +103,8 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Value_DeckValue_UsesLatestPricesForCardsInDeck()
     {
-        await _factory.ResetDatabaseAsync();
-        using var unauthenticated = _factory.CreateClient();
+        await factory.ResetDatabaseAsync();
+        using var unauthenticated = factory.CreateClient();
 
         var initialMagicPrices = new[]
         {
@@ -124,7 +121,7 @@ public class ValueControllerTests : IClassFixture<CustomWebApplicationFactory>
         var updateResponse = await unauthenticated.PostAsJsonAsync("/api/value/refresh?game=Magic", updatedAlphaPrice);
         updateResponse.EnsureSuccessStatusCode();
 
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var deckValue = await client.GetFromJsonAsync<DeckSummaryResponse>(
             $"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
 

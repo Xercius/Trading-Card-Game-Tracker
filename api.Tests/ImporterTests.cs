@@ -16,7 +16,7 @@ using api.Tests.Helpers;
 
 namespace api.Tests;
 
-public class ImporterTests : IClassFixture<CustomWebApplicationFactory>
+public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     private static readonly MethodInfo UpsertMethod = typeof(ScryfallImporter)
         .GetMethod("UpsertCardAndPrintingAsync", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -34,16 +34,12 @@ public class ImporterTests : IClassFixture<CustomWebApplicationFactory>
         .GetNestedType("ScryImages", BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Missing ScryImages type.");
 
-    private readonly CustomWebApplicationFactory _factory;
-
-    public ImporterTests(CustomWebApplicationFactory factory) => _factory = factory;
-
     [Fact]
     public async Task ScryfallImporter_Upsert_CreatesAndUpdatesEntitiesCorrectly()
     {
-        await _factory.ResetDatabaseAsync();
+        await factory.ResetDatabaseAsync();
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         using var httpFactory = new StubHttpClientFactory();

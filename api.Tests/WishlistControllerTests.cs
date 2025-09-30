@@ -17,24 +17,18 @@ using api.Tests.Helpers;
 
 namespace api.Tests;
 
-public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class WishlistControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public WishlistControllerTests(CustomWebApplicationFactory factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task Wishlist_Get_CurrentUser_FiltersWantedOnly()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var items = await GetWishlistAsync(client, string.Empty);
         Assert.Equal(2, items.Count);
@@ -55,8 +49,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_Post_Upsert_ClampsToZero()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/wishlist",
@@ -87,8 +81,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_BulkSet_CreatesMissingAndValidates()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
         var payload = new[]
         {
@@ -118,8 +112,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_MoveToCollection_DecrementsWanted_IncrementsOwned()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/move-to-collection",
@@ -137,7 +131,7 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
 
         var collectionResponse = await client.GetAsync($"/api/collection?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
         collectionResponse.EnsureSuccessStatusCode();
-        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
+        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(JsonOptions);
         var collectionItem = Assert.Single(collectionItems!);
         Assert.Equal(1, collectionItem.QuantityOwned);
     }
@@ -145,8 +139,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_MoveToCollection_UseProxy_FloorsWishlistAndIncrementsProxy()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/move-to-collection",
@@ -159,7 +153,7 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        using var scope = _factory.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.UserCards
             .SingleAsync(uc => uc.UserId == TestDataSeeder.AliceUserId
@@ -173,8 +167,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_Delete_SetsWantedZeroAndRemovesWhenEmpty()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
         var deleteResponse = await client.DeleteAsync($"/api/wishlist/{TestDataSeeder.MickeyPrintingId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -186,8 +180,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_LegacyRoute_UserMismatch_Returns403()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var response = await client.GetAsync($"/api/user/{TestDataSeeder.BobUserId}/wishlist");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -196,8 +190,8 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     [Fact]
     public async Task Wishlist_Endpoints_RequireHeader()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient();
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/wishlist");
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -207,7 +201,7 @@ public class WishlistControllerTests : IClassFixture<CustomWebApplicationFactory
     {
         var response = await client.GetAsync($"/api/wishlist{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemResponse>>(_jsonOptions);
-        return payload ?? new List<WishlistItemResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemResponse>>(JsonOptions);
+        return payload ?? [];
     }
 }
