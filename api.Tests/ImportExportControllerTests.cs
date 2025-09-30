@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text;
+using System.Net.Http.Json;
 using System.Text.Json;
 using api.Data;
 using api.Tests.Fixtures;
@@ -71,9 +71,10 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
             await db.SaveChangesAsync();
         }
 
+        using var replaceDoc = JsonDocument.Parse(exportJson);
         var importResponse = await client.PostAsync(
             "/api/import/json?mode=replace",
-            new StringContent(exportJson, Encoding.UTF8, "application/json"));
+            JsonContent.Create(replaceDoc.RootElement.Clone()));
         importResponse.EnsureSuccessStatusCode();
 
         using (var scope = _factory.Services.CreateScope())
@@ -188,9 +189,10 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
             await db.SaveChangesAsync();
         }
 
+        using var mergeDoc = JsonDocument.Parse(exportJson);
         var importResponse = await client.PostAsync(
             "/api/import/json?mode=merge",
-            new StringContent(exportJson, Encoding.UTF8, "application/json"));
+            JsonContent.Create(mergeDoc.RootElement.Clone()));
         importResponse.EnsureSuccessStatusCode();
 
         using (var scope = _factory.Services.CreateScope())

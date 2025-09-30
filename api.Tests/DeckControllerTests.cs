@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using api.Features.Decks.Dtos;
 using api.Tests.Fixtures;
@@ -77,10 +76,7 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     // PATCH with explicit application/json
     var patchReq = new HttpRequestMessage(HttpMethod.Patch, $"/api/deck/{deckId}")
     {
-        Content = new StringContent(
-            JsonSerializer.Serialize(new { description = "Updated" }),
-            Encoding.UTF8,
-            "application/json")
+        Content = JsonContent.Create(new { description = "Updated" })
     };
     var patchResponse = await alice.SendAsync(patchReq);
     Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
@@ -261,10 +257,7 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
                 HttpMethod.Patch,
                 $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}")
             {
-                Content = new StringContent(
-                    JsonSerializer.Serialize(new { quantityIdea = 4 }),
-                    Encoding.UTF8,
-                    "application/json")
+                Content = JsonContent.Create(new { quantityIdea = 4 })
             };
             var patchResponse = await client.SendAsync(patchReq);
             Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
@@ -294,10 +287,7 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
                 HttpMethod.Patch,
                 $"/api/deck/{TestDataSeeder.AliceEmptyDeckId}")
             {
-                Content = new StringContent(
-                    JsonSerializer.Serialize(new { name = "Alice Aggro" }),
-                    Encoding.UTF8,
-                    "application/json")
+                Content = JsonContent.Create(new { name = "Alice Aggro" })
             };
 
             var response = await client.SendAsync(patchReq);
