@@ -1,8 +1,10 @@
+using api.Common;
 using api.Data;
 using api.Middleware;
 using api.Models;
 using api.Importing;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +18,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));
 
 builder.Services.AddHttpClient();
+
+builder.Services
+    .AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = DummyAuthenticationHandler.SchemeName;
+        options.DefaultChallengeScheme = DummyAuthenticationHandler.SchemeName;
+        options.DefaultForbidScheme = DummyAuthenticationHandler.SchemeName;
+    })
+    .AddScheme<AuthenticationSchemeOptions, DummyAuthenticationHandler>(
+        DummyAuthenticationHandler.SchemeName,
+        _ => { });
+
+builder.Services.AddAuthorization();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.ScryfallImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.SwccgdbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.LorcanaJsonImporter>();
@@ -52,6 +67,7 @@ using (var scope = app.Services.CreateScope())
 // Pipeline
 app.UseHttpsRedirection();
 app.UseCors("AllowReact");
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<UserContextMiddleware>();
 
