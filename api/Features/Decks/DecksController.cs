@@ -186,35 +186,37 @@ public class DecksController : ControllerBase
         if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
 
         var ownerId = deck.UserId;
-        var effectiveName = deck.Name ?? string.Empty;
-        var targetGame = deck.Game;
+        var currentName = deck.Name ?? string.Empty;
         var changed = false;
 
-        if (TryGetProperty(patch, "game", "Game", out var potentialGameProp)
-            && potentialGameProp.ValueKind == JsonValueKind.String)
+        string? requestedGame = null;
+        if (TryGetProperty(patch, "game", "Game", out var targetGameProp) && targetGameProp.ValueKind == JsonValueKind.String)
         {
-            var candidate = potentialGameProp.GetString()?.Trim();
-            if (!string.IsNullOrWhiteSpace(candidate))
+            var newGameRaw = targetGameProp.GetString();
+            var newGame = newGameRaw?.Trim();
+            if (!string.IsNullOrWhiteSpace(newGame))
             {
-                targetGame = candidate;
+                requestedGame = newGame;
             }
         }
+
+        var targetGameForNameCheck = requestedGame ?? deck.Game;
 
         if (TryGetProperty(patch, "name", "Name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
         {
             var requestedName = (nameProp.GetString() ?? string.Empty).Trim();
-            if (!string.Equals(deck.Name ?? string.Empty, requestedName, StringComparison.Ordinal))
+            if (!string.Equals(currentName, requestedName, StringComparison.Ordinal))
             {
-                var normalizedNewName = requestedName.ToLower();
+                var normalizedNewName = requestedName.ToLowerInvariant();
                 var exists = await _db.Decks.AnyAsync(d =>
                     d.UserId == ownerId &&
                     d.Id != deck.Id &&
-                    string.Equals(d.Game, targetGame, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(d.Game, targetGameForNameCheck, StringComparison.OrdinalIgnoreCase) &&
                     d.Name.ToLower() == normalizedNewName);
                 if (exists) return Conflict("A deck with this name already exists.");
 
                 deck.Name = requestedName;
-                effectiveName = requestedName;
+                currentName = requestedName;
                 changed = true;
             }
         }
@@ -240,30 +242,23 @@ public class DecksController : ControllerBase
             }
         }
 
-        effectiveName = deck.Name ?? string.Empty;
-
-        if (TryGetProperty(patch, "game", "Game", out var gameProp) && gameProp.ValueKind == JsonValueKind.String)
+        if (requestedGame is not null)
         {
-            var newGameRaw = gameProp.GetString();
-            var newGame = newGameRaw?.Trim();
-            if (!string.IsNullOrWhiteSpace(newGame))
+            if (!string.Equals(deck.Game, requestedGame, StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.Equals(deck.Game, newGame, StringComparison.OrdinalIgnoreCase))
-                {
-                    var normalizedName = effectiveName.ToLower();
-                    var collision = await _db.Decks.AnyAsync(d =>
-                        d.UserId == ownerId &&
-                        d.Id != deck.Id &&
-                        string.Equals(d.Game, newGame, StringComparison.OrdinalIgnoreCase) &&
-                        d.Name.ToLower() == normalizedName);
-                    if (collision) return Conflict("Name already exists in the target game.");
-                }
+                var normalizedName = (deck.Name ?? string.Empty).Trim().ToLower();
+                var collision = await _db.Decks.AnyAsync(d =>
+                    d.UserId == ownerId &&
+                    d.Id != deck.Id &&
+                    string.Equals(d.Game, requestedGame, StringComparison.OrdinalIgnoreCase) &&
+                    d.Name.ToLower() == normalizedName);
+                if (collision) return Conflict("Name already exists in the target game.");
+            }
 
-                if (!string.Equals(deck.Game, newGame, StringComparison.Ordinal))
-                {
-                    deck.Game = newGame;
-                    changed = true;
-                }
+            if (!string.Equals(deck.Game, requestedGame, StringComparison.Ordinal))
+            {
+                deck.Game = requestedGame;
+                changed = true;
             }
         }
 
