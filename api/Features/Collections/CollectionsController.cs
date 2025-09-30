@@ -39,21 +39,6 @@ public class CollectionsController : ControllerBase
         return me is null || (!me.IsAdmin && me.Id != userId);
     }
 
-    private async Task<(JsonElement payload, IActionResult? error)> ReadJsonBodyAsync(string errorMessage)
-    {
-        try
-        {
-            using var doc = await JsonDocument.ParseAsync(Request.Body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Undefined)
-                return (default, BadRequest(errorMessage));
-            return (doc.RootElement.Clone(), null);
-        }
-        catch (JsonException)
-        {
-            return (default, BadRequest("Invalid JSON payload."));
-        }
-    }
-
     private bool IsAdmin() => HttpContext.GetCurrentUser()?.IsAdmin == true;
 
     private static bool TryGetInt(JsonElement obj, string camelName, string pascalName, out int value)
@@ -72,7 +57,7 @@ public class CollectionsController : ControllerBase
     private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+        if (me is null) { error = Forbid(); userId = 0; return false; }
         error = null; userId = me.Id; return true;
     }
 
@@ -89,7 +74,7 @@ public class CollectionsController : ControllerBase
         int? cardPrintingId)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
 
         var query = _db.UserCards
             .Where(uc => uc.UserId == userId)
@@ -122,7 +107,7 @@ public class CollectionsController : ControllerBase
         if (dto is null) return BadRequest("Body required.");
         if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
         if (await _db.Users.FindAsync(userId) is null)
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
         if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
 
         var existing = await _db.UserCards
@@ -174,6 +159,8 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> PatchQuantitiesCore(int userId, int cardPrintingId, JsonElement updates)
     {
+        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
         if (uc is null) return NotFound();
@@ -196,7 +183,7 @@ public class CollectionsController : ControllerBase
     {
         if (deltas is null) return BadRequest("Deltas payload required.");
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403);
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
 
         var deltaList = deltas.ToList();
         if (deltaList.Count == 0) return NoContent();
@@ -267,7 +254,7 @@ public class CollectionsController : ControllerBase
         [FromQuery] string? name,
         [FromQuery] int? cardPrintingId)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return Forbid();
         return await GetAllCore(userId, game, set, rarity, name, cardPrintingId);
     }
 
@@ -275,7 +262,7 @@ public class CollectionsController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardRequest dto)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return Forbid();
         if (dto is null) return BadRequest("Body required.");
         return await UpsertCore(userId, dto);
     }
@@ -284,29 +271,23 @@ public class CollectionsController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return Forbid();
         if (dto is null) return BadRequest("Body required.");
         return await SetQuantitiesCore(userId, cardPrintingId, dto);
     }
 
     [HttpPatch("{cardPrintingId:int}")]
-    [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId)
+    public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement patch)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
-        if (error != null)
-            return error;
-        if (updates.ValueKind != JsonValueKind.Object)
-            return BadRequest("JSON object required.");
-        return await PatchQuantitiesCore(userId, cardPrintingId, updates);
+        if (UserMismatch(userId)) return Forbid();
+        return await PatchQuantitiesCore(userId, cardPrintingId, patch);
     }
 
     [HttpPost("delta")]
     [Consumes("application/json")]
     public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return Forbid();
         if (deltas is null) return BadRequest("Deltas payload required.");
         return await ApplyDeltaCore(userId, deltas);
     }
@@ -314,7 +295,7 @@ public class CollectionsController : ControllerBase
     [HttpDelete("{cardPrintingId:int}")]
     public async Task<IActionResult> Remove(int userId, int cardPrintingId)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return Forbid();
         return await RemoveCore(userId, cardPrintingId);
     }
 
@@ -357,16 +338,10 @@ public class CollectionsController : ControllerBase
 
     [HttpPatch("/api/collection/{cardPrintingId:int}")]
     [HttpPatch("/api/collections/{cardPrintingId:int}")]
-    [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId)
+    public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement patch)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
-        if (error != null)
-            return error;
-        if (updates.ValueKind != JsonValueKind.Object)
-            return BadRequest("JSON object required.");
-        return await PatchQuantitiesCore(uid, cardPrintingId, updates);
+        return await PatchQuantitiesCore(uid, cardPrintingId, patch);
     }
 
     [HttpPost("/api/collection/delta")]
