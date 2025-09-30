@@ -9,6 +9,7 @@ using System.Text.Json;
 using api.Features.Decks.Dtos;
 using api.Tests.Fixtures;
 using Xunit;
+using api.Tests.Helpers;
 
 namespace api.Tests;
 

@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Xunit;
+using api.Tests.Helpers;
+
 
 namespace api.Tests;
 
@@ -76,6 +78,6 @@ public class AdminGuardAttributeTests
         }
 
         var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
-        return new ActionExecutingContext(actionContext, new List<IFilterMetadata>(), new Dictionary<string, object?>(), controller: new object());
+        return new ActionExecutingContext(actionContext, new List<IFilterMetadata>([]), new Dictionary<string, object?>([]), controller: new object());
     }
 }

@@ -1,42 +1,37 @@
 // Run these tests with `dotnet test` at the solution root or from Visual Studio Test Explorer.
 // This suite exercises the CardController integration endpoints end-to-end via WebApplicationFactory.
 
-using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using api.Common.Dtos;
 using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
+using api.Tests.Helpers;
 using Xunit;
 
 namespace api.Tests;
 
-public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class CardControllerTests(CustomWebApplicationFactory factory)
+    : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public CardControllerTests(CustomWebApplicationFactory factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task Card_List_FiltersAndPaging_ReturnsExpected()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var pageOneResponse = await client.GetAsync("/api/card?game=Magic&page=1&pageSize=1");
         pageOneResponse.EnsureSuccessStatusCode();
         var pageOne = await ReadPagedAsync<CardListItemResponse>(pageOneResponse);
 
         Assert.Equal(2, pageOne.Total);
-        Assert.Equal(1, pageOne.Items.Count);
+        Assert.Single(pageOne.Items);
         Assert.Equal("Goblin Guide", pageOne.Items[0].Name);
 
         var pageTwoResponse = await client.GetAsync("/api/card?game=Magic&page=2&pageSize=1");
@@ -62,8 +57,8 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Card_Get_ById_ReturnsDetailOr404()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
         var response = await client.GetAsync($"/api/card/{TestDataSeeder.LightningBoltCardId}");
         response.EnsureSuccessStatusCode();
@@ -82,8 +77,8 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Card_Admin_UpsertPrinting_CreateAndUpdate_Works()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().AsAdmin();
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().AsAdmin();
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/card/printing",
@@ -127,7 +122,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
             $"/api/card/{TestDataSeeder.LightningBoltCardId}",
             _jsonOptions);
 
-        var updatedPrinting = Assert.Single(updatedDetail!.Printings.Where(p => p.Id == TestDataSeeder.LightningBoltBetaPrintingId));
+        var updatedPrinting = Assert.Single(updatedDetail!.Printings, p => p.Id == TestDataSeeder.LightningBoltBetaPrintingId);
         Assert.Equal("Mythic", updatedPrinting.Rarity);
         Assert.Null(updatedPrinting.ImageUrl);
     }
@@ -135,8 +130,8 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Card_Admin_BulkImport_MergesAndUpdates()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().AsAdmin();
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().AsAdmin();
 
         var payload = new[]
         {
@@ -162,7 +157,6 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
             }
         };
 
-
         var response = await client.PostAsJsonAsync(
             $"/api/card/{TestDataSeeder.GoblinGuideCardId}/printings/import",
             payload);
@@ -175,7 +169,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         Assert.NotNull(detail);
         Assert.Equal(2, detail!.Printings.Count);
-        var existing = Assert.Single(detail.Printings.Where(p => p.Id == TestDataSeeder.GoblinGuidePrintingId));
+        var existing = Assert.Single(detail.Printings, p => p.Id == TestDataSeeder.GoblinGuidePrintingId);
         Assert.Equal("Mythic", existing.Rarity);
         Assert.Null(existing.ImageUrl);
         Assert.Contains(detail.Printings, p =>
@@ -187,9 +181,9 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Card_Admin_Endpoints_RequireAdmin()
     {
-        await _factory.ResetDatabaseAsync();
+        await factory.ResetDatabaseAsync();
 
-        using var userClient = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var userClient = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var userResponse = await userClient.PostAsJsonAsync(
             "/api/card/printing",
             new
@@ -200,7 +194,7 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
             });
         Assert.Equal(HttpStatusCode.Forbidden, userResponse.StatusCode);
 
-        using var anonymousClient = _factory.CreateClient();
+        using var anonymousClient = factory.CreateClient();
         var anonResponse = await anonymousClient.PostAsJsonAsync(
             "/api/card/printing",
             new
@@ -212,9 +206,9 @@ public class CardControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(HttpStatusCode.BadRequest, anonResponse.StatusCode);
     }
 
-    private async Task<PagedResult<T>> ReadPagedAsync<T>(HttpResponseMessage response)
+    private static async Task<PagedResult<T>> ReadPagedAsync<T>(HttpResponseMessage response)
     {
         var payload = await response.Content.ReadFromJsonAsync<PagedResult<T>>(_jsonOptions);
-        return payload ?? new PagedResult<T>(Array.Empty<T>(), 0, 1, 0);
+        return payload ?? new PagedResult<T>([], 0, 1, 0);
     }
 }

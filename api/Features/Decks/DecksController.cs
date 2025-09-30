@@ -1,13 +1,14 @@
-using System.Text.Json;
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using api.Data;
 using api.Features.Decks.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Mime;
+using System.Text.Json;
 
 namespace api.Features.Decks;
 
@@ -207,12 +208,13 @@ public class DecksController : ControllerBase
             var requestedName = (nameProp.GetString() ?? string.Empty).Trim();
             if (!string.Equals(currentName, requestedName, StringComparison.Ordinal))
             {
-                var normalizedNewName = requestedName.ToLowerInvariant();
+                // Case-insensitive, SQL-translatable check using SQLite NOCASE collation
                 var exists = await _db.Decks.AnyAsync(d =>
                     d.UserId == ownerId &&
                     d.Id != deck.Id &&
-                    string.Equals(d.Game, targetGameForNameCheck, StringComparison.OrdinalIgnoreCase) &&
-                    d.Name.ToLower() == normalizedNewName);
+                    EF.Functions.Collate(d.Game, "NOCASE") == targetGameForNameCheck &&
+                    EF.Functions.Collate(d.Name, "NOCASE") == requestedName);
+
                 if (exists) return Conflict("A deck with this name already exists.");
 
                 deck.Name = requestedName;
@@ -524,6 +526,7 @@ public class DecksController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> Patch(int userId, int id, [FromBody] JsonElement patch)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -563,6 +566,7 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}
     [HttpPatch("/api/deck/{deckId:int}")]
     [HttpPatch("/api/decks/{deckId:int}")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement patch)
     {
         var (deck, error) = await GetDeckForCaller(deckId);
@@ -612,6 +616,7 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
     [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement patch)
         => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, patch);
 

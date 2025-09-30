@@ -5,32 +5,27 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
-using api.Tests.Helpers;
 using System.Text.Json;
 using api.Features.Collections.Dtos;
 using api.Tests.Fixtures;
+using api.Tests.Helpers;
 using Xunit;
 
 namespace api.Tests;
 
-public class CollectionControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class CollectionControllerTests(CustomWebApplicationFactory factory)
+    : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public CollectionControllerTests(CustomWebApplicationFactory factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task Collection_Get_CurrentUser_FilteredOnly_ReturnsExpected()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var all = await GetCollectionAsync(client, string.Empty);
         Assert.Equal(3, all.Count);
@@ -52,8 +47,8 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     [Fact]
     public async Task Collection_Post_Upsert_ClampsNonNegative()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/collection",
@@ -64,7 +59,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 1,
                 quantityProxyOwned = 2
             });
-
         Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
 
         var created = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.GoblinGuidePrintingId}");
@@ -82,7 +76,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = -10,
                 quantityProxyOwned = -1
             });
-
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
         var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.GoblinGuidePrintingId}");
@@ -95,8 +88,8 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     [Fact]
     public async Task Collection_Post_Upsert_SkipsInsertingAllZeroRowsAndUpdatesExisting()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var skipResponse = await client.PostAsJsonAsync(
             "/api/collection",
@@ -107,7 +100,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 0,
                 quantityProxyOwned = 0
             });
-
         Assert.Equal(HttpStatusCode.NoContent, skipResponse.StatusCode);
 
         var skipped = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
@@ -122,7 +114,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 1,
                 quantityProxyOwned = 3
             });
-
         Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
 
         var created = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
@@ -140,7 +131,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 4,
                 quantityProxyOwned = 0
             });
-
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
         var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.ExtraMagicPrintingId}");
@@ -153,8 +143,8 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     [Fact]
     public async Task Collection_Put_SetAll_UpdatesOr404()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var updateResponse = await client.PutAsJsonAsync(
             $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
@@ -164,7 +154,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 5,
                 quantityProxyOwned = -1
             });
-
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
         var updated = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
@@ -181,40 +170,37 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 quantityWanted = 1,
                 quantityProxyOwned = 1
             });
-
         Assert.Equal(HttpStatusCode.NotFound, missingResponse.StatusCode);
     }
 
     [Fact]
-        public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
+    public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var patchReq = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}")
         {
-            await _factory.ResetDatabaseAsync();
-            using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+            Content = JsonContent.Create(new { quantityWanted = 4 })
+        };
 
-            var patchReq = new HttpRequestMessage(
-                HttpMethod.Patch,
-                $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}")
-            {
-                Content = JsonContent.Create(new { quantityWanted = 4 })
-            };
+        var response = await client.SendAsync(patchReq);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-            var response = await client.SendAsync(patchReq);
-
-            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
-            var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
-            var row = Assert.Single(rows);
-            Assert.Equal(0, row.QuantityOwned);
-            Assert.Equal(4, row.QuantityWanted);
-            Assert.Equal(2, row.QuantityProxyOwned);
-        }
-
+        var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        var row = Assert.Single(rows);
+        Assert.Equal(0, row.QuantityOwned);
+        Assert.Equal(4, row.QuantityWanted);
+        Assert.Equal(2, row.QuantityProxyOwned);
+    }
 
     [Fact]
     public async Task Collection_Delta_CreatesMissing_ValidatesIds()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var deltaResponse = await client.PostAsJsonAsync(
             "/api/collection/delta",
@@ -235,7 +221,6 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                     deltaProxyOwned = 1
                 }
             });
-
         Assert.Equal(HttpStatusCode.NoContent, deltaResponse.StatusCode);
 
         var existing = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
@@ -262,15 +247,14 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                     deltaProxyOwned = 0
                 }
             });
-
         Assert.Equal(HttpStatusCode.NotFound, invalidResponse.StatusCode);
     }
 
     [Fact]
     public async Task Collection_Delete_RemovesRow()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var deleteResponse = await client.DeleteAsync($"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -282,8 +266,8 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     [Fact]
     public async Task Collection_LegacyRoute_UserMismatch_Returns403()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var response = await client.GetAsync($"/api/user/{TestDataSeeder.BobUserId}/collection");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -292,18 +276,18 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
     [Fact]
     public async Task Collection_Endpoints_RequireUserHeader()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient();
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/collection");
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private async Task<List<UserCardItemResponse>> GetCollectionAsync(HttpClient client, string query)
+    private static async Task<List<UserCardItemResponse>> GetCollectionAsync(HttpClient client, string query)
     {
         var response = await client.GetAsync($"/api/collection{query}");
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
-        return payload ?? new List<UserCardItemResponse>();
+        return payload ?? [];
     }
 }

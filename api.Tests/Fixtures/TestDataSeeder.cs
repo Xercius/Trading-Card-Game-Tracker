@@ -260,19 +260,26 @@ public static class TestDataSeeder
 
     private static async Task ClearDatabaseAsync(AppDbContext db)
     {
-        await db.Database.ExecuteSqlAsync($"PRAGMA foreign_keys = OFF;");
+        // Turn off foreign key checks (SQLite-specific)
+        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
 
-        var entityTypes = db.Model.GetEntityTypes()
-            .Where(t => !t.IsOwned())
-            .Select(t => t.GetTableName())
-            .Distinct()
-            .ToList();
-
-        foreach (var table in entityTypes)
+        foreach (var et in db.Model.GetEntityTypes())
         {
-            await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{table}\";");
+            if (et.IsOwned() || et.GetTableName() is null) continue; // skip owned/unmapped
+
+            // Get DbSet<TEntity> for this entity type
+            var set = db.GetType()
+                .GetMethod(nameof(DbContext.Set), Type.EmptyTypes)!
+                .MakeGenericMethod(et.ClrType)
+                .Invoke(db, null)!;
+
+            // Cast to IQueryable<TEntity> and execute delete
+            var queryable = (IQueryable<object>)set;
+            await queryable.ExecuteDeleteAsync();
         }
 
-        await db.Database.ExecuteSqlAsync($"PRAGMA foreign_keys = ON;");
+        // Turn foreign key checks back on
+        await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
     }
+
 }
