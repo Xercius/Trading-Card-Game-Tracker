@@ -33,7 +33,7 @@ public class DecksController : ControllerBase
     private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = Forbid(); userId = 0; return false; }
+        if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
         error = null; userId = me.Id; return true;
     }
 
@@ -53,7 +53,7 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return (null, NotFound());
-        if (NotOwnerAndNotAdmin(d)) return (null, Forbid());
+        if (NotOwnerAndNotAdmin(d)) return (null, StatusCode(403, "User missing."));
         return (d, null);
     }
 
@@ -148,7 +148,7 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         return Ok(_mapper.Map<DeckResponse>(d));
     }
 
@@ -156,7 +156,7 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest("Game and Name required.");
 
@@ -250,7 +250,7 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         _db.Decks.Remove(d);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -488,7 +488,7 @@ public class DecksController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
     {
-        if (UserMismatch(userId)) return Forbid();
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
         return await ListUserDecksCore(userId, game, name, hasCards);
     }
 
@@ -497,14 +497,14 @@ public class DecksController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> CreateDeck(int userId, [FromBody] CreateDeckRequest dto)
     {
-        if (UserMismatch(userId)) return Forbid();
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
         return await CreateDeckCore(userId, dto);
     }
 
     [HttpPatch("{id:int}")]
     public async Task<IActionResult> Patch(int userId, int id, [FromBody] JsonElement patch)
     {
-        if (UserMismatch(userId)) return Forbid();
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
         return await PatchDeckForUserAsync(userId, id, patch);
     }
 
