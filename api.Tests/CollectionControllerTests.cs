@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using api.Tests.Helpers;
-using System.Text;
 using System.Text.Json;
 using api.Features.Collections.Dtos;
 using api.Tests.Fixtures;
@@ -196,10 +195,7 @@ public class CollectionControllerTests : IClassFixture<CustomWebApplicationFacto
                 HttpMethod.Patch,
                 $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}")
             {
-                Content = new StringContent(
-                    JsonSerializer.Serialize(new { quantityWanted = 4 }),
-                    Encoding.UTF8,
-                    "application/json")
+                Content = JsonContent.Create(new { quantityWanted = 4 })
             };
 
             var response = await client.SendAsync(patchReq);
