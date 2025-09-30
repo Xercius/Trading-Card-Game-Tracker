@@ -36,7 +36,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReact", p => p
         .WithOrigins("http://localhost:5173")
         .WithHeaders("X-User-Id", "Content-Type")
-        .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 });
 
 var app = builder.Build();
