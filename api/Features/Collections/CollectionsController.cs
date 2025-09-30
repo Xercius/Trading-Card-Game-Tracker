@@ -57,7 +57,7 @@ public class CollectionsController : ControllerBase
     private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+        if (me is null) { error = Forbid(); userId = 0; return false; }
         error = null; userId = me.Id; return true;
     }
 
@@ -74,7 +74,7 @@ public class CollectionsController : ControllerBase
         int? cardPrintingId)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403, "User missing.");
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
 
         var query = _db.UserCards
             .Where(uc => uc.UserId == userId)
@@ -107,7 +107,7 @@ public class CollectionsController : ControllerBase
         if (dto is null) return BadRequest("Body required.");
         if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
         if (await _db.Users.FindAsync(userId) is null)
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403, "User missing.");
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
         if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
 
         var existing = await _db.UserCards
@@ -165,16 +165,33 @@ public class CollectionsController : ControllerBase
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
         if (uc is null) return NotFound();
 
+        var touched = false;
+
         if (TryGetInt(updates, "quantityOwned", "QuantityOwned", out var owned))
+        {
             uc.QuantityOwned = Math.Max(0, owned);
+            touched = true;
+        }
 
         if (TryGetInt(updates, "quantityWanted", "QuantityWanted", out var wanted))
+        {
             uc.QuantityWanted = Math.Max(0, wanted);
+            touched = true;
+        }
 
         if (TryGetInt(updates, "quantityProxyOwned", "QuantityProxyOwned", out var proxyOwned))
+        {
             uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
+            touched = true;
+        }
 
-        // Do NOT remove row when zero.
+        if (!touched) return NoContent();
+
+        if (IsZero(uc))
+        {
+            _db.UserCards.Remove(uc);
+        }
+
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -183,7 +200,7 @@ public class CollectionsController : ControllerBase
     {
         if (deltas is null) return BadRequest("Deltas payload required.");
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : StatusCode(403, "User missing.");
+            return IsAdmin() ? NotFound("User not found.") : Forbid();
 
         var deltaList = deltas.ToList();
         if (deltaList.Count == 0) return NoContent();
@@ -254,7 +271,7 @@ public class CollectionsController : ControllerBase
         [FromQuery] string? name,
         [FromQuery] int? cardPrintingId)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         return await GetAllCore(userId, game, set, rarity, name, cardPrintingId);
     }
 
@@ -262,7 +279,7 @@ public class CollectionsController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardRequest dto)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         if (dto is null) return BadRequest("Body required.");
         return await UpsertCore(userId, dto);
     }
@@ -271,7 +288,7 @@ public class CollectionsController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         if (dto is null) return BadRequest("Body required.");
         return await SetQuantitiesCore(userId, cardPrintingId, dto);
     }
@@ -279,7 +296,7 @@ public class CollectionsController : ControllerBase
     [HttpPatch("{cardPrintingId:int}")]
     public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement patch)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         return await PatchQuantitiesCore(userId, cardPrintingId, patch);
     }
 
@@ -287,7 +304,7 @@ public class CollectionsController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         if (deltas is null) return BadRequest("Deltas payload required.");
         return await ApplyDeltaCore(userId, deltas);
     }
@@ -295,7 +312,7 @@ public class CollectionsController : ControllerBase
     [HttpDelete("{cardPrintingId:int}")]
     public async Task<IActionResult> Remove(int userId, int cardPrintingId)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        if (UserMismatch(userId)) return Forbid();
         return await RemoveCore(userId, cardPrintingId);
     }
 
