@@ -8,6 +8,8 @@ using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using api.Tests.Helpers;
+
 
 namespace api.Tests;
 
