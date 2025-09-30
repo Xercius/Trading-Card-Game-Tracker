@@ -13,10 +13,9 @@ using api.Tests.Helpers;
 
 namespace api.Tests;
 
-public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class ImportExportControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
@@ -27,22 +26,17 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
     private record ExportWishlistItem(int CardPrintingId, int Qty);
     private record ExportPayload(int Version, JsonElement? User, List<ExportCollectionItem> Collection, List<ExportWishlistItem> Wishlist, List<ExportDeck> Decks);
 
-    public ImportExportControllerTests(CustomWebApplicationFactory factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task ImportExport_ExportJsonAndCsvThenReplaceImport_RestoresState()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var exportResponse = await client.GetAsync("/api/export/json");
         exportResponse.EnsureSuccessStatusCode();
         var exportJson = await exportResponse.Content.ReadAsStringAsync();
 
-        var payload = JsonSerializer.Deserialize<ExportPayload>(exportJson, _jsonOptions);
+        var payload = JsonSerializer.Deserialize<ExportPayload>(exportJson, JsonOptions);
         Assert.NotNull(payload);
 
         var collectionCsvResponse = await client.GetAsync("/api/export/collection.csv");
@@ -63,7 +57,7 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
         Assert.Contains("DeckName", decksCsv);
         Assert.Contains("Alice Aggro", decksCsv);
 
-        using (var scope = _factory.Services.CreateScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var cards = db.UserCards.Where(uc => uc.UserId == TestDataSeeder.AliceUserId);
@@ -79,7 +73,7 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
             JsonContent.Create(replaceDoc.RootElement.Clone()));
         importResponse.EnsureSuccessStatusCode();
 
-        using (var scope = _factory.Services.CreateScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -146,16 +140,16 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
     [Fact]
     public async Task ImportExport_ExportJsonThenMergeImport_AddsDataInsteadOfReplacing()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var exportResponse = await client.GetAsync("/api/export/json");
         exportResponse.EnsureSuccessStatusCode();
         var exportJson = await exportResponse.Content.ReadAsStringAsync();
-        var payload = JsonSerializer.Deserialize<ExportPayload>(exportJson, _jsonOptions);
+        var payload = JsonSerializer.Deserialize<ExportPayload>(exportJson, JsonOptions);
         Assert.NotNull(payload);
 
-        using (var scope = _factory.Services.CreateScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -197,7 +191,7 @@ public class ImportExportControllerTests : IClassFixture<CustomWebApplicationFac
             JsonContent.Create(mergeDoc.RootElement.Clone()));
         importResponse.EnsureSuccessStatusCode();
 
-        using (var scope = _factory.Services.CreateScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 

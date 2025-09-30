@@ -13,24 +13,18 @@ using api.Tests.Helpers;
 
 namespace api.Tests;
 
-public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
+public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public DeckControllerTests(CustomWebApplicationFactory factory)
-    {
-        _factory = factory;
-    }
-
     [Fact]
     public async Task Deck_List_CurrentUser_FiltersAndHasCards_Works()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var decks = await GetDecksAsync(client, string.Empty);
         Assert.Equal(3, decks.Count);
@@ -52,56 +46,56 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     [Fact]
     public async Task Deck_Create_Update_Delete_EnforcesOwnership()
-{
-    await _factory.ResetDatabaseAsync();
-    using var alice = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
-    using var bob = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
-
-    var createResponse = await alice.PostAsJsonAsync(
-        "/api/deck",
-        new { game = "Magic", name = "Alice Brew", description = "Testing deck" });
-    Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
-
-    var createdDeck = await createResponse.Content.ReadFromJsonAsync<DeckResponse>(_jsonOptions);
-    Assert.NotNull(createdDeck);
-    var deckId = createdDeck!.Id;
-
-    var duplicateResponse = await alice.PostAsJsonAsync(
-        "/api/deck",
-        new { game = "Magic", name = "Alice Brew", description = "Duplicate" });
-    Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
-
-    var bobView = await bob.GetAsync($"/api/deck/{deckId}");
-    Assert.Equal(HttpStatusCode.Forbidden, bobView.StatusCode);
-
-    // PATCH with explicit application/json
-    var patchReq = new HttpRequestMessage(HttpMethod.Patch, $"/api/deck/{deckId}")
     {
-        Content = JsonContent.Create(new { description = "Updated" })
-    };
-    var patchResponse = await alice.SendAsync(patchReq);
-    Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+        await factory.ResetDatabaseAsync();
+        using var alice = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var bob = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
-    var putResponse = await alice.PutAsJsonAsync(
-        $"/api/deck/{deckId}",
-        new { game = "Magic", name = "Alice Brew Updated", description = "Updated" });
-    Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
+        var createResponse = await alice.PostAsJsonAsync(
+            "/api/deck",
+            new { game = "Magic", name = "Alice Brew", description = "Testing deck" });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
-    var deleteResponse = await alice.DeleteAsync($"/api/deck/{deckId}");
-    Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        var createdDeck = await createResponse.Content.ReadFromJsonAsync<DeckResponse>(JsonOptions);
+        Assert.NotNull(createdDeck);
+        var deckId = createdDeck!.Id;
 
-    var getAfterDelete = await alice.GetAsync($"/api/deck/{deckId}");
-    Assert.Equal(HttpStatusCode.NotFound, getAfterDelete.StatusCode);
+        var duplicateResponse = await alice.PostAsJsonAsync(
+            "/api/deck",
+            new { game = "Magic", name = "Alice Brew", description = "Duplicate" });
+        Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
 
-    var bobDelete = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-    Assert.Equal(HttpStatusCode.Forbidden, bobDelete.StatusCode);
-}
+        var bobView = await bob.GetAsync($"/api/deck/{deckId}");
+        Assert.Equal(HttpStatusCode.Forbidden, bobView.StatusCode);
+
+        // PATCH with explicit application/json
+        var patchReq = new HttpRequestMessage(HttpMethod.Patch, $"/api/deck/{deckId}")
+        {
+            Content = JsonContent.Create(new { description = "Updated" })
+        };
+        var patchResponse = await alice.SendAsync(patchReq);
+        Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+
+        var putResponse = await alice.PutAsJsonAsync(
+            $"/api/deck/{deckId}",
+            new { game = "Magic", name = "Alice Brew Updated", description = "Updated" });
+        Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
+
+        var deleteResponse = await alice.DeleteAsync($"/api/deck/{deckId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var getAfterDelete = await alice.GetAsync($"/api/deck/{deckId}");
+        Assert.Equal(HttpStatusCode.NotFound, getAfterDelete.StatusCode);
+
+        var bobDelete = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
+        Assert.Equal(HttpStatusCode.Forbidden, bobDelete.StatusCode);
+    }
 
     [Fact]
     public async Task DeckCards_Delta_CreatesMissing_ClampsNonNegative_ValidatesGame()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var deltaResponse = await client.PostAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/delta",
@@ -155,8 +149,8 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task DeckCards_Delta_RemovesRowsWhenAllQuantitiesReachZero()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var response = await client.PostAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/delta",
@@ -197,111 +191,111 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-        public async Task DeckCards_AllEndpoints_EnforceOwnership_403WhenNotOwner()
-        {
-            await _factory.ResetDatabaseAsync();
-            using var bob = _factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+    public async Task DeckCards_AllEndpoints_EnforceOwnership_403WhenNotOwner()
+    {
+        await factory.ResetDatabaseAsync();
+        using var bob = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
-            var deckResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-            Assert.Equal(HttpStatusCode.Forbidden, deckResponse.StatusCode);
+        var deckResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
+        Assert.Equal(HttpStatusCode.Forbidden, deckResponse.StatusCode);
 
-            var cardsResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards");
-            Assert.Equal(HttpStatusCode.Forbidden, cardsResponse.StatusCode);
+        var cardsResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards");
+        Assert.Equal(HttpStatusCode.Forbidden, cardsResponse.StatusCode);
 
-            var upsertResponse = await bob.PostAsJsonAsync(
-                $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
-                new
-                {
-                    cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
-                    quantityInDeck = 1,
-                    quantityIdea = 0,
-                    quantityAcquire = 0,
-                    quantityProxy = 0
-                });
-            Assert.Equal(HttpStatusCode.Forbidden, upsertResponse.StatusCode);
+        var upsertResponse = await bob.PostAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
+            new
+            {
+                cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                quantityInDeck = 1,
+                quantityIdea = 0,
+                quantityAcquire = 0,
+                quantityProxy = 0
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, upsertResponse.StatusCode);
 
-            var deleteResponse = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-            Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
-        }
+        var deleteResponse = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
+        Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
+    }
 
     [Fact]
-        public async Task DeckCards_SingleUpsert_Set_Patch_Delete()
-        {
-            await _factory.ResetDatabaseAsync();
-            using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+    public async Task DeckCards_SingleUpsert_Set_Patch_Delete()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-            var upsertResponse = await client.PostAsJsonAsync(
-                $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
-                new
-                {
-                    cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
-                    quantityInDeck = 2,
-                    quantityIdea = 1,
-                    quantityAcquire = 0,
-                    quantityProxy = 1
-                });
-            Assert.Equal(HttpStatusCode.NoContent, upsertResponse.StatusCode);
-
-            var putResponse = await client.PutAsJsonAsync(
-                $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}",
-                new
-                {
-                    quantityInDeck = 5,
-                    quantityIdea = -2,
-                    quantityAcquire = 3,
-                    quantityProxy = -1
-                });
-            Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
-
-            // PATCH: force Content-Type: application/json
-            var patchReq = new HttpRequestMessage(
-                HttpMethod.Patch,
-                $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}")
+        var upsertResponse = await client.PostAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
+            new
             {
-                Content = JsonContent.Create(new { quantityIdea = 4 })
-            };
-            var patchResponse = await client.SendAsync(patchReq);
-            Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+                cardPrintingId = TestDataSeeder.ExtraMagicPrintingId,
+                quantityInDeck = 2,
+                quantityIdea = 1,
+                quantityAcquire = 0,
+                quantityProxy = 1
+            });
+        Assert.Equal(HttpStatusCode.NoContent, upsertResponse.StatusCode);
 
-            var cards = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
-            var card = Assert.Single(cards, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
-            Assert.Equal(5, card.QuantityInDeck);
-            Assert.Equal(4, card.QuantityIdea);
-            Assert.Equal(3, card.QuantityAcquire);
-            Assert.Equal(0, card.QuantityProxy);
+        var putResponse = await client.PutAsJsonAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}",
+            new
+            {
+                quantityInDeck = 5,
+                quantityIdea = -2,
+                quantityAcquire = 3,
+                quantityProxy = -1
+            });
+        Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
 
-            var deleteResponse = await client.DeleteAsync(
-                $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}");
-            Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        // PATCH: force Content-Type: application/json
+        var patchReq = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}")
+        {
+            Content = JsonContent.Create(new { quantityIdea = 4 })
+        };
+        var patchResponse = await client.SendAsync(patchReq);
+        Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
 
-            var afterDelete = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
-            Assert.DoesNotContain(afterDelete, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
-        }
+        var cards = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
+        var card = Assert.Single(cards, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
+        Assert.Equal(5, card.QuantityInDeck);
+        Assert.Equal(4, card.QuantityIdea);
+        Assert.Equal(3, card.QuantityAcquire);
+        Assert.Equal(0, card.QuantityProxy);
+
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/{TestDataSeeder.ExtraMagicPrintingId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var afterDelete = await GetDeckCardsAsync(client, TestDataSeeder.AliceMagicDeckId);
+        Assert.DoesNotContain(afterDelete, c => c.CardPrintingId == TestDataSeeder.ExtraMagicPrintingId);
+    }
 
     [Fact]
-        public async Task Deck_Patch_DuplicateName_ReturnsConflict()
+    public async Task Deck_Patch_DuplicateName_ReturnsConflict()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var patchReq = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/deck/{TestDataSeeder.AliceEmptyDeckId}")
         {
-            await _factory.ResetDatabaseAsync();
-            using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+            Content = JsonContent.Create(new { name = "Alice Aggro" })
+        };
 
-            var patchReq = new HttpRequestMessage(
-                HttpMethod.Patch,
-                $"/api/deck/{TestDataSeeder.AliceEmptyDeckId}")
-            {
-                Content = JsonContent.Create(new { name = "Alice Aggro" })
-            };
+        var response = await client.SendAsync(patchReq);
 
-            var response = await client.SendAsync(patchReq);
-
-            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        }
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
 
 
     [Fact]
     public async Task Deck_Put_RequiresNameAndGameAndRejectsDuplicates()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var missingName = await client.PutAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}",
@@ -337,8 +331,8 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Deck_Availability_WithAndWithoutProxies_ReturnsExpected()
     {
-        await _factory.ResetDatabaseAsync();
-        using var client = _factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var withoutProxies = await GetDeckAvailabilityAsync(client, includeProxies: false);
         Assert.Equal(2, withoutProxies.Count);
@@ -367,23 +361,23 @@ public class DeckControllerTests : IClassFixture<CustomWebApplicationFactory>
     {
         var response = await client.GetAsync($"/api/deck{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckResponse>>(_jsonOptions);
-        return payload ?? new List<DeckResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckResponse>>(JsonOptions);
+        return payload ?? [];
     }
 
     private async Task<List<DeckCardItemResponse>> GetDeckCardsAsync(HttpClient client, int deckId)
     {
         var response = await client.GetAsync($"/api/deck/{deckId}/cards");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckCardItemResponse>>(_jsonOptions);
-        return payload ?? new List<DeckCardItemResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckCardItemResponse>>(JsonOptions);
+        return payload ?? [];
     }
 
     private async Task<List<DeckAvailabilityItemResponse>> GetDeckAvailabilityAsync(HttpClient client, bool includeProxies)
     {
         var response = await client.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/availability?includeProxies={includeProxies.ToString().ToLowerInvariant()}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<DeckAvailabilityItemResponse>>(_jsonOptions);
-        return payload ?? new List<DeckAvailabilityItemResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<List<DeckAvailabilityItemResponse>>(JsonOptions);
+        return payload ?? [];
     }
 }
