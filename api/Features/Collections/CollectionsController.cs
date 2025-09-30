@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Net.Mime;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -276,7 +277,7 @@ public class CollectionsController : ControllerBase
     }
 
     [HttpPost]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardRequest dto)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -285,7 +286,7 @@ public class CollectionsController : ControllerBase
     }
 
     [HttpPut("{cardPrintingId:int}")]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -294,7 +295,7 @@ public class CollectionsController : ControllerBase
     }
 
     [HttpPatch("{cardPrintingId:int}")]
-    [Consumes("application/json", "application/*+json")]
+    [Consumes(MediaTypeNames.Application.Json, "application/*+json")]
     public async Task<IActionResult> PatchQuantities(int userId, int cardPrintingId, [FromBody] JsonElement patch)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -302,7 +303,7 @@ public class CollectionsController : ControllerBase
     }
 
     [HttpPost("delta")]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -336,7 +337,7 @@ public class CollectionsController : ControllerBase
 
     [HttpPost("/api/collection")]
     [HttpPost("/api/collections")]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> UpsertForCurrent([FromBody] UpsertUserCardRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
@@ -346,7 +347,7 @@ public class CollectionsController : ControllerBase
 
     [HttpPut("/api/collection/{cardPrintingId:int}")]
     [HttpPut("/api/collections/{cardPrintingId:int}")]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> SetQuantitiesForCurrent(int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
@@ -356,7 +357,7 @@ public class CollectionsController : ControllerBase
 
     [HttpPatch("/api/collection/{cardPrintingId:int}")]
     [HttpPatch("/api/collections/{cardPrintingId:int}")]
-    [Consumes("application/json", "application/*+json")]
+    [Consumes(MediaTypeNames.Application.Json, "application/*+json")]
     public async Task<IActionResult> PatchQuantitiesForCurrent(int cardPrintingId, [FromBody] JsonElement patch)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
@@ -365,7 +366,7 @@ public class CollectionsController : ControllerBase
 
     [HttpPost("/api/collection/delta")]
     [HttpPost("/api/collections/delta")]
-    [Consumes("application/json")]
+    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> ApplyDeltaForCurrent([FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
