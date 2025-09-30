@@ -37,21 +37,6 @@ public class DecksController : ControllerBase
         error = null; userId = me.Id; return true;
     }
 
-    private async Task<(JsonElement payload, IActionResult? error)> ReadJsonBodyAsync(string errorMessage)
-    {
-        try
-        {
-            using var doc = await JsonDocument.ParseAsync(Request.Body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Undefined)
-                return (default, BadRequest(errorMessage));
-            return (doc.RootElement.Clone(), null);
-        }
-        catch (JsonException)
-        {
-            return (default, BadRequest("Invalid JSON payload."));
-        }
-    }
-
     private bool UserMismatch(int userId)
     {
         var me = HttpContext.GetCurrentUser();
@@ -68,7 +53,7 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return (null, NotFound());
-        if (NotOwnerAndNotAdmin(d)) return (null, StatusCode(403, "Forbidden"));
+        if (NotOwnerAndNotAdmin(d)) return (null, StatusCode(403, "User missing."));
         return (d, null);
     }
 
@@ -79,6 +64,20 @@ public class DecksController : ControllerBase
         v = 0;
         return (e.TryGetProperty(a, out var p) && p.TryGetInt32(out v))
             || (e.TryGetProperty(b, out p) && p.TryGetInt32(out v));
+    }
+
+    private static bool TryGetProperty(JsonElement obj, string camelName, string pascalName, out JsonElement value)
+    {
+        if (obj.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        if (obj.TryGetProperty(camelName, out value)) return true;
+        if (obj.TryGetProperty(pascalName, out value)) return true;
+        value = default;
+        return false;
     }
 
     // -----------------------------
@@ -149,39 +148,15 @@ public class DecksController : ControllerBase
     {
         var d = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         return Ok(_mapper.Map<DeckResponse>(d));
-    }
-
-    private async Task<IActionResult> PatchDeckCore(int deckId, JsonElement updates)
-    {
-        var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
-
-        if (updates.TryGetProperty("game", out var g) && g.ValueKind == JsonValueKind.String)
-            d.Game = g.GetString()!.Trim();
-
-        if (updates.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
-        {
-            var targetName = n.GetString()!.Trim();
-            if (await _db.Decks.AnyAsync(x => x.UserId == d.UserId && x.Id != d.Id && x.Name.ToLower() == targetName.ToLower()))
-                return Conflict("Duplicate deck name for user.");
-            d.Name = targetName;
-        }
-        if (updates.TryGetProperty("description", out var desc))
-            d.Description = desc.ValueKind == JsonValueKind.Null ? null :
-                            desc.ValueKind == JsonValueKind.String ? desc.GetString() : d.Description;
-
-        await _db.SaveChangesAsync();
-        return NoContent();
     }
 
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest("Game and Name required.");
 
@@ -196,11 +171,86 @@ public class DecksController : ControllerBase
         return NoContent();
     }
 
+    private async Task<IActionResult> PatchDeckForUserAsync(int userId, int deckId, JsonElement patch)
+    {
+        if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
+        var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
+        if (deck is null) return NotFound();
+
+        return await ApplyDeckPatchAsync(deck, patch);
+    }
+
+    private async Task<IActionResult> ApplyDeckPatchAsync(Deck deck, JsonElement patch)
+    {
+        if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
+        var ownerId = deck.UserId;
+        var effectiveName = deck.Name ?? string.Empty;
+
+        if (TryGetProperty(patch, "name", "Name", out var nameProp))
+        {
+            if (nameProp.ValueKind == JsonValueKind.Null || nameProp.ValueKind == JsonValueKind.String)
+            {
+                var newName = nameProp.ValueKind == JsonValueKind.Null
+                    ? string.Empty
+                    : (nameProp.GetString() ?? string.Empty);
+                newName = newName.Trim();
+
+                if (!string.Equals(deck.Name, newName, StringComparison.Ordinal))
+                {
+                    var normalizedNewName = newName.ToLower();
+                    var exists = await _db.Decks.AnyAsync(d =>
+                        d.UserId == ownerId &&
+                        d.Id != deck.Id &&
+                        d.Game == deck.Game &&
+                        d.Name.ToLower() == normalizedNewName);
+                    if (exists) return Conflict("A deck with this name already exists.");
+
+                    deck.Name = newName;
+                    effectiveName = newName;
+                }
+            }
+        }
+
+        if (TryGetProperty(patch, "description", "Description", out var descProp))
+        {
+            if (descProp.ValueKind == JsonValueKind.Null)
+            {
+                deck.Description = null;
+            }
+            else if (descProp.ValueKind == JsonValueKind.String)
+            {
+                deck.Description = descProp.GetString();
+            }
+        }
+
+        if (TryGetProperty(patch, "game", "Game", out var gameProp) && gameProp.ValueKind == JsonValueKind.String)
+        {
+            var newGame = gameProp.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(newGame) && !string.Equals(deck.Game, newGame, StringComparison.Ordinal))
+            {
+                var normalizedName = (effectiveName ?? string.Empty).ToLower();
+                var collision = await _db.Decks.AnyAsync(d =>
+                    d.UserId == ownerId &&
+                    d.Id != deck.Id &&
+                    d.Game == newGame &&
+                    d.Name.ToLower() == normalizedName);
+                if (collision) return Conflict("Name already exists in the target game.");
+
+                deck.Game = newGame!;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     private async Task<IActionResult> DeleteDeckCore(int deckId)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
         if (d is null) return NotFound();
-        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User mismatch.");
+        if (NotOwnerAndNotAdmin(d)) return StatusCode(403, "User missing.");
         _db.Decks.Remove(d);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -350,8 +400,27 @@ public class DecksController : ControllerBase
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
 
+        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
-        if (dc is null) return NotFound();
+        if (dc is null)
+        {
+            var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == cardPrintingId);
+            if (cp is null) return NotFound("CardPrinting not found.");
+            if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Card game does not match deck game.");
+
+            dc = new DeckCard
+            {
+                DeckId = deckId,
+                CardPrintingId = cardPrintingId,
+                QuantityInDeck = 0,
+                QuantityIdea = 0,
+                QuantityAcquire = 0,
+                QuantityProxy = 0
+            };
+            _db.DeckCards.Add(dc);
+        }
 
         if (TryI32(updates, "quantityInDeck", "QuantityInDeck", out var v1)) dc.QuantityInDeck = NN(v1);
         if (TryI32(updates, "quantityIdea", "QuantityIdea", out var v2)) dc.QuantityIdea = NN(v2);
@@ -419,7 +488,7 @@ public class DecksController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
         return await ListUserDecksCore(userId, game, name, hasCards);
     }
 
@@ -428,8 +497,15 @@ public class DecksController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> CreateDeck(int userId, [FromBody] CreateDeckRequest dto)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
         return await CreateDeckCore(userId, dto);
+    }
+
+    [HttpPatch("{id:int}")]
+    public async Task<IActionResult> Patch(int userId, int id, [FromBody] JsonElement patch)
+    {
+        if (UserMismatch(userId)) return StatusCode(403, "User missing.");
+        return await PatchDeckForUserAsync(userId, id, patch);
     }
 
     // -----------------------------------------
@@ -465,13 +541,11 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}
     [HttpPatch("/api/deck/{deckId:int}")]
     [HttpPatch("/api/decks/{deckId:int}")]
-    [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchDeck(int deckId)
+    public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement patch)
     {
-        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
+        var (deck, error) = await GetDeckForCaller(deckId);
         if (error != null) return error;
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
-        return await PatchDeckCore(deckId, updates);
+        return await ApplyDeckPatchAsync(deck!, patch);
     }
 
     // PUT /api/deck/{deckId}
@@ -516,14 +590,8 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
     [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")]
-    [Consumes("application/json", "application/*+json")]
-    public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId)
-    {
-        var (updates, error) = await ReadJsonBodyAsync("JSON object required.");
-        if (error != null) return error;
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
-        return await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, updates);
-    }
+    public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement patch)
+        => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, patch);
 
     // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
