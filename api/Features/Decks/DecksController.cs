@@ -186,35 +186,24 @@ public class DecksController : ControllerBase
         if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
 
         var ownerId = deck.UserId;
-        var effectiveName = deck.Name ?? string.Empty;
-        var targetGame = deck.Game;
+        var currentName = deck.Name ?? string.Empty;
         var changed = false;
-
-        if (TryGetProperty(patch, "game", "Game", out var potentialGameProp)
-            && potentialGameProp.ValueKind == JsonValueKind.String)
-        {
-            var candidate = potentialGameProp.GetString()?.Trim();
-            if (!string.IsNullOrWhiteSpace(candidate))
-            {
-                targetGame = candidate;
-            }
-        }
 
         if (TryGetProperty(patch, "name", "Name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
         {
             var requestedName = (nameProp.GetString() ?? string.Empty).Trim();
-            if (!string.Equals(deck.Name ?? string.Empty, requestedName, StringComparison.Ordinal))
+            if (!string.Equals(currentName, requestedName, StringComparison.Ordinal))
             {
-                var normalizedNewName = requestedName.ToLower();
+                var normalizedNewName = requestedName.ToLowerInvariant();
                 var exists = await _db.Decks.AnyAsync(d =>
                     d.UserId == ownerId &&
                     d.Id != deck.Id &&
-                    string.Equals(d.Game, targetGame, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(d.Game, deck.Game, StringComparison.OrdinalIgnoreCase) &&
                     d.Name.ToLower() == normalizedNewName);
                 if (exists) return Conflict("A deck with this name already exists.");
 
                 deck.Name = requestedName;
-                effectiveName = requestedName;
+                currentName = requestedName;
                 changed = true;
             }
         }
@@ -240,8 +229,6 @@ public class DecksController : ControllerBase
             }
         }
 
-        effectiveName = deck.Name ?? string.Empty;
-
         if (TryGetProperty(patch, "game", "Game", out var gameProp) && gameProp.ValueKind == JsonValueKind.String)
         {
             var newGameRaw = gameProp.GetString();
@@ -250,7 +237,7 @@ public class DecksController : ControllerBase
             {
                 if (!string.Equals(deck.Game, newGame, StringComparison.OrdinalIgnoreCase))
                 {
-                    var normalizedName = effectiveName.ToLower();
+                    var normalizedName = (deck.Name ?? string.Empty).Trim().ToLower();
                     var collision = await _db.Decks.AnyAsync(d =>
                         d.UserId == ownerId &&
                         d.Id != deck.Id &&

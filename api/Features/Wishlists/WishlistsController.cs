@@ -39,7 +39,7 @@ public class WishlistsController : ControllerBase
     private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = StatusCode(403, "User missing."); userId = 0; return false; }
+        if (me is null) { error = Forbid(); userId = 0; return false; }
         error = null; userId = me.Id; return true;
     }
 
