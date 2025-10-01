@@ -1,8 +1,5 @@
-// src/App.tsx
+console.log('APP LOADED');
+
 export default function App() {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl text-blue-500">Hello Tailwind</h1>
-    </div>
-  );
+  return <h1 style={{color:'red'}}>TESTING</h1>;
 }
