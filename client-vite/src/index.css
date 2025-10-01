@@ -1,7 +1,17 @@
-@tailwind theme;
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/theme";
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
+
+
+/*
+@import "tailwindcss/theme";
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+/*
+/* your CSS (use @layer base/components if needed) */
+
 
 /* -------------------------------
    Base layer overrides
