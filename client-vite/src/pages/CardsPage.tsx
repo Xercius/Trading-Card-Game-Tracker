@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
+import { useUser } from '@/context/UserProvider';
 import { api } from '@/lib/api';
 
 type CardDto = { id: number; game: string; name: string };
 
 export default function CardsPage() {
+  const { userId } = useUser();
   const { data, isLoading, error } = useQuery({
-    queryKey: ['cards'],
+    queryKey: ['cards', userId],
     queryFn: async () => {
       const res = await api.get<CardDto[]>('/card');
       return res.data;

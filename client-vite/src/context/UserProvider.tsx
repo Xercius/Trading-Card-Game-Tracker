@@ -1,10 +1,12 @@
 import { createContext, useContext, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { setApiUserId } from '@/lib/api';
 
 type Ctx = { userId: number; setUserId: (id: number) => void };
 const UserCtx = createContext<Ctx | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
+  const qc = useQueryClient();
   const [userId, setUserIdState] = useState<number>(() => {
     const saved = localStorage.getItem('userId');
     return saved ? Number(saved) : 1;
@@ -16,6 +18,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('userId', String(id));
     setUserIdState(id);
     setApiUserId(id);
+    qc.invalidateQueries();
   };
 
   const value = useMemo(() => ({ userId, setUserId }), [userId]);
