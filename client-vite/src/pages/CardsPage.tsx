@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
-type CardDto = { cardid: number; game: string; name: string };
+type CardDto = { cardId: number; game: string; name: string };
 type Paged<T> = {
   items: T[];
   total: number;
@@ -31,7 +31,7 @@ export default function CardsPage() {
       </div>
       <ul className="list-disc pl-6">
         {data.items.map(c => (
-          <li key={c.cardid}>{c.game} — {c.name}</li>
+          <li key={c.cardId}>{c.game} — {c.name}</li>
         ))}
       </ul>
     </div>
