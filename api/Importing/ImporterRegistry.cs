@@ -10,5 +10,8 @@ public sealed class ImporterRegistry
     }
 
     public bool TryGet(string key, out ISourceImporter importer) => _byKey.TryGetValue(key, out importer!);
+
     public IReadOnlyCollection<string> Keys => _byKey.Keys.ToList().AsReadOnly();
+
+    public IReadOnlyCollection<ISourceImporter> All => _byKey.Values.ToList().AsReadOnly();
 }
