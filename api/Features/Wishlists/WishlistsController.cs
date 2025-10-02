@@ -91,9 +91,11 @@ public class WishlistsController : ControllerBase
 
         var total = await query.CountAsync(ct);
 
-        var items = await query
+        query = query
             .OrderBy(uc => uc.CardPrinting.Card.Name)
-            .ThenBy(uc => uc.CardPrintingId)
+            .ThenBy(uc => uc.CardPrintingId);
+
+        var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ProjectTo<WishlistItemDto>(_mapper.ConfigurationProvider)

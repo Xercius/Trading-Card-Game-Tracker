@@ -68,8 +68,11 @@ public class CardsController : ControllerBase
 
         var total = await q.CountAsync(ct);
 
-        var cards = await q
+        q = q
             .OrderBy(c => c.Name)
+            .ThenBy(c => c.Id);
+
+        var cards = await q
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
