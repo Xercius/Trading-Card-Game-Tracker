@@ -11,12 +11,18 @@ type Paged<T> = {
 
 export default function AdminImportPage() {
   const { data, isLoading, error } = useQuery<Paged<ImportSourceDto>>({
-    queryKey: ['admin-import'],
-    queryFn: async () => {
-      const res = await api.get<Paged<ImportSourceDto>>('/admin/import');
-      return res.data;
-    },
-  });
+  queryKey: ['admin-import'],
+  queryFn: async () => {
+    const res = await api.get<ImportSourceDto[] | Paged<ImportSourceDto>>('/admin/import');
+    const d: ImportSourceDto[] | Paged<ImportSourceDto> = res.data;
+
+    if (Array.isArray(d)) {
+      return { items: d, total: d.length, page: 1, pageSize: d.length };
+    }
+
+    return d;
+  },
+});
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading import sources</div>;

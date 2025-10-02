@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 type UserDto = { id: number; name: string; role: string };
+
 type Paged<T> = {
   items: T[];
   total: number;
@@ -13,8 +14,14 @@ export default function UsersPage() {
   const { data, isLoading, error } = useQuery<Paged<UserDto>>({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await api.get<Paged<UserDto>>('/user');
-      return res.data;
+      const res = await api.get<UserDto[] | Paged<UserDto>>('/user');
+      const d: UserDto[] | Paged<UserDto> = res.data;
+
+      if (Array.isArray(d)) {
+        return { items: d, total: d.length, page: 1, pageSize: d.length };
+      }
+
+      return d;
     },
   });
 
@@ -37,4 +44,3 @@ export default function UsersPage() {
     </div>
   );
 }
-

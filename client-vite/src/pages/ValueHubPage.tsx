@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/UserProvider';
+import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
 type ValuePointDto = { asOfUtc: string; priceCents: number };
@@ -7,13 +7,25 @@ type ValueSummaryDto = { latestCents: number; points: ValuePointDto[] };
 
 export default function ValueHubPage() {
   const { userId } = useUser();
+
   const { data, isLoading, error } = useQuery<ValueSummaryDto>({
     queryKey: ['value', userId],
     queryFn: async () => {
-      const res = await api.get<ValueSummaryDto>(
-        `/api/value/collection/summary?userId=${userId}`,
+      // Call backend
+      const res = await api.get<ValueSummaryDto | ValuePointDto[]>(
+        `/value/collection/summary?userId=${userId}`
       );
-      return res.data;
+      const d: ValueSummaryDto | ValuePointDto[] = res.data;
+
+      if (Array.isArray(d)) {
+        // If backend sent an array of points, wrap it in ValueSummaryDto
+        const points: ValuePointDto[] = d;
+        const latestCents = points.length ? points[points.length - 1].priceCents : 0;
+        return { latestCents, points };
+      }
+
+      // Normal case: already a ValueSummaryDto
+      return d;
     },
   });
 
@@ -30,8 +42,9 @@ export default function ValueHubPage() {
     <div className="p-4">
       <h1 className="mb-2 text-xl font-semibold">Collection Value</h1>
       <p>Latest total: {formattedTotal}</p>
-      <div className="mt-4 text-sm text-gray-500">History points: {data.points.length}</div>
+      <div className="mt-4 text-sm text-gray-500">
+        History points: {data.points.length}
+      </div>
     </div>
   );
 }
-

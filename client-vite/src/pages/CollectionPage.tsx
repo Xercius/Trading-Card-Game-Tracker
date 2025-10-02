@@ -1,8 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/UserProvider';
+import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
-type CollectionItemDto = { id: number; game: string; name: string; quantity: number };
+type CollectionItemDto = {
+  cardPrintingId: number;
+  quantityOwned: number;
+  quantityWanted: number;
+  quantityProxyOwned: number;
+  cardId: number;
+  cardName: string;
+  game: string;
+  set: string;
+  number: string;
+  rarity: string;
+  style: string;
+  imageUrl: string | null;
+};
 type Paged<T> = {
   items: T[];
   total: number;
@@ -26,17 +39,14 @@ export default function CollectionPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">
-        Showing {data.items.length} of {data.total}
-      </div>
+      <div className="mb-2 text-sm text-gray-500">Showing {data.items.length} of {data.total}</div>
       <ul className="list-disc pl-6">
-        {data.items.map(item => (
-          <li key={item.id}>
-            {item.game} — {item.name} × {item.quantity}
+        {data.items.map(i => (
+          <li key={i.cardPrintingId}>
+            {i.game} — {i.cardName} · owned {i.quantityOwned} · want {i.quantityWanted} · proxy {i.quantityProxyOwned}
           </li>
         ))}
       </ul>
     </div>
   );
 }
-

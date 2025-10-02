@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/UserProvider';
+import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
 type CardDto = { cardid: number; game: string; name: string };
