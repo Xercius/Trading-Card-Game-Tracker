@@ -11,22 +11,24 @@ type Paged<T> = {
 };
 
 export default function UsersPage() {
-  const { data, isLoading, error } = useQuery<Paged<UserDto>>({
+  const { data, isLoading, isError } = useQuery<Paged<UserDto>>({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await api.get<UserDto[] | Paged<UserDto>>('/user');
-      const d: UserDto[] | Paged<UserDto> = res.data;
+      const res = await api.get<
+        Array<{ id: number; username: string; displayName: string; isAdmin: boolean }>
+      >('/users');
+      const users = res.data.map(user => ({
+        id: user.id,
+        name: user.displayName || user.username,
+        role: user.isAdmin ? 'Admin' : 'User',
+      }));
 
-      if (Array.isArray(d)) {
-        return { items: d, total: d.length, page: 1, pageSize: d.length };
-      }
-
-      return d;
+      return { items: users, total: users.length, page: 1, pageSize: users.length };
     },
   });
 
   if (isLoading) return <div className="p-4">Loading…</div>;
-  if (error) return <div className="p-4 text-red-500">Error loading users</div>;
+  if (isError) return <div className="p-4 text-red-500">Error loading users</div>;
   if (!data || data.items.length === 0) return <div className="p-4">No users found</div>;
 
   return (

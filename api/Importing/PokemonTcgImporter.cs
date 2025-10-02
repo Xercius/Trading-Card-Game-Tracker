@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,8 @@ namespace api.Importing;
 public sealed class PokemonTcgImporter : ISourceImporter
 {
     public string Key => "pokemon";
+    public string DisplayName => "Pokémon TCG";
+    public IEnumerable<string> SupportedGames => new[] { "Pokemon" };
     private readonly AppDbContext _db;
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions J = new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };

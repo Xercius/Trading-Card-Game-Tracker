@@ -213,8 +213,12 @@ public class UsersController : ControllerBase
 
     // Admin: GET /api/users
     [HttpGet("/api/users")]
-    public async Task<IActionResult> ListUsers([FromQuery] string? name = null, [FromQuery] string? displayName = null, [FromQuery] bool? isAdmin = null)
-        => await ListUsersCore(name, displayName, isAdmin);
+    public Task<IActionResult> ListUsers([FromQuery] string? name = null, [FromQuery] string? displayName = null, [FromQuery] bool? isAdmin = null)
+        => ListUsersCore(name, displayName, isAdmin);
+
+    [HttpGet("/api/user")]
+    public Task<IActionResult> ListUsersAlias([FromQuery] string? name = null, [FromQuery] string? displayName = null, [FromQuery] bool? isAdmin = null)
+        => ListUsersCore(name, displayName, isAdmin);
 
     // Admin: PUT /api/users/{userId}/admin?value=true|false
     [HttpPut("/api/users/{targetUserId:int}/admin")]

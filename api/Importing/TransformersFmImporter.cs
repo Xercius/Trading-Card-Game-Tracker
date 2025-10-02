@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using api.Data;
 using api.Models;
@@ -8,6 +9,8 @@ namespace api.Importing;
 public sealed class TransformersFmImporter : ISourceImporter
 {
     public string Key => "tftcg";
+    public string DisplayName => "FortressMaximus";
+    public IEnumerable<string> SupportedGames => new[] { "Transformers TCG" };
     private readonly AppDbContext _db;
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions J = new(JsonSerializerDefaults.Web)

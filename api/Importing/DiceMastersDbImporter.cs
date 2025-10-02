@@ -12,6 +12,8 @@ namespace api.Importing;
 public sealed class DiceMastersDbImporter : ISourceImporter
 {
     public string Key => "dicemasters";
+    public string DisplayName => "DiceMastersDB";
+    public IEnumerable<string> SupportedGames => new[] { GameName };
 
     private const string GameName = "Dice Masters";
     private readonly AppDbContext _db;
