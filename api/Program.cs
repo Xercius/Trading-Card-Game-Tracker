@@ -40,7 +40,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.FabDbImp
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.GuardiansLocalImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.DiceMastersDbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.TransformersFmImporter>();
-builder.Services.AddScoped<api.Importing.ImporterRegistry>();
+builder.Services.AddSingleton<api.Importing.ImporterRegistry>();
 
 // Explicit HTTPS port for redirects
 builder.Services.AddHttpsRedirection(o => o.HttpsPort = 7226);

@@ -3,17 +3,35 @@ using api.Importing;
 using api.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
 
 namespace api.Controllers;
 
 [ApiController]
 [Route("api/admin/import")]
 [AdminGuard]
+public sealed record ImportSourceResponse(string Key, string Name, IReadOnlyList<string> Games);
+
 public sealed class AdminImportController : ControllerBase
 {
     private readonly ImporterRegistry _registry;
 
     public AdminImportController(ImporterRegistry registry) => _registry = registry;
+
+    [HttpGet("sources")]
+    public ActionResult<IReadOnlyList<ImportSourceResponse>> GetSources()
+    {
+        var sources = _registry.All
+            .Select(importer => new ImportSourceResponse(
+                importer.Key,
+                importer.DisplayName,
+                importer.SupportedGames.ToArray()))
+            .OrderBy(source => source.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return Ok(sources);
+    }
 
     /// POST /api/admin/import/scryfall?set=KHM&dryRun=true&limit=200
     [HttpPost("scryfall")]
