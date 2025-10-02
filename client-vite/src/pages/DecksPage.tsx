@@ -11,15 +11,25 @@ type DeckDto = {
   createdUtc: string;
   updatedUtc: string | null;
 };
+
+type Paged<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export default function DecksPage() {
   const { userId } = useUser();
-  const { data: decks = [], isLoading, error } = useQuery<DeckDto[]>({
+  const { data, isLoading, error } = useQuery<Paged<DeckDto>>({
     queryKey: ['decks', userId],
     queryFn: async () => {
-      const res = await api.get<DeckDto[]>(`/user/${userId}/deck`);
+      const res = await api.get<Paged<DeckDto>>(`/user/${userId}/deck`);
       return res.data;
     },
   });
+
+  const decks = data?.items ?? [];
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading decks</div>;
@@ -27,7 +37,7 @@ export default function DecksPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">Showing {decks.length} decks</div>
+      <div className="mb-2 text-sm text-gray-500">Showing {decks.length} of {data?.total ?? 0} decks</div>
       <ul className="list-disc pl-6">
         {decks.map(d => (
           <li key={d.id}>

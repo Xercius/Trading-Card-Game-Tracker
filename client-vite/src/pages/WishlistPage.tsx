@@ -14,15 +14,25 @@ type WishlistItemDto = {
   style: string;
   imageUrl: string | null;
 };
+
+type Paged<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export default function WishlistPage() {
   const { userId } = useUser();
-  const { data: items = [], isLoading, error } = useQuery<WishlistItemDto[]>({
+  const { data, isLoading, error } = useQuery<Paged<WishlistItemDto>>({
     queryKey: ['wishlist', userId],
     queryFn: async () => {
-      const res = await api.get<WishlistItemDto[]>(`/user/${userId}/wishlist`);
+      const res = await api.get<Paged<WishlistItemDto>>(`/user/${userId}/wishlist`);
       return res.data;
     },
   });
+
+  const items = data?.items ?? [];
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading wishlist</div>;
@@ -30,7 +40,7 @@ export default function WishlistPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">Showing {items.length} items</div>
+      <div className="mb-2 text-sm text-gray-500">Showing {items.length} of {data?.total ?? 0} items</div>
       <ul className="list-disc pl-6">
         {items.map(i => (
           <li key={i.cardPrintingId}>

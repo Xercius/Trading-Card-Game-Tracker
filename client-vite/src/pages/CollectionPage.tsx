@@ -16,15 +16,25 @@ type CollectionItemDto = {
   style: string;
   imageUrl: string | null;
 };
+
+type Paged<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export default function CollectionPage() {
   const { userId } = useUser();
-  const { data: items = [], isLoading, error } = useQuery<CollectionItemDto[]>({
+  const { data, isLoading, error } = useQuery<Paged<CollectionItemDto>>({
     queryKey: ['collection', userId],
     queryFn: async () => {
-      const res = await api.get<CollectionItemDto[]>(`/user/${userId}/collection`);
+      const res = await api.get<Paged<CollectionItemDto>>(`/user/${userId}/collection`);
       return res.data;
     },
   });
+
+  const items = data?.items ?? [];
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading collection</div>;
@@ -32,7 +42,7 @@ export default function CollectionPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">Showing {items.length} items</div>
+      <div className="mb-2 text-sm text-gray-500">Showing {items.length} of {data?.total ?? 0} items</div>
       <ul className="list-disc pl-6">
         {items.map(i => (
           <li key={i.cardPrintingId}>

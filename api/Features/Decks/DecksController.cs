@@ -3,12 +3,17 @@ using api.Features.Decks.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using System.Net.Mime;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using DeckDto = api.Features.Decks.Dtos.DeckResponse;
 
 namespace api.Features.Decks;
 
@@ -85,9 +90,20 @@ public class DecksController : ControllerBase
     // Core: Decks (single source of truth)
     // -----------------------------
 
-    private async Task<IActionResult> ListUserDecksCore(int userId, string? game, string? name, bool? hasCards)
+    private async Task<ActionResult<Paged<DeckDto>>> ListUserDecksCore(
+        int userId,
+        string? game,
+        string? name,
+        bool? hasCards,
+        int page,
+        int pageSize)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+
+        if (page <= 0) page = 1;
+        if (pageSize <= 0) pageSize = 50;
+
+        var ct = HttpContext.RequestAborted;
 
         var query = _db.Decks.Where(d => d.UserId == userId).AsNoTracking();
 
@@ -102,22 +118,22 @@ public class DecksController : ControllerBase
             query = query.Where(d => EF.Functions.Like(d.Name, pat));
         }
 
-        var decks = await query.ToListAsync();
-
-        if (hasCards == true && decks.Count > 0)
+        if (hasCards == true)
         {
-            var ids = decks.Select(d => d.Id).ToList();
-            var withCards = await _db.DeckCards
-                .Where(dc => ids.Contains(dc.DeckId))
-                .GroupBy(dc => dc.DeckId)
-                .Select(g => g.Key)
-                .ToListAsync();
-            var set = withCards.ToHashSet();
-            decks = decks.Where(d => set.Contains(d.Id)).ToList();
+            query = query.Where(d => _db.DeckCards.Any(dc => dc.DeckId == d.Id));
         }
 
-        var responses = _mapper.Map<List<DeckResponse>>(decks);
-        return Ok(responses);
+        var total = await query.CountAsync(ct);
+
+        var items = await query
+            .OrderBy(d => d.Name)
+            .ThenBy(d => d.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ProjectTo<DeckDto>(_mapper.ConfigurationProvider)
+            .ToListAsync(ct);
+
+        return Ok(new Paged<DeckDto>(items, total, page, pageSize));
     }
 
     private async Task<IActionResult> CreateDeckCore(int userId, CreateDeckRequest dto)
@@ -510,10 +526,16 @@ public class DecksController : ControllerBase
 
     // GET /api/user/{userId}/deck
     [HttpGet]
-    public async Task<IActionResult> GetUserDecks(int userId, [FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
+    public async Task<ActionResult<Paged<DeckDto>>> GetUserDecks(
+        int userId,
+        [FromQuery] string? game = null,
+        [FromQuery] string? name = null,
+        [FromQuery] bool? hasCards = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
         if (UserMismatch(userId)) return Forbid();
-        return await ListUserDecksCore(userId, game, name, hasCards);
+        return await ListUserDecksCore(userId, game, name, hasCards, page, pageSize);
     }
 
     // POST /api/user/{userId}/deck
@@ -540,10 +562,15 @@ public class DecksController : ControllerBase
     // GET /api/deck  (list current user's decks)
     [HttpGet("/api/deck")]
     [HttpGet("/api/decks")] // alias, optional
-    public async Task<IActionResult> GetMyDecks([FromQuery] string? game = null, [FromQuery] string? name = null, [FromQuery] bool? hasCards = null)
+    public async Task<ActionResult<Paged<DeckDto>>> GetMyDecks(
+        [FromQuery] string? game = null,
+        [FromQuery] string? name = null,
+        [FromQuery] bool? hasCards = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await ListUserDecksCore(uid, game, name, hasCards);
+        return await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
     }
 
     // POST /api/deck  (create for current user)
