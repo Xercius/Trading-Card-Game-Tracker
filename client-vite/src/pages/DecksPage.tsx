@@ -1,8 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/UserProvider';
+import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
-type DeckDto = { id: number; game: string; name: string; description?: string };
+type DeckDto = {
+  id: number;
+  userId: number;
+  game: string;
+  name: string;
+  description: string | null;
+  createdUtc: string;
+  updatedUtc: string | null;
+};
 type Paged<T> = {
   items: T[];
   total: number;
@@ -26,18 +34,14 @@ export default function DecksPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">
-        Showing {data.items.length} of {data.total}
-      </div>
+      <div className="mb-2 text-sm text-gray-500">Showing {data.items.length} of {data.total}</div>
       <ul className="list-disc pl-6">
-        {data.items.map(deck => (
-          <li key={deck.id}>
-            {deck.game} — {deck.name}
-            {deck.description ? ` (${deck.description})` : ''}
+        {data.items.map(d => (
+          <li key={d.id}>
+            {d.game} — {d.name}{d.description ? ` (${d.description})` : ''} · {new Date(d.createdUtc).toLocaleDateString()}
           </li>
         ))}
       </ul>
     </div>
   );
 }
-

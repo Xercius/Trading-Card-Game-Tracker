@@ -1,12 +1,11 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { setApiUserId } from '@/lib/api';
-
-type Ctx = { userId: number; setUserId: (id: number) => void };
-const UserCtx = createContext<Ctx | undefined>(undefined);
+import { UserCtx } from './UserCtx';
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
+
   const [userId, setUserIdState] = useState<number>(() => {
     const saved = localStorage.getItem('userId');
     return saved ? Number(saved) : 1;
@@ -14,19 +13,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   setApiUserId(userId);
 
-  const setUserId = (id: number) => {
+  const setUserId = useCallback((id: number) => {
     localStorage.setItem('userId', String(id));
     setUserIdState(id);
     setApiUserId(id);
     qc.invalidateQueries();
-  };
+  }, [qc]);
 
-  const value = useMemo(() => ({ userId, setUserId }), [userId]);
+  const value = useMemo(() => ({ userId, setUserId }), [userId, setUserId]);
+
   return <UserCtx.Provider value={value}>{children}</UserCtx.Provider>;
 }
-
-export const useUser = () => {
-  const ctx = useContext(UserCtx);
-  if (!ctx) throw new Error('useUser must be used within UserProvider');
-  return ctx;
-};

@@ -1,8 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/UserProvider';
+import { useUser } from '@/context/useUser';
 import { api } from '@/lib/api';
 
-type WishlistItemDto = { id: number; game: string; name: string; desired: number };
+type WishlistItemDto = {
+  cardPrintingId: number;
+  quantityWanted: number;
+  cardId: number;
+  cardName: string;
+  game: string;
+  set: string;
+  number: string;
+  rarity: string;
+  style: string;
+  imageUrl: string | null;
+};
 type Paged<T> = {
   items: T[];
   total: number;
@@ -26,17 +37,14 @@ export default function WishlistPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">
-        Showing {data.items.length} of {data.total}
-      </div>
+      <div className="mb-2 text-sm text-gray-500">Showing {data.items.length} of {data.total}</div>
       <ul className="list-disc pl-6">
-        {data.items.map(item => (
-          <li key={item.id}>
-            {item.game} — {item.name} (want {item.desired})
+        {data.items.map(i => (
+          <li key={i.cardPrintingId}>
+            {i.game} — {i.cardName} · want {i.quantityWanted}
           </li>
         ))}
       </ul>
     </div>
   );
 }
-
