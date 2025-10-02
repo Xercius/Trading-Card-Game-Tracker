@@ -10,6 +10,8 @@ namespace api.Importing;
 public sealed class SwuDbImporter : ISourceImporter
 {
     public string Key => "swu";
+    public string DisplayName => "SWU DB";
+    public IEnumerable<string> SupportedGames => new[] { "Star Wars Unlimited" };
     private readonly AppDbContext _db;
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

@@ -27,6 +27,8 @@ public sealed class SwccgdbImporter : ISourceImporter
     }
 
     public string Key => "swccgdb";
+    public string DisplayName => "SWCCG DB";
+    public IEnumerable<string> SupportedGames => new[] { "Star Wars CCG" };
 
     public Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
     {

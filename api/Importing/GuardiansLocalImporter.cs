@@ -13,6 +13,8 @@ namespace api.Importing;
 public sealed class GuardiansLocalImporter : ISourceImporter
 {
     public string Key => "guardians";
+    public string DisplayName => "Guardians Local";
+    public IEnumerable<string> SupportedGames => new[] { "Guardians CCG" };
     private readonly AppDbContext _db;
     private static readonly JsonSerializerOptions J = new(JsonSerializerDefaults.Web)
     {

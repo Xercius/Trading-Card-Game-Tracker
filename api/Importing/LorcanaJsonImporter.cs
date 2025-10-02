@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using api.Data;
 using api.Models;
@@ -8,6 +9,8 @@ namespace api.Importing;
 public sealed class LorcanaJsonImporter : ISourceImporter
 {
     public string Key => "lorcanajson";
+    public string DisplayName => "Lorcana JSON";
+    public IEnumerable<string> SupportedGames => new[] { "Disney Lorcana" };
 
     private readonly AppDbContext _db;
     private readonly HttpClient _http;

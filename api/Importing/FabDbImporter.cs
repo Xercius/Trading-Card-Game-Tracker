@@ -10,6 +10,8 @@ namespace api.Importing;
 public sealed class FabDbImporter : ISourceImporter
 {
     public string Key => "fabdb";
+    public string DisplayName => "FAB DB";
+    public IEnumerable<string> SupportedGames => new[] { "Flesh and Blood" };
 
     private readonly AppDbContext _db;
     private readonly HttpClient _http;

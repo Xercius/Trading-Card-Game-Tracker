@@ -22,6 +22,8 @@ public sealed class ScryfallImporter : ISourceImporter
     }
 
     public string Key => "scryfall";
+    public string DisplayName => "Scryfall";
+    public IEnumerable<string> SupportedGames => new[] { "Magic" };
 
     public Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
     {
