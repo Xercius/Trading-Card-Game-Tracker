@@ -110,6 +110,8 @@ public class CollectionsController : ControllerBase
         var total = await query.CountAsync(ct);
 
         var items = await query
+            .OrderBy(uc => uc.CardPrinting.Card.Name)
+            .ThenBy(uc => uc.CardPrintingId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ProjectTo<CollectionItemDto>(_mapper.ConfigurationProvider)
