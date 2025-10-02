@@ -8,11 +8,11 @@ using System.Linq;
 
 namespace api.Controllers;
 
+public sealed record ImportSourceResponse(string Key, string Name, IReadOnlyList<string> Games);
+
 [ApiController]
 [Route("api/admin/import")]
 [AdminGuard]
-public sealed record ImportSourceResponse(string Key, string Name, IReadOnlyList<string> Games);
-
 public sealed class AdminImportController : ControllerBase
 {
     private readonly ImporterRegistry _registry;
