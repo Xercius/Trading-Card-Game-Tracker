@@ -3,15 +3,19 @@ using api.Features.Collections.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Mime;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using CollectionItemDto = api.Features.Collections.Dtos.UserCardItemResponse;
 
 namespace api.Features.Collections;
 
@@ -66,16 +70,23 @@ public class CollectionsController : ControllerBase
     // Core (single source of logic)
     // -----------------------------
 
-    private async Task<IActionResult> GetAllCore(
+    private async Task<ActionResult<Paged<CollectionItemDto>>> GetAllCore(
         int userId,
         string? game,
         string? set,
         string? rarity,
         string? name,
-        int? cardPrintingId)
+        int? cardPrintingId,
+        int page,
+        int pageSize)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
             return IsAdmin() ? NotFound("User not found.") : Forbid();
+
+        if (page <= 0) page = 1;
+        if (pageSize <= 0) pageSize = 50;
+
+        var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
             .Where(uc => uc.UserId == userId)
@@ -96,11 +107,17 @@ public class CollectionsController : ControllerBase
         if (cardPrintingId.HasValue)
             query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
 
-        var rows = await query
-            .ProjectTo<UserCardItemResponse>(_mapper.ConfigurationProvider)
-            .ToListAsync();
+        var total = await query.CountAsync(ct);
 
-        return Ok(rows);
+        var items = await query
+            .OrderBy(uc => uc.CardPrinting.Card.Name)
+            .ThenBy(uc => uc.CardPrintingId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ProjectTo<CollectionItemDto>(_mapper.ConfigurationProvider)
+            .ToListAsync(ct);
+
+        return Ok(new Paged<CollectionItemDto>(items, total, page, pageSize));
     }
 
     private async Task<IActionResult> UpsertCore(int userId, UpsertUserCardRequest dto)
@@ -264,16 +281,18 @@ public class CollectionsController : ControllerBase
     // -----------------------------------------
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(
+    public async Task<ActionResult<Paged<CollectionItemDto>>> GetAll(
         int userId,
         [FromQuery] string? game,
         [FromQuery] string? set,
         [FromQuery] string? rarity,
         [FromQuery] string? name,
-        [FromQuery] int? cardPrintingId)
+        [FromQuery] int? cardPrintingId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
         if (UserMismatch(userId)) return Forbid();
-        return await GetAllCore(userId, game, set, rarity, name, cardPrintingId);
+        return await GetAllCore(userId, game, set, rarity, name, cardPrintingId, page, pageSize);
     }
 
     [HttpPost]
@@ -324,15 +343,17 @@ public class CollectionsController : ControllerBase
 
     [HttpGet("/api/collection")]
     [HttpGet("/api/collections")]
-    public async Task<IActionResult> GetAllForCurrent(
+    public async Task<ActionResult<Paged<CollectionItemDto>>> GetAllForCurrent(
         [FromQuery] string? game,
         [FromQuery] string? set,
         [FromQuery] string? rarity,
         [FromQuery] string? name,
-        [FromQuery] int? cardPrintingId)
+        [FromQuery] int? cardPrintingId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await GetAllCore(uid, game, set, rarity, name, cardPrintingId);
+        return await GetAllCore(uid, game, set, rarity, name, cardPrintingId, page, pageSize);
     }
 
     [HttpPost("/api/collection")]

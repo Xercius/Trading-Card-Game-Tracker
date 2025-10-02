@@ -4,7 +4,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using api.Common.Dtos;
+using api.Shared;
 using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
 using api.Tests.Helpers;
@@ -206,9 +206,9 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, anonResponse.StatusCode);
     }
 
-    private static async Task<PagedResult<T>> ReadPagedAsync<T>(HttpResponseMessage response)
+    private static async Task<Paged<T>> ReadPagedAsync<T>(HttpResponseMessage response)
     {
-        var payload = await response.Content.ReadFromJsonAsync<PagedResult<T>>(_jsonOptions);
-        return payload ?? new PagedResult<T>([], 0, 1, 0);
+        var payload = await response.Content.ReadFromJsonAsync<Paged<T>>(_jsonOptions);
+        return payload ?? new Paged<T>([], 0, 1, 0);
     }
 }

@@ -7,7 +7,7 @@ type Paged<T> = {
   items: T[];
   total: number;
   page: number;
-  pageSize: number
+  pageSize: number;
 };
 
 export default function CardsPage() {
@@ -20,17 +20,19 @@ export default function CardsPage() {
     },
   });
 
+  const items = data?.items ?? [];
+
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading cards</div>;
-  if (!data || data.items.length === 0) return <div className="p-4">No cards found</div>;
+  if (items.length === 0) return <div className="p-4">No cards found</div>;
 
   return (
     <div className="p-4">
       <div className="mb-2 text-sm text-gray-500">
-        Showing {data.items.length} of {data.total}
+        Showing {items.length} of {data?.total ?? 0}
       </div>
       <ul className="list-disc pl-6">
-        {data.items.map(c => (
+        {items.map(c => (
           <li key={c.cardId}>{c.game} — {c.name}</li>
         ))}
       </ul>

@@ -1,13 +1,15 @@
-using api.Common.Dtos;
 using api.Data;
 using api.Features.Cards.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using api.Shared;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace api.Features.Cards;
@@ -51,6 +53,8 @@ public class CardsController : ControllerBase
 
         var q = _db.Cards.AsNoTracking().AsQueryable();
 
+        var ct = HttpContext.RequestAborted;
+
         if (!string.IsNullOrWhiteSpace(game))
         {
             var g = game.Trim();
@@ -62,18 +66,21 @@ public class CardsController : ControllerBase
             q = q.Where(c => c.Name.ToLower().Contains(n));
         }
 
-        var total = await q.CountAsync();
+        var total = await q.CountAsync(ct);
+
+        q = q
+            .OrderBy(c => c.Name)
+            .ThenBy(c => c.Id);
 
         var cards = await q
-            .OrderBy(c => c.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         if (!includePrintings)
         {
             var rows = _mapper.Map<List<CardListItemResponse>>(cards);
-            return Ok(new PagedResult<CardListItemResponse>(rows, total, page, pageSize));
+            return Ok(new Paged<CardListItemResponse>(rows, total, page, pageSize));
         }
 
         var cardIds = cards.Select(c => c.Id).ToList();
@@ -81,7 +88,7 @@ public class CardsController : ControllerBase
             .AsNoTracking()
             .Where(cp => cardIds.Contains(cp.CardId))
             .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var map = printings.GroupBy(p => p.CardId).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -93,7 +100,7 @@ public class CardsController : ControllerBase
                 ? _mapper.Map<List<CardPrintingResponse>>(list)
                 : new List<CardPrintingResponse>())).ToList();
 
-        return Ok(new PagedResult<CardDetailResponse>(detailed, total, page, pageSize));
+        return Ok(new Paged<CardDetailResponse>(detailed, total, page, pageSize));
     }
 
     // GET a single card + all printings
