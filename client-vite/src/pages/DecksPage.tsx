@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/context/useUser";
 import http from "@/lib/http";
-import { useListQuery } from "@/hooks/useListQuery";
+import { useQueryState } from "@/hooks/useQueryState";
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -25,40 +25,37 @@ type Paged<T> = {
 
 export default function DecksPage() {
   const { userId } = useUser();
-  const { q, gameCsv, params, setSearchParams } = useListQuery();
-  const pageParam = Number(params.get("page") ?? "1");
-  const pageSizeParam = Number(params.get("pageSize") ?? String(DEFAULT_PAGE_SIZE));
-  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+  const [q] = useQueryState("q", "");
+  const [gameCsv] = useQueryState("game", "");
+  const [pageParamRaw, setPageParam] = useQueryState("page", "1");
+  const [pageSizeParamRaw] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
+
+  const parsedPage = Number(pageParamRaw);
+  const parsedPageSize = Number(pageSizeParamRaw);
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
   const pageSize =
-    Number.isFinite(pageSizeParam) && pageSizeParam > 0
-      ? Math.floor(pageSizeParam)
+    Number.isFinite(parsedPageSize) && parsedPageSize > 0
+      ? Math.floor(parsedPageSize)
       : DEFAULT_PAGE_SIZE;
 
   const previousFiltersRef = useRef({ q, gameCsv });
   const shouldResetPage =
-    params.has("page") &&
-    (params.get("page") ?? "1") !== "1" &&
+    pageParamRaw !== "1" &&
     (previousFiltersRef.current.q !== q || previousFiltersRef.current.gameCsv !== gameCsv);
 
   useEffect(() => {
     if (shouldResetPage) {
-      const nextParams = new URLSearchParams(params);
-      nextParams.set("page", "1");
-      nextParams.set("pageSize", String(pageSize));
-      setSearchParams(nextParams, { replace: true });
+      setPageParam("1");
     }
     previousFiltersRef.current = { q, gameCsv };
-  }, [shouldResetPage, params, pageSize, setSearchParams, q, gameCsv]);
+  }, [shouldResetPage, setPageParam, q, gameCsv]);
 
   const updatePage = (nextPage: number) => {
     const safeNext = nextPage < 1 ? 1 : nextPage;
-    const nextParams = new URLSearchParams(params);
-    nextParams.set("page", String(safeNext));
-    nextParams.set("pageSize", String(pageSize));
-    setSearchParams(nextParams);
+    setPageParam(String(safeNext));
   };
   const { data, isLoading, error } = useQuery<Paged<DeckDto>>({
-    queryKey: ["decks", userId, q, gameCsv, page, pageSize],
+    queryKey: ["decks", userId, page, pageSize, q, gameCsv],
     queryFn: async () => {
       if (!userId) throw new Error("User not selected");
       const res = await http.get<Paged<DeckDto>>(`user/${userId}/deck`, {
