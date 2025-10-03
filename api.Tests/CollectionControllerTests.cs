@@ -7,6 +7,7 @@ using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using api.Features.Collections.Dtos;
+using api.Shared;
 using api.Tests.Fixtures;
 using api.Tests.Helpers;
 using Xunit;
@@ -315,7 +316,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     {
         var response = await client.GetAsync($"/api/collection{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(_jsonOptions);
-        return payload ?? [];
+        var payload = await response.Content.ReadFromJsonAsync<Paged<UserCardItemResponse>>(_jsonOptions);
+        return payload?.Items?.ToList() ?? [];
     }
 }
