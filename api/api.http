@@ -1,4 +1,4 @@
-@api_HostAddress = http://localhost:5229
+@api_HostAddress = https://localhost:7226
 
 ### Retrieve all cards
 GET {{api_HostAddress}}/api/card

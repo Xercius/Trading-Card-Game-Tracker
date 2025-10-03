@@ -14,7 +14,7 @@ namespace api.Data // Update to match your folder/namespace
 
             // Seed Users
             var user1 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
-            var user2 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = false };
+            var user2 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = true };
 
             context.Users.AddRange(user1, user2);
 
