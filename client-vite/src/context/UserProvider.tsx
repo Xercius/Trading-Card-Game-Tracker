@@ -8,7 +8,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const isBrowser = typeof window !== "undefined" && typeof localStorage !== "undefined";
 
-  const [apiUserId, setApiUserId] = useState<number>(() => {
+  const [userId, setUserIdState] = useState<number>(() => {
     if (!isBrowser) return 1;
     const raw = localStorage.getItem("apiUserId");
     return raw ? Number(raw) || 1 : 1;
@@ -17,7 +17,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const setUserId = useCallback(
     (id: number) => {
       if (isBrowser) localStorage.setItem("apiUserId", String(id));
-      setApiUserId(id);
+      setUserIdState(id);
       setApiUserIdForApi(id); // keep interceptor in sync
       qc.invalidateQueries();
     },
@@ -26,12 +26,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isBrowser) return;
-    localStorage.setItem("apiUserId", String(apiUserId));
-    axios.defaults.headers.common["X-User-Id"] = String(apiUserId);
-    setApiUserIdForApi(apiUserId); // sync on initial load and any external changes
-  }, [apiUserId, isBrowser]);
+    localStorage.setItem("apiUserId", String(userId));
+    axios.defaults.headers.common["X-User-Id"] = String(userId);
+    setApiUserIdForApi(userId); // sync on initial load and any external changes
+  }, [userId, isBrowser]);
 
-  const value = useMemo(() => ({ apiUserId, setApiUserId: setUserId }), [apiUserId, setUserId]);
+  const value = useMemo(
+    () => ({ userId, setUserId }),
+    [userId, setUserId]
+  );
 
   return <UserCtx.Provider value={value}>{children}</UserCtx.Provider>;
 }
