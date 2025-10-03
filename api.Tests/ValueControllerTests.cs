@@ -20,11 +20,11 @@ namespace api.Tests;
 public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
-    public async Task Refresh_WithoutUserHeader_IsForbidden()
+    public async Task Refresh_WithoutUserHeader_IsBadRequest()
     {
         var client = factory.CreateClient();
         var res = await client.PostAsync("/api/value/refresh?game=Magic", content: null);
-        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 
     [Fact]
@@ -32,7 +32,15 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     {
         var client = factory.CreateClient();
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic");
+        var payload = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
+        };
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
+        {
+            Content = JsonContent.Create(payload)
+        };
         req.Headers.Add("X-User-Id", "2"); // ensure test data seeds user 2 as NON-admin
         var res = await client.SendAsync(req);
 
@@ -44,7 +52,15 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     {
         var client = factory.CreateClient();
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic");
+        var payload = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1500L, source = (string?)"seed" }
+        };
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
+        {
+            Content = JsonContent.Create(payload)
+        };
         req.Headers.Add("X-User-Id", "999"); // ensure test data seeds user 999 as ADMIN
         var res = await client.SendAsync(req);
 
