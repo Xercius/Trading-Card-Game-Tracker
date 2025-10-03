@@ -19,5 +19,20 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.object.name='http'][arguments.0.type='Literal'][arguments.0.value^='/']",
+          message: "Leading '/' bypasses baseURL—use a relative path.",
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='http'][arguments.0.type='TemplateLiteral'][arguments.0.quasis.0.value.raw^='/']",
+          message: "Leading '/' bypasses baseURL—use a relative path.",
+        },
+      ],
+    },
   },
 ])

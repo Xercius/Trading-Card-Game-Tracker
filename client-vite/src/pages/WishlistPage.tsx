@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/useUser';
-import { api } from '@/lib/api';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { useUser } from "@/context/useUser";
+import http from "@/lib/http";
 
 type WishlistItemDto = {
   cardPrintingId: number;
@@ -25,16 +26,21 @@ type Paged<T> = {
 
 export default function WishlistPage() {
   const { userId } = useUser();
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get("q") ?? "";
+  const game = searchParams.get("game") ?? "";
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const { data, isLoading, error } = useQuery<Paged<WishlistItemDto>>({
-    queryKey: ['wishlist', userId, page, pageSize],
+    queryKey: ["wishlist", userId, page, pageSize, q, game],
     queryFn: async () => {
-      const res = await api.get<Paged<WishlistItemDto>>(
-        `/user/${userId}/wishlist?page=${page}&pageSize=${pageSize}`,
-      );
+      if (!userId) throw new Error("User not selected");
+      const res = await http.get<Paged<WishlistItemDto>>(`user/${userId}/wishlist`, {
+        params: { page, pageSize, q, game },
+      });
       return res.data;
     },
+    enabled: !!userId,
   });
 
   const items = data?.items ?? [];

@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/useUser';
-import { api } from '@/lib/api';
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { useUser } from "@/context/useUser";
+import http from "@/lib/http";
 
 type CardDto = { cardId: number; game: string; name: string };
 type Paged<T> = {
@@ -12,10 +13,13 @@ type Paged<T> = {
 
 export default function CardsPage() {
   const { userId } = useUser();
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get("q") ?? "";
+  const game = searchParams.get("game") ?? "";
   const { data, isLoading, error } = useQuery<Paged<CardDto>>({
-    queryKey: ['cards', userId],
+    queryKey: ["cards", userId, q, game],
     queryFn: async () => {
-      const res = await api.get<Paged<CardDto>>('/card');
+      const res = await http.get<Paged<CardDto>>("card", { params: { q, game } });
       return res.data;
     },
   });

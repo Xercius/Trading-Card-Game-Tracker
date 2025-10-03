@@ -1,12 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { useQuery } from "@tanstack/react-query";
+import http from "@/lib/http";
 
 type ImportSourceDto = { key: string; name: string; games: string[] };
 
 export default function AdminImportPage() {
   const { data, isLoading, isError } = useQuery<ImportSourceDto[]>({
-    queryKey: ['import-sources'],
-    queryFn: () => api.get<ImportSourceDto[]>('/admin/import/sources').then(r => r.data),
+    queryKey: ["import-sources"],
+    queryFn: () => http.get<ImportSourceDto[]>("admin/import/sources").then(r => r.data),
   });
 
   if (isLoading) return <div className="p-4">Loading…</div>;
