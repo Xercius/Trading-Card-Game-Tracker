@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
+using api.Filters;
 using api.Data;
 using api.Features.Values.Dtos;
 using api.Middleware;
@@ -26,8 +27,15 @@ public class ValuesController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    public async Task<ActionResult> Refresh([FromQuery] string game, [FromBody] List<RefreshItemRequest> items)
+    [RequireUserHeader] // caller must identify as a user
+    public async Task<IActionResult> Refresh([FromQuery] string game, [FromBody] List<RefreshItemRequest> items)
     {
+        // Admin gate
+        var me = HttpContext.GetCurrentUser();
+        if (me is null || !me.IsAdmin)
+            return Forbid();
+
+        // ---- START existing refresh logic ----
         if (string.IsNullOrWhiteSpace(game)) return BadRequest("game required");
         if (items == null || items.Count == 0) return BadRequest("no items");
 
@@ -55,7 +63,11 @@ public class ValuesController : ControllerBase
         await _db.SaveChangesAsync();
         var inserted = items.Count(x => validSet.Contains(x.CardPrintingId));
         var ignored = items.Count - inserted;
-        return Ok(new { inserted, ignored });
+        _ = inserted;
+        _ = ignored;
+        // ---- END existing refresh logic ----
+
+        return NoContent();
     }
 
     [HttpGet("cardprinting/{id:int}")]
