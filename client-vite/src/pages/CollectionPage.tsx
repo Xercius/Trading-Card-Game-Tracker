@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/context/useUser";
 import http from "@/lib/http";
+import { useListQuery } from "@/hooks/useListQuery";
+
+const DEFAULT_PAGE_SIZE = 50;
 
 type CollectionItemDto = {
   cardPrintingId: number;
@@ -28,21 +30,48 @@ type Paged<T> = {
 
 export default function CollectionPage() {
   const { userId } = useUser();
-  const [searchParams] = useSearchParams();
-  const q = searchParams.get("q") ?? "";
-  const game = searchParams.get("game") ?? "";
-  const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const { q, gameCsv, params, setSearchParams } = useListQuery();
+  const pageParam = Number(params.get("page") ?? "1");
+  const pageSizeParam = Number(params.get("pageSize") ?? String(DEFAULT_PAGE_SIZE));
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+  const pageSize =
+    Number.isFinite(pageSizeParam) && pageSizeParam > 0
+      ? Math.floor(pageSizeParam)
+      : DEFAULT_PAGE_SIZE;
+
+  const previousFiltersRef = useRef({ q, gameCsv });
+  const shouldResetPage =
+    params.has("page") &&
+    (params.get("page") ?? "1") !== "1" &&
+    (previousFiltersRef.current.q !== q || previousFiltersRef.current.gameCsv !== gameCsv);
+
+  useEffect(() => {
+    if (shouldResetPage) {
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("page", "1");
+      nextParams.set("pageSize", String(pageSize));
+      setSearchParams(nextParams, { replace: true });
+    }
+    previousFiltersRef.current = { q, gameCsv };
+  }, [shouldResetPage, params, pageSize, setSearchParams, q, gameCsv]);
+
+  const updatePage = (nextPage: number) => {
+    const safeNext = nextPage < 1 ? 1 : nextPage;
+    const nextParams = new URLSearchParams(params);
+    nextParams.set("page", String(safeNext));
+    nextParams.set("pageSize", String(pageSize));
+    setSearchParams(nextParams);
+  };
   const { data, isLoading, error } = useQuery<Paged<CollectionItemDto>>({
-    queryKey: ["collection", userId, page, pageSize, q, game],
+    queryKey: ["collection", userId, q, gameCsv, page, pageSize],
     queryFn: async () => {
       if (!userId) throw new Error("User not selected");
       const res = await http.get<Paged<CollectionItemDto>>(`user/${userId}/collection`, {
-        params: { page, pageSize, q, game },
+        params: { page, pageSize, q, game: gameCsv },
       });
       return res.data;
     },
-    enabled: !!userId,
+    enabled: !!userId && !shouldResetPage,
   });
 
   const items = data?.items ?? [];
@@ -61,7 +90,7 @@ export default function CollectionPage() {
         <div className="mt-2 flex gap-2">
           <button
             className="rounded border px-2 py-1 disabled:opacity-50"
-            onClick={() => canGoPrev && setPage(p => Math.max(1, p - 1))}
+            onClick={() => canGoPrev && updatePage(page - 1)}
             disabled={!canGoPrev}
             type="button"
           >
@@ -69,7 +98,7 @@ export default function CollectionPage() {
           </button>
           <button
             className="rounded border px-2 py-1 disabled:opacity-50"
-            onClick={() => canGoNext && setPage(p => p + 1)}
+            onClick={() => canGoNext && updatePage(page + 1)}
             disabled={!canGoNext}
             type="button"
           >
