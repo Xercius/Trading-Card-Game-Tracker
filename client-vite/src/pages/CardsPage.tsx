@@ -1,45 +1,52 @@
-import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@/context/useUser";
-import http from "@/lib/http";
-import { useQueryState } from "@/hooks/useQueryState";
+import { useMemo } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
+import type { CardSummary } from "@/components/CardTile";
+import { fetchCardsPage } from "@/features/cards/api";
+// If you have a useListQuery hook, reuse it. Otherwise read from URLSearchParams inline.
+import { useSearchParams } from "react-router-dom";
 
-type CardDto = { cardId: number; game: string; name: string };
-type Paged<T> = {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
+const PAGE_SIZE = 60; // tune per perf
 
 export default function CardsPage() {
-  const { userId } = useUser();
-  const [q] = useQueryState("q", "");
-  const [gameCsv] = useQueryState("game", "");
-  const { data, isLoading, error } = useQuery<Paged<CardDto>>({
-    queryKey: ["cards", userId, q, gameCsv],
-    queryFn: async () => {
-      const res = await http.get<Paged<CardDto>>("card", { params: { q, game: gameCsv } });
-      return res.data;
-    },
-    enabled: !!userId,
+  const [params] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const gameCsv = params.get("game") ?? "";
+  const games = gameCsv ? gameCsv.split(",").filter(Boolean) : [];
+
+  const gamesKey = useMemo(() => games.join(","), [games]);
+  const queryKey = useMemo(() => ["cards", { q, games: gamesKey }], [q, gamesKey]);
+
+  const query = useInfiniteQuery({
+    queryKey,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) =>
+      fetchCardsPage({ q, games, skip: pageParam as number, take: PAGE_SIZE }),
+    getNextPageParam: (lastPage) => lastPage.nextSkip ?? null,
+    staleTime: 60_000,
   });
 
-  const items = data?.items ?? [];
-
-  if (isLoading) return <div className="p-4">Loading…</div>;
-  if (error) return <div className="p-4 text-red-500">Error loading cards</div>;
-  if (items.length === 0) return <div className="p-4">No cards found</div>;
+  const items: CardSummary[] = useMemo(
+    () => query.data?.pages.flatMap(p => p.items) ?? [],
+    [query.data]
+  );
 
   return (
-    <div className="p-4">
-      <div className="mb-2 text-sm text-gray-500">
-        Showing {items.length} of {data?.total ?? 0}
-      </div>
-      <ul className="list-disc pl-6">
-        {items.map(c => (
-          <li key={c.cardId}>{c.game} — {c.name}</li>
-        ))}
-      </ul>
+    <div className="h-[calc(100vh-64px)] p-3">
+      {query.isError && <div className="p-4 text-red-500">Error loading cards</div>}
+      {!query.isFetching && items.length === 0 && <div className="p-4">No cards found</div>}
+      <VirtualizedCardGrid
+        items={items}
+        isFetchingNextPage={query.isFetchingNextPage}
+        hasNextPage={query.hasNextPage}
+        fetchNextPage={() => query.fetchNextPage()}
+        onCardClick={(c) => {
+          // Navigate to card detail if you have a route like /cards/:id
+          // e.g., useNavigate()(`/cards/${c.id}`)
+          console.debug("card", c.id);
+        }}
+        minTileWidth={220}
+      />
     </div>
   );
 }
