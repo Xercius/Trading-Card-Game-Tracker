@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/context/useUser";
 import http from "@/lib/http";
-import { useListQuery } from "@/hooks/useListQuery";
+import { useQueryState } from "@/hooks/useQueryState";
 
 type CardDto = { cardId: number; game: string; name: string };
 type Paged<T> = {
@@ -13,7 +13,8 @@ type Paged<T> = {
 
 export default function CardsPage() {
   const { userId } = useUser();
-  const { q, gameCsv } = useListQuery();
+  const [q] = useQueryState("q", "");
+  const [gameCsv] = useQueryState("game", "");
   const { data, isLoading, error } = useQuery<Paged<CardDto>>({
     queryKey: ["cards", userId, q, gameCsv],
     queryFn: async () => {
