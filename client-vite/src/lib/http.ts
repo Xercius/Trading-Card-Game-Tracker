@@ -16,7 +16,7 @@ if (import.meta.env.DEV) {
 
 const rawBase = envBase ?? "/api";
 // strip trailing slashes so join is predictable
-const baseURL = String(rawBase).replace(/\/+$/, "");
+const baseURL = String(rawBase).replace(/\/+$/, "") + "/";
 
 const http = axios.create({ baseURL });
 

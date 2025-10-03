@@ -36,7 +36,7 @@ public class DecksController : ControllerBase
     // Helpers
     // -----------------------------
 
-    private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
+    private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
         if (me is null) { error = Forbid(); userId = 0; return false; }

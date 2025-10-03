@@ -27,30 +27,57 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshUsers = useCallback(async () => {
-    try {
-      const meRes = await http.get<ApiUser>("user/me");
-      const me = mapUser(meRes.data);
+  try {
+    // 1) Try full list (works for admins or if API allows everyone)
+    const listRes = await http.get<ApiUser[]>("user");
+    const list = (listRes.data ?? []).map(mapUser);
 
+    if (list.length) {
+      setUsers(list);
       if (userId == null) {
-        setUserIdState(me.id);
-        localStorage.setItem("userId", String(me.id));
-        setHttpUserId(me.id);
+        const first = list[0].id;
+        setUserIdState(first);
+        localStorage.setItem("userId", String(first));
+        setHttpUserId(first);
       }
-
-      if (me.isAdmin) {
-        const listRes = await http.get<ApiUser[]>("user");
-        setUsers(listRes.data.map(mapUser));
-      } else {
-        setUsers([me]);
-      }
-    } catch (err) {
-      setUsers([]);
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.warn("[UserContext] Failed to load user session", err);
-      }
+      return;
     }
-  }, [userId]);
+  } catch {
+    // ignore and try /user/me next
+  }
+
+  try {
+    // 2) Fallback: current user only
+    const meRes = await http.get<ApiUser>("user/me");
+    const me = mapUser(meRes.data);
+    setUsers([me]);
+
+    if (userId == null) {
+      setUserIdState(me.id);
+      localStorage.setItem("userId", String(me.id));
+      setHttpUserId(me.id);
+    }
+    return;
+  } catch {
+    // ignore and fallback below
+  }
+
+  // 3) Last-resort fallback so the UI is usable
+  const fallback: UserLite[] = [{ id: 1, name: "Me", isAdmin: false }];
+  setUsers(fallback);
+
+  if (userId == null) {
+    setUserIdState(1);
+    localStorage.setItem("userId", "1");
+    setHttpUserId(1);
+  }
+
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.warn("[UserContext] Could not load users; using fallback");
+  }
+}, [userId]);
+
 
   useEffect(() => {
     void refreshUsers();

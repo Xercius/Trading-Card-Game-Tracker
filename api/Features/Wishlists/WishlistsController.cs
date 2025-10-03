@@ -41,12 +41,20 @@ public class WishlistsController : ControllerBase
         return me is null || (!me.IsAdmin && me.Id != userId);
     }
 
-    private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
+    private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = Forbid(); userId = 0; return false; }
-        error = null; userId = me.Id; return true;
+        if (me is null)
+        {
+            error = Forbid();
+            userId = 0;
+            return false;
+        }
+        error = null;
+        userId = me.Id;
+        return true;
     }
+
 
     // -----------------------------
     // Core (single source of logic)

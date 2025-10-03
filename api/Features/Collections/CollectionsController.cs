@@ -59,7 +59,7 @@ public class CollectionsController : ControllerBase
     private static int ClampNonNegative(long value) =>
         value < 0 ? 0 : (value > int.MaxValue ? int.MaxValue : (int)value);
 
-    private bool TryResolveCurrentUserId(out int userId, out IActionResult? error)
+    private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
         if (me is null) { error = Forbid(); userId = 0; return false; }
