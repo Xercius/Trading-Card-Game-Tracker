@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import http, { setHttpUserId } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
@@ -20,40 +20,41 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("userId");
-    let initial: number | null = null;
-    if (saved) {
-      const parsed = Number(saved);
-      initial = Number.isFinite(parsed) ? parsed : null;
-    }
+    const parsed = saved ? Number(saved) : NaN;
+    const initial = Number.isFinite(parsed) ? parsed : null;
     setUserIdState(initial);
     setHttpUserId(initial);
   }, []);
 
-  async function refreshUsers() {
+  const refreshUsers = useCallback(async () => {
     try {
-      const res = await http.get<ApiUser[]>("user");
-      const list: UserLite[] = res.data.map(mapUser);
-      setUsers(list);
-      if (!userId && list.length) {
-        const first = list[0].id;
-        setUserIdState(first);
-        localStorage.setItem("userId", String(first));
-        setHttpUserId(first);
+      const meRes = await http.get<ApiUser>("user/me");
+      const me = mapUser(meRes.data);
+
+      if (userId == null) {
+        setUserIdState(me.id);
+        localStorage.setItem("userId", String(me.id));
+        setHttpUserId(me.id);
       }
-    } catch {
-      const fallback: UserLite[] = [{ id: 1, name: "Me", isAdmin: false }];
-      setUsers(fallback);
-      if (!userId) {
-        setUserIdState(1);
-        localStorage.setItem("userId", "1");
-        setHttpUserId(1);
+
+      if (me.isAdmin) {
+        const listRes = await http.get<ApiUser[]>("user");
+        setUsers(listRes.data.map(mapUser));
+      } else {
+        setUsers([me]);
+      }
+    } catch (err) {
+      setUsers([]);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn("[UserContext] Failed to load user session", err);
       }
     }
-  }
+  }, [userId]);
 
   useEffect(() => {
     void refreshUsers();
-  }, []);
+  }, [refreshUsers]);
 
   const setUserId = (id: number) => {
     setUserIdState(id);
@@ -62,7 +63,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     qc.invalidateQueries();
   };
 
-  const value = useMemo(() => ({ userId, setUserId, users, refreshUsers }), [userId, users]);
+  const value = useMemo(
+    () => ({ userId, setUserId, users, refreshUsers }),
+    [userId, users, refreshUsers]
+  );
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
 
