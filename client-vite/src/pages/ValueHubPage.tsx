@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/useUser';
-import { api } from '@/lib/api';
+import { useQuery } from "@tanstack/react-query";
+import { useUser } from "@/context/useUser";
+import http from "@/lib/http";
 
 type GameSliceDto = { game: string; cents: number };
 type CollectionSummaryDto = { totalCents: number; byGame: GameSliceDto[] };
@@ -9,12 +9,12 @@ export default function ValueHubPage() {
   const { userId } = useUser();
 
   const { data, isLoading, error } = useQuery<CollectionSummaryDto>({
-    queryKey: ['value', userId],
+    queryKey: ["value", userId],
     queryFn: async () => {
-      // Call backend
-      const res = await api.get<CollectionSummaryDto>('/value/collection/summary');
+      const res = await http.get<CollectionSummaryDto>("value/collection/summary");
       return res.data;
     },
+    enabled: !!userId,
   });
 
   if (isLoading) return <div className="p-4">Loading…</div>;
@@ -22,8 +22,8 @@ export default function ValueHubPage() {
   if (!data) return <div className="p-4">No value data found</div>;
 
   const formattedTotal = (data.totalCents / 100).toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
+    style: "currency",
+    currency: "USD",
   });
 
   return (

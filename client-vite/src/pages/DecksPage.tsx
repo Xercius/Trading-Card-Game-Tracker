@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useUser } from '@/context/useUser';
-import { api } from '@/lib/api';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { useUser } from "@/context/useUser";
+import http from "@/lib/http";
 
 type DeckDto = {
   id: number;
@@ -22,14 +23,21 @@ type Paged<T> = {
 
 export default function DecksPage() {
   const { userId } = useUser();
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get("q") ?? "";
+  const game = searchParams.get("game") ?? "";
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const { data, isLoading, error } = useQuery<Paged<DeckDto>>({
-    queryKey: ['decks', userId, page, pageSize],
+    queryKey: ["decks", userId, page, pageSize, q, game],
     queryFn: async () => {
-      const res = await api.get<Paged<DeckDto>>(`/user/${userId}/deck?page=${page}&pageSize=${pageSize}`);
+      if (!userId) throw new Error("User not selected");
+      const res = await http.get<Paged<DeckDto>>(`user/${userId}/deck`, {
+        params: { page, pageSize, q, game },
+      });
       return res.data;
     },
+    enabled: !!userId,
   });
 
   const decks = data?.items ?? [];

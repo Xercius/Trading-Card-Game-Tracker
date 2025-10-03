@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-
-type UserDto = { id: number; name: string; role: string };
+import { useQuery } from "@tanstack/react-query";
+import http from "@/lib/http";
+import { mapUser } from "@/lib/mapUser";
+import type { ApiUser, UserLite } from "@/types/user";
 
 type Paged<T> = {
   items: T[];
@@ -11,18 +11,11 @@ type Paged<T> = {
 };
 
 export default function UsersPage() {
-  const { data, isLoading, isError } = useQuery<Paged<UserDto>>({
-    queryKey: ['users'],
+  const { data, isLoading, isError } = useQuery<Paged<UserLite>>({
+    queryKey: ["users"],
     queryFn: async () => {
-      const res = await api.get<
-        Array<{ id: number; username: string; displayName: string; isAdmin: boolean }>
-      >('/users');
-      const users = res.data.map(user => ({
-        id: user.id,
-        name: user.displayName || user.username,
-        role: user.isAdmin ? 'Admin' : 'User',
-      }));
-
+      const res = await http.get<ApiUser[]>("user");
+      const users: UserLite[] = res.data.map(mapUser);
       return { items: users, total: users.length, page: 1, pageSize: users.length };
     },
   });
@@ -39,7 +32,7 @@ export default function UsersPage() {
       <ul className="list-disc pl-6">
         {data.items.map(user => (
           <li key={user.id}>
-            {user.name} — {user.role}
+            {user.name} — {user.isAdmin ? "Admin" : "User"}
           </li>
         ))}
       </ul>
