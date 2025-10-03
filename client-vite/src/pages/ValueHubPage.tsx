@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/context/useUser";
 import http from "@/lib/http";
 
@@ -7,14 +8,30 @@ type CollectionSummaryDto = { totalCents: number; byGame: GameSliceDto[] };
 
 export default function ValueHubPage() {
   const { userId } = useUser();
+  const [searchParams] = useSearchParams();
+
+  const q = searchParams.get("q") ?? "";
+  const gameCsv = searchParams.get("game") ?? ""; // e.g. "SWU,MTG"
 
   const { data, isLoading, error } = useQuery<CollectionSummaryDto>({
-    queryKey: ["value", userId],
+    queryKey: ["value", userId, q, gameCsv],
+    // Gate by userId so we don't fetch before selection is known
+    enabled: !!userId,
     queryFn: async () => {
-      const res = await http.get<CollectionSummaryDto>("value/collection/summary");
+      // Send q and game as CSV to match how the header writes them
+      const res = await http.get<CollectionSummaryDto>("value/collection/summary", {
+        params: { q, game: gameCsv },
+        paramsSerializer: {
+          serialize: (p) => {
+            const qs = new URLSearchParams();
+            if (p.q) qs.set("q", String(p.q));
+            if (p.game) qs.set("game", String(p.game)); // already CSV
+            return qs.toString();
+          },
+        },
+      });
       return res.data;
     },
-    enabled: !!userId,
   });
 
   if (isLoading) return <div className="p-4">Loading…</div>;
@@ -38,10 +55,9 @@ export default function ValueHubPage() {
           <ul className="space-y-1 text-sm text-gray-700">
             {data.byGame.map((slice) => {
               const formattedSliceTotal = (slice.cents / 100).toLocaleString(undefined, {
-                style: 'currency',
-                currency: 'USD',
+                style: "currency",
+                currency: "USD",
               });
-
               return (
                 <li key={slice.game} className="flex justify-between">
                   <span>{slice.game}</span>
