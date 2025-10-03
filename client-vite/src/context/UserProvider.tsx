@@ -1,8 +1,8 @@
-// client-vite/src/context/UserProvider.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { UserCtx } from "./UserCtx"; // existing context object
+import { UserCtx } from "./UserCtx";
+import { setApiUserId as setApiUserIdForApi } from "../lib/api";
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
@@ -16,10 +16,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const setUserId = useCallback(
     (id: number) => {
-      if (isBrowser) {
-        localStorage.setItem("apiUserId", String(id));
-      }
+      if (isBrowser) localStorage.setItem("apiUserId", String(id));
       setApiUserId(id);
+      setApiUserIdForApi(id); // keep interceptor in sync
       qc.invalidateQueries();
     },
     [qc, isBrowser]
@@ -29,6 +28,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!isBrowser) return;
     localStorage.setItem("apiUserId", String(apiUserId));
     axios.defaults.headers.common["X-User-Id"] = String(apiUserId);
+    setApiUserIdForApi(apiUserId); // sync on initial load and any external changes
   }, [apiUserId, isBrowser]);
 
   const value = useMemo(() => ({ apiUserId, setApiUserId: setUserId }), [apiUserId, setUserId]);
