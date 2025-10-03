@@ -205,11 +205,6 @@ public class CollectionsController : ControllerBase
 
         if (!touched) return NoContent();
 
-        if (IsZero(uc))
-        {
-            _db.UserCards.Remove(uc);
-        }
-
         await _db.SaveChangesAsync();
         return NoContent();
     }

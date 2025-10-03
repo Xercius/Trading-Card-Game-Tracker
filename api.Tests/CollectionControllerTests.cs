@@ -197,6 +197,34 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Collection_Patch_AllZero_DoesNotDeleteRow()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var patchReq = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}")
+        {
+            Content = JsonContent.Create(new
+            {
+                quantityOwned = 0,
+                quantityWanted = 0,
+                quantityProxyOwned = 0
+            })
+        };
+
+        var response = await client.SendAsync(patchReq);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var rows = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        var row = Assert.Single(rows);
+        Assert.Equal(0, row.QuantityOwned);
+        Assert.Equal(0, row.QuantityWanted);
+        Assert.Equal(0, row.QuantityProxyOwned);
+    }
+
+    [Fact]
     public async Task Collection_Delta_CreatesMissing_ValidatesIds()
     {
         await factory.ResetDatabaseAsync();
