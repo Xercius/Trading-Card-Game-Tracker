@@ -1,26 +1,36 @@
-import { useMemo, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { setApiUserId } from '@/lib/api';
-import { UserCtx } from './UserCtx';
+// client-vite/src/providers/UserProvider.tsx
+import { createContext, useEffect, useMemo, useState } from "react";
+import axios from "axios";
+
+type UserCtx = {
+  apiUserId: number;
+  setApiUserId: (id: number) => void;
+};
+
+export const UserContext = createContext<UserCtx>({
+  apiUserId: 1,
+  setApiUserId: () => {},
+});
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const qc = useQueryClient();
+  const isBrowser = typeof window !== "undefined" && typeof localStorage !== "undefined";
 
-  const [userId, setUserIdState] = useState<number>(() => {
-    const saved = localStorage.getItem('userId');
-    return saved ? Number(saved) : 1;
+  // Safe initializer: returns 1 when window/localStorage not available
+  const [apiUserId, setApiUserId] = useState<number>(() => {
+    if (!isBrowser) return 1;
+    const raw = localStorage.getItem("apiUserId");
+    return raw ? Number(raw) || 1 : 1;
   });
 
-  setApiUserId(userId);
+  // Persist changes only when browser is available
+  useEffect(() => {
+    if (!isBrowser) return;
+    localStorage.setItem("apiUserId", String(apiUserId));
+    // update axios header for API calls
+    axios.defaults.headers.common["X-User-Id"] = String(apiUserId);
+  }, [apiUserId, isBrowser]);
 
-  const setUserId = useCallback((id: number) => {
-    localStorage.setItem('userId', String(id));
-    setUserIdState(id);
-    setApiUserId(id);
-    qc.invalidateQueries();
-  }, [qc]);
+  const value = useMemo(() => ({ apiUserId, setApiUserId }), [apiUserId]);
 
-  const value = useMemo(() => ({ userId, setUserId }), [userId, setUserId]);
-
-  return <UserCtx.Provider value={value}>{children}</UserCtx.Provider>;
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
