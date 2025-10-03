@@ -79,3 +79,7 @@ http.interceptors.request.use((cfg) => {
 });
 
 export default http;
+
+export function __debugGetCurrentUserId() {
+  return import.meta.env.DEV ? currentUserId : null;
+}
