@@ -4,6 +4,7 @@ export type CardSummary = {
   id: number | string;
   name: string;
   game: string;
+  cardType?: string | null;
   setName?: string | null;
   number?: string | null;
   rarity?: string | null;

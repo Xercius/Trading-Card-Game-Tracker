@@ -23,16 +23,18 @@ export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams):
       take,
     },
   });
-  const raw = Array.isArray(res.data) ? res.data : (res.data.items ?? res.data.results ?? []);
-  const items = (raw as any[]).map((r) => ({
-    id: r.id ?? r.cardId ?? r.cardID ?? String(r.name),
+
+  const rawItems = (res.data.items ?? res.data.results ?? []) as any[];
+  const items: CardSummary[] = rawItems.map((r) => ({
+    id: String(r.cardId ?? r.id ?? r.cardID ?? r.card_id ?? r.cardid ?? r.Id ?? ""),
     name: r.name,
     game: r.game,
-    setName: r.setName ?? r.set ?? null,
-    number: r.number ?? r.collectorNumber ?? null,
-    rarity: r.rarity ?? null,
-    imageUrl: r.imageUrl ?? r.image_url ?? r.images?.small ?? null,
-  })) as CardSummary[];
+    cardType: r.cardType ?? r.type ?? null,
+    imageUrl: r.primary?.imageUrl ?? r.imageUrl ?? r.image_url ?? r.images?.small ?? null,
+    setName: r.primary?.set ?? r.setName ?? r.set ?? null,
+    number: r.primary?.number ?? r.number ?? r.collectorNumber ?? null,
+    rarity: r.primary?.rarity ?? r.rarity ?? null,
+  }));
 
   return {
     items,
