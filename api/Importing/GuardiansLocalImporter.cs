@@ -193,7 +193,7 @@ public sealed class GuardiansLocalImporter : ISourceImporter
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.CardId, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         string detailsPrinting = JsonSerializer.Serialize(new { row.Rarity, row.ImageUrl, row.Extras }, J);
@@ -216,9 +216,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (printing.CardId != card.Id)
+            if (printing.CardId != card.CardId)
             {
-                printing.CardId = card.Id;
+                printing.CardId = card.CardId;
                 changed = true;
             }
 

@@ -19,6 +19,9 @@ namespace api.Data
         {
             base.OnModelCreating(b);
 
+            b.Entity<Card>()
+                .HasKey(c => c.CardId);
+
             b.Entity<Deck>()
                 .HasMany(d => d.Cards)
                 .WithOne(dc => dc.Deck!)

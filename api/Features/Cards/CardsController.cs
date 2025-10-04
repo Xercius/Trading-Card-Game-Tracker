@@ -66,7 +66,7 @@ public class CardsController : ControllerBase
         }
 
         // Stable ordering for paging
-        query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.Id);
+        query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.CardId);
 
         int? total = null;
         if (includeTotal)
@@ -80,7 +80,7 @@ public class CardsController : ControllerBase
             .Take(take)
             .Select(c => new CardListItemResponse
             {
-                CardId = c.Id,
+                CardId = c.CardId,
                 Game = c.Game,
                 Name = c.Name,
                 CardType = c.CardType,
@@ -150,7 +150,7 @@ public class CardsController : ControllerBase
 
         var total = await q.CountAsync(ct);
 
-        q = q.OrderBy(c => c.Name).ThenBy(c => c.Id);
+        q = q.OrderBy(c => c.Name).ThenBy(c => c.CardId);
 
         var cards = await q
             .Skip((page - 1) * pageSize)
@@ -163,7 +163,7 @@ public class CardsController : ControllerBase
             return Ok(new Paged<CardListItemResponse>(rows, total, page, pageSize));
         }
 
-        var cardIds = cards.Select(c => c.Id).ToList();
+        var cardIds = cards.Select(c => c.CardId).ToList();
 
         var printings = await _db.CardPrintings
             .AsNoTracking()
@@ -176,10 +176,10 @@ public class CardsController : ControllerBase
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var detailed = cards.Select(c => new CardDetailResponse(
-            c.Id,
+            c.CardId,
             c.Name,
             c.Game,
-            map.TryGetValue(c.Id, out var list)
+            map.TryGetValue(c.CardId, out var list)
                 ? _mapper.Map<List<CardPrintingResponse>>(list)
                 : new List<CardPrintingResponse>()
         )).ToList();
@@ -189,7 +189,7 @@ public class CardsController : ControllerBase
 
     private async Task<IActionResult> GetCardCore(int cardId)
     {
-        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.Id == cardId);
+        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.CardId == cardId);
         if (c is null) return NotFound();
 
         var printings = await _db.CardPrintings
@@ -199,7 +199,7 @@ public class CardsController : ControllerBase
             .ToListAsync();
 
         var dto = new CardDetailResponse(
-            c.Id,
+            c.CardId,
             c.Name,
             c.Game,
             _mapper.Map<List<CardPrintingResponse>>(printings)
