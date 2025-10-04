@@ -5,17 +5,19 @@ import type { CardSummary } from "@/components/CardTile";
 import { fetchCardsPage } from "@/features/cards/api";
 // If you have a useListQuery hook, reuse it. Otherwise read from URLSearchParams inline.
 import { useSearchParams } from "react-router-dom";
+import { useUser } from "@/context/useUser";
 
 const PAGE_SIZE = 60; // tune per perf
 
 export default function CardsPage() {
+  const { userId } = useUser();
   const [params] = useSearchParams();
   const q = params.get("q") ?? "";
   const gameCsv = params.get("game") ?? "";
   const games = gameCsv ? gameCsv.split(",").filter(Boolean) : [];
 
   const gamesKey = useMemo(() => games.join(","), [games]);
-  const queryKey = useMemo(() => ["cards", { q, games: gamesKey }], [q, gamesKey]);
+  const queryKey = useMemo(() => ["cards", { userId, q, games: gamesKey }], [userId, q, gamesKey]);
 
   const query = useInfiniteQuery({
     queryKey,
@@ -24,6 +26,7 @@ export default function CardsPage() {
       fetchCardsPage({ q, games, skip: pageParam as number, take: PAGE_SIZE }),
     getNextPageParam: (lastPage) => lastPage.nextSkip ?? null,
     staleTime: 60_000,
+    enabled: !!userId,
   });
 
   const items: CardSummary[] = useMemo(

@@ -15,13 +15,14 @@ export type CardsPage = {
 };
 
 export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams): Promise<CardsPage> {
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (games && games.length) params.set("game", games.join(","));
-  params.set("skip", String(skip));
-  params.set("take", String(take));
-
-  const res = await http.get(`/api/card?${params.toString()}`);
+  const res = await http.get("card", {
+    params: {
+      ...(q ? { q } : {}),
+      ...(games && games.length ? { game: games.join(",") } : {}),
+      skip,
+      take,
+    },
+  });
   const raw = Array.isArray(res.data) ? res.data : (res.data.items ?? res.data.results ?? []);
   const items = (raw as any[]).map((r) => ({
     id: r.id ?? r.cardId ?? r.cardID ?? String(r.name),
