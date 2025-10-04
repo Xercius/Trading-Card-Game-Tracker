@@ -34,6 +34,10 @@ export function setHttpUserId(id: number | null) {
   }
 }
 
+const __initialUserId =
+  Number(localStorage.getItem("userId") ?? 1) || 1; // use SAME key as context
+setHttpUserId(__initialUserId);
+
 const warnedOnce = new Set<string>();
 // Allow specific absolute prefixes via VITE_HTTP_ABS_OK="/auth,/health" (dev convenience)
 const ABSOLUTE_OK_PREFIXES: string[] = (import.meta.env.VITE_HTTP_ABS_OK ?? "")

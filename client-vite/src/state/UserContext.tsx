@@ -21,15 +21,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize header from persisted selection if present
   useEffect(() => {
-    const saved = localStorage.getItem("userId");
-    let initial: number | null = null;
-    if (saved) {
-      const parsed = Number(saved);
-      initial = Number.isFinite(parsed) ? parsed : null;
-    }
-    setUserIdState(initial);
-    setHttpUserId(initial);
-  }, []);
+  const saved = localStorage.getItem("userId");
+  let initial: number = 1;                       // default to 1
+  if (saved) {
+    const parsed = Number(saved);
+    if (Number.isFinite(parsed) && parsed > 0) initial = parsed;
+  }
+  setUserIdState(initial);
+  localStorage.setItem("userId", String(initial)); // persist the default
+  setHttpUserId(initial);                          // stamp header immediately
+}, []);
+
 
   async function refreshUsers() {
     try {
