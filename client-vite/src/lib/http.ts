@@ -25,6 +25,24 @@ const baseURL = String(rawBase).replace(/\/+$/, "") + "/";
 
 const http = axios.create({ baseURL });
 
+const basePath: string | null = (() => {
+  try {
+    const parsed = new URL(baseURL, "http://axios-base.local");
+    const pathname = parsed.pathname || "/";
+    const normalized = pathname.replace(/\/+$/, "");
+    if (!normalized) {
+      return "/";
+    }
+    return `${normalized}/`;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn("[http] Failed to derive base path from baseURL", error);
+    }
+    return null;
+  }
+})();
+
 // ------------------------------------
 // X-User-Id management
 // ------------------------------------
@@ -87,6 +105,14 @@ http.interceptors.request.use((cfg: Cfg) => {
         );
         warnedOnce.add(key);
       }
+    }
+  }
+
+  if (typeof cfg.url === "string" && basePath && basePath !== "/") {
+    const url = cfg.url;
+    const isAbsSameOriginPath = url.startsWith("/") && !isAbsoluteHttpUrl(url);
+    if (isAbsSameOriginPath && url.startsWith(basePath)) {
+      cfg.url = url.slice(basePath.length);
     }
   }
 
