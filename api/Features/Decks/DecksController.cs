@@ -8,6 +8,7 @@ using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mime;
 using System.Text.Json;
@@ -90,7 +91,7 @@ public class DecksController : ControllerBase
     // Core: Decks (single source of truth)
     // -----------------------------
 
-    private async Task<ActionResult<Paged<DeckDto>>> ListUserDecksCore(
+    private async Task<(Paged<DeckDto>? Page, IActionResult? Error)> ListUserDecksCore(
         int userId,
         string? game,
         string? name,
@@ -98,7 +99,7 @@ public class DecksController : ControllerBase
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return (null, NotFound("User not found."));
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -133,7 +134,8 @@ public class DecksController : ControllerBase
             .ProjectTo<DeckDto>(_mapper.ConfigurationProvider)
             .ToListAsync(ct);
 
-        return Ok(new Paged<DeckDto>(items, total, page, pageSize));
+        var paged = new Paged<DeckDto>(items, total, page, pageSize);
+        return (paged, null);
     }
 
     private async Task<IActionResult> CreateDeckCore(int userId, CreateDeckRequest dto)
@@ -535,7 +537,9 @@ public class DecksController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         if (UserMismatch(userId)) return Forbid();
-        return await ListUserDecksCore(userId, game, name, hasCards, page, pageSize);
+        var (pagedResult, error) = await ListUserDecksCore(userId, game, name, hasCards, page, pageSize);
+        if (error != null) return error;
+        return Ok(pagedResult);
     }
 
     // POST /api/user/{userId}/deck
@@ -559,8 +563,7 @@ public class DecksController : ControllerBase
     // Auth-derived aliases (preferred)
     // -----------------------------------------
 
-    // GET /api/deck  (list current user's decks)
-    [HttpGet("/api/deck")]
+    // GET /api/decks  (list current user's decks)
     [HttpGet("/api/decks")] // alias, optional
     public async Task<ActionResult<Paged<DeckDto>>> GetMyDecks(
         [FromQuery] string? game = null,
@@ -570,7 +573,24 @@ public class DecksController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
+        var (pageResult, error) = await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
+        if (error != null) return error;
+        return Ok(pageResult);
+    }
+
+    // GET /api/deck  (legacy alias returning bare array)
+    [HttpGet("/api/deck")]
+    public async Task<ActionResult<List<DeckDto>>> GetMyDecksAlias(
+        [FromQuery] string? game = null,
+        [FromQuery] string? name = null,
+        [FromQuery] bool? hasCards = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+        var (pageResult, error) = await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
+        if (error != null) return error;
+        return Ok(pageResult!.Items.ToList());
     }
 
     // POST /api/deck  (create for current user)
