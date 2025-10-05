@@ -5,7 +5,7 @@ import type { CardSummary } from "@/components/CardTile";
 import { fetchCardsPage } from "@/features/cards/api";
 // If you have a useListQuery hook, reuse it. Otherwise read from URLSearchParams inline.
 import { useSearchParams } from "react-router-dom";
-import { useUser } from "@/context/useUser";
+import { useUser } from "@/state/useUser";
 
 const PAGE_SIZE = 60; // tune per perf
 

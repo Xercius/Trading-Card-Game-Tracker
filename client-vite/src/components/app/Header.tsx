@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@/state/UserContext";
+import { useUser } from "@/state/useUser";
 import { useQueryState } from "@/hooks/useQueryState";
 import { useDebounce } from "@/hooks/useDebounce";
 import { paths } from "@/routes/paths";

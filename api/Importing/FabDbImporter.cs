@@ -159,7 +159,7 @@ public sealed class FabDbImporter : ISourceImporter
         // Upsert Printing by (Game, Set, Number)
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.CardId, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         var printingJson = JsonSerializer.Serialize(new
@@ -190,7 +190,7 @@ public sealed class FabDbImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
+            if (printing.CardId != card.CardId) { printing.CardId = card.CardId; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
             if (printing.Style != style) { printing.Style = style; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }

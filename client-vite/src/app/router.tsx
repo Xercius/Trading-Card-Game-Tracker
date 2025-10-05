@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import AppShell from "@/app/AppShell";
-import { UserProvider } from "@/state/UserContext";
+import { UserProvider } from "@/state/UserProvider";
 import CardsPage from "@/pages/CardsPage";
 import { paths } from "@/routes/paths";
 

@@ -1,5 +1,11 @@
-import axios from "axios";
+import axios, {
+  AxiosHeaders,
+  type InternalAxiosRequestConfig,
+} from "axios";
 
+// ------------------------------------
+// Base URL setup
+// ------------------------------------
 const envBase =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
   (import.meta.env.VITE_API_BASE_URL as string | undefined);
@@ -15,41 +21,56 @@ if (import.meta.env.DEV) {
 }
 
 const rawBase = envBase ?? "/api";
-// strip trailing slashes so join is predictable
 const baseURL = String(rawBase).replace(/\/+$/, "") + "/";
 
 const http = axios.create({ baseURL });
 
-// In-memory source of truth for the header
+// ------------------------------------
+// X-User-Id management
+// ------------------------------------
 let currentUserId: number | null = null;
+
+type MutableCommonHeaders = Record<string, string>;
 
 export function setHttpUserId(id: number | null) {
   currentUserId = id ?? null;
 
-  // Keep defaults aligned for any non-interceptor calls
+  // Update defaults for any non-interceptor calls
+  const common = http.defaults.headers.common as unknown as MutableCommonHeaders;
   if (currentUserId == null) {
-    delete (http.defaults.headers.common as any)["X-User-Id"];
+    delete common["X-User-Id"];
   } else {
-    http.defaults.headers.common["X-User-Id"] = String(currentUserId);
+    common["X-User-Id"] = String(currentUserId);
   }
 }
 
+const __initialUserId = Number(localStorage.getItem("userId") ?? 1) || 1;
+setHttpUserId(__initialUserId);
+
+// ------------------------------------
+// Dev absolute-path warning allowlist
+// ------------------------------------
 const warnedOnce = new Set<string>();
-// Allow specific absolute prefixes via VITE_HTTP_ABS_OK="/auth,/health" (dev convenience)
 const ABSOLUTE_OK_PREFIXES: string[] = (import.meta.env.VITE_HTTP_ABS_OK ?? "")
   .split(",")
-  .map((s) => s.trim())
+  .map((s: string) => s.trim())
   .filter(Boolean);
 
 function isAbsoluteHttpUrl(u: string): boolean {
   return /^https?:\/\//i.test(u);
 }
 
-http.interceptors.request.use((cfg) => {
+type Cfg = InternalAxiosRequestConfig & {
+  suppressBaseURLWarning?: boolean;
+};
+
+// ------------------------------------
+// Request Interceptor
+// ------------------------------------
+http.interceptors.request.use((cfg: Cfg) => {
   if (import.meta.env.DEV && typeof cfg.url === "string") {
     const url = cfg.url;
-    // Pass { suppressBaseURLWarning: true } on a request config to silence intentional absolute paths
-    const suppress = (cfg as any).suppressBaseURLWarning === true;
+    const suppress = cfg.suppressBaseURLWarning === true;
     const isAbsSameOriginPath = url.startsWith("/") && !isAbsoluteHttpUrl(url);
     const isAllowed = ABSOLUTE_OK_PREFIXES.some((prefix) => url.startsWith(prefix));
 
@@ -60,24 +81,33 @@ http.interceptors.request.use((cfg) => {
         // eslint-disable-next-line no-console
         console.warn(
           `[http] Absolute same-origin path "${url}" bypasses axios baseURL "${base}". ` +
-            "Use a relative path (e.g. \"cards\") so baseURL joins correctly, " +
-            "or pass { suppressBaseURLWarning: true } on this request, " +
+            'Converted to relative path. Use "cards" instead of "/cards", ' +
+            "or pass { suppressBaseURLWarning: true }, " +
             `or allow via VITE_HTTP_ABS_OK="${ABSOLUTE_OK_PREFIXES.join(",")}".`
         );
         warnedOnce.add(key);
       }
+      // Minimal fix: make it relative so baseURL joins correctly.
+      cfg.url = url.slice(1);
     }
   }
 
-  cfg.headers = cfg.headers ?? {};
+  // Normalize headers with from() to avoid ctor type mismatch
+  const headers = AxiosHeaders.from(cfg.headers);
+
   if (currentUserId != null) {
-    cfg.headers["X-User-Id"] = String(currentUserId);
+    headers.set("X-User-Id", String(currentUserId));
   } else {
-    delete (cfg.headers as any)["X-User-Id"];
+    headers.delete("X-User-Id");
   }
+
+  cfg.headers = headers;
   return cfg;
 });
 
+// ------------------------------------
+// Exports
+// ------------------------------------
 export default http;
 
 export function __debugGetCurrentUserId() {

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@/context/useUser";
+import { useUser } from "@/state/useUser";
 import { useQueryState } from "@/hooks/useQueryState";
 import http from "@/lib/http";
 

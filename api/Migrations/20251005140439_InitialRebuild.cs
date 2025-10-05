@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class Init : Migration
+    public partial class InitialRebuild : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,7 +15,7 @@ namespace api.Migrations
                 name: "Cards",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                    CardId = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Game = table.Column<string>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
@@ -25,7 +25,7 @@ namespace api.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Cards", x => x.Id);
+                    table.PrimaryKey("PK_Cards", x => x.CardId);
                 });
 
             migrationBuilder.CreateTable(
@@ -82,7 +82,7 @@ namespace api.Migrations
                         name: "FK_CardPrintings_Cards_CardId",
                         column: x => x.CardId,
                         principalTable: "Cards",
-                        principalColumn: "Id",
+                        principalColumn: "CardId",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -116,9 +116,9 @@ namespace api.Migrations
                 {
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityProxyOwned = table.Column<int>(type: "INTEGER", nullable: false)
+                    QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
+                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
+                    QuantityProxyOwned = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0)
                 },
                 constraints: table =>
                 {
@@ -168,10 +168,20 @@ namespace api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_CardPrintings_CardId",
+                table: "CardPrintings",
+                column: "CardId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CardPrintings_CardId_Set_Number_Style",
                 table: "CardPrintings",
                 columns: new[] { "CardId", "Set", "Number", "Style" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cards_Game_Name",
+                table: "Cards",
+                columns: new[] { "Game", "Name" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_DeckCards_CardPrintingId",

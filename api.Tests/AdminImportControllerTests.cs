@@ -3,10 +3,13 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using Xunit;
+using api.Tests.Fixtures;
+
 
 namespace api.Tests;
 
 public class AdminImportControllerTests(CustomWebApplicationFactory factory)
+    : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
     public async Task Sources_WithoutUserHeader_IsForbidden()

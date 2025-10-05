@@ -1,42 +1,120 @@
-import http from "@/lib/http";
+// client-vite/src/features/cards/api.ts
+import { api } from "@/lib/api";
 import type { CardSummary } from "@/components/CardTile";
 
-// Adjust to your server API. This assumes offset pagination with skip/take.
 export type CardsPageParams = {
   q?: string;
-  games?: string[]; // e.g., ["Magic","Lorcana"]
+  games?: string[];
   skip: number;
   take: number;
 };
-export type CardsPage = {
-  items: CardSummary[];
-  total?: number;
-  nextSkip?: number | null;
+
+type RawPrimaryCamel = {
+  imageUrl?: string | null;
+  set?: string | null;
+  number?: string | null;
+  rarity?: string | null;
+} | null;
+
+type RawPrimaryPascal = {
+  ImageUrl?: string | null;
+  Set?: string | null;
+  Number?: string | null;
+  Rarity?: string | null;
+} | null;
+
+type RawCard = {
+  cardId?: number | string;
+  CardId?: number | string;
+  id?: number | string;
+  Id?: number | string;
+  name?: string;
+  Name?: string;
+  game?: string;
+  Game?: string;
+
+  primary?: RawPrimaryCamel;
+  Primary?: RawPrimaryPascal;
+
+  imageUrl?: string | null;
+  ImageUrl?: string | null;
+  setName?: string | null;
+  SetName?: string | null;
+  number?: string | null;
+  Number?: string | null;
+  rarity?: string | null;
+  Rarity?: string | null;
 };
 
-export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams): Promise<CardsPage> {
-  const res = await http.get("card", {
-    params: {
-      ...(q ? { q } : {}),
-      ...(games && games.length ? { game: games.join(",") } : {}),
-      skip,
-      take,
-    },
-  });
-  const raw = Array.isArray(res.data) ? res.data : (res.data.items ?? res.data.results ?? []);
-  const items = (raw as any[]).map((r) => ({
-    id: r.id ?? r.cardId ?? r.cardID ?? String(r.name),
-    name: r.name,
-    game: r.game,
-    setName: r.setName ?? r.set ?? null,
-    number: r.number ?? r.collectorNumber ?? null,
-    rarity: r.rarity ?? null,
-    imageUrl: r.imageUrl ?? r.image_url ?? r.images?.small ?? null,
-  })) as CardSummary[];
+type RawCardsResponse = {
+  items?: ReadonlyArray<RawCard>;
+  Items?: ReadonlyArray<RawCard>;
+  total?: number;
+  Total?: number;
+  nextSkip?: number | null;
+  NextSkip?: number | null;
+};
 
-  return {
-    items,
-    total: res.data.total,
-    nextSkip: res.data.nextSkip ?? (items.length < take ? null : skip + take),
-  };
+export type CardsPage = {
+  items: CardSummary[];
+  total: number;
+  nextSkip: number | null;
+};
+
+export async function fetchCardsPage({
+  q,
+  games,
+  skip,
+  take,
+}: CardsPageParams): Promise<CardsPage> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (games?.length) params.set("game", games.join(","));
+  params.set("skip", String(skip));
+  params.set("take", String(take));
+
+  const res = await api.get<RawCardsResponse>(`/api/cards?${params.toString()}`);
+  const data: RawCardsResponse = res.data ?? {};
+
+  const rawItems: ReadonlyArray<RawCard> = data.items ?? data.Items ?? [];
+  const items: CardSummary[] = rawItems.map((item) => {
+    const primaryCamel = item.primary ?? null;
+    const primaryPascal = item.Primary ?? null;
+
+    return {
+      id: item.cardId ?? item.CardId ?? item.id ?? item.Id ?? "",
+      name: item.name ?? item.Name ?? "",
+      game: item.game ?? item.Game ?? "",
+      imageUrl:
+        primaryCamel?.imageUrl ??
+        primaryPascal?.ImageUrl ??
+        item.imageUrl ??
+        item.ImageUrl ??
+        null,
+      setName:
+        primaryCamel?.set ??
+        primaryPascal?.Set ??
+        item.setName ??
+        item.SetName ??
+        null,
+      number:
+        primaryCamel?.number ??
+        primaryPascal?.Number ??
+        item.number ??
+        item.Number ??
+        null,
+      rarity:
+        primaryCamel?.rarity ??
+        primaryPascal?.Rarity ??
+        item.rarity ??
+        item.Rarity ??
+        null,
+    };
+  });
+
+  const total = data.total ?? data.Total ?? 0;
+  const nextSkip =
+    data.nextSkip ?? data.NextSkip ?? (items.length < take ? null : skip + items.length);
+
+  return { items, total, nextSkip };
 }

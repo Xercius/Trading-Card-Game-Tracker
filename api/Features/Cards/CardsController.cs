@@ -7,6 +7,7 @@ using api.Shared;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,9 +17,11 @@ namespace api.Features.Cards;
 
 [ApiController]
 [RequireUserHeader]
-[Route("api/card")]
+[Route("api/cards")] // plural route
 public class CardsController : ControllerBase
 {
+    private const string PlaceholderCardImage = "/images/placeholders/card-3x4.png";
+
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
 
@@ -28,9 +31,85 @@ public class CardsController : ControllerBase
         _mapper = mapper;
     }
 
-    // -----------------------------
-    // Helpers
-    // -----------------------------
+    // GET /api/cards?q=&game=Magic,Lorcana&skip=0&take=60&includeTotal=false
+    [HttpGet]
+    public async Task<ActionResult<CardListPageResponse>> ListCardsVirtualized(
+        [FromQuery] string? q,
+        [FromQuery] string? game,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 60,
+        [FromQuery] bool includeTotal = false,
+        CancellationToken ct = default)
+    {
+        take = take <= 0 ? 60 : take;
+        if (take > 200) take = 200;
+        if (skip < 0) skip = 0;
+
+        var games = string.IsNullOrWhiteSpace(game)
+            ? System.Array.Empty<string>()
+            : game.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
+
+        IQueryable<Card> query = _db.Cards.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            query = query.Where(c =>
+                EF.Functions.Like(c.Name, $"%{term}%") ||
+                EF.Functions.Like(c.CardType, $"%{term}%"));
+        }
+
+        if (games.Length > 0)
+        {
+            query = query.Where(c => games.Contains(c.Game));
+        }
+
+        query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.CardId);
+
+        int? total = null;
+        if (includeTotal)
+        {
+            total = await query.CountAsync(ct);
+        }
+
+        var items = await query
+            .Skip(skip)
+            .Take(take)
+            .Select(c => new CardListItemResponse
+            {
+                CardId = c.CardId,
+                Game = c.Game,
+                Name = c.Name,
+                CardType = c.CardType,
+                PrintingsCount = c.Printings.Count(),
+                Primary = c.Printings
+                    .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
+                    .ThenByDescending(p => p.Style == "Standard")
+                    .ThenBy(p => p.Set)
+                    .ThenBy(p => p.Number)
+                    .ThenBy(p => p.Id)
+                    .Select(p => new CardListItemResponse.PrimaryPrintingResponse
+                    {
+                        Id = p.Id,
+                        Set = p.Set,
+                        Number = p.Number,
+                        Rarity = p.Rarity,
+                        Style = p.Style,
+                        ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? PlaceholderCardImage : p.ImageUrl
+                    })
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var nextSkip = items.Count < take ? (int?)null : skip + take;
+
+        return Ok(new CardListPageResponse
+        {
+            Items = items,
+            Total = total,
+            NextSkip = nextSkip
+        });
+    }
 
     private bool NotAdmin()
     {
@@ -38,11 +117,6 @@ public class CardsController : ControllerBase
         return me is null || !me.IsAdmin;
     }
 
-    // -----------------------------
-    // Core
-    // -----------------------------
-
-    // GET list of unique cards
     private async Task<IActionResult> ListCardsCore(
         string? game, string? name,
         bool includePrintings,
@@ -52,7 +126,6 @@ public class CardsController : ControllerBase
         if (pageSize <= 0 || pageSize > 200) pageSize = 50;
 
         var q = _db.Cards.AsNoTracking().AsQueryable();
-
         var ct = HttpContext.RequestAborted;
 
         if (!string.IsNullOrWhiteSpace(game))
@@ -68,9 +141,7 @@ public class CardsController : ControllerBase
 
         var total = await q.CountAsync(ct);
 
-        q = q
-            .OrderBy(c => c.Name)
-            .ThenBy(c => c.Id);
+        q = q.OrderBy(c => c.Name).ThenBy(c => c.CardId);
 
         var cards = await q
             .Skip((page - 1) * pageSize)
@@ -83,30 +154,33 @@ public class CardsController : ControllerBase
             return Ok(new Paged<CardListItemResponse>(rows, total, page, pageSize));
         }
 
-        var cardIds = cards.Select(c => c.Id).ToList();
+        var cardIds = cards.Select(c => c.CardId).ToList();
+
         var printings = await _db.CardPrintings
             .AsNoTracking()
             .Where(cp => cardIds.Contains(cp.CardId))
             .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
             .ToListAsync(ct);
 
-        var map = printings.GroupBy(p => p.CardId).ToDictionary(g => g.Key, g => g.ToList());
+        var map = printings
+            .GroupBy(p => p.CardId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var detailed = cards.Select(c => new CardDetailResponse(
-            c.Id,
+            c.CardId,
             c.Name,
             c.Game,
-            map.TryGetValue(c.Id, out var list)
+            map.TryGetValue(c.CardId, out var list)
                 ? _mapper.Map<List<CardPrintingResponse>>(list)
-                : new List<CardPrintingResponse>())).ToList();
+                : new List<CardPrintingResponse>()
+        )).ToList();
 
         return Ok(new Paged<CardDetailResponse>(detailed, total, page, pageSize));
     }
 
-    // GET a single card + all printings
     private async Task<IActionResult> GetCardCore(int cardId)
     {
-        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.Id == cardId);
+        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.CardId == cardId);
         if (c is null) return NotFound();
 
         var printings = await _db.CardPrintings
@@ -116,7 +190,7 @@ public class CardsController : ControllerBase
             .ToListAsync();
 
         var dto = new CardDetailResponse(
-            c.Id,
+            c.CardId,
             c.Name,
             c.Game,
             _mapper.Map<List<CardPrintingResponse>>(printings)
@@ -125,7 +199,6 @@ public class CardsController : ControllerBase
         return Ok(dto);
     }
 
-    // Admin: upsert/patch a single printing with natural-key dedupe
     private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingRequest dto)
     {
         if (NotAdmin()) return StatusCode(403, "Admin required.");
@@ -133,7 +206,6 @@ public class CardsController : ControllerBase
         if (dto.CardId <= 0) return BadRequest("CardId required.");
         if (await _db.Cards.FindAsync(dto.CardId) is null) return NotFound("Card not found.");
 
-        // normalize inputs
         string? set = dto.Set?.Trim();
         string? number = dto.Number?.Trim();
         string? style = dto.Style?.Trim();
@@ -142,13 +214,11 @@ public class CardsController : ControllerBase
 
         if (dto.Id.HasValue)
         {
-            // explicit id path
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
             if (cp is null) return NotFound("Printing not found by Id.");
         }
         else
         {
-            // natural key path: prevent duplicates
             if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
                 return BadRequest("Set and Number required when Id is omitted.");
 
@@ -162,25 +232,23 @@ public class CardsController : ControllerBase
 
         if (cp is null)
         {
-            // create new
             cp = new CardPrinting
             {
                 CardId = dto.CardId,
-                Set = set,
-                Number = number,
-                Rarity = dto.Rarity?.Trim(),
-                Style = style,
+                Set = set!,
+                Number = number!,
+                Rarity = dto.Rarity?.Trim() ?? "",
+                Style = style ?? "",
                 ImageUrl = dto.ImageUrl
             };
             _db.CardPrintings.Add(cp);
         }
         else
         {
-            // update existing
             if (dto.Set is not null) cp.Set = set!;
             if (dto.Number is not null) cp.Number = number!;
             if (dto.Rarity is not null) cp.Rarity = dto.Rarity.Trim();
-            if (dto.Style is not null) cp.Style = style;
+            if (dto.Style is not null) cp.Style = style ?? "";
             if (dto.ImageUrlSet) cp.ImageUrl = dto.ImageUrl;
         }
 
@@ -188,7 +256,6 @@ public class CardsController : ControllerBase
         return NoContent();
     }
 
-    // Admin: bulk import printings for a card (idempotent by Set+Number+Style)
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
     {
         if (NotAdmin()) return StatusCode(403, "Admin required.");
@@ -223,10 +290,10 @@ public class CardsController : ControllerBase
                 var created = new CardPrinting
                 {
                     CardId = cardId,
-                    Set = set,
-                    Number = number,
-                    Rarity = dto.Rarity?.Trim(),
-                    Style = style,
+                    Set = set!,
+                    Number = number!,
+                    Rarity = dto.Rarity?.Trim() ?? "",
+                    Style = style ?? "",
                     ImageUrl = dto.ImageUrl
                 };
                 _db.CardPrintings.Add(created);
@@ -243,12 +310,9 @@ public class CardsController : ControllerBase
         return NoContent();
     }
 
-    // -----------------------------
     // Endpoints
-    // -----------------------------
 
-    // GET /api/card?game=&name=&includePrintings=false&page=1&pageSize=50
-    [HttpGet]
+    [HttpGet("search")]
     public async Task<IActionResult> ListCards(
         [FromQuery] string? game,
         [FromQuery] string? name,
@@ -257,17 +321,14 @@ public class CardsController : ControllerBase
         [FromQuery] int pageSize = 50)
         => await ListCardsCore(game, name, includePrintings, page, pageSize);
 
-    // GET /api/card/{cardId}
     [HttpGet("{cardId:int}")]
     public async Task<IActionResult> GetCard(int cardId)
         => await GetCardCore(cardId);
 
-    // POST /api/card/printing
     [HttpPost("printing")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
-    // POST /api/card/{cardId}/printings/import
     [HttpPost("{cardId:int}/printings/import")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
