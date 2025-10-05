@@ -31,11 +31,11 @@ public class CardsController : ControllerBase
     }
 
     // -----------------------------
-    // New: virtualized grid endpoint
+    // Virtualized grid endpoint (canonical plural route)
     // -----------------------------
     // GET /api/cards?q=&game=Magic,Lorcana&skip=0&take=60&includeTotal=false
     // Returns unique cards with a representative "primary" printing.
-    [HttpGet("/api/cards")]
+    [HttpGet]
     public async Task<ActionResult<CardListPageResponse>> ListCardsVirtualized(
         [FromQuery] string? q,
         [FromQuery] string? game,
@@ -88,7 +88,7 @@ public class CardsController : ControllerBase
                 CardType = c.CardType,
                 PrintingsCount = c.Printings.Count(),
                 Primary = c.Printings
-                    .OrderByDescending(p => p.ImageUrl != null)
+                    .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
                     .ThenByDescending(p => p.Style == "Standard")
                     .ThenBy(p => p.Set)
                     .ThenBy(p => p.Number)
@@ -115,11 +115,6 @@ public class CardsController : ControllerBase
             NextSkip = nextSkip
         });
     }
-
-    // Legacy route shim for older clients calling /api/card
-    [HttpGet("/api/card")]
-    public IActionResult GetLegacy()
-        => RedirectPermanentPreserveMethod("/api/cards");
 
     // -----------------------------
     // Helpers
@@ -327,11 +322,11 @@ public class CardsController : ControllerBase
     }
 
     // -----------------------------
-    // Endpoints (legacy /api/card)
+    // Endpoints (plural route)
     // -----------------------------
 
-    // GET /api/card?game=&name=&includePrintings=false&page=1&pageSize=50
-    [HttpGet]
+    // GET /api/cards/search?game=&name=&includePrintings=false&page=1&pageSize=50
+    [HttpGet("search")]
     public async Task<IActionResult> ListCards(
         [FromQuery] string? game,
         [FromQuery] string? name,
@@ -340,17 +335,17 @@ public class CardsController : ControllerBase
         [FromQuery] int pageSize = 50)
         => await ListCardsCore(game, name, includePrintings, page, pageSize);
 
-    // GET /api/card/{cardId:int}
+    // GET /api/cards/{cardId:int}
     [HttpGet("{cardId:int}")]
     public async Task<IActionResult> GetCard(int cardId)
         => await GetCardCore(cardId);
 
-    // POST /api/card/printing
+    // POST /api/cards/printing
     [HttpPost("printing")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
-    // POST /api/card/{cardId:int}/printings/import
+    // POST /api/cards/{cardId:int}/printings/import
     [HttpPost("{cardId:int}/printings/import")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
