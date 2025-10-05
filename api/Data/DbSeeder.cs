@@ -1,6 +1,7 @@
 ﻿using api.Data;
 using api.Models;
 using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace api.Data // Update to match your folder/namespace
@@ -17,7 +18,8 @@ namespace api.Data // Update to match your folder/namespace
             var user2 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
             var user3 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = true };
 
-            context.Users.AddRange(user1, user2);
+            context.Users.AddRange(user1, user2, user3);
+            context.SaveChanges();
 
             // Seed Cards
             var card1 = new Card { Name = "Disabling Fang Fighter", Game = "Star Wars Unlimited", CardType = "Unit" };
@@ -297,10 +299,22 @@ namespace api.Data // Update to match your folder/namespace
             context.SaveChanges(); // Save to get IDs for relationships
 
             // Seed DeckCards
-            var deck1Card1 = new DeckCard { DeckId = deck1.Id, CardPrintingId = printing1a.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 1, QuantityProxy = 0 };
-            var deck1Card2 = new DeckCard { DeckId = deck1.Id, CardPrintingId = printing1b.Id, QuantityInDeck = 1, QuantityIdea = 0, QuantityAcquire = 0, QuantityProxy = 0 };
-            var deck2Card1 = new DeckCard { DeckId = deck2.Id, CardPrintingId = printing2a.Id, QuantityInDeck = 3, QuantityIdea = 3, QuantityAcquire = 0, QuantityProxy = 0 };
-            var deck2Card2 = new DeckCard { DeckId = deck2.Id, CardPrintingId = printing2b.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2, QuantityProxy = 0 };
+            Debug.Assert(deck1.Id != 0, "Deck 1 must have a persisted key before seeding deck cards.");
+            Debug.Assert(deck2.Id != 0, "Deck 2 must have a persisted key before seeding deck cards.");
+            Debug.Assert(printing1a.Id != 0 && printing1b.Id != 0 && printing2a.Id != 0 && printing2b.Id != 0, "Card printing keys must be generated before deck cards are added.");
+            Debug.Assert(context.Decks.Any(d => d.Id == deck1.Id), "Deck 1 could not be found in the database prior to seeding deck cards.");
+            Debug.Assert(context.Decks.Any(d => d.Id == deck2.Id), "Deck 2 could not be found in the database prior to seeding deck cards.");
+            Debug.Assert(context.CardPrintings.Any(p => p.Id == printing1a.Id), "Printing 1A is missing before deck cards are added.");
+            Debug.Assert(context.CardPrintings.Any(p => p.Id == printing1b.Id), "Printing 1B is missing before deck cards are added.");
+            Debug.Assert(context.CardPrintings.Any(p => p.Id == printing2a.Id), "Printing 2A is missing before deck cards are added.");
+            Debug.Assert(context.CardPrintings.Any(p => p.Id == printing2b.Id), "Printing 2B is missing before deck cards are added.");
+
+            Console.WriteLine($"Seeding DeckCards for Decks {deck1.Id} and {deck2.Id}.");
+
+            var deck1Card1 = new DeckCard { Deck = deck1, CardPrinting = printing1a, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 1, QuantityProxy = 0 };
+            var deck1Card2 = new DeckCard { Deck = deck1, CardPrinting = printing1b, QuantityInDeck = 1, QuantityIdea = 0, QuantityAcquire = 0, QuantityProxy = 0 };
+            var deck2Card1 = new DeckCard { Deck = deck2, CardPrinting = printing2a, QuantityInDeck = 3, QuantityIdea = 3, QuantityAcquire = 0, QuantityProxy = 0 };
+            var deck2Card2 = new DeckCard { Deck = deck2, CardPrinting = printing2b, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2, QuantityProxy = 0 };
             context.DeckCards.AddRange(deck1Card1, deck1Card2, deck2Card1, deck2Card2);
             context.SaveChanges();
         }
