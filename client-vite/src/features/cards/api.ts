@@ -73,7 +73,7 @@ export async function fetchCardsPage({
   params.set("skip", String(skip));
   params.set("take", String(take));
 
-  const res = await api.get<RawCardsResponse>(`/api/cards?${params.toString()}`);
+  const res = await api.get<RawCardsResponse>("cards", { params });
   const data: RawCardsResponse = res.data ?? {};
 
   const rawItems: ReadonlyArray<RawCard> = data.items ?? data.Items ?? [];
