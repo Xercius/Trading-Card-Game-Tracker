@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
@@ -61,7 +62,7 @@ public class WishlistsController : ControllerBase
     // -----------------------------
 
     // GET list (filters applied in DB)
-    private async Task<ActionResult<Paged<WishlistItemDto>>> GetAllCore(
+    private async Task<(Paged<WishlistItemDto>? Page, IActionResult? Error)> GetAllCore(
         int userId,
         string? game,
         string? set,
@@ -71,7 +72,7 @@ public class WishlistsController : ControllerBase
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return (null, NotFound("User not found."));
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -109,7 +110,7 @@ public class WishlistsController : ControllerBase
             .ProjectTo<WishlistItemDto>(_mapper.ConfigurationProvider)
             .ToListAsync(ct);
 
-        return Ok(new Paged<WishlistItemDto>(items, total, page, pageSize));
+        return (new Paged<WishlistItemDto>(items, total, page, pageSize), null);
     }
 
     // POST upsert one (wanted)
@@ -257,7 +258,9 @@ public class WishlistsController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        return await GetAllCore(userId, game, set, rarity, name, cardPrintingId, page, pageSize);
+        var (pageResult, error) = await GetAllCore(userId, game, set, rarity, name, cardPrintingId, page, pageSize);
+        if (error is not null) return error;
+        return pageResult!;
     }
 
     [HttpPost]
@@ -293,7 +296,7 @@ public class WishlistsController : ControllerBase
     // -----------------------------------------
 
     [HttpGet("/api/wishlist")]
-    public async Task<ActionResult<Paged<WishlistItemDto>>> GetAllForCurrent(
+    public async Task<ActionResult<List<WishlistItemDto>>> GetAllForCurrent(
         [FromQuery] string? game,
         [FromQuery] string? set,
         [FromQuery] string? rarity,
@@ -303,7 +306,9 @@ public class WishlistsController : ControllerBase
         [FromQuery] int pageSize = 50)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await GetAllCore(uid, game, set, rarity, name, cardPrintingId, page, pageSize);
+        var (pageResult, error) = await GetAllCore(uid, game, set, rarity, name, cardPrintingId, page, pageSize);
+        if (error is not null) return error;
+        return Ok(pageResult!.Items.ToList());
     }
 
     [HttpPost("/api/wishlist")]
