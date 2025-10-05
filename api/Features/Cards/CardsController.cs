@@ -16,9 +16,11 @@ namespace api.Features.Cards;
 
 [ApiController]
 [RequireUserHeader]
-[Route("api/card")]
+[Route("api/cards")]
 public class CardsController : ControllerBase
 {
+    private const string PlaceholderCardImage = "/images/placeholders/card-3x4.png";
+
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
 
@@ -98,7 +100,7 @@ public class CardsController : ControllerBase
                         Number = p.Number,
                         Rarity = p.Rarity,
                         Style = p.Style,
-                        ImageUrl = p.ImageUrl
+                        ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? PlaceholderCardImage : p.ImageUrl
                     })
                     .FirstOrDefault()
             })
@@ -113,6 +115,11 @@ public class CardsController : ControllerBase
             NextSkip = nextSkip
         });
     }
+
+    // Legacy route shim for older clients calling /api/card
+    [HttpGet("/api/card")]
+    public IActionResult GetLegacy()
+        => RedirectPermanentPreserveMethod("/api/cards");
 
     // -----------------------------
     // Helpers
