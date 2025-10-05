@@ -7,6 +7,7 @@ using api.Shared;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,7 +17,7 @@ namespace api.Features.Cards;
 
 [ApiController]
 [RequireUserHeader]
-[Route("api/cards")]
+[Route("api/cards")] // plural route
 public class CardsController : ControllerBase
 {
     private const string PlaceholderCardImage = "/images/placeholders/card-3x4.png";
@@ -30,11 +31,7 @@ public class CardsController : ControllerBase
         _mapper = mapper;
     }
 
-    // -----------------------------
-    // Virtualized grid endpoint (canonical plural route)
-    // -----------------------------
     // GET /api/cards?q=&game=Magic,Lorcana&skip=0&take=60&includeTotal=false
-    // Returns unique cards with a representative "primary" printing.
     [HttpGet]
     public async Task<ActionResult<CardListPageResponse>> ListCardsVirtualized(
         [FromQuery] string? q,
@@ -67,7 +64,6 @@ public class CardsController : ControllerBase
             query = query.Where(c => games.Contains(c.Game));
         }
 
-        // Stable ordering for paging
         query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.CardId);
 
         int? total = null;
@@ -76,7 +72,6 @@ public class CardsController : ControllerBase
             total = await query.CountAsync(ct);
         }
 
-        // Project to list items with a deterministic "primary" printing
         var items = await query
             .Skip(skip)
             .Take(take)
@@ -116,18 +111,12 @@ public class CardsController : ControllerBase
         });
     }
 
-    // -----------------------------
-    // Helpers
-    // -----------------------------
     private bool NotAdmin()
     {
         var me = HttpContext.GetCurrentUser();
         return me is null || !me.IsAdmin;
     }
 
-    // -----------------------------
-    // Core
-    // -----------------------------
     private async Task<IActionResult> ListCardsCore(
         string? game, string? name,
         bool includePrintings,
@@ -321,11 +310,8 @@ public class CardsController : ControllerBase
         return NoContent();
     }
 
-    // -----------------------------
-    // Endpoints (plural route)
-    // -----------------------------
+    // Endpoints
 
-    // GET /api/cards/search?game=&name=&includePrintings=false&page=1&pageSize=50
     [HttpGet("search")]
     public async Task<IActionResult> ListCards(
         [FromQuery] string? game,
@@ -335,17 +321,14 @@ public class CardsController : ControllerBase
         [FromQuery] int pageSize = 50)
         => await ListCardsCore(game, name, includePrintings, page, pageSize);
 
-    // GET /api/cards/{cardId:int}
     [HttpGet("{cardId:int}")]
     public async Task<IActionResult> GetCard(int cardId)
         => await GetCardCore(cardId);
 
-    // POST /api/cards/printing
     [HttpPost("printing")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
-    // POST /api/cards/{cardId:int}/printings/import
     [HttpPost("{cardId:int}/printings/import")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
