@@ -240,6 +240,7 @@ namespace api.Migrations
                         .IsRequired();
 
                     b.Navigation("Card");
+                    b.Navigation("DeckCards");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>
@@ -256,7 +257,7 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.DeckCard", b =>
                 {
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
-                        .WithMany()
+                        .WithMany("DeckCards")
                         .HasForeignKey("CardPrintingId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

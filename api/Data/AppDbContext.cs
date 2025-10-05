@@ -22,15 +22,20 @@ namespace api.Data
             b.Entity<Card>()
                 .HasKey(c => c.CardId);
 
+            b.Entity<CardPrinting>()
+                .HasOne(p => p.Card)
+                .WithMany(c => c.Printings)
+                .HasForeignKey(p => p.CardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             b.Entity<Deck>()
                 .HasMany(d => d.Cards)
                 .WithOne(dc => dc.Deck!)
-                .HasForeignKey(dc => dc.DeckId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .HasForeignKey(dc => dc.DeckId);
 
             b.Entity<DeckCard>()
                 .HasOne(dc => dc.CardPrinting)
-                .WithMany()
+                .WithMany(p => p.DeckCards)
                 .HasForeignKey(dc => dc.CardPrintingId)
                 .OnDelete(DeleteBehavior.Restrict);
 

@@ -1,4 +1,6 @@
-﻿namespace api.Models
+﻿using System.Collections.Generic;
+
+namespace api.Models
 {
     public class CardPrinting
     {
@@ -11,5 +13,6 @@
         public required string Style { get; set; } // Standard, Foil, Hyperspace, Showcase etc..
         public string? ImageUrl { get; set; } // url to card image
         public string? DetailsJson { get; set; } // Source-specific payload
+        public ICollection<DeckCard> DeckCards { get; set; } = new List<DeckCard>();
     }
 }
