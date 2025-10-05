@@ -1,5 +1,5 @@
 // client-vite/src/features/cards/api.ts
-import { api } from "@/lib/api"; // <-- shared axios instance with X-User-Id interceptor
+import { api } from "@/lib/api";
 import type { CardSummary } from "@/components/CardTile";
 
 export type CardsPageParams = {
@@ -9,36 +9,112 @@ export type CardsPageParams = {
   take: number;
 };
 
+type RawPrimaryCamel = {
+  imageUrl?: string | null;
+  set?: string | null;
+  number?: string | null;
+  rarity?: string | null;
+} | null;
+
+type RawPrimaryPascal = {
+  ImageUrl?: string | null;
+  Set?: string | null;
+  Number?: string | null;
+  Rarity?: string | null;
+} | null;
+
+type RawCard = {
+  cardId?: number | string;
+  CardId?: number | string;
+  id?: number | string;
+  Id?: number | string;
+  name?: string;
+  Name?: string;
+  game?: string;
+  Game?: string;
+
+  primary?: RawPrimaryCamel;
+  Primary?: RawPrimaryPascal;
+
+  imageUrl?: string | null;
+  ImageUrl?: string | null;
+  setName?: string | null;
+  SetName?: string | null;
+  number?: string | null;
+  Number?: string | null;
+  rarity?: string | null;
+  Rarity?: string | null;
+};
+
+type RawCardsResponse = {
+  items?: ReadonlyArray<RawCard>;
+  Items?: ReadonlyArray<RawCard>;
+  total?: number;
+  Total?: number;
+  nextSkip?: number | null;
+  NextSkip?: number | null;
+};
+
 export type CardsPage = {
   items: CardSummary[];
   total: number;
   nextSkip: number | null;
 };
 
-export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams): Promise<CardsPage> {
+export async function fetchCardsPage({
+  q,
+  games,
+  skip,
+  take,
+}: CardsPageParams): Promise<CardsPage> {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (games?.length) params.set("game", games.join(","));
   params.set("skip", String(skip));
   params.set("take", String(take));
 
-  // Use shared client to retain X-User-Id header propagation
-  const res = await api.get(`/api/cards?${params.toString()}`);
+  const res = await api.get<RawCardsResponse>(`/api/cards?${params.toString()}`);
+  const data: RawCardsResponse = res.data ?? {};
 
-  const rawItems: any[] = res.data?.items ?? [];
-  const items: CardSummary[] = rawItems.map((item) => ({
-    id: item.cardId ?? item.id ?? item.Id ?? "",
-    name: item.name,
-    game: item.game,
-    imageUrl: item.primary?.imageUrl ?? item.imageUrl ?? null,
-    setName: item.primary?.set ?? item.setName ?? null,
-    number: item.primary?.number ?? item.number ?? null,
-    rarity: item.primary?.rarity ?? item.rarity ?? null,
-  }));
+  const rawItems: ReadonlyArray<RawCard> = data.items ?? data.Items ?? [];
+  const items: CardSummary[] = rawItems.map((item) => {
+    const primaryCamel = item.primary ?? null;
+    const primaryPascal = item.Primary ?? null;
 
-  return {
-    items,
-    total: res.data?.total ?? 0,
-    nextSkip: res.data?.nextSkip ?? (items.length < take ? null : skip + items.length),
-  };
+    return {
+      id: item.cardId ?? item.CardId ?? item.id ?? item.Id ?? "",
+      name: item.name ?? item.Name ?? "",
+      game: item.game ?? item.Game ?? "",
+      imageUrl:
+        primaryCamel?.imageUrl ??
+        primaryPascal?.ImageUrl ??
+        item.imageUrl ??
+        item.ImageUrl ??
+        null,
+      setName:
+        primaryCamel?.set ??
+        primaryPascal?.Set ??
+        item.setName ??
+        item.SetName ??
+        null,
+      number:
+        primaryCamel?.number ??
+        primaryPascal?.Number ??
+        item.number ??
+        item.Number ??
+        null,
+      rarity:
+        primaryCamel?.rarity ??
+        primaryPascal?.Rarity ??
+        item.rarity ??
+        item.Rarity ??
+        null,
+    };
+  });
+
+  const total = data.total ?? data.Total ?? 0;
+  const nextSkip =
+    data.nextSkip ?? data.NextSkip ?? (items.length < take ? null : skip + items.length);
+
+  return { items, total, nextSkip };
 }
