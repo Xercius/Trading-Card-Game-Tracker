@@ -1,44 +1,44 @@
-import http from "@/lib/http";
+// client-vite/src/features/cards/api.ts
+import { api } from "@/lib/api"; // <-- shared axios instance with X-User-Id interceptor
 import type { CardSummary } from "@/components/CardTile";
 
-// Adjust to your server API. This assumes offset pagination with skip/take.
 export type CardsPageParams = {
   q?: string;
-  games?: string[]; // e.g., ["Magic","Lorcana"]
+  games?: string[];
   skip: number;
   take: number;
 };
+
 export type CardsPage = {
   items: CardSummary[];
-  total?: number;
-  nextSkip?: number | null;
+  total: number;
+  nextSkip: number | null;
 };
 
 export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams): Promise<CardsPage> {
-  const res = await http.get("card", {
-    params: {
-      ...(q ? { q } : {}),
-      ...(games && games.length ? { game: games.join(",") } : {}),
-      skip,
-      take,
-    },
-  });
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (games?.length) params.set("game", games.join(","));
+  params.set("skip", String(skip));
+  params.set("take", String(take));
 
-  const rawItems = (res.data.items ?? res.data.results ?? []) as any[];
-  const items: CardSummary[] = rawItems.map((r) => ({
-    id: String(r.cardId ?? r.id ?? r.cardID ?? r.card_id ?? r.cardid ?? r.Id ?? ""),
-    name: r.name,
-    game: r.game,
-    cardType: r.cardType ?? r.type ?? null,
-    imageUrl: r.primary?.imageUrl ?? r.imageUrl ?? r.image_url ?? r.images?.small ?? null,
-    setName: r.primary?.set ?? r.setName ?? r.set ?? null,
-    number: r.primary?.number ?? r.number ?? r.collectorNumber ?? null,
-    rarity: r.primary?.rarity ?? r.rarity ?? null,
+  // Use shared client to retain X-User-Id header propagation
+  const res = await api.get(`/api/cards?${params.toString()}`);
+
+  const rawItems: any[] = res.data?.items ?? [];
+  const items: CardSummary[] = rawItems.map((item) => ({
+    id: item.cardId ?? item.id ?? item.Id ?? "",
+    name: item.name,
+    game: item.game,
+    imageUrl: item.primary?.imageUrl ?? item.imageUrl ?? null,
+    setName: item.primary?.set ?? item.setName ?? null,
+    number: item.primary?.number ?? item.number ?? null,
+    rarity: item.primary?.rarity ?? item.rarity ?? null,
   }));
 
   return {
     items,
-    total: res.data.total,
-    nextSkip: res.data.nextSkip ?? (items.length < take ? null : skip + take),
+    total: res.data?.total ?? 0,
+    nextSkip: res.data?.nextSkip ?? (items.length < take ? null : skip + items.length),
   };
 }

@@ -26,7 +26,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var pageOneResponse = await client.GetAsync("/api/card?game=Magic&page=1&pageSize=1");
+        var pageOneResponse = await client.GetAsync("/api/cards/search?game=Magic&page=1&pageSize=1");
         pageOneResponse.EnsureSuccessStatusCode();
         var pageOne = await ReadPagedAsync<CardListItemResponse>(pageOneResponse);
 
@@ -34,7 +34,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Single(pageOne.Items);
         Assert.Equal("Goblin Guide", pageOne.Items[0].Name);
 
-        var pageTwoResponse = await client.GetAsync("/api/card?game=Magic&page=2&pageSize=1");
+        var pageTwoResponse = await client.GetAsync("/api/cards/search?game=Magic&page=2&pageSize=1");
         pageTwoResponse.EnsureSuccessStatusCode();
         var pageTwo = await ReadPagedAsync<CardListItemResponse>(pageTwoResponse);
 
@@ -42,7 +42,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Single(pageTwo.Items);
         Assert.Equal("Lightning Bolt", pageTwo.Items[0].Name);
 
-        var filteredResponse = await client.GetAsync("/api/card?includePrintings=true&name=bolt");
+        var filteredResponse = await client.GetAsync("/api/cards/search?includePrintings=true&name=bolt");
         filteredResponse.EnsureSuccessStatusCode();
         var filtered = await ReadPagedAsync<CardDetailResponse>(filteredResponse);
 
@@ -60,7 +60,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
 
-        var response = await client.GetAsync($"/api/card/{TestDataSeeder.LightningBoltCardId}");
+        var response = await client.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}");
         response.EnsureSuccessStatusCode();
         var detail = await response.Content.ReadFromJsonAsync<CardDetailResponse>(_jsonOptions);
 
@@ -70,7 +70,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(3, detail.Printings.Count);
         Assert.Contains(detail.Printings, p => p.Id == TestDataSeeder.ExtraMagicPrintingId);
 
-        var missing = await client.GetAsync("/api/card/9999");
+        var missing = await client.GetAsync("/api/cards/9999");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
@@ -81,7 +81,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient().AsAdmin();
 
         var createResponse = await client.PostAsJsonAsync(
-            "/api/card/printing",
+            "/api/cards/printing",
             new
             {
                 cardId = TestDataSeeder.LightningBoltCardId,
@@ -95,7 +95,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, createResponse.StatusCode);
 
         var createdDetail = await client.GetFromJsonAsync<CardDetailResponse>(
-            $"/api/card/{TestDataSeeder.LightningBoltCardId}",
+            $"/api/cards/{TestDataSeeder.LightningBoltCardId}",
             _jsonOptions);
 
         Assert.NotNull(createdDetail);
@@ -106,7 +106,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
             p.ImageUrl == "https://img.example.com/bolt-champions.png");
 
         var updateResponse = await client.PostAsJsonAsync(
-            "/api/card/printing",
+            "/api/cards/printing",
             new
             {
                 id = TestDataSeeder.LightningBoltBetaPrintingId,
@@ -119,7 +119,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
         var updatedDetail = await client.GetFromJsonAsync<CardDetailResponse>(
-            $"/api/card/{TestDataSeeder.LightningBoltCardId}",
+            $"/api/cards/{TestDataSeeder.LightningBoltCardId}",
             _jsonOptions);
 
         var updatedPrinting = Assert.Single(updatedDetail!.Printings, p => p.Id == TestDataSeeder.LightningBoltBetaPrintingId);
@@ -158,13 +158,13 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         };
 
         var response = await client.PostAsJsonAsync(
-            $"/api/card/{TestDataSeeder.GoblinGuideCardId}/printings/import",
+            $"/api/cards/{TestDataSeeder.GoblinGuideCardId}/printings/import",
             payload);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         var detail = await client.GetFromJsonAsync<CardDetailResponse>(
-            $"/api/card/{TestDataSeeder.GoblinGuideCardId}",
+            $"/api/cards/{TestDataSeeder.GoblinGuideCardId}",
             _jsonOptions);
 
         Assert.NotNull(detail);
@@ -185,7 +185,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
 
         using var userClient = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var userResponse = await userClient.PostAsJsonAsync(
-            "/api/card/printing",
+            "/api/cards/printing",
             new
             {
                 cardId = TestDataSeeder.LightningBoltCardId,
@@ -196,7 +196,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
 
         using var anonymousClient = factory.CreateClient();
         var anonResponse = await anonymousClient.PostAsJsonAsync(
-            "/api/card/printing",
+            "/api/cards/printing",
             new
             {
                 cardId = TestDataSeeder.LightningBoltCardId,

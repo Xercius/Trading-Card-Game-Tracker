@@ -1,7 +1,7 @@
 @api_HostAddress = https://localhost:7226
 
 ### Retrieve all cards
-GET {{api_HostAddress}}/api/card
+GET {{api_HostAddress}}/api/cards
 Accept: application/json
 
 ###
