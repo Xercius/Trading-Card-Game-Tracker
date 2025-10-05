@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class InitRecreate : Migration
+    public partial class InitialRebuild : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -116,9 +116,9 @@ namespace api.Migrations
                 {
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     CardPrintingId = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false),
-                    QuantityProxyOwned = table.Column<int>(type: "INTEGER", nullable: false)
+                    QuantityOwned = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
+                    QuantityWanted = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
+                    QuantityProxyOwned = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0)
                 },
                 constraints: table =>
                 {
@@ -168,10 +168,20 @@ namespace api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_CardPrintings_CardId",
+                table: "CardPrintings",
+                column: "CardId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CardPrintings_CardId_Set_Number_Style",
                 table: "CardPrintings",
                 columns: new[] { "CardId", "Set", "Number", "Style" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cards_Game_Name",
+                table: "Cards",
+                columns: new[] { "Game", "Name" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_DeckCards_CardPrintingId",

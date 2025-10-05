@@ -43,6 +43,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId");
 
+                    b.HasIndex("Game", "Name");
+
                     b.ToTable("Cards");
                 });
 
@@ -78,6 +80,8 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CardId");
 
                     b.HasIndex("CardId", "Set", "Number", "Style")
                         .IsUnique();
@@ -187,13 +191,19 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityOwned")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("QuantityProxyOwned")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("QuantityWanted")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.HasKey("UserId", "CardPrintingId");
 
@@ -240,7 +250,6 @@ namespace api.Migrations
                         .IsRequired();
 
                     b.Navigation("Card");
-                    b.Navigation("DeckCards");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>
@@ -295,6 +304,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Card", b =>
                 {
                     b.Navigation("Printings");
+                });
+
+            modelBuilder.Entity("api.Models.CardPrinting", b =>
+                {
+                    b.Navigation("DeckCards");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>

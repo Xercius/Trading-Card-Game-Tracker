@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251005030003_InitRecreate")]
-    partial class InitRecreate
+    [Migration("20251005140439_InitialRebuild")]
+    partial class InitialRebuild
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -45,6 +45,8 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("CardId");
+
+                    b.HasIndex("Game", "Name");
 
                     b.ToTable("Cards");
                 });
@@ -81,6 +83,8 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CardId");
 
                     b.HasIndex("CardId", "Set", "Number", "Style")
                         .IsUnique();
@@ -190,13 +194,19 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityOwned")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("QuantityProxyOwned")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("QuantityWanted")
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.HasKey("UserId", "CardPrintingId");
 
@@ -259,7 +269,7 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.DeckCard", b =>
                 {
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
-                        .WithMany()
+                        .WithMany("DeckCards")
                         .HasForeignKey("CardPrintingId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -297,6 +307,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Card", b =>
                 {
                     b.Navigation("Printings");
+                });
+
+            modelBuilder.Entity("api.Models.CardPrinting", b =>
+                {
+                    b.Navigation("DeckCards");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>

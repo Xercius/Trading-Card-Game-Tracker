@@ -66,6 +66,8 @@ using (var scope = app.Services.CreateScope())
 
 // Pipeline
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
 app.UseCors("AllowReact");
 app.UseAuthentication();
 app.UseAuthorization();
