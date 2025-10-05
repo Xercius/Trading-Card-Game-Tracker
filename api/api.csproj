@@ -36,6 +36,7 @@
     <Folder Include="wwwroot\images\magic\" />
     <Folder Include="wwwroot\images\lorcana\" />
     <Folder Include="wwwroot\images\fab\" />
+    <Folder Include="wwwroot\images\placeholders\" />
     <Folder Include="wwwroot\images\pokemon\" />
     <Folder Include="wwwroot\images\swu\LOF\" />
     <Folder Include="wwwroot\images\swu\2025p\" />
