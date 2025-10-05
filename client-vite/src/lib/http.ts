@@ -81,14 +81,12 @@ http.interceptors.request.use((cfg: Cfg) => {
         // eslint-disable-next-line no-console
         console.warn(
           `[http] Absolute same-origin path "${url}" bypasses axios baseURL "${base}". ` +
-            'Converted to relative path. Use "cards" instead of "/cards", ' +
+            'Use "cards" instead of "/cards", ' +
             "or pass { suppressBaseURLWarning: true }, " +
             `or allow via VITE_HTTP_ABS_OK="${ABSOLUTE_OK_PREFIXES.join(",")}".`
         );
         warnedOnce.add(key);
       }
-      // Minimal fix: make it relative so baseURL joins correctly.
-      cfg.url = url.slice(1);
     }
   }
 
