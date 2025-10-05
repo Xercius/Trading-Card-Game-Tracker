@@ -1,4 +1,5 @@
-import axios from "axios";
+// client-vite/src/features/cards/api.ts
+import { api } from "@/lib/api"; // <-- shared axios instance with X-User-Id interceptor
 import type { CardSummary } from "@/components/CardTile";
 
 export type CardsPageParams = {
@@ -7,6 +8,7 @@ export type CardsPageParams = {
   skip: number;
   take: number;
 };
+
 export type CardsPage = {
   items: CardSummary[];
   total: number;
@@ -20,23 +22,23 @@ export async function fetchCardsPage({ q, games, skip, take }: CardsPageParams):
   params.set("skip", String(skip));
   params.set("take", String(take));
 
-  const res = await axios.get(`/api/cards?${params.toString()}`);
+  // Use shared client to retain X-User-Id header propagation
+  const res = await api.get(`/api/cards?${params.toString()}`);
 
-  const rawItems: any[] = res.data.items ?? [];
+  const rawItems: any[] = res.data?.items ?? [];
   const items: CardSummary[] = rawItems.map((item) => ({
-    id: item.cardId ?? item.id ?? item.cardID ?? item.card_id ?? item.cardid ?? item.Id ?? "",
+    id: item.cardId ?? item.id ?? item.Id ?? "",
     name: item.name,
     game: item.game,
-    cardType: item.cardType ?? item.type ?? null,
-    imageUrl: item.primary?.imageUrl ?? item.imageUrl ?? item.images?.small ?? null,
-    setName: item.primary?.set ?? item.setName ?? item.set ?? null,
-    number: item.primary?.number ?? item.number ?? item.collectorNumber ?? null,
+    imageUrl: item.primary?.imageUrl ?? item.imageUrl ?? null,
+    setName: item.primary?.set ?? item.setName ?? null,
+    number: item.primary?.number ?? item.number ?? null,
     rarity: item.primary?.rarity ?? item.rarity ?? null,
   }));
 
   return {
     items,
-    total: res.data.total ?? 0,
-    nextSkip: res.data.nextSkip ?? (items.length < take ? null : skip + items.length),
+    total: res.data?.total ?? 0,
+    nextSkip: res.data?.nextSkip ?? (items.length < take ? null : skip + items.length),
   };
 }
