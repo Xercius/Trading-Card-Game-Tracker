@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@/context/useUser";
+import { useUser } from "@/state/useUser";
 import http from "@/lib/http";
 import { useQueryState } from "@/hooks/useQueryState";
 
