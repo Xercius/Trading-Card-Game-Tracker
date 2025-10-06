@@ -91,7 +91,7 @@ public class DecksController : ControllerBase
     // Core: Decks (single source of truth)
     // -----------------------------
 
-    private async Task<(Paged<DeckDto>? Page, IActionResult? Error)> ListUserDecksCore(
+    private async Task<(Paged<DeckDto>? Page, ActionResult? Error)> ListUserDecksCore(
         int userId,
         string? game,
         string? name,

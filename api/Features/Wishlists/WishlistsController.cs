@@ -62,7 +62,7 @@ public class WishlistsController : ControllerBase
     // -----------------------------
 
     // GET list (filters applied in DB)
-    private async Task<(Paged<WishlistItemDto>? Page, IActionResult? Error)> GetAllCore(
+    private async Task<(Paged<WishlistItemDto>? Page, ActionResult? Error)> GetAllCore(
         int userId,
         string? game,
         string? set,
