@@ -218,9 +218,9 @@ public sealed class FabDbImporter : ISourceImporter
     private static object? GetObj(JsonElement el, string prop)
         => el.TryGetProperty(prop, out var v) ? JsonElementToObject(v) : null;
     private static List<object>? GetArr(JsonElement el, string prop)
-        => el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Array
-           ? v.EnumerateArray().Select(JsonElementToObject!).ToList()
-           : null;
+    => el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Array
+       ? v.EnumerateArray().Select(JsonElementToObject).Where(x => x != null).ToList()
+       : null;
     private static object? JsonElementToObject(JsonElement v)
         => v.ValueKind switch
         {

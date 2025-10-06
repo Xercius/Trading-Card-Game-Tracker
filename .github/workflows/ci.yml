@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main, dev ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          # keeps SDK in sync with your repo
+          global-json-file: ./global.json
+      - name: Restore
+        run: dotnet restore
+      - name: Build
+        run: dotnet build -c Release --no-restore
+      - name: Test
+        run: dotnet test -c Release --no-build --logger "trx;LogFileName=tests.trx"
+      - name: Upload .NET test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-tests
+          path: api/TestResults/**/*.trx
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client-vite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client-vite/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test (Vitest)
+        run: npm test -- --run
