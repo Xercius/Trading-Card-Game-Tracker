@@ -10,28 +10,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserIdState] = useState<number | null>(null);
   const [users, setUsers] = useState<UserLite[]>([]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("userId");
-    let initial = 1;
-    if (saved) {
-      const parsed = Number(saved);
-      if (Number.isFinite(parsed) && parsed > 0) initial = parsed;
+  const applyUserId = useCallback((id: number | null) => {
+    setUserIdState(id);
+    setHttpUserId(id);
+    if (typeof window !== "undefined") {
+      const storage = window.localStorage;
+      if (id != null) storage.setItem("userId", String(id));
+      else storage.removeItem("userId");
     }
-    setUserIdState(initial);
-    localStorage.setItem("userId", String(initial));
-    setHttpUserId(initial);
   }, []);
 
   const refreshUsers = useCallback(async () => {
     try {
       const meRes = await http.get<ApiUser>("user/me");
       const meLite = mapUser(meRes.data);
-
-      if (userId !== meLite.id) {
-        setUserIdState(meLite.id);
-        localStorage.setItem("userId", String(meLite.id));
-        setHttpUserId(meLite.id);
-      }
+      applyUserId(meLite.id);
 
       if (!meLite.isAdmin) {
         setUsers([meLite]);
@@ -41,23 +34,28 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const listRes = await http.get<ApiUser[]>("user");
       setUsers(listRes.data.map(mapUser));
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("[UserContext] Failed to refresh users:", err);
       setUsers([]);
+      applyUserId(null);
     }
-  }, [userId]);
+  }, [applyUserId]);
 
   useEffect(() => {
+    const saved =
+      typeof window !== "undefined" ? window.localStorage.getItem("userId") : null;
+    const parsed = saved ? Number(saved) : NaN;
+    const initial = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    applyUserId(initial);
     void refreshUsers();
-  }, [refreshUsers]);
+  }, [applyUserId, refreshUsers]);
 
   const setUserId = useCallback(
     (id: number) => {
-      setUserIdState(id);
-      localStorage.setItem("userId", String(id));
-      setHttpUserId(id);
+      applyUserId(id);
       qc.invalidateQueries();
     },
-    [qc]
+    [applyUserId, qc]
   );
 
   const value = useMemo(

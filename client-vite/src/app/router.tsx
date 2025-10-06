@@ -4,6 +4,7 @@ import AppShell from "@/app/AppShell";
 import { UserProvider } from "@/state/UserProvider";
 import CardsPage from "@/pages/CardsPage";
 import { paths } from "@/routes/paths";
+import { RequireAdmin } from "@/app/RequireAdmin";
 
 const CollectionPage  = lazy(() => import("@/pages/CollectionPage"));
 const WishlistPage    = lazy(() => import("@/pages/WishlistPage"));
@@ -24,8 +25,22 @@ const router = createBrowserRouter([
       { path: paths.wishlist, element: <WishlistPage /> },
       { path: paths.decks, element: <DecksPage /> },
       { path: paths.value, element: <ValueHubPage /> },
-      { path: paths.users, element: <UsersPage /> },
-      { path: paths.adminImport, element: <AdminImportPage /> },
+      {
+        path: paths.users,
+        element: (
+          <RequireAdmin>
+            <UsersPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: paths.adminImport,
+        element: (
+          <RequireAdmin>
+            <AdminImportPage />
+          </RequireAdmin>
+        ),
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

@@ -26,5 +26,8 @@ export default defineConfig(({ mode }) => {
           },
         }
       : undefined,
+    test: {
+      environment: "jsdom",
+    },
   };
 });
