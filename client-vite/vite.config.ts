@@ -7,6 +7,15 @@ export default defineConfig(({ mode }) => {
   const apiBase = env.VITE_API_BASE || env.VITE_API_BASE_URL || "";
   const shouldProxy = !apiBase || apiBase.startsWith("/");
   const proxyTarget = env.VITE_DEV_SERVER_PROXY_TARGET || "https://localhost:7226";
+  const apiProxy = shouldProxy
+    ? {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+      }
+    : undefined;
 
   return {
     plugins: [react()],
@@ -15,17 +24,11 @@ export default defineConfig(({ mode }) => {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
-    server: shouldProxy
-      ? {
-          proxy: {
-            "/api": {
-              target: proxyTarget,
-              changeOrigin: true,
-              secure: false,
-            },
-          },
-        }
-      : undefined,
+    server: {
+      strictPort: true,
+      ...(apiProxy ? { proxy: apiProxy } : {}),
+    },
+    preview: apiProxy ? { proxy: apiProxy } : undefined,
     test: {
       environment: "jsdom",
     },
