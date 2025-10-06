@@ -62,7 +62,7 @@ export default function WishlistPage() {
     queryFn: async () => {
       if (!userId) throw new Error("User not selected");
       const res = await http.get<Paged<WishlistItemDto>>(`user/${userId}/wishlist`, {
-        params: { page, pageSize, q, game: gameCsv },
+        params: { page, pageSize, name: q || undefined, game: gameCsv },
       });
       return res.data;
     },

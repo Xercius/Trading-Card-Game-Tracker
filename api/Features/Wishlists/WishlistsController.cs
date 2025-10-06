@@ -92,8 +92,10 @@ public class WishlistsController : ControllerBase
             query = query.Where(uc => uc.CardPrinting.Rarity == rarity);
         if (!string.IsNullOrWhiteSpace(name))
         {
-            var loweredName = name.ToLower();
-            query = query.Where(uc => uc.CardPrinting.Card.Name.ToLower().Contains(loweredName));
+            var pattern = $"%{name.Trim()}%";
+            query = query.Where(uc => EF.Functions.Like(
+                EF.Functions.Collate(uc.CardPrinting.Card.Name, "NOCASE"),
+                pattern));
         }
         if (cardPrintingId.HasValue)
             query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
