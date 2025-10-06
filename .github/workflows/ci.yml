@@ -17,6 +17,9 @@ jobs:
   backend:
     name: backend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     defaults:
       run:
         working-directory: api
