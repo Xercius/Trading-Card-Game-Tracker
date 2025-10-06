@@ -32,7 +32,7 @@ describe("WishlistPage", () => {
 
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/wishlist?q=bolt"]}>
+        <MemoryRouter initialEntries={["/wishlist?q=bolt&game=Magic"]}>
           <QueryClientProvider client={client}>
             <WishlistPage />
           </QueryClientProvider>
@@ -47,7 +47,7 @@ describe("WishlistPage", () => {
     expect(getMock).toHaveBeenCalledWith(
       "user/42/wishlist",
       expect.objectContaining({
-        params: expect.objectContaining({ name: "bolt" }),
+        params: expect.objectContaining({ name: "bolt", game: "Magic" }),
       })
     );
 
