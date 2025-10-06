@@ -563,7 +563,6 @@ public class DecksController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> Patch(int userId, int id, [FromBody] JsonElement patch)
     {
         if (UserMismatch(userId)) return Forbid();
@@ -624,7 +623,6 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}
     [HttpPatch("/api/deck/{deckId:int}")]
     [HttpPatch("/api/decks/{deckId:int}")]
-    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> PatchDeck(int deckId, [FromBody] JsonElement patch)
     {
         var (deck, error) = await GetDeckForCaller(deckId);
@@ -674,7 +672,6 @@ public class DecksController : ControllerBase
     // PATCH /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
     [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")]
-    [Consumes(MediaTypeNames.Application.Json)]
     public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement patch)
         => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, patch);
 

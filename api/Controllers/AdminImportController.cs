@@ -13,51 +13,97 @@ using api.Middleware;
 namespace api.Controllers;
 
 [ApiController]
+[RequireUserHeader]
 [AdminGuard] // all endpoints require admin
 [Route("api/admin/import")]
-public class AdminImportController : ControllerBase
+public sealed class AdminImportController : ControllerBase
 {
-    private readonly IEnumerable<ISourceImporter> _importers;
-    private static readonly Dictionary<string, string> _aliases = new(StringComparer.OrdinalIgnoreCase)
+    private readonly Dictionary<string, ISourceImporter> _importersByKey;
+
+    private static readonly Dictionary<string, string> SourceMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        // legacy route segment -> registered importer key
-        ["fab"] = "fabdb",
-        ["lorcana"] = "lorcanajson",
-        ["pokemon"] = "pokemon",
-        ["swu"] = "swu",
-        ["swccgdb"] = "swccgdb",
-        ["dicemasters"] = "dicemasters",
-        ["tftcg"] = "tftcg",
-        ["guardians"] = "guardians",
-        ["scryfall"] = "scryfall"
+        // canonical keys
+        ["LorcanaJSON"] = "LorcanaJSON",
+        ["FabDb"] = "FabDb",
+
+        // friendly aliases
+        ["lorcana-json"] = "LorcanaJSON",
+        ["lorcanajson"] = "LorcanaJSON",
+        ["fabdb"] = "FabDb",
+
+        // legacy aliases
+        ["lorcana"] = "LorcanaJSON",
+        ["disneylorcana"] = "LorcanaJSON",
+        ["fab"] = "FabDb",
+        ["fleshandblood"] = "FabDb",
+    };
+
+    private static readonly Dictionary<string, string> CanonicalToImporterKey = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["LorcanaJSON"] = "lorcanajson",
+        ["FabDb"] = "fabdb",
     };
 
     public AdminImportController(IEnumerable<ISourceImporter> importers)
     {
-        _importers = importers;
+        _importersByKey = importers.ToDictionary(i => i.Key, StringComparer.OrdinalIgnoreCase);
     }
 
-    private bool TryGetImporter(string key, out ISourceImporter importer)
+    private static string GetCanonicalSource(string source)
     {
-        if (_aliases.TryGetValue(key, out var mapped)) key = mapped;
+        if (SourceMap.TryGetValue(source, out var canonical)) return canonical;
+        return source;
+    }
 
-        importer = _importers.FirstOrDefault(i =>
-            string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase));
-        return importer is not null;
+    private bool TryResolveImporter(string source, out string canonical, out ISourceImporter importer)
+    {
+        importer = null!;
+        canonical = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(source)) return false;
+
+        canonical = GetCanonicalSource(source.Trim());
+
+        var importerKey = CanonicalToImporterKey.TryGetValue(canonical, out var mapped)
+            ? mapped
+            : canonical;
+
+        return _importersByKey.TryGetValue(importerKey, out importer);
     }
 
     // GET /api/admin/import/sources
     [HttpGet("sources")]
     public ActionResult<object> GetSources()
     {
-        var data = _importers
-            .Select(i => new { key = i.Key, name = i.DisplayName, games = i.SupportedGames })
-            .OrderBy(x => x.name, StringComparer.OrdinalIgnoreCase);
-        return Ok(data);
+        var payload = _importersByKey.Values
+            .Select(importer =>
+            {
+                var canonical = GetCanonicalSource(importer.Key);
+                var aliases = SourceMap
+                    .Where(kvp => string.Equals(kvp.Value, canonical, StringComparison.OrdinalIgnoreCase))
+                    .Select(kvp => kvp.Key)
+                    .Where(alias => !string.Equals(alias, canonical, StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                return new
+                {
+                    key = canonical,
+                    importerKey = importer.Key,
+                    importer.DisplayName,
+                    importer.SupportedGames,
+                    aliases
+                };
+            })
+            .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase);
+
+        return Ok(payload);
     }
 
     // POST /api/admin/import/{key}?set=...&dryRun=true&limit=500
     [HttpPost("{key}")]
+    [HttpPost("remote/{key}")]
     public async Task<ActionResult<ImportSummary>> ImportRemote(
         string key,
         [FromQuery] string? set,
@@ -65,7 +111,7 @@ public class AdminImportController : ControllerBase
         [FromQuery] int? limit = null,
         CancellationToken ct = default)
     {
-        if (!TryGetImporter(key, out var importer))
+        if (!TryResolveImporter(key, out var canonical, out var importer))
             return NotFound(new { error = $"Importer '{key}' not registered." });
 
         var me = HttpContext.GetCurrentUser();
@@ -77,6 +123,7 @@ public class AdminImportController : ControllerBase
             SetCode: set);
 
         var result = await importer.ImportFromRemoteAsync(options, ct);
+        result.Source = canonical;
         return Ok(result);
     }
 
@@ -89,7 +136,7 @@ public class AdminImportController : ControllerBase
         [FromQuery] int? limit = null,
         CancellationToken ct = default)
     {
-        if (!TryGetImporter(key, out var importer))
+        if (!TryResolveImporter(key, out var canonical, out var importer))
             return NotFound(new { error = $"Importer '{key}' not registered." });
 
         await using var stream = file.OpenReadStream();
@@ -102,6 +149,7 @@ public class AdminImportController : ControllerBase
             UserId: me?.Id);
 
         var result = await importer.ImportFromFileAsync(stream, options, ct);
+        result.Source = canonical;
         return Ok(result);
     }
 }
