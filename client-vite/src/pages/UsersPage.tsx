@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import http from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
 import type { ApiUser, UserLite } from "@/types/user";
+import { useUser } from "@/state/useUser";
 
 type Paged<T> = {
   items: T[];
@@ -11,15 +12,21 @@ type Paged<T> = {
 };
 
 export default function UsersPage() {
+  const { users, userId } = useUser();
+  const currentUser = users.find((u) => u.id === userId);
+  const enabled = currentUser?.isAdmin ?? false;
+
   const { data, isLoading, isError } = useQuery<Paged<UserLite>>({
-    queryKey: ["users"],
+    queryKey: ["adminUsers"],
     queryFn: async () => {
       const res = await http.get<ApiUser[]>("user");
-      const users: UserLite[] = res.data.map(mapUser);
-      return { items: users, total: users.length, page: 1, pageSize: users.length };
+      const mapped: UserLite[] = res.data.map(mapUser);
+      return { items: mapped, total: mapped.length, page: 1, pageSize: mapped.length };
     },
+    enabled,
   });
 
+  if (!enabled) return <div className="p-4">Admins only.</div>;
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (isError) return <div className="p-4 text-red-500">Error loading users</div>;
   if (!data || data.items.length === 0) return <div className="p-4">No users found</div>;

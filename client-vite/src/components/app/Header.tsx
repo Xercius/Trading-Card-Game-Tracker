@@ -12,14 +12,20 @@ import { paths } from "@/routes/paths";
 
 const GAME_OPTIONS = ["SWU", "Lorcana", "MTG", "Pokemon", "SWCCG", "FaB", "Guardians"];
 
-const NAV_LINKS = [
+type NavLinkItem = {
+  to: string;
+  label: string;
+  requiresAdmin?: boolean;
+};
+
+const NAV_LINKS: NavLinkItem[] = [
   { to: paths.cards, label: "Cards" },
   { to: paths.collection, label: "Collection" },
   { to: paths.wishlist, label: "Wishlist" },
   { to: paths.decks, label: "Decks" },
   { to: paths.value, label: "Value" },
-  { to: paths.users, label: "Users" },
-  { to: paths.adminImport, label: "Admin · Import" },
+  { to: paths.users, label: "Users", requiresAdmin: true },
+  { to: paths.adminImport, label: "Admin · Import", requiresAdmin: true },
 ];
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -81,6 +87,11 @@ export default function Header() {
     if (e.key === "Escape") setMobileOpen(false);
   }
 
+  const filteredLinks = useMemo(() => {
+    const currentUser = users.find((u) => u.id === userId);
+    return NAV_LINKS.filter((link) => (link.requiresAdmin ? currentUser?.isAdmin : true));
+  }, [userId, users]);
+
   return (
     <header className="w-full border-b bg-background/60 backdrop-blur">
       <div className="mx-auto w-full max-w-7xl p-4 space-y-3">
@@ -89,7 +100,7 @@ export default function Header() {
           <div className="text-xl font-semibold">TCG Tracker</div>
 
           <nav className="hidden md:flex gap-1 ml-4">
-            {NAV_LINKS.map((link) => (
+            {filteredLinks.map((link) => (
               <NavLink key={link.to} to={link.to} className={linkCls}>
                 {link.label}
               </NavLink>
@@ -178,7 +189,7 @@ export default function Header() {
             >
               <div className="mb-3 text-sm font-medium text-muted-foreground">Navigate</div>
               <ul className="space-y-1">
-                {NAV_LINKS.map((link) => (
+                {filteredLinks.map((link) => (
                   <li key={link.to}>
                     <NavLink to={link.to} className={linkCls}>
                       {link.label}

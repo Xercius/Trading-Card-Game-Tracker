@@ -62,9 +62,6 @@ export function setHttpUserId(id: number | null) {
   }
 }
 
-const __initialUserId = Number(localStorage.getItem("userId") ?? 1) || 1;
-setHttpUserId(__initialUserId);
-
 // ------------------------------------
 // Dev absolute-path warning allowlist
 // ------------------------------------
