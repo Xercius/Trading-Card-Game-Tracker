@@ -9,6 +9,7 @@ using api.Data;
 using api.Features.Collections.Dtos;
 using api.Features.Wishlists.Dtos;
 using api.Tests.Fixtures;
+using api.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -131,8 +132,9 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
 
         var collectionResponse = await client.GetAsync($"/api/collection?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
         collectionResponse.EnsureSuccessStatusCode();
-        var collectionItems = await collectionResponse.Content.ReadFromJsonAsync<List<UserCardItemResponse>>(JsonOptions);
-        var collectionItem = Assert.Single(collectionItems!);
+        var collectionPayload = await collectionResponse.Content
+            .ReadFromJsonAsync<Paged<UserCardItemResponse>>(JsonOptions);
+        var collectionItem = Assert.Single(collectionPayload!.Items);
         Assert.Equal(1, collectionItem.QuantityOwned);
     }
 
