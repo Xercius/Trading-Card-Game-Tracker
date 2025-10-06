@@ -1,4 +1,5 @@
 import LazyImage from "./LazyImage";
+import { resolveImageUrl } from "@/lib/http";
 
 export type CardSummary = {
   id: number | string;
@@ -31,7 +32,7 @@ export default function CardTile({ card, onClick, className }: Props) {
       <div className="aspect-[3/4] w-full overflow-hidden rounded-t-2xl bg-muted">
         {card.imageUrl ? (
           <LazyImage
-            src={card.imageUrl}
+            src={resolveImageUrl(card.imageUrl)} // ← normalize image path here
             alt={card.name}
             className="h-full w-full"
           />

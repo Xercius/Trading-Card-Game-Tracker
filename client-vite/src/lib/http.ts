@@ -30,9 +30,7 @@ const basePath: string | null = (() => {
     const parsed = new URL(baseURL, "http://axios-base.local");
     const pathname = parsed.pathname || "/";
     const normalized = pathname.replace(/\/+$/, "");
-    if (!normalized) {
-      return "/";
-    }
+    if (!normalized) return "/";
     return `${normalized}/`;
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -53,7 +51,6 @@ type MutableCommonHeaders = Record<string, string>;
 export function setHttpUserId(id: number | null) {
   currentUserId = id ?? null;
 
-  // Update defaults for any non-interceptor calls
   const common = http.defaults.headers.common as unknown as MutableCommonHeaders;
   if (currentUserId == null) {
     delete common["X-User-Id"];
@@ -113,7 +110,6 @@ http.interceptors.request.use((cfg: Cfg) => {
     }
   }
 
-  // Normalize headers with from() to avoid ctor type mismatch
   const headers = AxiosHeaders.from(cfg.headers);
 
   if (currentUserId != null) {
@@ -125,6 +121,21 @@ http.interceptors.request.use((cfg: Cfg) => {
   cfg.headers = headers;
   return cfg;
 });
+
+// ------------------------------------
+// Image URL resolver
+// ------------------------------------
+const API_ORIGIN = new URL(import.meta.env.VITE_API_BASE ?? "/api", location.origin).origin;
+
+/**
+ * Converts a stored image path into a usable browser URL.
+ * Example: "images/card/123.png" → "https://localhost:7226/images/card/123.png"
+ */
+export function resolveImageUrl(path: string): string {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return new URL(path.startsWith("/") ? path : `/${path}`, API_ORIGIN).toString();
+}
 
 // ------------------------------------
 // Exports
