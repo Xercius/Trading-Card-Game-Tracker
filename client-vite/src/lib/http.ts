@@ -125,7 +125,10 @@ http.interceptors.request.use((cfg: Cfg) => {
 // ------------------------------------
 // Image URL resolver
 // ------------------------------------
-const API_ORIGIN = new URL(import.meta.env.VITE_API_BASE ?? "/api", location.origin).origin;
+const apiBaseRaw = import.meta.env.VITE_API_BASE ?? "/api";
+const API_ORIGIN = /^https?:\/\//i.test(apiBaseRaw)
+  ? new URL(apiBaseRaw).origin
+  : location.origin;
 
 /**
  * Converts a stored image path into a usable browser URL.
