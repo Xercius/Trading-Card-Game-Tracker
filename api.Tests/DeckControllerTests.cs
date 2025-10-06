@@ -92,6 +92,23 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     }
 
     [Fact]
+    public async Task Deck_Create_AllowsSameNameAcrossGames()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var first = await client.PostAsJsonAsync(
+            "/api/deck",
+            new { game = "Magic", name = "Shared Title" });
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        var second = await client.PostAsJsonAsync(
+            "/api/deck",
+            new { game = "Lorcana", name = "Shared Title" });
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+    }
+
+    [Fact]
     public async Task DeckCards_Delta_CreatesMissing_ClampsNonNegative_ValidatesGame()
     {
         await factory.ResetDatabaseAsync();

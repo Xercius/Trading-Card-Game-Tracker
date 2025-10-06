@@ -148,7 +148,11 @@ public class DecksController : ControllerBase
         var name = dto.Name.Trim();
         var game = dto.Game.Trim();
 
-        if (await _db.Decks.AnyAsync(x => x.UserId == userId && x.Name.ToLower() == name.ToLower()))
+        var duplicate = await _db.Decks.AnyAsync(x =>
+            x.UserId == userId &&
+            EF.Functions.Collate(x.Game, "NOCASE") == game &&
+            EF.Functions.Collate(x.Name, "NOCASE") == name);
+        if (duplicate)
             return Conflict("Duplicate deck name for user.");
 
         var deck = _mapper.Map<Deck>(dto);
@@ -180,10 +184,17 @@ public class DecksController : ControllerBase
             return BadRequest("Game and Name required.");
 
         var targetName = dto.Name.Trim();
-        if (await _db.Decks.AnyAsync(x => x.UserId == d.UserId && x.Id != d.Id && x.Name.ToLower() == targetName.ToLower()))
+        var targetGame = dto.Game.Trim();
+        var nameInUse = await _db.Decks.AnyAsync(x =>
+            x.UserId == d.UserId &&
+            x.Id != d.Id &&
+            EF.Functions.Collate(x.Game, "NOCASE") == targetGame &&
+            EF.Functions.Collate(x.Name, "NOCASE") == targetName);
+        if (nameInUse)
             return Conflict("Duplicate deck name for user.");
 
         _mapper.Map(dto, d);
+        d.Game = targetGame;
         d.Name = targetName;
 
         await _db.SaveChangesAsync();

@@ -226,8 +226,9 @@ public class CollectionsController : ControllerBase
             .Where(cp => printingIds.Contains(cp.Id))
             .Select(cp => cp.Id)
             .ToListAsync();
+        var validSet = validIds.ToHashSet();
 
-        var missing = printingIds.FirstOrDefault(id => !validIds.Contains(id));
+        var missing = printingIds.FirstOrDefault(id => !validSet.Contains(id));
         if (missing != 0) return NotFound($"CardPrinting not found: {missing}");
 
         var map = await _db.UserCards
