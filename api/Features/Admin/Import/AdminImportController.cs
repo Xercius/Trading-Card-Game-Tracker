@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -126,23 +127,22 @@ public sealed class AdminImportController : ControllerBase
     [Consumes("application/json", "multipart/form-data")]
     public async Task<ActionResult<ImportPreviewResponse>> DryRun(CancellationToken ct)
     {
-        ResolvedImportRequest? request;
-        try
+        var parse = await ParseRequestAsync(ct);
+        if (parse.Problem is not null) return BadRequest(parse.Problem);
+        var request = parse.Request;
+        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+
+        if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
-            request = await ParseRequestAsync(ct);
+            return BadRequest(limitProblem);
         }
-        catch (FileParserException ex)
-        {
-            return CreateProblem(ex);
-        }
-        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request." });
 
         var importer = request.Importer;
         var user = HttpContext.GetCurrentUser();
         var options = new ImportOptions(
             DryRun: true,
             Upsert: true,
-            Limit: request.Limit,
+            Limit: effectiveLimit,
             UserId: user?.Id,
             SetCode: request.Set);
 
@@ -151,8 +151,17 @@ public sealed class AdminImportController : ControllerBase
         {
             if (request.File is { } file)
             {
-                await using var read = file.OpenRead();
-                summary = await importer.ImportFromFileAsync(read, options, ct);
+                FileParseResult? parsed = null;
+                try
+                {
+                    parsed = await _fileParser.ParseAsync(file, effectiveLimit, ct);
+                    parsed.Stream.Position = 0;
+                    summary = await importer.ImportFromFileAsync(parsed.Stream, options, ct);
+                }
+                finally
+                {
+                    parsed?.Dispose();
+                }
             }
             else
             {
@@ -176,23 +185,22 @@ public sealed class AdminImportController : ControllerBase
     [Consumes("application/json", "multipart/form-data")]
     public async Task<ActionResult<ImportApplyResponse>> Apply(CancellationToken ct)
     {
-        ResolvedImportRequest? request;
-        try
+        var parse = await ParseRequestAsync(ct);
+        if (parse.Problem is not null) return BadRequest(parse.Problem);
+        var request = parse.Request;
+        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+
+        if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
-            request = await ParseRequestAsync(ct);
+            return BadRequest(limitProblem);
         }
-        catch (FileParserException ex)
-        {
-            return CreateProblem(ex);
-        }
-        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request." });
 
         var importer = request.Importer;
         var user = HttpContext.GetCurrentUser();
         var options = new ImportOptions(
             DryRun: false,
             Upsert: true,
-            Limit: request.Limit,
+            Limit: effectiveLimit,
             UserId: user?.Id,
             SetCode: request.Set);
 
@@ -201,8 +209,17 @@ public sealed class AdminImportController : ControllerBase
         {
             if (request.File is { } file)
             {
-                await using var read = file.OpenRead();
-                summary = await importer.ImportFromFileAsync(read, options, ct);
+                FileParseResult? parsed = null;
+                try
+                {
+                    parsed = await _fileParser.ParseAsync(file, ImportingOptions.MaxPreviewLimit, ct);
+                    parsed.Stream.Position = 0;
+                    summary = await importer.ImportFromFileAsync(parsed.Stream, options, ct);
+                }
+                finally
+                {
+                    parsed?.Dispose();
+                }
             }
             else
             {
@@ -225,38 +242,75 @@ public sealed class AdminImportController : ControllerBase
             Invalid: summary.Errors));
     }
 
-    private async Task<ResolvedImportRequest?> ParseRequestAsync(CancellationToken ct)
+    private async Task<ParseRequestResult> ParseRequestAsync(CancellationToken ct)
     {
+        static bool TryParseLimit(string? raw, out int? value, out ProblemDetails? problem)
+        {
+            value = null;
+            problem = null;
+            if (string.IsNullOrWhiteSpace(raw)) return true;
+            if (int.TryParse(raw, out var parsed))
+            {
+                value = parsed;
+                return true;
+            }
+
+            problem = CreateInvalidLimitProblem();
+            return false;
+        }
+
+        var queryLimitRaw = Request.Query.TryGetValue("limit", out var queryLimitValues)
+            ? queryLimitValues.ToString()
+            : null;
+        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem))
+        {
+            return new ParseRequestResult(null, queryProblem);
+        }
+
         if (Request.HasFormContentType)
         {
             var form = await Request.ReadFormAsync(ct);
             var source = form["source"].ToString();
-            if (!TryResolveImporter(source, out var importer)) return null;
+            if (!TryResolveImporter(source, out var importer)) return new ParseRequestResult(null, null);
 
-            IFormFile? file = form.Files.FirstOrDefault();
-            FileParseResult? parsed = null;
-            if (file is not null)
+            var formLimitRaw = form.TryGetValue("limit", out var limitValues)
+                ? limitValues.ToString()
+                : null;
+            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem))
             {
-                parsed = await _fileParser.ParseAsync(file, ct);
+                return new ParseRequestResult(null, limitProblem);
             }
 
-            int? limit = null;
-            if (int.TryParse(form["limit"], out var limitValue)) limit = limitValue;
+            if (limit is null)
+            {
+                limit = queryLimit;
+            }
 
             var set = form["set"].ToString();
             if (string.IsNullOrWhiteSpace(set)) set = null;
 
-            return new ResolvedImportRequest(importer, set, limit, parsed);
+            return new ParseRequestResult(new ResolvedImportRequest(importer, set, limit, form.Files.FirstOrDefault()), null);
         }
         else
         {
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync(ct);
-            if (string.IsNullOrWhiteSpace(body)) return null;
-            var payload = JsonSerializer.Deserialize<ImportRequestPayload>(body, JsonOptions);
-            if (payload is null || string.IsNullOrWhiteSpace(payload.Source)) return null;
-            if (!TryResolveImporter(payload.Source, out var importer)) return null;
-            return new ResolvedImportRequest(importer, payload.Set, payload.Limit, null);
+            if (string.IsNullOrWhiteSpace(body)) return new ParseRequestResult(null, null);
+            ImportRequestPayload? payload;
+            try
+            {
+                payload = JsonSerializer.Deserialize<ImportRequestPayload>(body, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                return new ParseRequestResult(null, new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+            }
+
+            if (payload is null || string.IsNullOrWhiteSpace(payload.Source)) return new ParseRequestResult(null, null);
+            if (!TryResolveImporter(payload.Source, out var importer)) return new ParseRequestResult(null, null);
+
+            var limit = payload.Limit ?? queryLimit;
+            return new ParseRequestResult(new ResolvedImportRequest(importer, payload.Set, limit, null), null);
         }
     }
 
@@ -379,6 +433,34 @@ public sealed class AdminImportController : ControllerBase
         }) { StatusCode = StatusCodes.Status400BadRequest };
     }
 
+    private static ProblemDetails CreateInvalidLimitProblem()
+    {
+        return new ProblemDetails
+        {
+            Title = "Invalid limit",
+            Detail = $"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}",
+            Status = StatusCodes.Status400BadRequest,
+        };
+    }
+
+    private static ProblemDetails? ValidateLimit(int? requested, out int effectiveLimit)
+    {
+        if (requested is null)
+        {
+            effectiveLimit = ImportingOptions.DefaultPreviewLimit;
+            return null;
+        }
+
+        if (requested < ImportingOptions.MinPreviewLimit || requested > ImportingOptions.MaxPreviewLimit)
+        {
+            effectiveLimit = ImportingOptions.DefaultPreviewLimit;
+            return CreateInvalidLimitProblem();
+        }
+
+        effectiveLimit = requested.Value;
+        return null;
+    }
+
     private sealed record ImportRequestPayload
     {
         public string Source { get; init; } = string.Empty;
@@ -386,11 +468,13 @@ public sealed class AdminImportController : ControllerBase
         public int? Limit { get; init; }
     }
 
+    private sealed record ParseRequestResult(ResolvedImportRequest? Request, ProblemDetails? Problem);
+
     private sealed record ResolvedImportRequest(
         ISourceImporter Importer,
         string? Set,
         int? Limit,
-        FileParseResult? File);
+        IFormFile? File);
 }
 
 public sealed record ImportSourceOption(

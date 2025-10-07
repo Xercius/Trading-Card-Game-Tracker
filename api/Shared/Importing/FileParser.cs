@@ -6,7 +6,7 @@ namespace api.Shared.Importing;
 
 public sealed class FileParser
 {
-    public async Task<FileParseResult> ParseAsync(IFormFile file, CancellationToken ct = default)
+    public async Task<FileParseResult> ParseAsync(IFormFile file, int? limit = null, CancellationToken ct = default)
     {
         if (file is null || file.Length == 0)
         {
@@ -17,7 +17,7 @@ public sealed class FileParser
         return extension switch
         {
             ".csv" => await ParseCsvAsync(file, ct),
-            ".json" => await ParseJsonAsync(file, ct),
+            ".json" => await ParseJsonAsync(file, limit, ct),
             _ => throw new FileParserException("Unsupported file type. Expected .csv or .json."),
         };
     }
@@ -25,7 +25,7 @@ public sealed class FileParser
     private static async Task<FileParseResult> ParseCsvAsync(IFormFile file, CancellationToken ct)
     {
         await using var stream = file.OpenReadStream();
-        using var buffer = new MemoryStream();
+        var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, ct);
         buffer.Position = 0;
 
@@ -58,10 +58,10 @@ public sealed class FileParser
         return new FileParseResult(buffer, "text/csv");
     }
 
-    private static async Task<FileParseResult> ParseJsonAsync(IFormFile file, CancellationToken ct)
+    private static async Task<FileParseResult> ParseJsonAsync(IFormFile file, int? limit, CancellationToken ct)
     {
         await using var stream = file.OpenReadStream();
-        using var buffer = new MemoryStream();
+        var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, ct);
         buffer.Position = 0;
 
@@ -72,10 +72,11 @@ public sealed class FileParser
             throw new FileParserException("Top-level JSON must be an array.");
         }
 
-        int index = 0;
+        var effectiveLimit = limit ?? ImportingOptions.DefaultPreviewLimit;
+        var index = 0;
         foreach (var element in document.RootElement.EnumerateArray())
         {
-            if (index++ >= 100) break;
+            if (index++ >= effectiveLimit) break;
             if (element.ValueKind != JsonValueKind.Object)
             {
                 throw new FileParserException($"Item {index} is not an object.");
@@ -107,9 +108,29 @@ public sealed class FileParser
     }
 }
 
-public sealed record FileParseResult(MemoryStream Stream, string ContentType)
+/// <summary>
+/// Represents the parsed upload buffer. The caller is responsible for disposing the instance
+/// after consuming the <see cref="Stream"/>.
+/// </summary>
+public sealed class FileParseResult : IDisposable
 {
-    public Stream OpenRead() => new MemoryStream(Stream.ToArray());
+    public FileParseResult(Stream stream, string contentType)
+    {
+        Stream = stream;
+        ContentType = contentType;
+    }
+
+    public Stream Stream { get; }
+
+    public string ContentType { get; }
+
+    public Stream OpenRead()
+    {
+        Stream.Position = 0;
+        return Stream;
+    }
+
+    public void Dispose() => Stream.Dispose();
 }
 
 public sealed class FileParserException : Exception
