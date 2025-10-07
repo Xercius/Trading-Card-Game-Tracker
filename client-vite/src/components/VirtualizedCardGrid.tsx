@@ -77,7 +77,7 @@ export default function VirtualizedCardGrid({
     if (last.index >= rowCount - 3 && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [rowVirtualizer.getVirtualItems(), rowCount, hasNextPage, fetchNextPage, isFetchingNextPage]); // eslint-disable-line
+  }, [rowVirtualizer.getVirtualItems(), rowCount, hasNextPage, fetchNextPage, isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={scrollRef} className="h-full w-full overflow-auto">
