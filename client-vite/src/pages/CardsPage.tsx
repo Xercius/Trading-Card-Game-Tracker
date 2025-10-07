@@ -6,9 +6,10 @@ import { fetchCardsPage } from "@/features/cards/api";
 // If you have a useListQuery hook, reuse it. Otherwise read from URLSearchParams inline.
 import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/state/useUser";
+import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
 
 // Heuristic: smaller page on low-core devices to reduce memory pressure.
-const PAGE_SIZE = (navigator?.hardwareConcurrency ?? 4) <= 4 ? 60 : 96;
+const PAGE_SIZE = pageSizeForDevice(60, 96);
 
 export default function CardsPage() {
   const { userId } = useUser();
@@ -50,7 +51,7 @@ export default function CardsPage() {
           console.debug("card", c.id);
         }}
         minTileWidth={220}
-        overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 6 : 8}
+        overscan={overscanForDevice(6, 8)}
         footerHeight={88}
       />
     </div>
