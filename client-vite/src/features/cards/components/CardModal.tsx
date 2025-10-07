@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LazyImage from "@/components/LazyImage";
-import { DEFAULT_PRICE_HISTORY_DAYS } from "@/lib/constants";
 import { resolveImageUrl } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,13 +40,9 @@ type CardModalProps = {
   initialPrintingId?: number;
 };
 
-const TOAST_TIMEOUT_MS = 2_600;
-const MIN_QUANTITY = 1;
-const MAX_QUANTITY = 999;
-
 function clampQuantity(value: number): number {
-  if (!Number.isFinite(value) || value < MIN_QUANTITY) return MIN_QUANTITY;
-  return Math.min(MAX_QUANTITY, Math.floor(value));
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  return Math.min(999, Math.floor(value));
 }
 
 function formatPrice(value: number | undefined): string {
@@ -60,7 +55,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
   const printingsQuery = useCardPrintings(open ? cardId : 0);
 
   const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(initialPrintingId ?? null);
-  const [quantity, setQuantity] = useState<number>(MIN_QUANTITY);
+  const [quantity, setQuantity] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<TabId>("details");
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -87,7 +82,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
 
   useEffect(() => {
     if (!open) {
-      setQuantity(MIN_QUANTITY);
+      setQuantity(1);
       setActiveTab("details");
       setToast(null);
     }
@@ -95,11 +90,11 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), TOAST_TIMEOUT_MS);
+    const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const priceQuery = usePriceHistory(open ? selectedPrintingId ?? null : null, DEFAULT_PRICE_HISTORY_DAYS);
+  const priceQuery = usePriceHistory(open ? selectedPrintingId ?? null : null, 30);
 
   const selectedPrinting: PrintingSummary | null = useMemo(() => {
     if (selectedPrintingId == null) return null;
@@ -328,7 +323,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
               Quantity
               <Input
                 type="number"
-                min={MIN_QUANTITY}
+                min={1}
                 value={quantity}
                 onChange={(event) => setQuantity(clampQuantity(Number(event.currentTarget.value)))}
                 className="w-20"
