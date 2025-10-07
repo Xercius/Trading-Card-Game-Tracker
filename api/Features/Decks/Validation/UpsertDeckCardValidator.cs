@@ -3,7 +3,7 @@ using api.Features.Decks.Dtos;
 
 namespace api.Features.Decks.Validation;
 
-public sealed class UpsertDeckCardValidator : AbstractValidator<UpsertDeckCardRequest>
+public sealed class UpsertDeckCardValidator : AbstractValidator<UpsertDeckCardFullRequest>
 {
     public UpsertDeckCardValidator()
     {
