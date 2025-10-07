@@ -203,13 +203,29 @@ public class WishlistsController : ControllerBase
 
         if (uc is null)
         {
+            var moveQuantity = dto.Quantity;
+            var newUserCard = new UserCard
+            {
+                UserId = userId,
+                CardPrintingId = dto.CardPrintingId,
+                QuantityWanted = 0,
+                QuantityOwned = dto.UseProxy ? 0 : moveQuantity,
+                QuantityProxyOwned = dto.UseProxy ? moveQuantity : 0
+            };
+            _db.UserCards.Add(newUserCard);
+            await _db.SaveChangesAsync();
+
+            var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
+                newUserCard.QuantityOwned,
+                newUserCard.QuantityProxyOwned);
+
             return Ok(new MoveToCollectionResponse(
-                dto.CardPrintingId,
-                0,
-                0,
-                0,
-                0,
-                0));
+                newUserCard.CardPrintingId,
+                newUserCard.QuantityWanted,
+                newUserCard.QuantityOwned,
+                newUserCard.QuantityProxyOwned,
+                availability,
+                availabilityWithProxies));
         }
 
         var moveQuantity = Math.Min(dto.Quantity, Math.Max(0, uc.QuantityWanted));
