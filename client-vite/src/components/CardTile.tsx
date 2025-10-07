@@ -3,6 +3,7 @@ import { resolveImageUrl } from "@/lib/http";
 
 export type CardSummary = {
   id: number | string;
+  primaryPrintingId: number | null;
   name: string;
   game: string;
   cardType?: string | null;
