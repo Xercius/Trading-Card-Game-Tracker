@@ -52,7 +52,6 @@ function formatValue(value: number | undefined | null): string {
   return `$${value.toFixed(2)}`;
 }
 
-
 export default function CardModal({ cardId, open, onOpenChange, initialPrintingId }: CardModalProps) {
   const detailsQuery = useCardDetails(open ? cardId : 0);
   const printingsQuery = useCardPrintings(open ? cardId : 0);
