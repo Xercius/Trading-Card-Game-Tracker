@@ -48,7 +48,10 @@ export default function VirtualizedCardGrid({
   }, [containerWidth, minTileWidth, colGap]);
 
   const tileWidth = useMemo(() => {
-    if (columns <= 1) return Math.max(1, Math.floor(containerWidth)); // single column clamp
+    // In single-column mode, we allow the card to expand and fill the entire container width
+    // for better aesthetics and use of space, rather than clamping it to minTileWidth.
+    // If this is not desired, replace 'containerWidth' with 'minTileWidth' below.
+    if (columns <= 1) return Math.max(1, Math.floor(containerWidth));
     const totalGap = colGap * (columns - 1);
     const w = Math.floor((containerWidth - totalGap) / columns);
     return w > 0 ? w : minTileWidth;
