@@ -8,9 +8,10 @@ import FiltersRail from "@/features/cards/filters/FiltersRail";
 import PillsBar from "@/features/cards/filters/PillsBar";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { useUser } from "@/state/useUser";
+import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
 
 // Heuristic: smaller page on low-core devices to reduce memory pressure.
-const PAGE_SIZE = (navigator?.hardwareConcurrency ?? 4) <= 4 ? 60 : 96;
+const PAGE_SIZE = pageSizeForDevice(60, 96);
 
 export default function CardsPage() {
   const { userId } = useUser();
