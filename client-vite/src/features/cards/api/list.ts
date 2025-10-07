@@ -1,4 +1,4 @@
-// client-vite/src/features/cards/api.ts
+// client-vite/src/features/cards/api/list.ts
 import { api } from "@/lib/api";
 import type { CardSummary } from "@/components/CardTile";
 
@@ -12,6 +12,7 @@ export type CardsPageParams = {
 };
 
 type RawPrimaryCamel = {
+  id?: number | string;
   imageUrl?: string | null;
   set?: string | null;
   number?: string | null;
@@ -19,6 +20,7 @@ type RawPrimaryCamel = {
 } | null;
 
 type RawPrimaryPascal = {
+  Id?: number | string;
   ImageUrl?: string | null;
   Set?: string | null;
   Number?: string | null;
@@ -87,8 +89,16 @@ export async function fetchCardsPage({
     const primaryCamel = item.primary ?? null;
     const primaryPascal = item.Primary ?? null;
 
+    const rawPrimaryId = primaryCamel?.id ?? primaryPascal?.Id ?? null;
+    let primaryPrintingId: number | null = null;
+    if (rawPrimaryId != null) {
+      const parsed = Number(rawPrimaryId);
+      primaryPrintingId = Number.isFinite(parsed) ? parsed : null;
+    }
+
     return {
       id: item.cardId ?? item.CardId ?? item.id ?? item.Id ?? "",
+      primaryPrintingId,
       name: item.name ?? item.Name ?? "",
       game: item.game ?? item.Game ?? "",
       imageUrl:

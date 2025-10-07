@@ -293,6 +293,45 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Collection_QuickAdd_CreatesAndAccumulates()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/collection/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 2 });
+        createResponse.EnsureSuccessStatusCode();
+
+        var created = await createResponse.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(created);
+        Assert.Equal(TestDataSeeder.ExtraMagicPrintingId, created!.PrintingId);
+        Assert.Equal(2, created.QuantityOwned);
+
+        var incrementResponse = await client.PostAsJsonAsync(
+            "/api/collection/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 3 });
+        incrementResponse.EnsureSuccessStatusCode();
+
+        var increment = await incrementResponse.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(increment);
+        Assert.Equal(5, increment!.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Collection_QuickAdd_RejectsInvalidQuantity()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/collection/items",
+            new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, quantity = 0 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Collection_LegacyRoute_UserMismatch_Returns403()
     {
         await factory.ResetDatabaseAsync();

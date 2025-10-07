@@ -206,6 +206,35 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, anonResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Card_Printings_ByCard_ReturnsOrderedList()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}/printings");
+        response.EnsureSuccessStatusCode();
+
+        var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>(_jsonOptions);
+        Assert.NotNull(printings);
+        var expectedOrder = new[]
+        {
+            TestDataSeeder.LightningBoltAlphaPrintingId,
+            TestDataSeeder.LightningBoltBetaPrintingId,
+            TestDataSeeder.ExtraMagicPrintingId
+        };
+        Assert.Equal(expectedOrder.Length, printings!.Count);
+        Assert.Equal(expectedOrder, printings.Select(p => p.PrintingId));
+        Assert.All(printings, p => Assert.False(string.IsNullOrWhiteSpace(p.SetName)));
+
+        var missing = await client.GetAsync("/api/cards/9999/printings");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        using var anonymous = factory.CreateClient();
+        var unauthorized = await anonymous.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}/printings");
+        Assert.Equal(HttpStatusCode.BadRequest, unauthorized.StatusCode);
+    }
+
     private static async Task<Paged<T>> ReadPagedAsync<T>(HttpResponseMessage response)
     {
         var payload = await response.Content.ReadFromJsonAsync<Paged<T>>(_jsonOptions);
