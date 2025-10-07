@@ -2,6 +2,10 @@ import LazyImage from "./LazyImage";
 import { resolveImageUrl } from "@/lib/http";
 
 export type CardSummary = {
+  /**
+   * API responses occasionally encode identifiers as strings, so consumers
+   * should normalize this value before performing numeric comparisons.
+   */
   id: number | string;
   primaryPrintingId: number | null;
   name: string;
