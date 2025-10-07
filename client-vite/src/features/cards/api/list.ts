@@ -5,6 +5,8 @@ import type { CardSummary } from "@/components/CardTile";
 export type CardsPageParams = {
   q?: string;
   games?: string[];
+  sets?: string[];
+  rarities?: string[];
   skip: number;
   take: number;
 };
@@ -66,12 +68,16 @@ export type CardsPage = {
 export async function fetchCardsPage({
   q,
   games,
+  sets,
+  rarities,
   skip,
   take,
 }: CardsPageParams): Promise<CardsPage> {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (games?.length) params.set("game", games.join(","));
+  if (sets?.length) params.set("set", sets.join(","));
+  if (rarities?.length) params.set("rarity", rarities.join(","));
   params.set("skip", String(skip));
   params.set("take", String(take));
 
@@ -127,4 +133,73 @@ export async function fetchCardsPage({
     data.nextSkip ?? data.NextSkip ?? (items.length < take ? null : skip + items.length);
 
   return { items, total, nextSkip };
+}
+
+type RawSetsResponse = {
+  game?: string | null;
+  Game?: string | null;
+  sets?: ReadonlyArray<string | null | undefined>;
+  Sets?: ReadonlyArray<string | null | undefined>;
+};
+
+type RawRaritiesResponse = {
+  game?: string | null;
+  Game?: string | null;
+  rarities?: ReadonlyArray<string | null | undefined>;
+  Rarities?: ReadonlyArray<string | null | undefined>;
+};
+
+export type CardFacetSets = {
+  game?: string;
+  sets: string[];
+};
+
+export type CardFacetRarities = {
+  game?: string;
+  rarities: string[];
+};
+
+function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
+  if (!values) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  result.sort((a, b) => a.localeCompare(b));
+  return result;
+}
+
+function normalizeFacetGame(raw?: string | null): string | undefined {
+  const value = raw?.trim();
+  return value ? value : undefined;
+}
+
+export async function fetchCardGames(): Promise<string[]> {
+  const res = await api.get<ReadonlyArray<string | null | undefined>>("cards/facets/games");
+  return normalizeFacetList(res.data ?? []);
+}
+
+export async function fetchCardSets({ games }: { games: string[] }): Promise<CardFacetSets> {
+  const params = new URLSearchParams();
+  if (games.length > 0) params.set("game", games.join(","));
+  const res = await api.get<RawSetsResponse>("cards/facets/sets", { params });
+  const data = res.data ?? {};
+  const sets = normalizeFacetList(data.sets ?? data.Sets);
+  const game = normalizeFacetGame(data.game ?? data.Game);
+  return { game, sets };
+}
+
+export async function fetchCardRarities({ games }: { games: string[] }): Promise<CardFacetRarities> {
+  const params = new URLSearchParams();
+  if (games.length > 0) params.set("game", games.join(","));
+  const res = await api.get<RawRaritiesResponse>("cards/facets/rarities", { params });
+  const data = res.data ?? {};
+  const rarities = normalizeFacetList(data.rarities ?? data.Rarities);
+  const game = normalizeFacetGame(data.game ?? data.Game);
+  return { game, rarities };
 }
