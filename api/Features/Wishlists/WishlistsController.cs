@@ -191,7 +191,7 @@ public class WishlistsController : ControllerBase
     }
 
     // POST move-to-collection (decrement wanted, increment owned/proxy)
-    private async Task<IActionResult> MoveToCollectionCore(int userId, MoveToCollectionRequest dto)
+    private async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionCore(int userId, MoveToCollectionRequest dto)
     {
         if (dto is null) return BadRequest();
         if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
@@ -203,29 +203,60 @@ public class WishlistsController : ControllerBase
 
         if (uc is null)
         {
-            // Create the row if it doesn't exist; wanted will floor at 0 below.
-            uc = new UserCard
+            var moveQuantity = dto.Quantity;
+            var newUserCard = new UserCard
             {
                 UserId = userId,
                 CardPrintingId = dto.CardPrintingId,
-                QuantityOwned = 0,
-                QuantityProxyOwned = 0,
-                QuantityWanted = 0
+                QuantityWanted = 0,
+                QuantityOwned = dto.UseProxy ? 0 : moveQuantity,
+                QuantityProxyOwned = dto.UseProxy ? moveQuantity : 0
             };
-            _db.UserCards.Add(uc);
+            _db.UserCards.Add(newUserCard);
+            await _db.SaveChangesAsync();
+
+            var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
+                newUserCard.QuantityOwned,
+                newUserCard.QuantityProxyOwned);
+
+            return Ok(new MoveToCollectionResponse(
+                newUserCard.CardPrintingId,
+                newUserCard.QuantityWanted,
+                newUserCard.QuantityOwned,
+                newUserCard.QuantityProxyOwned,
+                availability,
+                availabilityWithProxies));
         }
 
-        // Decrease wishlist, floor at 0
-        uc.QuantityWanted = Math.Max(0, uc.QuantityWanted - dto.Quantity);
+        var moveQuantity = Math.Min(dto.Quantity, Math.Max(0, uc.QuantityWanted));
 
-        // Increase either owned or proxy
-        if (dto.UseProxy)
-            uc.QuantityProxyOwned = Math.Max(0, uc.QuantityProxyOwned + dto.Quantity);
-        else
-            uc.QuantityOwned = Math.Max(0, uc.QuantityOwned + dto.Quantity);
+        if (moveQuantity > 0)
+        {
+            uc.QuantityWanted = Math.Max(0, uc.QuantityWanted - moveQuantity);
 
-        await _db.SaveChangesAsync();
-        return NoContent();
+            if (dto.UseProxy)
+            {
+                uc.QuantityProxyOwned = Math.Max(0, uc.QuantityProxyOwned + moveQuantity);
+            }
+            else
+            {
+                uc.QuantityOwned = Math.Max(0, uc.QuantityOwned + moveQuantity);
+            }
+
+            await _db.SaveChangesAsync();
+        }
+
+        var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
+            uc.QuantityOwned,
+            uc.QuantityProxyOwned);
+
+        return Ok(new MoveToCollectionResponse(
+            uc.CardPrintingId,
+            uc.QuantityWanted,
+            uc.QuantityOwned,
+            uc.QuantityProxyOwned,
+            availability,
+            availabilityWithProxies));
     }
 
     // DELETE (set wanted to 0; remove row if all counts are 0 after)
@@ -281,7 +312,7 @@ public class WishlistsController : ControllerBase
     }
 
     [HttpPost("move-to-collection")]
-    public async Task<IActionResult> MoveToCollection(int userId, [FromBody] MoveToCollectionRequest dto)
+    public async Task<ActionResult<MoveToCollectionResponse>> MoveToCollection(int userId, [FromBody] MoveToCollectionRequest dto)
     {
         if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
         return await MoveToCollectionCore(userId, dto);
@@ -364,7 +395,7 @@ public class WishlistsController : ControllerBase
     }
 
     [HttpPost("/api/wishlist/move-to-collection")]
-    public async Task<IActionResult> MoveToCollectionForCurrent([FromBody] MoveToCollectionRequest dto)
+    public async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionForCurrent([FromBody] MoveToCollectionRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
         return await MoveToCollectionCore(uid, dto);
