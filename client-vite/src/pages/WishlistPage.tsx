@@ -52,7 +52,7 @@ type ToastMessage = {
 };
 
 function promptForQuantity(item: WishlistItemDto): number | null {
-  const defaultQty = Math.min(1, item.quantityWanted);
+  const defaultQty = Math.max(1, item.quantityWanted);
   const input = window.prompt(
     `Move how many copies of ${item.cardName}?`,
     String(defaultQty)
