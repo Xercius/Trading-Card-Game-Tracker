@@ -50,7 +50,7 @@ export default function CardsPage() {
           console.debug("card", c.id);
         }}
         minTileWidth={220}
-        overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 8 : 6}
+        overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 6 : 8}
         footerHeight={88}
       />
     </div>
