@@ -5,6 +5,8 @@ public static class UserCardMath
     public static int AddClamped(int current, int delta)
     {
         var total = (long)current + delta;
-        return total > int.MaxValue ? int.MaxValue : (int)total;
+        if (total > int.MaxValue) return int.MaxValue;
+        if (total < 0) return 0;
+        return (int)total;
     }
 }
