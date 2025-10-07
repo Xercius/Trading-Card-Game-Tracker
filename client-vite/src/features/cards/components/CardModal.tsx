@@ -19,6 +19,7 @@ import {
   useUpsertWishlist,
   type PrintingSummary,
 } from "../api";
+import { buildSparklinePath } from "../utils/sparkline";
 
 const TABS = [
   { id: "details", label: "Details" },
@@ -129,20 +130,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
   );
 
   const pricePoints = priceQuery.data ?? [];
-  const pricePath = useMemo(() => {
-    if (pricePoints.length === 0) return null;
-    const values = pricePoints.map((p) => p.p);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    return pricePoints
-      .map((point, index) => {
-        const x = pricePoints.length === 1 ? 0 : (index / (pricePoints.length - 1)) * 100;
-        const y = 100 - ((point.p - min) / range) * 100;
-        return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(" ");
-  }, [pricePoints]);
+  const pricePath = useMemo(() => buildSparklinePath(pricePoints), [pricePoints]);
 
   const latestPrice = pricePoints.length > 0 ? pricePoints[pricePoints.length - 1].p : undefined;
 
