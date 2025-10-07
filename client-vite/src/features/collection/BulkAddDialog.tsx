@@ -164,8 +164,8 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
               <p>{summary.successCount} succeeded</p>
               {summary.errorCount > 0 && <p>{summary.errorCount} failed</p>}
               <ul className="mt-2 max-h-32 overflow-auto font-mono text-xs">
-                {results.map((row) => (
-                  <li key={`${row.printingId}-${row.ownedDelta}-${row.proxyDelta}-${row.status}`}>
+                {results.map((row, index) => (
+                  <li key={`${row.printingId}-${index}`}>
                     #{row.printingId}: ΔOwned {row.ownedDelta}, ΔProxy {row.proxyDelta} – {row.status}
                   </li>
                 ))}
