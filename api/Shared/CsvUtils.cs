@@ -31,8 +31,6 @@ public static class CsvUtils
             }
         }
 
-        return results.Count == 0
-            ? Array.Empty<string>()
-            : results;
+        return results;
     }
 }
