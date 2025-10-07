@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import CardTile, { CardSummary } from "./CardTile";
 
+// props
 type Props = {
   items: CardSummary[];
   isFetchingNextPage: boolean;
@@ -30,13 +31,11 @@ export default function VirtualizedCardGrid({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  // Track container width to compute columns responsively
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0].contentRect.width;
-      setContainerWidth(w);
+      setContainerWidth(entries[0].contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -44,18 +43,21 @@ export default function VirtualizedCardGrid({
 
   const columns = useMemo(() => {
     if (containerWidth <= 0) return 1;
-    const cols = Math.max(1, Math.floor((containerWidth + colGap) / (minTileWidth + colGap)));
-    return cols;
+    const cols = Math.floor((containerWidth + colGap) / (minTileWidth + colGap));
+    return Number.isFinite(cols) && cols > 0 ? cols : 1;
   }, [containerWidth, minTileWidth, colGap]);
 
   const tileWidth = useMemo(() => {
-    if (columns === 0) return minTileWidth;
+    // In single-column mode, we allow the card to expand and fill the entire container width
+    // for better aesthetics and use of space, rather than clamping it to minTileWidth.
+    // If this is not desired, replace 'containerWidth' with 'minTileWidth' below.
+    if (columns <= 1) return Math.max(1, Math.floor(containerWidth));
     const totalGap = colGap * (columns - 1);
     const w = Math.floor((containerWidth - totalGap) / columns);
-    return w;
+    return w > 0 ? w : minTileWidth;
   }, [columns, containerWidth, colGap, minTileWidth]);
 
-  // 3:4 aspect + footer/header area
+  // 3:4 image + footer
   const tileHeight = Math.floor((tileWidth * 4) / 3) + footerHeight;
 
   const rowCount = Math.ceil(items.length / columns);
@@ -67,7 +69,6 @@ export default function VirtualizedCardGrid({
     overscan,
   });
 
-  // Auto-load next page when last row comes into view
   useEffect(() => {
     if (!hasNextPage || !fetchNextPage) return;
     const vItems = rowVirtualizer.getVirtualItems();
@@ -76,14 +77,11 @@ export default function VirtualizedCardGrid({
     if (last.index >= rowCount - 3 && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [rowVirtualizer, rowCount, hasNextPage, fetchNextPage, isFetchingNextPage]);
+  }, [rowVirtualizer.getVirtualItems(), rowCount, hasNextPage, fetchNextPage, isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={scrollRef} className="h-full w-full overflow-auto">
-      <div
-        className="relative"
-        style={{ height: rowVirtualizer.getTotalSize() }}
-      >
+      <div className="relative" style={{ height: rowVirtualizer.getTotalSize() }}>
         {rowVirtualizer.getVirtualItems().map((vRow) => {
           const rowIndex = vRow.index;
           const startY = vRow.start;
@@ -92,11 +90,7 @@ export default function VirtualizedCardGrid({
           const rowItems = items.slice(start, end);
 
           return (
-            <div
-              key={rowIndex}
-              className="absolute left-0 w-full"
-              style={{ transform: `translateY(${startY}px)` }}
-            >
+            <div key={rowIndex} className="absolute left-0 w-full" style={{ transform: `translateY(${startY}px)` }}>
               <div
                 className="grid"
                 style={{
@@ -116,9 +110,7 @@ export default function VirtualizedCardGrid({
       </div>
 
       {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-          Loading more…
-        </div>
+        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">Loading more…</div>
       )}
     </div>
   );
