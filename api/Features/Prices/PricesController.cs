@@ -50,9 +50,17 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
                 .First())
             .Select(p => new PricePointDto(
                 p.AsOfUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                Math.Round(p.PriceCents / 100m, 2, MidpointRounding.AwayFromZero)))
+                p.PriceCents.ToDollars()))
             .ToList();
 
         return Ok(new PriceHistoryResponse(grouped));
+    }
+}
+
+public static class PriceExtensions
+{
+    public static decimal ToDollars(this int priceCents)
+    {
+        return Math.Round(priceCents / 100m, 2, MidpointRounding.AwayFromZero);
     }
 }
