@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using api.Data;
 using api.Features.Cards.Dtos;
 using api.Middleware;
+using api.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,7 +40,7 @@ public sealed class CardFacetsController : ControllerBase
     [HttpGet("sets")]
     public async Task<ActionResult<CardFacetSetsResponse>> GetSets([FromQuery] string? game, CancellationToken ct = default)
     {
-        var games = ParseCsv(game);
+        var games = CsvUtils.Parse(game);
 
         var query = _db.CardPrintings.AsNoTracking().AsQueryable();
         if (games.Count > 0)
@@ -66,7 +67,7 @@ public sealed class CardFacetsController : ControllerBase
     [HttpGet("rarities")]
     public async Task<ActionResult<CardFacetRaritiesResponse>> GetRarities([FromQuery] string? game, CancellationToken ct = default)
     {
-        var games = ParseCsv(game);
+        var games = CsvUtils.Parse(game);
 
         var query = _db.CardPrintings.AsNoTracking().AsQueryable();
         if (games.Count > 0)
@@ -90,13 +91,4 @@ public sealed class CardFacetsController : ControllerBase
         return Ok(response);
     }
 
-    private static List<string> ParseCsv(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return new List<string>();
-
-        return value
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-    }
 }
