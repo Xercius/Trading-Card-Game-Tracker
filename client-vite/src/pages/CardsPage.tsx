@@ -129,12 +129,14 @@ export default function CardsPage() {
           </div>
         </div>
       )}
-      <CardModal
-        open={selectedCardId != null}
-        cardId={selectedCardId ?? 0}
-        initialPrintingId={selectedPrintingId ?? undefined}
-        onOpenChange={handleModalOpenChange}
-      />
+      {selectedCardId != null && (
+        <CardModal
+          open={true}
+          cardId={selectedCardId}
+          initialPrintingId={selectedPrintingId ?? undefined}
+          onOpenChange={handleModalOpenChange}
+        />
+      )}
     </div>
   );
 }
