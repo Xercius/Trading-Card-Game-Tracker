@@ -15,8 +15,6 @@ export type UserLite = {
 
 export type AdminUserApi = ApiUser & {
   createdUtc: string;
-  username?: string | null;
-  displayName?: string | null;
   isAdmin: boolean;
 };
 
