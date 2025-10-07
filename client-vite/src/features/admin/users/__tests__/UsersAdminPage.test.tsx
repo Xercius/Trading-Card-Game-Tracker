@@ -122,7 +122,7 @@ describe("UsersAdminPage", () => {
 
     expect(aliceToggle.checked).toBe(false);
     expect(container.textContent ?? "").toContain("toggle failed");
-    expect(refreshUsers.mock).not.toHaveBeenCalled();
+    expect(refreshUsers).not.toHaveBeenCalled();
 
     await cleanup();
   });
