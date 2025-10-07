@@ -14,10 +14,13 @@ The goal is to eventually incorporate cards from the following games:
 
 ## Recent API additions
 - `GET /api/cards/{id}/printings` – returns the available printings for a card, ordered by set and collector number.
-- `GET /api/prices/{printingId}/history?days=30` – provides a 30-day sparkline-friendly series of daily closing prices for a card printing.
+- `GET /api/cards/{id}/sparkline?days=30` – returns aggregated value points for the card across its non-proxy printings.
+- `GET /api/collection/value/history?days=90` – produces daily totals for the authenticated user's collection with proxies excluded.
+- `GET /api/decks/{deckId}/value/history?days=90` – surfaces daily deck values across owned printings with proxies excluded.
 - `POST /api/collection/items` – quick-add endpoint that increments the owned quantity for the authenticated user.
 - `POST /api/wishlist/items` – quick-add endpoint that increments the desired quantity for the authenticated user.
 
 ## Admin operations
 - `[RequireAdmin]` enforces administrator access based on the `X-User-Id` middleware context and returns a `403` problem response otherwise.
 - `/api/admin/users` exposes admin-only CRUD operations for users with optimistic UI support in the Vite client. The API prevents demoting or deleting the final administrator and returns a `409 Conflict` problem response when that safeguard triggers.
+- `/api/admin/prices/ingest` ingests per-printing price points and safely upserts duplicates based on `(cardPrintingId, capturedAt)`.

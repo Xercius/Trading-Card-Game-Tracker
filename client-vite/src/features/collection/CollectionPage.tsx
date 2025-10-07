@@ -8,6 +8,14 @@ import { useIncludeProxies } from "@/hooks/useIncludeProxies";
 import { collectionKeys, useCollectionQuery } from "./api";
 import QtyField from "./QtyField";
 import BulkAddDialog from "./BulkAddDialog";
+import LineSparkline from "@/components/charts/LineSparkline";
+import { useCollectionValueHistory } from "./useCollectionValueHistory";
+import { latestValue } from "@/lib/valueHistory";
+
+function formatCurrency(value: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `$${value.toFixed(2)}`;
+}
 
 const ESTIMATED_ROW_HEIGHT = 72;
 
@@ -53,6 +61,10 @@ export default function CollectionPage() {
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+
+  const valueHistoryQuery = useCollectionValueHistory(undefined, !!userId);
+  const valueHistoryPoints = valueHistoryQuery.data ?? [];
+  const collectionLatestValue = useMemo(() => latestValue(valueHistoryPoints), [valueHistoryPoints]);
 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
@@ -149,6 +161,38 @@ export default function CollectionPage() {
         </div>
         <BulkAddDialog queryKey={queryKey} />
       </div>
+
+      <section className="rounded border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold">Collection value (last 90 days)</h2>
+            {collectionLatestValue != null && (
+              <p className="text-xs text-muted-foreground">Latest: {formatCurrency(collectionLatestValue)}</p>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">Proxies excluded.</span>
+        </div>
+        <div className="mt-3">
+          {valueHistoryQuery.isLoading && (
+            <p className="text-xs text-muted-foreground">Loading value history…</p>
+          )}
+          {valueHistoryQuery.isError && (
+            <p className="text-xs text-destructive">Failed to load value history.</p>
+          )}
+          {!valueHistoryQuery.isLoading && !valueHistoryQuery.isError && valueHistoryPoints.length === 0 && (
+            <p className="text-xs text-muted-foreground">No value data.</p>
+          )}
+          {valueHistoryPoints.length > 0 && (
+            <LineSparkline
+              points={valueHistoryPoints}
+              ariaLabel="Collection value over time"
+              height={80}
+              className="h-20"
+              stroke="hsl(var(--primary))"
+            />
+          )}
+        </div>
+      </section>
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div>

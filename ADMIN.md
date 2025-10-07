@@ -9,6 +9,7 @@ All routes require the `X-User-Id` header for an administrator.
 - `GET /api/admin/import/options` — returns the available importers, supported games, and known set codes. Use this to populate selection lists in the UI.
 - `POST /api/admin/import/dry-run` — accepts either a JSON payload (`{ "source": "dummy", "set": "ALP" }`) or `multipart/form-data` with `source` and a `.csv`/`.json` upload. No database changes are persisted; the response includes a summary with new/update counts and preview rows.
 - `POST /api/admin/import/apply` — mirrors the dry-run payloads but commits the changes.
+- `POST /api/admin/prices/ingest` — ingests daily price snapshots. Each array item should include `cardPrintingId`, `capturedAt` (`YYYY-MM-DD`), and a decimal `price`. The endpoint upserts on `(cardPrintingId, capturedAt)` and ignores invalid printings.
 
 All dry-run/apply requests honor the importer-specific options (set codes, limit, etc.). Errors are returned as `ProblemDetails` with a `400` status.
 

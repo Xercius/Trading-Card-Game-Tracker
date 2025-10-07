@@ -25,15 +25,6 @@ export type PrintingSummary = {
   imageUrl: string;
 };
 
-export type PricePoint = {
-  d: string;
-  p: number;
-};
-
-export type PriceHistory = {
-  points: PricePoint[];
-};
-
 export type CollectionQuickAddResponse = {
   printingId: number;
   quantityOwned: number;

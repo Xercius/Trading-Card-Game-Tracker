@@ -43,6 +43,17 @@ vi.mock("@/state/useUser", () => ({
   useUser: () => ({ userId: 1 }),
 }));
 
+vi.mock("../useCollectionValueHistory", () => ({
+  useCollectionValueHistory: vi.fn(() => ({
+    data: [
+      { d: "2024-01-01", v: 2 },
+      { d: "2024-01-02", v: 4 },
+    ],
+    isLoading: false,
+    isError: false,
+  })),
+}));
+
 describe("CollectionPage", () => {
   it("toggles availability label when include proxies changes", async () => {
     const router = createMemoryRouter([
@@ -56,6 +67,8 @@ describe("CollectionPage", () => {
     await act(async () => {
       root.render(<RouterProvider router={router} />);
     });
+
+    expect(container.textContent).toContain("Proxies excluded.");
 
     const badgeLabel = () => container.querySelector<HTMLSpanElement>("span.font-semibold");
     expect(badgeLabel()?.textContent).toBe("A");

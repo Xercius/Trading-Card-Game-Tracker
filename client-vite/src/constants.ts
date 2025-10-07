@@ -7,3 +7,4 @@ export const LS_INCLUDE_PROXIES_KEY = "tcg-tracker:includeProxies";
 export const IMPORT_MAX_ROWS_PREVIEW = 250;
 export const UPLOAD_MAX_SIZE_MB = 10;
 export const REQUEST_TIMEOUT_MS = 120_000;
+export const QUERY_STALE_MS_VALUE_HISTORY = 5 * 60_000;

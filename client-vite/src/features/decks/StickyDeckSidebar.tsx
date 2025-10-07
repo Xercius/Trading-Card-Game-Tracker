@@ -2,6 +2,8 @@ import LazyImage from "@/components/LazyImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { resolveImageUrl } from "@/lib/http";
+import LineSparkline from "@/components/charts/LineSparkline";
+import type { ValuePoint } from "@/types/value";
 import type { DeckCardWithAvailability } from "./api";
 import {
   AVAILABILITY_DATA,
@@ -29,6 +31,13 @@ type Props = {
   onIncludeProxiesChange: (next: boolean) => void;
   onAdjustQuantity: (printingId: number, delta: number, meta?: AdjustQuantityMeta) => void;
   isLoading?: boolean;
+  valueHistory: {
+    points: ValuePoint[];
+    isLoading: boolean;
+    isError: boolean;
+    latestValue: number | null;
+  };
+  formatCurrency: (value: number | null) => string;
 };
 
 type DragData = {
@@ -74,11 +83,15 @@ export default function StickyDeckSidebar({
   onIncludeProxiesChange,
   onAdjustQuantity,
   isLoading = false,
+  valueHistory,
+  formatCurrency,
 }: Props) {
   const total = useMemo(
     () => rows.reduce((sum, row) => sum + row.quantityInDeck, 0),
     [rows]
   );
+
+  const hasValueHistory = valueHistory.points.length > 0;
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -143,6 +156,35 @@ export default function StickyDeckSidebar({
         >
           {includeProxies ? "Showing A + Proxies" : "Showing Owned Only"}
         </Button>
+        <div className="mt-4 rounded border border-border/60 bg-background p-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Deck value (last 90 days)</span>
+            <span>Proxies excluded.</span>
+          </div>
+          {valueHistory.isLoading && (
+            <p className="mt-2 text-xs text-muted-foreground">Loading value history…</p>
+          )}
+          {valueHistory.isError && (
+            <p className="mt-2 text-xs text-destructive">Failed to load value history.</p>
+          )}
+          {!valueHistory.isLoading && !valueHistory.isError && !hasValueHistory && (
+            <p className="mt-2 text-xs text-muted-foreground">No value data.</p>
+          )}
+          {hasValueHistory && (
+            <div className="mt-2 space-y-2">
+              <LineSparkline
+                points={valueHistory.points}
+                ariaLabel="Deck value over time"
+                height={72}
+                className="h-20"
+                stroke="hsl(var(--primary))"
+              />
+              <p className="text-xs text-muted-foreground">
+                Latest: {formatCurrency(valueHistory.latestValue)}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div
