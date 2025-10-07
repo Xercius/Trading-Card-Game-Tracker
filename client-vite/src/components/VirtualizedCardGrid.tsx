@@ -12,8 +12,8 @@ type Props = {
   minTileWidth?: number; // px; default 220
   rowGap?: number; // px; default 12
   colGap?: number; // px; default 12
-  overscan?: number; // default 6
-  footerHeight?: number; // default 88
+  overscan?: number; // rows; default 6
+  footerHeight?: number; // px; default 88
 };
 
 export default function VirtualizedCardGrid({

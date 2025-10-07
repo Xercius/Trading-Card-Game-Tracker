@@ -7,7 +7,8 @@ import { fetchCardsPage } from "@/features/cards/api";
 import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/state/useUser";
 
-const PAGE_SIZE = 60; // tune per perf
+// Heuristic: smaller page on low-core devices to reduce memory pressure.
+const PAGE_SIZE = (navigator?.hardwareConcurrency ?? 4) <= 4 ? 60 : 96;
 
 export default function CardsPage() {
   const { userId } = useUser();
@@ -49,6 +50,8 @@ export default function CardsPage() {
           console.debug("card", c.id);
         }}
         minTileWidth={220}
+        overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 6 : 8}
+        footerHeight={88}
       />
     </div>
   );
