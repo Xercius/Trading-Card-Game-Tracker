@@ -37,7 +37,7 @@ export default function QtyField({ printingId, value, otherValue, field, queryKe
     }
 
     const ownedQty = field === "owned" ? next : otherValue;
-    const proxyQty = field === "proxy" ? next : value;
+    const proxyQty = field === "proxy" ? next : otherValue;
     setDraft(String(next));
     setError(null);
 
