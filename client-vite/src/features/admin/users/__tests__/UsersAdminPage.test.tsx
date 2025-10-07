@@ -199,7 +199,7 @@ describe("UsersAdminPage", () => {
 
     expect(confirmMock).toHaveBeenCalled();
     expect(container.textContent ?? "").toContain("At least one administrator must remain.");
-    expect(refreshUsers.mock).not.toHaveBeenCalled();
+    expect(refreshUsers).not.toHaveBeenCalled();
 
     await cleanup();
   });
