@@ -5,6 +5,8 @@ public sealed record UserCardItemResponse(
     int QuantityOwned,
     int QuantityWanted,
     int QuantityProxyOwned,
+    int Availability,
+    int AvailabilityWithProxies,
     int CardId,
     string CardName,
     string Game,

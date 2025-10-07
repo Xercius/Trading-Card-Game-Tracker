@@ -1,6 +1,7 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Covers /api/collection endpoints including legacy user-scoped routes.
 
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -142,13 +143,13 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Collection_Put_SetAll_UpdatesOr404()
+    public async Task Collection_Put_UserScoped_SetAll_UpdatesOr404()
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var updateResponse = await client.PutAsJsonAsync(
-            $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
+            $"/api/user/{TestDataSeeder.AliceUserId}/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
             new
             {
                 quantityOwned = 1,
@@ -164,7 +165,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, row.QuantityProxyOwned);
 
         var missingResponse = await client.PutAsJsonAsync(
-            $"/api/collection/{TestDataSeeder.ExtraMagicPrintingId}",
+            $"/api/user/{TestDataSeeder.AliceUserId}/collection/{TestDataSeeder.ExtraMagicPrintingId}",
             new
             {
                 quantityOwned = 1,
@@ -195,6 +196,104 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, row.QuantityOwned);
         Assert.Equal(4, row.QuantityWanted);
         Assert.Equal(2, row.QuantityProxyOwned);
+    }
+
+    [Fact]
+    public async Task Collection_Put_OwnedProxy_SetsValuesAndIsIdempotent()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
+            new { ownedQty = 3, proxyQty = 2 }
+        );
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var first = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var row = Assert.Single(first);
+        Assert.Equal(3, row.QuantityOwned);
+        Assert.Equal(2, row.QuantityProxyOwned);
+
+        var secondResponse = await client.PutAsJsonAsync(
+            $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
+            new { ownedQty = 3, proxyQty = 2 }
+        );
+        Assert.Equal(HttpStatusCode.NoContent, secondResponse.StatusCode);
+
+        var second = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var secondRow = Assert.Single(second);
+        Assert.Equal(3, secondRow.QuantityOwned);
+        Assert.Equal(2, secondRow.QuantityProxyOwned);
+    }
+
+    [Fact]
+    public async Task Collection_BulkPatch_UpdatesMultiplePrintings()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/collection/bulk")
+        {
+            Content = JsonContent.Create(new
+            {
+                items = new[]
+                {
+                    new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, ownedDelta = 2, proxyDelta = 1 },
+                    new { printingId = TestDataSeeder.LightningBoltBetaPrintingId, ownedDelta = -1, proxyDelta = 0 },
+                }
+            })
+        });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var alpha = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var alphaRow = Assert.Single(alpha);
+        Assert.Equal(7, alphaRow.QuantityOwned);
+        Assert.Equal(2, alphaRow.QuantityProxyOwned);
+
+        var beta = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
+        var betaRow = Assert.Single(beta);
+        Assert.Equal(0, betaRow.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Collection_BulkPatch_InvalidPrintingRollsBack()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/collection/bulk")
+        {
+            Content = JsonContent.Create(new
+            {
+                items = new[]
+                {
+                    new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, ownedDelta = 2, proxyDelta = 0 },
+                    new { printingId = 99999, ownedDelta = 1, proxyDelta = 0 },
+                }
+            })
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var alpha = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var alphaRow = Assert.Single(alpha);
+        Assert.Equal(5, alphaRow.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Collection_List_IncludesAvailability()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var rows = await GetCollectionAsync(client, "");
+        Assert.NotEmpty(rows);
+
+        var alpha = rows.First(r => r.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+        Assert.Equal(alpha.QuantityOwned, alpha.Availability);
+        Assert.Equal(alpha.QuantityOwned + alpha.QuantityProxyOwned, alpha.AvailabilityWithProxies);
     }
 
     [Fact]
