@@ -1,5 +1,15 @@
-export { fetchCardsPage } from "./list";
-export type { CardsPage, CardsPageParams } from "./list";
+export {
+  fetchCardsPage,
+  fetchCardGames,
+  fetchCardSets,
+  fetchCardRarities,
+} from "./list";
+export type {
+  CardsPage,
+  CardsPageParams,
+  CardFacetSets,
+  CardFacetRarities,
+} from "./list";
 export type {
   CardDetail,
   CardPrintingDetail,
