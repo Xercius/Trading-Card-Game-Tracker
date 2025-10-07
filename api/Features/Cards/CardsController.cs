@@ -36,6 +36,8 @@ public class CardsController : ControllerBase
     public async Task<ActionResult<CardListPageResponse>> ListCardsVirtualized(
         [FromQuery] string? q,
         [FromQuery] string? game,
+        [FromQuery] string? set,
+        [FromQuery] string? rarity,
         [FromQuery] int skip = 0,
         [FromQuery] int take = 60,
         [FromQuery] bool includeTotal = false,
@@ -45,9 +47,9 @@ public class CardsController : ControllerBase
         if (take > 200) take = 200;
         if (skip < 0) skip = 0;
 
-        var games = string.IsNullOrWhiteSpace(game)
-            ? System.Array.Empty<string>()
-            : game.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
+        var games = ParseCsv(game);
+        var sets = ParseCsv(set);
+        var rarities = ParseCsv(rarity);
 
         IQueryable<Card> query = _db.Cards.AsNoTracking();
 
@@ -62,6 +64,16 @@ public class CardsController : ControllerBase
         if (games.Length > 0)
         {
             query = query.Where(c => games.Contains(c.Game));
+        }
+
+        if (sets.Length > 0)
+        {
+            query = query.Where(c => c.Printings.Any(p => sets.Contains(p.Set)));
+        }
+
+        if (rarities.Length > 0)
+        {
+            query = query.Where(c => c.Printings.Any(p => rarities.Contains(p.Rarity)));
         }
 
         query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.CardId);
@@ -109,6 +121,16 @@ public class CardsController : ControllerBase
             Total = total,
             NextSkip = nextSkip
         });
+    }
+
+    private static string[] ParseCsv(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return Array.Empty<string>();
+
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private bool NotAdmin()
