@@ -17,19 +17,20 @@ namespace api.Features.Prices;
 [RequireUserHeader]
 public sealed class PricesController(AppDbContext db) : ControllerBase
 {
+    private const int DefaultHistoryDays = 30;
     private readonly AppDbContext _db = db;
 
     [HttpGet("{printingId:int}/history")]
     public async Task<ActionResult<PriceHistoryResponse>> GetHistory(
         int printingId,
-        [FromQuery] int days = 30)
+        [FromQuery] int days = DefaultHistoryDays)
     {
         if (printingId <= 0) return BadRequest("printingId must be positive.");
 
         var exists = await _db.CardPrintings.AnyAsync(cp => cp.Id == printingId);
         if (!exists) return NotFound();
 
-        if (days <= 0) days = 30;
+        if (days <= 0) days = DefaultHistoryDays;
         var cutoffUtc = DateTime.UtcNow.AddDays(-days);
 
         var rawPoints = await _db.ValueHistories
