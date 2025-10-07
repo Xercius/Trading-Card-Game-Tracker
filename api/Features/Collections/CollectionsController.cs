@@ -364,8 +364,7 @@ public class CollectionsController : ControllerBase
         }
         else
         {
-            var total = (long)card.QuantityOwned + dto.Quantity;
-            card.QuantityOwned = total > int.MaxValue ? int.MaxValue : (int)total;
+            card.QuantityOwned = UserCardMath.AddClamped(card.QuantityOwned, dto.Quantity);
         }
 
         await _db.SaveChangesAsync();
