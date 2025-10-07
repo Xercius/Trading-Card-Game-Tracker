@@ -326,8 +326,7 @@ public class WishlistsController : ControllerBase
         }
         else
         {
-            var total = (long)card.QuantityWanted + dto.Quantity;
-            card.QuantityWanted = total > int.MaxValue ? int.MaxValue : (int)total;
+            card.QuantityWanted = UserCardMath.AddClamped(card.QuantityWanted, dto.Quantity);
         }
 
         await _db.SaveChangesAsync();

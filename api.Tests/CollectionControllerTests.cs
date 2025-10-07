@@ -319,6 +319,27 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Collection_QuickAdd_ClampsAtIntMax()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/collection/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = int.MaxValue - 1 });
+        createResponse.EnsureSuccessStatusCode();
+
+        var incrementResponse = await client.PostAsJsonAsync(
+            "/api/collection/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 100 });
+        incrementResponse.EnsureSuccessStatusCode();
+
+        var increment = await incrementResponse.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(increment);
+        Assert.Equal(int.MaxValue, increment!.QuantityOwned);
+    }
+
+    [Fact]
     public async Task Collection_QuickAdd_RejectsInvalidQuantity()
     {
         await factory.ResetDatabaseAsync();

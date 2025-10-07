@@ -226,6 +226,27 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
+    public async Task Wishlist_QuickAdd_ClampsAtIntMax()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var create = await client.PostAsJsonAsync(
+            "/api/wishlist/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = int.MaxValue - 1 });
+        create.EnsureSuccessStatusCode();
+
+        var increment = await client.PostAsJsonAsync(
+            "/api/wishlist/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 100 });
+        increment.EnsureSuccessStatusCode();
+
+        var result = await increment.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(int.MaxValue, result!.QuantityWanted);
+    }
+
+    [Fact]
     public async Task Wishlist_QuickAdd_RejectsInvalidQuantity()
     {
         await factory.ResetDatabaseAsync();
