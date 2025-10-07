@@ -75,6 +75,8 @@ type QuantityMutationVariables = {
   initialAvailabilityWithProxies?: number;
 };
 
+type QuantityDeltaPayload = Pick<QuantityMutationVariables, "printingId" | "qtyDelta">;
+
 type QuantityMutationContext = {
   previous?: DeckCardWithAvailability[];
 };
@@ -134,11 +136,9 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
   return useMutation({
     mutationFn: async (variables: QuantityMutationVariables) => {
       if (deckId == null) throw new Error("Deck not selected");
-      await api.post(`decks/${deckId}/cards`, {
+      await postDeckQuantityDelta(deckId, includeProxies, {
         printingId: variables.printingId,
         qtyDelta: variables.qtyDelta,
-      }, {
-        params: { includeProxies },
       });
       return variables;
     },
@@ -166,4 +166,16 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
       queryClient.invalidateQueries({ queryKey: collectionKeys.all });
     },
   });
+}
+
+export async function postDeckQuantityDelta(
+  deckId: number,
+  includeProxies: boolean,
+  payload: QuantityDeltaPayload
+) {
+  await api.post(
+    `decks/${deckId}/cards/quantity-delta`,
+    payload,
+    { params: { includeProxies } }
+  );
 }

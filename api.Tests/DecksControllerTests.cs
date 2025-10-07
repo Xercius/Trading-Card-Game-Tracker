@@ -68,10 +68,13 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
         Assert.Equal(1, alphaBefore.Availability);
 
         var addResponse = await client.PostAsJsonAsync(
-            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards",
+            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards/quantity-delta",
             new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = 1 }
         );
-        Assert.Equal(HttpStatusCode.NoContent, addResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, addResponse.StatusCode);
+        var addRow = await addResponse.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
+        Assert.NotNull(addRow);
+        Assert.Equal(5, addRow!.QuantityInDeck);
 
         var afterAdd = await GetRowsAsync(client, TestDataSeeder.AliceMagicDeckId);
         var alphaAfterAdd = Assert.Single(afterAdd, r => r.PrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
@@ -79,16 +82,19 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
         Assert.Equal(0, alphaAfterAdd.Availability);
 
         var failResponse = await client.PostAsJsonAsync(
-            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards",
+            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards/quantity-delta",
             new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = 1 }
         );
         Assert.Equal(HttpStatusCode.BadRequest, failResponse.StatusCode);
 
         var subtractResponse = await client.PostAsJsonAsync(
-            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards",
+            $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards/quantity-delta",
             new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = -2 }
         );
-        Assert.Equal(HttpStatusCode.NoContent, subtractResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, subtractResponse.StatusCode);
+        var subtractRow = await subtractResponse.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
+        Assert.NotNull(subtractRow);
+        Assert.Equal(3, subtractRow!.QuantityInDeck);
 
         var afterSubtract = await GetRowsAsync(client, TestDataSeeder.AliceMagicDeckId);
         var alphaAfterSubtract = Assert.Single(afterSubtract, r => r.PrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);

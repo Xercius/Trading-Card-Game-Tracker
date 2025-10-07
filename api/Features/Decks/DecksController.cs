@@ -6,8 +6,11 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mime;
@@ -26,12 +29,14 @@ public class DecksController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
+    private readonly ILogger<DecksController> _logger;
     private static readonly JsonSerializerOptions JsonWebOptions = new(JsonSerializerDefaults.Web);
 
-    public DecksController(AppDbContext db, IMapper mapper)
+    public DecksController(AppDbContext db, IMapper mapper, ILogger<DecksController> logger)
     {
         _db = db;
         _mapper = mapper;
+        _logger = logger;
     }
 
     // -----------------------------
@@ -363,7 +368,7 @@ public class DecksController : ControllerBase
         return Ok(rows);
     }
 
-    private async Task<IActionResult> UpsertDeckCardCore(int deckId, UpsertDeckCardRequest dto)
+    private async Task<IActionResult> UpsertDeckCardCore(int deckId, UpsertDeckCardFullRequest dto)
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
@@ -463,13 +468,20 @@ public class DecksController : ControllerBase
         return NoContent();
     }
 
-    private async Task<IActionResult> ApplyDeckCardQuantityDeltaCore(int deckId, int cardPrintingId, int qtyDelta, bool includeProxies)
+    private async Task<IActionResult> ApplyDeckCardQuantityDeltaCore(int deckId, int cardPrintingId, int qtyDelta, bool includeProxies, bool returnUpdatedRow = false)
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
-        if (qtyDelta == 0) return NoContent();
+        if (cardPrintingId <= 0) return BadRequest("Valid printingId required.");
 
         var deckEntity = deck!;
+        if (qtyDelta == 0)
+        {
+            if (!returnUpdatedRow) return NoContent();
+
+            var snapshot = await LoadDeckCardAvailabilityAsync(deckEntity, cardPrintingId, includeProxies, HttpContext.RequestAborted);
+            return Ok(snapshot);
+        }
         var ct = HttpContext.RequestAborted;
 
         var printing = await _db.CardPrintings.Include(cp => cp.Card)
@@ -505,7 +517,67 @@ public class DecksController : ControllerBase
         }
 
         var delta = new DeckCardDeltaRequest(cardPrintingId, qtyDelta, 0, 0, 0);
-        return await ApplyDeckCardDeltaCore(deckId, new[] { delta });
+        var result = await ApplyDeckCardDeltaCore(deckId, new[] { delta });
+        if (result is not NoContentResult) return result;
+
+        if (!returnUpdatedRow) return result;
+
+        var row = await LoadDeckCardAvailabilityAsync(deckEntity, cardPrintingId, includeProxies, ct);
+        return Ok(row);
+    }
+
+    private async Task<IActionResult> UpsertDeckCardQuantityCore(int deckId, UpsertDeckCardRequest request, bool includeProxies, bool returnUpdatedRow)
+    {
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err != null) return err;
+        if (request.PrintingId <= 0) return BadRequest("Valid printingId required.");
+
+        var deckEntity = deck!;
+        var ct = HttpContext.RequestAborted;
+        var normalizedQty = request.Qty < 0 ? 0 : request.Qty;
+
+        var existing = await _db.DeckCards
+            .AsNoTracking()
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == request.PrintingId, ct);
+
+        var currentQty = existing?.QuantityInDeck ?? 0;
+        if (normalizedQty > currentQty)
+        {
+            var printing = await _db.CardPrintings.Include(cp => cp.Card)
+                .FirstOrDefaultAsync(cp => cp.Id == request.PrintingId, ct);
+            if (printing is null) return NotFound("CardPrinting not found.");
+            if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Card game does not match deck game.");
+
+            var userCard = await _db.UserCards
+                .FirstOrDefaultAsync(uc => uc.UserId == deckEntity.UserId && uc.CardPrintingId == request.PrintingId, ct);
+            var owned = userCard?.QuantityOwned ?? 0;
+            var proxyOwned = userCard?.QuantityProxyOwned ?? 0;
+            var maxAllowedLong = includeProxies ? (long)owned + proxyOwned : owned;
+            if (maxAllowedLong < 0) maxAllowedLong = 0;
+            if (maxAllowedLong > int.MaxValue) maxAllowedLong = int.MaxValue;
+            var maxAllowed = (int)maxAllowedLong;
+
+            if (normalizedQty > maxAllowed)
+            {
+                return BadRequest("Insufficient availability for this card.");
+            }
+        }
+
+        var fullRequest = new UpsertDeckCardFullRequest(
+            request.PrintingId,
+            normalizedQty,
+            existing?.QuantityIdea ?? 0,
+            existing?.QuantityAcquire ?? 0,
+            existing?.QuantityProxy ?? 0);
+
+        var result = await UpsertDeckCardCore(deckId, fullRequest);
+        if (result is not NoContentResult) return result;
+
+        if (!returnUpdatedRow) return result;
+
+        var row = await LoadDeckCardAvailabilityAsync(deckEntity, request.PrintingId, includeProxies, ct);
+        return Ok(row);
     }
 
     private async Task<IActionResult> SetDeckCardQuantitiesCore(int deckId, int cardPrintingId, SetDeckCardQuantitiesRequest dto)
@@ -578,6 +650,46 @@ public class DecksController : ControllerBase
         _db.DeckCards.Remove(dc);
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task<DeckCardWithAvailabilityResponse?> LoadDeckCardAvailabilityAsync(
+        Deck deck,
+        int cardPrintingId,
+        bool includeProxies,
+        CancellationToken cancellationToken)
+    {
+        var deckCard = await _db.DeckCards
+            .Where(dc => dc.DeckId == deck.Id && dc.CardPrintingId == cardPrintingId)
+            .Include(dc => dc.CardPrinting)!.ThenInclude(cp => cp.Card)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (deckCard is null) return null;
+
+        var printing = deckCard.CardPrinting;
+        var card = printing?.Card;
+        if (printing is null || card is null) return null;
+
+        var userCard = await _db.UserCards
+            .AsNoTracking()
+            .FirstOrDefaultAsync(uc => uc.UserId == deck.UserId && uc.CardPrintingId == cardPrintingId, cancellationToken);
+
+        var owned = userCard?.QuantityOwned ?? 0;
+        var proxy = userCard?.QuantityProxyOwned ?? 0;
+        var assigned = deckCard.QuantityInDeck;
+        var (availability, availabilityWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
+        if (!includeProxies)
+        {
+            availabilityWithProxy = availability;
+        }
+
+        return new DeckCardWithAvailabilityResponse(
+            deckCard.CardPrintingId,
+            card.Name,
+            printing.ImageUrl,
+            assigned,
+            availability,
+            availabilityWithProxy);
     }
 
     private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
@@ -780,13 +892,45 @@ public class DecksController : ControllerBase
     public async Task<IActionResult> GetDeckCardsWithAvailability(int deckId, [FromQuery] bool includeProxies = false)
         => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies);
 
-    // POST /api/deck/{deckId}/cards  (upsert one)
+    // POST /api/deck/{deckId}/cards/quantity-delta
+    [HttpPost("/api/deck/{deckId:int}/cards/quantity-delta")]
+    [HttpPost("/api/decks/{deckId:int}/cards/quantity-delta")] // alias
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApplyDeckCardQuantityDelta(int deckId, [FromBody] QuantityDeltaRequest request, [FromQuery] bool includeProxies = false)
+    {
+        if (request is null) return BadRequest();
+        return await ApplyDeckCardQuantityDeltaCore(deckId, request.PrintingId, request.QtyDelta, includeProxies, returnUpdatedRow: true);
+    }
+
+    // POST /api/deck/{deckId}/cards/upsert
+    [HttpPost("/api/deck/{deckId:int}/cards/upsert")]
+    [HttpPost("/api/decks/{deckId:int}/cards/upsert")] // alias
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpsertDeckCardQuantity(int deckId, [FromBody] UpsertDeckCardRequest request, [FromQuery] bool includeProxies = false)
+    {
+        if (request is null) return BadRequest();
+        return await UpsertDeckCardQuantityCore(deckId, request, includeProxies, returnUpdatedRow: true);
+    }
+
+    // POST /api/deck/{deckId}/cards  (upsert one) -- legacy
+    [Obsolete("Use /cards/quantity-delta or /cards/upsert")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     [HttpPost("/api/deck/{deckId:int}/cards")]
     [HttpPost("/api/decks/{deckId:int}/cards")] // alias
     [Consumes("application/json")]
     public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] JsonElement payload, [FromQuery] bool includeProxies = false)
     {
         if (payload.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
+        _logger.LogWarning("Legacy deck card endpoint invoked for deck {DeckId}", deckId);
 
         if (payload.TryGetProperty("qtyDelta", out var deltaProp) && payload.TryGetProperty("printingId", out var printingProp))
         {
@@ -797,7 +941,7 @@ public class DecksController : ControllerBase
 
         try
         {
-            var dto = JsonSerializer.Deserialize<UpsertDeckCardRequest>(payload.GetRawText(), JsonWebOptions);
+            var dto = JsonSerializer.Deserialize<UpsertDeckCardFullRequest>(payload.GetRawText(), JsonWebOptions);
             if (dto is null) return BadRequest();
             return await UpsertDeckCardCore(deckId, dto);
         }

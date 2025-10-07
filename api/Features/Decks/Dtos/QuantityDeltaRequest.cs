@@ -1,7 +1,7 @@
 namespace api.Features.Decks.Dtos;
 
-public sealed record UpsertDeckCardRequest
+public sealed record QuantityDeltaRequest
 {
     public int PrintingId { get; init; }
-    public int Qty { get; init; }
+    public int QtyDelta { get; init; }
 }
