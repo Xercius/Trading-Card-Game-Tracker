@@ -108,18 +108,18 @@ describe("useIncludeProxies", () => {
   });
 
   it("includes the includeProxies discriminator in query keys", () => {
-    const collectionKeyWithProxies = collectionKeys.list({
+    const commonCollectionParams = {
       userId: 1,
       page: 1,
       pageSize: 25,
       filters: { q: "", game: "", set: "", rarity: "" },
+    };
+    const collectionKeyWithProxies = collectionKeys.list({
+      ...commonCollectionParams,
       includeProxies: true,
     });
     const collectionKeyWithoutProxies = collectionKeys.list({
-      userId: 1,
-      page: 1,
-      pageSize: 25,
-      filters: { q: "", game: "", set: "", rarity: "" },
+      ...commonCollectionParams,
       includeProxies: false,
     });
 
