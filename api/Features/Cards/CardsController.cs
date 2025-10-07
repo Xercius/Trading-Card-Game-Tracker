@@ -123,16 +123,7 @@ public class CardsController : ControllerBase
         });
     }
 
-    private static string[] ParseCsv(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return Array.Empty<string>();
-
-        return value
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-    }
-
+    // CSV parsing logic moved to CsvUtils in api.Shared
     private bool NotAdmin()
     {
         var me = HttpContext.GetCurrentUser();
