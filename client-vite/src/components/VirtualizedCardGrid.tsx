@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import CardTile, { CardSummary } from "./CardTile";
 
@@ -9,6 +9,7 @@ type Props = {
   hasNextPage?: boolean;
   fetchNextPage?: () => void;
   onCardClick?: (c: CardSummary) => void;
+  renderItem?: (card: CardSummary) => ReactNode;
   minTileWidth?: number; // px; default 220
   rowGap?: number; // px; default 12
   colGap?: number; // px; default 12
@@ -22,6 +23,7 @@ export default function VirtualizedCardGrid({
   hasNextPage,
   fetchNextPage,
   onCardClick,
+  renderItem,
   minTileWidth = 220,
   rowGap = 12,
   colGap = 12,
@@ -100,7 +102,7 @@ export default function VirtualizedCardGrid({
               >
                 {rowItems.map((card) => (
                   <div key={card.id} style={{ height: tileHeight }}>
-                    <CardTile card={card} onClick={onCardClick} />
+                    {renderItem ? renderItem(card) : <CardTile card={card} onClick={onCardClick} />}
                   </div>
                 ))}
               </div>

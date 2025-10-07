@@ -20,3 +20,5 @@ if (import.meta.env.DEV) {
 }
 
 export type AppPath = (typeof paths)[keyof typeof paths];
+
+export const deckBuilderPath = (deckId: number | string) => `${paths.decks}/${deckId}`;

@@ -26,6 +26,7 @@ public class DecksController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
+    private static readonly JsonSerializerOptions JsonWebOptions = new(JsonSerializerDefaults.Web);
 
     public DecksController(AppDbContext db, IMapper mapper)
     {
@@ -64,6 +65,21 @@ public class DecksController : ControllerBase
         return (d, null);
     }
 
+    private async Task<(Deck? Deck, List<DeckCard> Cards, ActionResult? Error)> LoadDeckWithCards(int deckId)
+    {
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err != null || deck is null) return (deck, new List<DeckCard>(), err);
+
+        var ct = HttpContext.RequestAborted;
+        var cards = await _db.DeckCards
+            .Where(dc => dc.DeckId == deckId)
+            .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return (deck, cards, null);
+    }
+
     private static int NN(long v) => v < 0 ? 0 : v > int.MaxValue ? int.MaxValue : (int)v;
 
     private static bool TryI32(JsonElement e, string a, string b, out int v)
@@ -84,6 +100,31 @@ public class DecksController : ControllerBase
         if (obj.TryGetProperty(camelName, out value)) return true;
         if (obj.TryGetProperty(pascalName, out value)) return true;
         value = default;
+        return false;
+    }
+
+    private static bool TryReadInt32(JsonElement element, out int value)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Number:
+                if (element.TryGetInt32(out value)) return true;
+                if (element.TryGetInt64(out var longValue))
+                {
+                    value = NN(longValue);
+                    return true;
+                }
+                break;
+            case JsonValueKind.String:
+                if (long.TryParse(element.GetString(), out var parsed))
+                {
+                    value = NN(parsed);
+                    return true;
+                }
+                break;
+        }
+
+        value = 0;
         return false;
     }
 
@@ -315,16 +356,10 @@ public class DecksController : ControllerBase
 
     private async Task<IActionResult> GetDeckCardsCore(int deckId)
     {
-        var (deck, err) = await GetDeckForCaller(deckId);
+        var (_, cards, err) = await LoadDeckWithCards(deckId);
         if (err != null) return err;
 
-        var rows = await _db.DeckCards
-            .Where(dc => dc.DeckId == deckId)
-            .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
-            .AsNoTracking()
-            .ProjectTo<DeckCardItemResponse>(_mapper.ConfigurationProvider)
-            .ToListAsync();
-
+        var rows = cards.Select(dc => _mapper.Map<DeckCardItemResponse>(dc)).ToList();
         return Ok(rows);
     }
 
@@ -428,6 +463,51 @@ public class DecksController : ControllerBase
         return NoContent();
     }
 
+    private async Task<IActionResult> ApplyDeckCardQuantityDeltaCore(int deckId, int cardPrintingId, int qtyDelta, bool includeProxies)
+    {
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err != null) return err;
+        if (qtyDelta == 0) return NoContent();
+
+        var deckEntity = deck!;
+        var ct = HttpContext.RequestAborted;
+
+        var printing = await _db.CardPrintings.Include(cp => cp.Card)
+            .FirstOrDefaultAsync(cp => cp.Id == cardPrintingId, ct);
+        if (printing is null) return NotFound("CardPrinting not found.");
+        if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Card game does not match deck game.");
+
+        var deckCard = await _db.DeckCards
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == cardPrintingId, ct);
+        var currentQty = deckCard?.QuantityInDeck ?? 0;
+
+        var targetQtyLong = (long)currentQty + qtyDelta;
+        if (targetQtyLong < 0) targetQtyLong = 0;
+        if (targetQtyLong > int.MaxValue) targetQtyLong = int.MaxValue;
+        var targetQty = (int)targetQtyLong;
+
+        if (qtyDelta > 0)
+        {
+            var userCard = await _db.UserCards
+                .FirstOrDefaultAsync(uc => uc.UserId == deckEntity.UserId && uc.CardPrintingId == cardPrintingId, ct);
+            var owned = userCard?.QuantityOwned ?? 0;
+            var proxyOwned = userCard?.QuantityProxyOwned ?? 0;
+            var maxAllowedLong = includeProxies ? (long)owned + proxyOwned : owned;
+            if (maxAllowedLong < 0) maxAllowedLong = 0;
+            if (maxAllowedLong > int.MaxValue) maxAllowedLong = int.MaxValue;
+            var maxAllowed = (int)maxAllowedLong;
+
+            if (targetQty > maxAllowed)
+            {
+                return BadRequest("Insufficient availability for this card.");
+            }
+        }
+
+        var delta = new DeckCardDeltaRequest(cardPrintingId, qtyDelta, 0, 0, 0);
+        return await ApplyDeckCardDeltaCore(deckId, new[] { delta });
+    }
+
     private async Task<IActionResult> SetDeckCardQuantitiesCore(int deckId, int cardPrintingId, SetDeckCardQuantitiesRequest dto)
     {
         var (deck, err) = await GetDeckForCaller(deckId);
@@ -500,23 +580,66 @@ public class DecksController : ControllerBase
         return NoContent();
     }
 
+    private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
+    {
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
+        if (err != null) return err;
+        if (deck is null) return Forbid();
+
+        if (cards.Count == 0) return Ok(Array.Empty<DeckCardWithAvailabilityResponse>());
+
+        var ct = HttpContext.RequestAborted;
+        var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
+        var userCards = await _db.UserCards
+            .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
+            .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
+
+        var result = new List<DeckCardWithAvailabilityResponse>(cards.Count);
+        foreach (var dc in cards)
+        {
+            var printing = dc.CardPrinting;
+            var card = printing?.Card;
+            if (printing is null || card is null) continue;
+
+            userCards.TryGetValue(dc.CardPrintingId, out var uc);
+            var owned = uc?.QuantityOwned ?? 0;
+            var proxy = uc?.QuantityProxyOwned ?? 0;
+            var assigned = dc.QuantityInDeck;
+            var (available, availableWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
+            if (!includeProxies)
+            {
+                availableWithProxy = available;
+            }
+
+            result.Add(new DeckCardWithAvailabilityResponse(
+                dc.CardPrintingId,
+                card.Name,
+                printing.ImageUrl,
+                assigned,
+                available,
+                availableWithProxy
+            ));
+        }
+
+        return Ok(result);
+    }
+
     private async Task<IActionResult> GetDeckAvailabilityCore(int deckId, bool includeProxies)
     {
-        var (deck, err) = await GetDeckForCaller(deckId);
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
         if (err != null) return err;
+        if (deck is null) return Forbid();
 
-        var deckEntity = deck!;
+        if (cards.Count == 0) return Ok(Array.Empty<DeckAvailabilityItemResponse>());
 
-        var deckCards = await _db.DeckCards.Where(dc => dc.DeckId == deckId).ToListAsync();
-        if (!deckCards.Any()) return Ok(Array.Empty<DeckAvailabilityItemResponse>());
-
-        var printIds = deckCards.Select(dc => dc.CardPrintingId).ToList();
+        var ct = HttpContext.RequestAborted;
+        var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
         var userCards = await _db.UserCards
-            .Where(uc => uc.UserId == deckEntity.UserId && printIds.Contains(uc.CardPrintingId))
-            .ToDictionaryAsync(uc => uc.CardPrintingId);
+            .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
+            .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
         var result = new List<DeckAvailabilityItemResponse>();
-        foreach (var dc in deckCards)
+        foreach (var dc in cards)
         {
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;
@@ -651,12 +774,38 @@ public class DecksController : ControllerBase
     [HttpGet("/api/decks/{deckId:int}/cards")] // alias
     public async Task<IActionResult> GetDeckCards(int deckId) => await GetDeckCardsCore(deckId);
 
+    // GET /api/decks/{deckId}/cards-with-availability
+    [HttpGet("/api/deck/{deckId:int}/cards-with-availability")]
+    [HttpGet("/api/decks/{deckId:int}/cards-with-availability")] // alias
+    public async Task<IActionResult> GetDeckCardsWithAvailability(int deckId, [FromQuery] bool includeProxies = false)
+        => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies);
+
     // POST /api/deck/{deckId}/cards  (upsert one)
     [HttpPost("/api/deck/{deckId:int}/cards")]
     [HttpPost("/api/decks/{deckId:int}/cards")] // alias
     [Consumes("application/json")]
-    public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] UpsertDeckCardRequest dto)
-        => await UpsertDeckCardCore(deckId, dto);
+    public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] JsonElement payload, [FromQuery] bool includeProxies = false)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+
+        if (payload.TryGetProperty("qtyDelta", out var deltaProp) && payload.TryGetProperty("printingId", out var printingProp))
+        {
+            if (!TryReadInt32(printingProp, out var printingId) || !TryReadInt32(deltaProp, out var qtyDelta))
+                return BadRequest("Invalid printingId or qtyDelta.");
+            return await ApplyDeckCardQuantityDeltaCore(deckId, printingId, qtyDelta, includeProxies);
+        }
+
+        try
+        {
+            var dto = JsonSerializer.Deserialize<UpsertDeckCardRequest>(payload.GetRawText(), JsonWebOptions);
+            if (dto is null) return BadRequest();
+            return await UpsertDeckCardCore(deckId, dto);
+        }
+        catch (JsonException)
+        {
+            return BadRequest("Invalid payload.");
+        }
+    }
 
     // POST /api/deck/{deckId}/cards/delta
     [HttpPost("/api/deck/{deckId:int}/cards/delta")]
