@@ -13,10 +13,6 @@ public static class CsvUtils
         }
 
         var segments = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0)
-        {
-            return Array.Empty<string>();
-        }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var results = new List<string>(segments.Length);
