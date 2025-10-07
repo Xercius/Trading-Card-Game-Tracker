@@ -47,9 +47,9 @@ public class CardsController : ControllerBase
         if (take > 200) take = 200;
         if (skip < 0) skip = 0;
 
-        var games = ParseCsv(game);
-        var sets = ParseCsv(set);
-        var rarities = ParseCsv(rarity);
+        var games = CsvUtils.Parse(game);
+        var sets = CsvUtils.Parse(set);
+        var rarities = CsvUtils.Parse(rarity);
 
         IQueryable<Card> query = _db.Cards.AsNoTracking();
 
@@ -61,17 +61,17 @@ public class CardsController : ControllerBase
                 EF.Functions.Like(c.CardType, $"%{term}%"));
         }
 
-        if (games.Length > 0)
+        if (games.Count > 0)
         {
             query = query.Where(c => games.Contains(c.Game));
         }
 
-        if (sets.Length > 0)
+        if (sets.Count > 0)
         {
             query = query.Where(c => c.Printings.Any(p => sets.Contains(p.Set)));
         }
 
-        if (rarities.Length > 0)
+        if (rarities.Count > 0)
         {
             query = query.Where(c => c.Printings.Any(p => rarities.Contains(p.Rarity)));
         }
