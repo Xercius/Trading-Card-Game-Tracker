@@ -522,8 +522,11 @@ public class DecksController : ControllerBase
             var owned = uc?.QuantityOwned ?? 0;
             var proxy = uc?.QuantityProxyOwned ?? 0;
             var assigned = dc.QuantityInDeck;
-            var available = Math.Max(0, owned - assigned);
-            var availableWithProxy = includeProxies ? Math.Max(0, owned + proxy - assigned) : available;
+            var (available, availableWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
+            if (!includeProxies)
+            {
+                availableWithProxy = available;
+            }
 
             result.Add(new DeckAvailabilityItemResponse(
                 dc.CardPrintingId, owned, proxy, assigned, available, availableWithProxy

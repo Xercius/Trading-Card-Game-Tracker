@@ -1,6 +1,7 @@
 using AutoMapper;
 using api.Features.Collections.Dtos;
 using api.Models;
+using api.Shared;
 
 namespace api.Features.Collections.Mapping;
 
@@ -13,6 +14,8 @@ public sealed class CollectionsMappingProfile : Profile
             .ForCtorParam(nameof(UserCardItemResponse.QuantityOwned), opt => opt.MapFrom(uc => uc.QuantityOwned))
             .ForCtorParam(nameof(UserCardItemResponse.QuantityWanted), opt => opt.MapFrom(uc => uc.QuantityWanted))
             .ForCtorParam(nameof(UserCardItemResponse.QuantityProxyOwned), opt => opt.MapFrom(uc => uc.QuantityProxyOwned))
+            .ForCtorParam(nameof(UserCardItemResponse.Availability), opt => opt.MapFrom(CardAvailabilityHelper.AvailabilityExpression))
+            .ForCtorParam(nameof(UserCardItemResponse.AvailabilityWithProxies), opt => opt.MapFrom(CardAvailabilityHelper.AvailabilityWithProxiesExpression))
             .ForCtorParam(nameof(UserCardItemResponse.CardId), opt => opt.MapFrom(uc => uc.CardPrinting.CardId))
             .ForCtorParam(nameof(UserCardItemResponse.CardName), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Name))
             .ForCtorParam(nameof(UserCardItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game))

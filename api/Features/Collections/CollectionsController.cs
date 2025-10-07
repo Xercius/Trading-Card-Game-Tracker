@@ -56,9 +56,6 @@ public class CollectionsController : ControllerBase
     private static bool IsZero(UserCard card) =>
         card.QuantityOwned == 0 && card.QuantityWanted == 0 && card.QuantityProxyOwned == 0;
 
-    private static int ClampNonNegative(long value) =>
-        value < 0 ? 0 : (value > int.MaxValue ? int.MaxValue : (int)value);
-
     private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
     {
         var me = HttpContext.GetCurrentUser();
@@ -175,6 +172,22 @@ public class CollectionsController : ControllerBase
         return NoContent();
     }
 
+    private async Task<IActionResult> SetOwnedProxyCore(int userId, int cardPrintingId, SetOwnedProxyRequest dto)
+    {
+        if (dto is null) return BadRequest("Body required.");
+        if (dto.OwnedQty < 0 || dto.ProxyQty < 0)
+            return BadRequest("Quantities must be non-negative.");
+
+        var existing = await _db.UserCards
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
+
+        if (existing is null) return NotFound();
+
+        var request = new SetUserCardQuantitiesRequest(dto.OwnedQty, existing.QuantityWanted, dto.ProxyQty);
+        return await SetQuantitiesCore(userId, cardPrintingId, request);
+    }
+
     private async Task<IActionResult> PatchQuantitiesCore(int userId, int cardPrintingId, JsonElement updates)
     {
         if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
@@ -251,15 +264,33 @@ public class CollectionsController : ControllerBase
                 map[d.CardPrintingId] = row;
             }
 
-            row.QuantityOwned = ClampNonNegative((long)row.QuantityOwned + d.DeltaOwned);
-            row.QuantityWanted = ClampNonNegative((long)row.QuantityWanted + d.DeltaWanted);
-            row.QuantityProxyOwned = ClampNonNegative((long)row.QuantityProxyOwned + d.DeltaProxyOwned);
+            row.QuantityOwned = UserCardMath.AddClamped(row.QuantityOwned, d.DeltaOwned);
+            row.QuantityWanted = UserCardMath.AddClamped(row.QuantityWanted, d.DeltaWanted);
+            row.QuantityProxyOwned = UserCardMath.AddClamped(row.QuantityProxyOwned, d.DeltaProxyOwned);
         }
 
         // Do NOT remove rows when zero.
         await _db.SaveChangesAsync();
         await tx.CommitAsync();
         return NoContent();
+    }
+
+    private async Task<IActionResult> ApplyBulkDeltaCore(int userId, CollectionBulkUpdateRequest request)
+    {
+        if (request is null) return BadRequest("Body required.");
+
+        var items = request.Items ?? Array.Empty<CollectionBulkUpdateItem>();
+        var deltas = items
+            .Select(i => new DeltaUserCardRequest(i.PrintingId, i.OwnedDelta, 0, i.ProxyDelta))
+            .ToList();
+
+        var result = await ApplyDeltaCore(userId, deltas);
+        return result switch
+        {
+            NotFoundObjectResult nf => BadRequest(nf.Value ?? "Invalid cardPrintingId."),
+            NotFoundResult => BadRequest("Invalid cardPrintingId."),
+            _ => result
+        };
     }
 
     private async Task<IActionResult> RemoveCore(int userId, int cardPrintingId)
@@ -323,6 +354,14 @@ public class CollectionsController : ControllerBase
         if (UserMismatch(userId)) return Forbid();
         if (deltas is null) return BadRequest("Deltas payload required.");
         return await ApplyDeltaCore(userId, deltas);
+    }
+
+    [HttpPatch("bulk")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<IActionResult> ApplyBulkDelta(int userId, [FromBody] CollectionBulkUpdateRequest request)
+    {
+        if (UserMismatch(userId)) return Forbid();
+        return await ApplyBulkDeltaCore(userId, request);
     }
 
     [HttpDelete("{cardPrintingId:int}")]
@@ -399,11 +438,10 @@ public class CollectionsController : ControllerBase
     [HttpPut("/api/collection/{cardPrintingId:int}")]
     [HttpPut("/api/collections/{cardPrintingId:int}")]
     [Consumes(MediaTypeNames.Application.Json)]
-    public async Task<IActionResult> SetQuantitiesForCurrent(int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
+    public async Task<IActionResult> SetOwnedProxyForCurrent(int cardPrintingId, [FromBody] SetOwnedProxyRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        if (dto is null) return BadRequest("Body required.");
-        return await SetQuantitiesCore(uid, cardPrintingId, dto);
+        return await SetOwnedProxyCore(uid, cardPrintingId, dto);
     }
 
     [HttpPatch("/api/collection/{cardPrintingId:int}")]
@@ -422,6 +460,15 @@ public class CollectionsController : ControllerBase
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
         if (deltas is null) return BadRequest("Deltas payload required.");
         return await ApplyDeltaCore(uid, deltas);
+    }
+
+    [HttpPatch("/api/collection/bulk")]
+    [HttpPatch("/api/collections/bulk")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<IActionResult> ApplyBulkDeltaForCurrent([FromBody] CollectionBulkUpdateRequest request)
+    {
+        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+        return await ApplyBulkDeltaCore(uid, request);
     }
 
     [HttpDelete("/api/collection/{cardPrintingId:int}")]
