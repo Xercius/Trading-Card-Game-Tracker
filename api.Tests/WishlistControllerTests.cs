@@ -111,7 +111,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     }
 
     [Fact]
-    public async Task Wishlist_MoveToCollection_DecrementsWanted_IncrementsOwned()
+    public async Task Wishlist_MoveToCollection_MovesMinQuantityAndReturnsSnapshot()
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
@@ -121,25 +121,71 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
             new
             {
                 cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
-                quantity = 1,
+                quantity = 5,
                 useProxy = false
             });
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        var wishlist = await GetWishlistAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
-        var item = Assert.Single(wishlist);
-        Assert.Equal(1, item.QuantityWanted);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<MoveToCollectionResponse>(JsonOptions);
+        Assert.NotNull(payload);
 
-        var collectionResponse = await client.GetAsync($"/api/collection?cardPrintingId={TestDataSeeder.LightningBoltBetaPrintingId}");
-        collectionResponse.EnsureSuccessStatusCode();
-        var collectionPayload = await collectionResponse.Content
-            .ReadFromJsonAsync<Paged<UserCardItemResponse>>(JsonOptions);
-        var collectionItem = Assert.Single(collectionPayload!.Items);
-        Assert.Equal(1, collectionItem.QuantityOwned);
+        Assert.Equal(TestDataSeeder.LightningBoltBetaPrintingId, payload!.PrintingId);
+        Assert.Equal(0, payload.WantedAfter); // clamps to wanted
+        Assert.Equal(2, payload.OwnedAfter); // 0 + min(5, 2)
+        Assert.Equal(2, payload.ProxyAfter); // unchanged
+        Assert.Equal(2, payload.Availability);
+        Assert.Equal(4, payload.AvailabilityWithProxies);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.UserCards.SingleAsync(
+            uc => uc.UserId == TestDataSeeder.AliceUserId
+                  && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+
+        Assert.Equal(payload.WantedAfter, row.QuantityWanted);
+        Assert.Equal(payload.OwnedAfter, row.QuantityOwned);
+        Assert.Equal(payload.ProxyAfter, row.QuantityProxyOwned);
     }
 
     [Fact]
-    public async Task Wishlist_MoveToCollection_UseProxy_FloorsWishlistAndIncrementsProxy()
+    public async Task Wishlist_MoveToCollection_WhenWantedZero_ReturnsUnchangedSnapshot()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/wishlist/move-to-collection",
+            new
+            {
+                cardPrintingId = TestDataSeeder.ElsaPrintingId,
+                quantity = 2,
+                useProxy = true
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<MoveToCollectionResponse>(JsonOptions);
+        Assert.NotNull(payload);
+
+        Assert.Equal(TestDataSeeder.ElsaPrintingId, payload!.PrintingId);
+        Assert.Equal(0, payload.WantedAfter);
+        Assert.Equal(1, payload.OwnedAfter);
+        Assert.Equal(1, payload.ProxyAfter);
+        Assert.Equal(1, payload.Availability);
+        Assert.Equal(2, payload.AvailabilityWithProxies);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.UserCards.SingleAsync(
+            uc => uc.UserId == TestDataSeeder.AliceUserId
+                  && uc.CardPrintingId == TestDataSeeder.ElsaPrintingId);
+
+        Assert.Equal(0, row.QuantityWanted);
+        Assert.Equal(1, row.QuantityOwned);
+        Assert.Equal(1, row.QuantityProxyOwned);
+    }
+
+    [Fact]
+    public async Task Wishlist_MoveToCollection_UseProxySnapshotMatchesDatabase()
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
@@ -153,17 +199,27 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
                 useProxy = true
             });
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<MoveToCollectionResponse>(JsonOptions);
+        Assert.NotNull(payload);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var row = await db.UserCards
-            .SingleAsync(uc => uc.UserId == TestDataSeeder.AliceUserId
-                               && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+        var row = await db.UserCards.SingleAsync(
+            uc => uc.UserId == TestDataSeeder.AliceUserId
+                  && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
 
-        Assert.Equal(0, row.QuantityOwned);
-        Assert.Equal(5, row.QuantityProxyOwned); // 2 existing proxies + 3 moved
-        Assert.Equal(0, row.QuantityWanted); // floored at zero even when quantity exceeds wanted
+        Assert.Equal(row.CardPrintingId, payload!.PrintingId);
+        Assert.Equal(row.QuantityWanted, payload.WantedAfter);
+        Assert.Equal(row.QuantityOwned, payload.OwnedAfter);
+        Assert.Equal(row.QuantityProxyOwned, payload.ProxyAfter);
+
+        var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
+            row.QuantityOwned,
+            row.QuantityProxyOwned);
+
+        Assert.Equal(availability, payload.Availability);
+        Assert.Equal(availabilityWithProxies, payload.AvailabilityWithProxies);
     }
 
     [Fact]
