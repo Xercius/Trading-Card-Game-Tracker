@@ -71,7 +71,7 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
 }
 
 describe("CardModal", () => {
-  it("loads details and printings, updates selection, and fetches price history", async () => {
+  it("loads details, printings, and sparkline", async () => {
     getSpy.mockImplementation((url: string) => {
       if (url === "cards/100") {
         return Promise.resolve({
@@ -107,11 +107,13 @@ describe("CardModal", () => {
           ],
         });
       }
-      if (url === "prices/1001/history") {
-        return Promise.resolve({ data: { points: [{ d: "2024-01-01", p: 10 }, { d: "2024-01-02", p: 12 }] } });
-      }
-      if (url === "prices/1002/history") {
-        return Promise.resolve({ data: { points: [{ d: "2024-01-01", p: 9 }] } });
+      if (url === "cards/100/sparkline") {
+        return Promise.resolve({
+          data: [
+            { d: "2024-01-01", v: 10 },
+            { d: "2024-01-02", v: 12 },
+          ],
+        });
       }
       throw new Error(`Unexpected GET ${url}`);
     });
@@ -130,8 +132,8 @@ describe("CardModal", () => {
     });
 
     expect(label?.textContent).toContain("Beta");
-    const priceCalls = getSpy.mock.calls.filter((call) => call[0] === "prices/1002/history");
-    expect(priceCalls.length).toBeGreaterThanOrEqual(1);
+    const sparklineCalls = getSpy.mock.calls.filter((call) => call[0] === "cards/100/sparkline");
+    expect(sparklineCalls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("posts wishlist quick add with provided quantity", async () => {
@@ -162,8 +164,8 @@ describe("CardModal", () => {
           ],
         });
       }
-      if (url.startsWith("prices/")) {
-        return Promise.resolve({ data: { points: [] } });
+      if (url === "cards/200/sparkline") {
+        return Promise.resolve({ data: [] });
       }
       throw new Error(`Unexpected GET ${url}`);
     });
@@ -230,8 +232,8 @@ describe("CardModal", () => {
           ],
         });
       }
-      if (url.startsWith("prices/")) {
-        return Promise.resolve({ data: { points: [] } });
+      if (url === "cards/300/sparkline") {
+        return Promise.resolve({ data: [] });
       }
       throw new Error(`Unexpected GET ${url}`);
     });
@@ -247,6 +249,6 @@ describe("CardModal", () => {
       await flushPromises();
     });
 
-    expect(container.textContent).toContain("No price data.");
+    expect(container.textContent).toContain("No value data.");
   });
 });

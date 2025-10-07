@@ -14,6 +14,7 @@ namespace api.Data
         public DbSet<Deck> Decks => Set<Deck>();
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
+        public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -110,6 +111,19 @@ namespace api.Data
                 e.HasKey(v => v.Id);
                 // If ValueHistory links to CardPrinting, add FK + index here.
                 // e.HasIndex(v => new { v.CardPrintingId, v.Date });
+            });
+
+            b.Entity<CardPriceHistory>(e =>
+            {
+                e.HasKey(p => p.Id);
+
+                e.HasOne(p => p.CardPrinting)
+                    .WithMany()
+                    .HasForeignKey(p => p.CardPrintingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.Property(p => p.Price)
+                    .HasColumnType("decimal(14,2)");
             });
         }
     }

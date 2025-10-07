@@ -12,6 +12,15 @@ import {
   PRINTING_ID_DATA,
 } from "../constants";
 
+const defaultValueHistory = {
+  points: [] as { d: string; v: number | null }[],
+  isLoading: false,
+  isError: false,
+  latestValue: null,
+};
+
+const formatCurrency = (value: number | null) => (value == null ? "—" : `$${value.toFixed(2)}`);
+
 function render(ui: ReactElement) {
   const container = document.createElement("div");
   const root = createRoot(container);
@@ -76,6 +85,8 @@ describe("StickyDeckSidebar", () => {
         includeProxies={false}
         onIncludeProxiesChange={() => {}}
         onAdjustQuantity={() => {}}
+        valueHistory={defaultValueHistory}
+        formatCurrency={formatCurrency}
       />
     );
 
@@ -135,6 +146,8 @@ describe("StickyDeckSidebar", () => {
                 })
               );
             }}
+            valueHistory={defaultValueHistory}
+            formatCurrency={formatCurrency}
           />
         </div>
       );
@@ -195,6 +208,8 @@ describe("StickyDeckSidebar", () => {
               )
             );
           }}
+          valueHistory={defaultValueHistory}
+          formatCurrency={formatCurrency}
         />
       );
     }
@@ -261,6 +276,43 @@ describe("StickyDeckSidebar", () => {
     });
 
     expect(badge()?.textContent).toContain("2");
+
+    cleanup();
+  });
+
+  it("renders value chart with proxies label", () => {
+    const row: DeckCardWithAvailability = {
+      printingId: 2001,
+      cardName: "Value Card",
+      imageUrl: null,
+      quantityInDeck: 1,
+      availability: 1,
+      availabilityWithProxies: 1,
+    };
+
+    const { container, cleanup } = render(
+      <StickyDeckSidebar
+        deckName="Value Deck"
+        rows={[row]}
+        includeProxies={false}
+        onIncludeProxiesChange={() => {}}
+        onAdjustQuantity={() => {}}
+        valueHistory={{
+          points: [
+            { d: "2024-01-01", v: 2 },
+            { d: "2024-01-02", v: 4 },
+          ],
+          isLoading: false,
+          isError: false,
+          latestValue: 4,
+        }}
+        formatCurrency={formatCurrency}
+      />
+    );
+
+    expect(container.textContent).toContain("Proxies excluded.");
+    const svg = container.querySelector("svg[aria-label='Deck value over time']");
+    expect(svg).not.toBeNull();
 
     cleanup();
   });

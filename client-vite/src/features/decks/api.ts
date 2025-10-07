@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { collectionKeys } from "@/features/collection/api";
+import { QUERY_STALE_MS_VALUE_HISTORY } from "@/constants";
+import type { ValuePoint } from "@/types/value";
 
 export type DeckDetails = {
   id: number;
@@ -27,6 +29,8 @@ export const deckBuilderKeys = {
   cardsRoot: (deckId: number | null) => ["deck-builder", "cards", deckId] as const,
   cards: (deckId: number | null, includeProxies: boolean) =>
     ["deck-builder", "cards", deckId, { includeProxies }] as const,
+  valueHistory: (deckId: number | null, days: number) =>
+    ["deck-builder", "value-history", deckId, { days }] as const,
 };
 
 async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
@@ -39,6 +43,13 @@ async function fetchDeckCards(deckId: number, includeProxies: boolean): Promise<
     `decks/${deckId}/cards-with-availability`,
     { params: { includeProxies } }
   );
+  return response.data;
+}
+
+async function fetchDeckValueHistory(deckId: number, days: number): Promise<ValuePoint[]> {
+  const response = await api.get<ValuePoint[]>(`decks/${deckId}/value/history`, {
+    params: { days },
+  });
   return response.data;
 }
 
@@ -63,6 +74,20 @@ export function useDeckCardsWithAvailability(deckId: number | null, includeProxi
     },
     enabled: deckId != null,
     staleTime: 15_000,
+  });
+}
+
+export function useDeckValueHistory(deckId: number | null, days = 90) {
+  return useQuery({
+    queryKey: deckBuilderKeys.valueHistory(deckId, days),
+    enabled: deckId != null,
+    staleTime: QUERY_STALE_MS_VALUE_HISTORY,
+    queryFn: () => {
+      if (deckId == null) throw new Error("Deck not selected");
+      return fetchDeckValueHistory(deckId, days).then((points) =>
+        points.slice().sort((a, b) => a.d.localeCompare(b.d))
+      );
+    },
   });
 }
 

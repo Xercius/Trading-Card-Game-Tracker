@@ -14,12 +14,13 @@ import {
 import {
   useCardDetails,
   useCardPrintings,
-  usePriceHistory,
+  useSparkline,
   useUpsertCollection,
   useUpsertWishlist,
   type PrintingSummary,
 } from "../api";
-import { buildSparklinePath } from "../utils/sparkline";
+import LineSparkline from "@/components/charts/LineSparkline";
+import { latestValue } from "@/lib/valueHistory";
 
 const TABS = [
   { id: "details", label: "Details" },
@@ -46,10 +47,11 @@ function clampQuantity(value: number): number {
   return Math.min(999, Math.floor(value));
 }
 
-function formatPrice(value: number | undefined): string {
+function formatPrice(value: number | undefined | null): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `$${value.toFixed(2)}`;
 }
+
 
 export default function CardModal({ cardId, open, onOpenChange, initialPrintingId }: CardModalProps) {
   const detailsQuery = useCardDetails(open ? cardId : 0);
@@ -95,7 +97,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const priceQuery = usePriceHistory(open ? selectedPrintingId ?? null : null, 30);
+  const sparklineQuery = useSparkline(open ? cardId : null);
 
   const selectedPrinting: PrintingSummary | null = useMemo(() => {
     if (selectedPrintingId == null) return null;
@@ -129,10 +131,8 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
     [printings, selectedPrintingId]
   );
 
-  const pricePoints = priceQuery.data ?? [];
-  const pricePath = useMemo(() => buildSparklinePath(pricePoints), [pricePoints]);
-
-  const latestPrice = pricePoints.length > 0 ? pricePoints[pricePoints.length - 1].p : undefined;
+  const pricePoints = sparklineQuery.data ?? [];
+  const latestPrice = useMemo(() => latestValue(pricePoints), [pricePoints]);
 
   const onAdd = useCallback(
     async (target: "collection" | "wishlist") => {
@@ -288,15 +288,18 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
 
               {activeTab === "price" && (
                 <div className="space-y-4" aria-live="polite">
-                  {priceQuery.isLoading && <p>Loading price history…</p>}
-                  {priceQuery.isError && <p className="text-destructive">Failed to load price history.</p>}
-                  {!priceQuery.isLoading && !priceQuery.isError && pricePoints.length === 0 && <p>No price data.</p>}
-                  {pricePath && (
+                  {sparklineQuery.isLoading && <p>Loading value history…</p>}
+                  {sparklineQuery.isError && <p className="text-destructive">Failed to load value history.</p>}
+                  {!sparklineQuery.isLoading && !sparklineQuery.isError && pricePoints.length === 0 && <p>No value data.</p>}
+                  {pricePoints.length > 0 && (
                     <div className="space-y-2">
-                      <svg viewBox="0 0 100 100" className="h-24 w-full" preserveAspectRatio="none">
-                        <path d={pricePath} fill="none" stroke="hsl(var(--primary))" strokeWidth={2} />
-                      </svg>
-                      <div className="text-sm text-muted-foreground">Last price: {formatPrice(latestPrice)}</div>
+                      <LineSparkline
+                        points={pricePoints}
+                        ariaLabel="Card value sparkline"
+                        height={96}
+                        className="h-24"
+                      />
+                      <div className="text-sm text-muted-foreground">Last recorded value: {formatPrice(latestPrice)}</div>
                     </div>
                   )}
                 </div>

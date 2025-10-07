@@ -8,10 +8,16 @@ import PillsBar from "@/features/cards/filters/PillsBar";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { fetchCardsPage } from "@/features/cards/api";
 import StickyDeckSidebar from "./StickyDeckSidebar";
-import { useDeckCardsWithAvailability, useDeckDetails, useDeckQuantityMutation } from "./api";
+import {
+  useDeckCardsWithAvailability,
+  useDeckDetails,
+  useDeckQuantityMutation,
+  useDeckValueHistory,
+} from "./api";
 import { useUser } from "@/state/useUser";
 import { useIncludeProxies } from "@/hooks/useIncludeProxies";
 import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
+import { latestValue } from "@/lib/valueHistory";
 import {
   CARD_IMAGE_DATA,
   CARD_NAME_DATA,
@@ -27,6 +33,11 @@ const normalizePrintingId = (printingId: CardSummary["primaryPrintingId"]): numb
   const value = typeof printingId === "number" ? printingId : Number(printingId);
   return Number.isFinite(value) ? value : null;
 };
+
+function formatCurrency(value: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `$${value.toFixed(2)}`;
+}
 
 type Props = {
   deckId: number;
@@ -69,6 +80,9 @@ export default function DeckBuilderPage({ deckId }: Props) {
   const deckDetailsQuery = useDeckDetails(deckId);
   const deckCardsQuery = useDeckCardsWithAvailability(deckId, includeProxies);
   const deckQuantityMutation = useDeckQuantityMutation(deckId, includeProxies);
+  const deckValueHistoryQuery = useDeckValueHistory(deckId);
+  const deckValuePoints = deckValueHistoryQuery.data ?? [];
+  const deckLatestValue = useMemo(() => latestValue(deckValuePoints), [deckValuePoints]);
 
   const handleCardDragStart = useCallback((event: React.DragEvent<HTMLDivElement>, card: CardSummary) => {
     const printingId = normalizePrintingId(card.primaryPrintingId);
@@ -185,6 +199,13 @@ export default function DeckBuilderPage({ deckId }: Props) {
         onIncludeProxiesChange={setIncludeProxies}
         onAdjustQuantity={handleQuantityChange}
         isLoading={deckCardsQuery.isLoading}
+        valueHistory={{
+          points: deckValuePoints,
+          isLoading: deckValueHistoryQuery.isLoading,
+          isError: deckValueHistoryQuery.isError,
+          latestValue: deckLatestValue,
+        }}
+        formatCurrency={formatCurrency}
       />
 
       {isMobileFiltersOpen && (
