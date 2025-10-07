@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
 import type { CardSummary } from "@/components/CardTile";
@@ -7,6 +7,7 @@ import { fetchCardsPage } from "@/features/cards/api";
 import FiltersRail from "@/features/cards/filters/FiltersRail";
 import PillsBar from "@/features/cards/filters/PillsBar";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
+import CardModal from "@/features/cards/components/CardModal";
 import { useUser } from "@/state/useUser";
 import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
 
@@ -17,6 +18,8 @@ export default function CardsPage() {
   const { userId } = useUser();
   const { filters, toQueryKey } = useCardFilters();
   const [isMobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(null);
 
   const filterKey = toQueryKey();
   const queryKey = useMemo(() => ["cards", { userId, filters: filterKey }], [userId, filterKey]);
@@ -42,6 +45,32 @@ export default function CardsPage() {
     () => query.data?.pages.flatMap(p => p.items) ?? [],
     [query.data]
   );
+
+  const handleModalOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setSelectedCardId(null);
+      setSelectedPrintingId(null);
+    }
+  }, []);
+
+  const handleCardClick = useCallback((card: CardSummary) => {
+    const numericId = typeof card.id === "number" ? card.id : Number(card.id);
+    if (!Number.isFinite(numericId)) return;
+    setSelectedCardId(numericId);
+    setSelectedPrintingId(card.primaryPrintingId ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCardId == null) return;
+    const stillExists = items.some((card) => {
+      const numericId = typeof card.id === "number" ? card.id : Number(card.id);
+      return Number.isFinite(numericId) && numericId === selectedCardId;
+    });
+    if (!stillExists) {
+      setSelectedCardId(null);
+      setSelectedPrintingId(null);
+    }
+  }, [items, selectedCardId]);
 
   const hasNoResults = !query.isFetching && items.length === 0;
 
@@ -78,9 +107,7 @@ export default function CardsPage() {
                 isFetchingNextPage={query.isFetchingNextPage}
                 hasNextPage={query.hasNextPage}
                 fetchNextPage={() => query.fetchNextPage()}
-                onCardClick={(c) => {
-                  console.debug("card", c.id);
-                }}
+                onCardClick={handleCardClick}
                 minTileWidth={220}
                 overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 6 : 8}
                 footerHeight={88}
@@ -101,6 +128,14 @@ export default function CardsPage() {
             <FiltersRail onClose={() => setMobileFiltersOpen(false)} />
           </div>
         </div>
+      )}
+      {selectedCardId != null && (
+        <CardModal
+          open={true}
+          cardId={selectedCardId}
+          initialPrintingId={selectedPrintingId ?? undefined}
+          onOpenChange={handleModalOpenChange}
+        />
       )}
     </div>
   );
