@@ -4,3 +4,6 @@ export const MAX_QTY = 2_147_483_647;
 export const STALE_TIME_MS = 30_000;
 export const BULK_DEBOUNCE_MS = 1_500;
 export const LS_INCLUDE_PROXIES_KEY = "tcg-tracker:includeProxies";
+export const IMPORT_MAX_ROWS_PREVIEW = 250;
+export const UPLOAD_MAX_SIZE_MB = 10;
+export const REQUEST_TIMEOUT_MS = 120_000;

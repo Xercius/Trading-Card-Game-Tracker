@@ -41,6 +41,7 @@ builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.Guardian
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.DiceMastersDbImporter>();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.TransformersFmImporter>();
 builder.Services.AddScoped<api.Importing.ImporterRegistry>();
+builder.Services.AddScoped<api.Shared.Importing.FileParser>();
 
 // Explicit HTTPS port for redirects
 builder.Services.AddHttpsRedirection(o => o.HttpsPort = 7226);
