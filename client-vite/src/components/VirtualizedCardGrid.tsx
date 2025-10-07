@@ -11,6 +11,8 @@ type Props = {
   minTileWidth?: number; // px; default 220
   rowGap?: number; // px; default 12
   colGap?: number; // px; default 12
+  overscan?: number; // rows; default 6
+  footerHeight?: number; // px; default 88
 };
 
 export default function VirtualizedCardGrid({
@@ -22,6 +24,8 @@ export default function VirtualizedCardGrid({
   minTileWidth = 220,
   rowGap = 12,
   colGap = 12,
+  overscan = 6,
+  footerHeight = 88,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -51,8 +55,8 @@ export default function VirtualizedCardGrid({
     return w;
   }, [columns, containerWidth, colGap, minTileWidth]);
 
-  // 3:4 aspect + header area ~88px
-  const tileHeight = Math.floor((tileWidth * 4) / 3) + 88;
+  // 3:4 aspect + footer/header area
+  const tileHeight = Math.floor((tileWidth * 4) / 3) + footerHeight;
 
   const rowCount = Math.ceil(items.length / columns);
 
@@ -60,7 +64,7 @@ export default function VirtualizedCardGrid({
     count: rowCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => tileHeight + rowGap,
-    overscan: 10,
+    overscan,
   });
 
   // Auto-load next page when last row comes into view
