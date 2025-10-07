@@ -47,7 +47,7 @@ function clampQuantity(value: number): number {
   return Math.min(999, Math.floor(value));
 }
 
-function formatPrice(value: number | undefined | null): string {
+function formatValue(value: number | undefined | null): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `$${value.toFixed(2)}`;
 }
