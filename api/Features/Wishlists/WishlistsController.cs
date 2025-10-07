@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Net.Mime;
 using System.Text.Json;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
@@ -296,6 +297,42 @@ public class WishlistsController : ControllerBase
     // -----------------------------------------
     // Auth-derived alias routes (/api/wishlist)
     // -----------------------------------------
+
+    [HttpPost("/api/wishlist/items")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<QuickAddResponse>> QuickAddForCurrent([FromBody] QuickAddRequest dto)
+    {
+        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
+        if (dto is null) return BadRequest("Body required.");
+        if (dto.PrintingId <= 0) return BadRequest("printingId must be positive.");
+        if (dto.Quantity <= 0) return BadRequest("Quantity must be positive.");
+        if (await _db.CardPrintings.FindAsync(dto.PrintingId) is null)
+            return NotFound("CardPrinting not found.");
+
+        var card = await _db.UserCards
+            .FirstOrDefaultAsync(x => x.UserId == uid && x.CardPrintingId == dto.PrintingId);
+
+        if (card is null)
+        {
+            card = new UserCard
+            {
+                UserId = uid,
+                CardPrintingId = dto.PrintingId,
+                QuantityOwned = 0,
+                QuantityProxyOwned = 0,
+                QuantityWanted = dto.Quantity
+            };
+            _db.UserCards.Add(card);
+        }
+        else
+        {
+            var total = (long)card.QuantityWanted + dto.Quantity;
+            card.QuantityWanted = total > int.MaxValue ? int.MaxValue : (int)total;
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new QuickAddResponse(dto.PrintingId, card.QuantityWanted));
+    }
 
     [HttpGet("/api/wishlist")]
     public async Task<ActionResult<List<WishlistItemDto>>> GetAllForCurrent(

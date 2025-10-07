@@ -199,6 +199,45 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Wishlist_QuickAdd_CreatesAndAccumulates()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var create = await client.PostAsJsonAsync(
+            "/api/wishlist/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 1 });
+        create.EnsureSuccessStatusCode();
+
+        var first = await create.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(first);
+        Assert.Equal(TestDataSeeder.ExtraMagicPrintingId, first!.PrintingId);
+        Assert.Equal(1, first.QuantityWanted);
+
+        var increment = await client.PostAsJsonAsync(
+            "/api/wishlist/items",
+            new { printingId = TestDataSeeder.ExtraMagicPrintingId, quantity = 2 });
+        increment.EnsureSuccessStatusCode();
+
+        var second = await increment.Content.ReadFromJsonAsync<QuickAddResponse>();
+        Assert.NotNull(second);
+        Assert.Equal(3, second!.QuantityWanted);
+    }
+
+    [Fact]
+    public async Task Wishlist_QuickAdd_RejectsInvalidQuantity()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/wishlist/items",
+            new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, quantity = -1 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private async Task<List<WishlistItemResponse>> GetWishlistAsync(HttpClient client, string query)
     {
         var response = await client.GetAsync($"/api/wishlist{query}");

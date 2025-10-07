@@ -71,6 +71,7 @@ public class ValuesController : ControllerBase
     }
 
     [HttpGet("cardprinting/{id:int}")]
+    [RequireUserHeader]
     public async Task<ActionResult<SeriesResponse>> GetCardPrintingSeries(int id)
     {
         var exists = await _db.CardPrintings.AnyAsync(x => x.Id == id);

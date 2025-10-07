@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
 import type { CardSummary } from "@/components/CardTile";
 import { fetchCardsPage } from "@/features/cards/api";
+import CardModal from "@/features/cards/components/CardModal";
 // If you have a useListQuery hook, reuse it. Otherwise read from URLSearchParams inline.
 import { useSearchParams } from "react-router-dom";
 import { useUser } from "@/state/useUser";
@@ -36,6 +37,18 @@ export default function CardsPage() {
     [query.data]
   );
 
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleCardClick = useCallback((card: CardSummary) => {
+    const parsedId = Number(card.id);
+    if (!Number.isFinite(parsedId) || parsedId <= 0) return;
+    setSelectedCardId(parsedId);
+    setSelectedPrintingId(card.primaryPrintingId ?? null);
+    setModalOpen(true);
+  }, []);
+
   return (
     <div className="h-[calc(100vh-64px)] p-3">
       {query.isError && <div className="p-4 text-red-500">Error loading cards</div>}
@@ -45,15 +58,25 @@ export default function CardsPage() {
         isFetchingNextPage={query.isFetchingNextPage}
         hasNextPage={query.hasNextPage}
         fetchNextPage={() => query.fetchNextPage()}
-        onCardClick={(c) => {
-          // Navigate to card detail if you have a route like /cards/:id
-          // e.g., useNavigate()(`/cards/${c.id}`)
-          console.debug("card", c.id);
-        }}
+        onCardClick={handleCardClick}
         minTileWidth={220}
         overscan={overscanForDevice(6, 8)}
         footerHeight={88}
       />
+      {selectedCardId != null && (
+        <CardModal
+          cardId={selectedCardId}
+          initialPrintingId={selectedPrintingId ?? undefined}
+          open={modalOpen}
+          onOpenChange={(next) => {
+            setModalOpen(next);
+            if (!next) {
+              setSelectedCardId(null);
+              setSelectedPrintingId(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

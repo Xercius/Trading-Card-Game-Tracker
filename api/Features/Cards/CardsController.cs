@@ -170,6 +170,8 @@ public class CardsController : ControllerBase
             c.CardId,
             c.Name,
             c.Game,
+            c.CardType,
+            c.Description,
             map.TryGetValue(c.CardId, out var list)
                 ? _mapper.Map<List<CardPrintingResponse>>(list)
                 : new List<CardPrintingResponse>()
@@ -193,6 +195,8 @@ public class CardsController : ControllerBase
             c.CardId,
             c.Name,
             c.Game,
+            c.CardType,
+            c.Description,
             _mapper.Map<List<CardPrintingResponse>>(printings)
         );
 
@@ -324,6 +328,29 @@ public class CardsController : ControllerBase
     [HttpGet("{cardId:int}")]
     public async Task<IActionResult> GetCard(int cardId)
         => await GetCardCore(cardId);
+
+    [HttpGet("{cardId:int}/printings")]
+    public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId)
+    {
+        var exists = await _db.Cards.AnyAsync(c => c.CardId == cardId);
+        if (!exists) return NotFound();
+
+        var rows = await _db.CardPrintings
+            .AsNoTracking()
+            .Where(cp => cp.CardId == cardId)
+            .OrderBy(cp => cp.Set)
+            .ThenBy(cp => cp.Number)
+            .Select(cp => new PrintingDto(
+                cp.Id,
+                cp.Set,
+                null,
+                cp.Number,
+                cp.Rarity,
+                cp.ImageUrl ?? PlaceholderCardImage))
+            .ToListAsync();
+
+        return Ok(rows);
+    }
 
     [HttpPost("printing")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
