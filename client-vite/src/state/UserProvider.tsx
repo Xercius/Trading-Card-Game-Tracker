@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import http, { setHttpUserId } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
-import type { ApiUser, UserLite } from "@/types/user";
+import type { AdminUserApi, ApiUser, UserLite } from "@/types/user";
 import { UserContext } from "./UserContext";
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
@@ -31,7 +31,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const listRes = await http.get<ApiUser[]>("user");
+      const listRes = await http.get<AdminUserApi[]>("admin/users");
       setUsers(listRes.data.map(mapUser));
     } catch (err) {
       // eslint-disable-next-line no-console
