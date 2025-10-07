@@ -14,6 +14,11 @@ import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
 // Heuristic: smaller page on low-core devices to reduce memory pressure.
 const PAGE_SIZE = pageSizeForDevice(60, 96);
 
+const normalizeCardId = (id: CardSummary["id"]): number | null => {
+  const numericId = typeof id === "number" ? id : Number(id);
+  return Number.isFinite(numericId) ? numericId : null;
+};
+
 export default function CardsPage() {
   const { userId } = useUser();
   const { filters, toQueryKey } = useCardFilters();
@@ -54,18 +59,15 @@ export default function CardsPage() {
   }, []);
 
   const handleCardClick = useCallback((card: CardSummary) => {
-    const numericId = typeof card.id === "number" ? card.id : Number(card.id);
-    if (!Number.isFinite(numericId)) return;
+    const numericId = normalizeCardId(card.id);
+    if (numericId == null) return;
     setSelectedCardId(numericId);
     setSelectedPrintingId(card.primaryPrintingId ?? null);
   }, []);
 
   useEffect(() => {
     if (selectedCardId == null) return;
-    const stillExists = items.some((card) => {
-      const numericId = typeof card.id === "number" ? card.id : Number(card.id);
-      return Number.isFinite(numericId) && numericId === selectedCardId;
-    });
+    const stillExists = items.some((card) => normalizeCardId(card.id) === selectedCardId);
     if (!stillExists) {
       setSelectedCardId(null);
       setSelectedPrintingId(null);
