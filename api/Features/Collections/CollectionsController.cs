@@ -179,10 +179,22 @@ public class CollectionsController : ControllerBase
             return BadRequest("Quantities must be non-negative.");
 
         var existing = await _db.UserCards
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
 
-        if (existing is null) return NotFound();
+        if (existing is null)
+        {
+            var newUserCard = new UserCard
+            {
+                UserId = userId,
+                CardPrintingId = cardPrintingId,
+                QuantityOwned = dto.OwnedQty,
+                QuantityWanted = 0,
+                QuantityProxyOwned = dto.ProxyQty
+            };
+            _db.UserCards.Add(newUserCard);
+            await _db.SaveChangesAsync();
+            return NoContent();
+        }
 
         var request = new SetUserCardQuantitiesRequest(dto.OwnedQty, existing.QuantityWanted, dto.ProxyQty);
         return await SetQuantitiesCore(userId, cardPrintingId, request);
