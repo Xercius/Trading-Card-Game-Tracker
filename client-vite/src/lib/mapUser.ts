@@ -1,4 +1,4 @@
-import type { ApiUser, UserLite } from "@/types/user";
+import type { AdminUser, AdminUserApi, ApiUser, UserLite } from "@/types/user";
 
 export function mapUser(u: ApiUser): UserLite {
   const name =
@@ -11,5 +11,19 @@ export function mapUser(u: ApiUser): UserLite {
     id: u.id,
     name,
     isAdmin: Boolean(u.isAdmin),
+  };
+}
+
+export function mapAdminUser(u: AdminUserApi): AdminUser {
+  const lite = mapUser(u);
+  const username = (u.username && u.username.trim()) || lite.name;
+  const displayName = (u.displayName && u.displayName.trim()) || lite.name;
+  const createdUtc = u.createdUtc ?? new Date().toISOString();
+
+  return {
+    ...lite,
+    username,
+    displayName,
+    createdUtc,
   };
 }
