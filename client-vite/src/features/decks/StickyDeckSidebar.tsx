@@ -40,23 +40,29 @@ type DragData = {
   source?: string;
 };
 
-function extractDragData(dataTransfer: DataTransfer): DragData {
+function toIntOrUndef(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export function extractDragData(dataTransfer: DataTransfer): DragData {
   const idValue = dataTransfer.getData(PRINTING_ID_DATA);
   const parsedId = Number.parseInt(idValue, 10);
   const name = dataTransfer.getData(CARD_NAME_DATA) || undefined;
   const image = dataTransfer.getData(CARD_IMAGE_DATA) || undefined;
-  const availabilityValue = dataTransfer.getData(AVAILABILITY_DATA);
-  const availabilityWithProxyValue = dataTransfer.getData(AVAILABILITY_PROXY_DATA);
+  const availability = toIntOrUndef(dataTransfer.getData(AVAILABILITY_DATA));
+  const availabilityWithProxies = toIntOrUndef(
+    dataTransfer.getData(AVAILABILITY_PROXY_DATA)
+  );
   const source = dataTransfer.getData(DRAG_SOURCE_DATA) || undefined;
 
   return {
     printingId: Number.isFinite(parsedId) ? parsedId : null,
     cardName: name,
     imageUrl: image ?? null,
-    availability: availabilityValue ? Number.parseInt(availabilityValue, 10) : undefined,
-    availabilityWithProxies: availabilityWithProxyValue
-      ? Number.parseInt(availabilityWithProxyValue, 10)
-      : undefined,
+    availability,
+    availabilityWithProxies,
     source,
   } satisfies DragData;
 }
