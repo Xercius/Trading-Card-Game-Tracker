@@ -17,7 +17,15 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
     public TestingWebAppFactory()
     {
         _connection = new SqliteConnection("Filename=:memory:");
-        _connection.Open();
+        try
+        {
+            _connection.Open();
+        }
+        catch
+        {
+            _connection.Dispose();
+            throw;
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
