@@ -340,7 +340,17 @@ public sealed class AdminImportController : ControllerBase
         }
 
         var duration = RequestTiming.Stop(stopwatch);
-        LogImportSuccess(operation, request, summary!, duration);
+        if (summary is null)
+        {
+            _logger.LogError("Admin import {Operation} failed: ImportSummary was not set.", operation);
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["import"] = new[] { "Import failed: no summary was produced." }
+                },
+                title: "Import failed");
+        }
+        LogImportSuccess(operation, request, summary, duration);
         return Ok(new ImportApplyResponse(
             Created: summary.CardsCreated + summary.PrintingsCreated,
             Updated: summary.CardsUpdated + summary.PrintingsUpdated,
