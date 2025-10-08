@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using FluentAssertions;
@@ -86,6 +87,26 @@ public class UsersApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
         problem.Should().NotBeNull();
         problem!.Title.Should().Be("Name required");
         problem.Detail.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task UpdateUser_WithNullBody_ReturnsValidationProblem()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+
+        var response = await client.PutAsync(
+            $"/api/user/{Seed.AdminUserId}",
+            JsonContent.Create<object?>(null));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Title.Should().Be("Invalid payload");
+        problem.Errors.Should().ContainKey("request");
+        problem.Errors["request"].Should().Contain("A request body is required.");
     }
 
     private sealed record UserResponseContract(int Id, string Username, string DisplayName, bool IsAdmin);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Collections.Dtos;
@@ -311,10 +312,12 @@ public class CollectionsController : ControllerBase
     {
         if (deltas is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "Deltas payload required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "Deltas payload required." }
+                },
+                title: "Invalid payload");
         }
 
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
@@ -407,10 +410,13 @@ public class CollectionsController : ControllerBase
             problemDetails.Status == StatusCodes.Status404NotFound)
         {
             // Convert to BadRequest (400)
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: problemDetails.Title ?? "Validation error",
-                detail: problemDetails.Detail ?? "A validation error occurred.");
+            var detail = problemDetails.Detail ?? "The specified user could not be found.";
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["userId"] = new[] { detail }
+                },
+                title: problemDetails.Title ?? "Validation error");
         }
         return result;
     }

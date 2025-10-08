@@ -1,9 +1,10 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using api.Common.Errors;
 using api.Data;
 
 namespace api.Middleware
@@ -44,15 +45,18 @@ namespace api.Middleware
             if (requires && cu == null)
             {
                 var factory = ctx.RequestServices.GetRequiredService<ProblemDetailsFactory>();
-                var problem = factory.CreateProblemDetails(
+                var problem = factory.CreateValidationProblem(
                     ctx,
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required or invalid." }
+                    },
                     statusCode: StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required or invalid.");
+                    title: "Missing required header");
 
                 ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
                 ctx.Response.ContentType = "application/problem+json";
-                await ctx.Response.WriteAsJsonAsync(problem);
+                await ctx.Response.WriteAsJsonAsync(problem.Value);
                 return;
             }
 

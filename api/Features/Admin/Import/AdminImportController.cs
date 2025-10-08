@@ -194,7 +194,14 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Import failed", detail: ex.Message);
+            var field = request.File is null ? "request" : "file";
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    [field] = new[] { ex.Message }
+                },
+                title: "Import failed",
+                detail: ex.Message);
         }
 
         var response = BuildPreviewResponse(request, summary);
@@ -271,7 +278,14 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Import failed", detail: ex.Message);
+            var field = request.File is null ? "request" : "file";
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    [field] = new[] { ex.Message }
+                },
+                title: "Import failed",
+                detail: ex.Message);
         }
 
         return Ok(new ImportApplyResponse(

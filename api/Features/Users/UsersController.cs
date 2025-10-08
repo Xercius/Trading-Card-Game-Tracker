@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using AutoMapper;
 using api.Common.Errors;
@@ -92,10 +93,12 @@ public class UsersController : ControllerBase
     {
         if (dto is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "A request body is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A request body is required." }
+                },
+                title: "Invalid payload");
         }
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);

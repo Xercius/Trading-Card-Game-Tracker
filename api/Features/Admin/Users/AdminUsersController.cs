@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -39,10 +40,12 @@ public sealed class AdminUsersController : ControllerBase
     {
         if (request is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "A request body is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A request body is required." }
+                },
+                title: "Invalid payload");
         }
 
         var trimmedName = request.Name?.Trim();
@@ -72,10 +75,12 @@ public sealed class AdminUsersController : ControllerBase
     {
         if (request is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "A request body is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A request body is required." }
+                },
+                title: "Invalid payload");
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync();

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Cards.Dtos;
@@ -325,7 +326,11 @@ public class CardsController : ControllerBase
 
         if (items is null)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, detail: "Import payload is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "Import payload is required." }
+                });
         }
 
         if (await _db.Cards.FindAsync(cardId) is null)
