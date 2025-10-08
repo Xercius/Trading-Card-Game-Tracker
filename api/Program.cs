@@ -57,9 +57,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// DB migrate + seed
-using (var scope = app.Services.CreateScope())
+// DB migrate + seed (skip in dedicated testing environment)
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     DbSeeder.Seed(db);
