@@ -7,7 +7,10 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 
-var builder = WebApplication.CreateBuilder(args);
+var isSeedCommand = args.Length > 0 && string.Equals(args[0], "seed", StringComparison.OrdinalIgnoreCase);
+var filteredArgs = isSeedCommand ? args[1..] : args;
+
+var builder = WebApplication.CreateBuilder(filteredArgs);
 
 // Services
 builder.Services.AddControllers();
@@ -56,6 +59,15 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (isSeedCommand)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+    MinimalDbSeeder.Seed(db);
+    return;
+}
 
 // DB migrate + seed (skip in dedicated testing environment)
 if (!app.Environment.IsEnvironment("Testing"))
