@@ -11,6 +11,7 @@ using api.Features.Collections.Dtos;
 using api.Shared;
 using api.Tests.Fixtures;
 using api.Tests.Helpers;
+using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
 namespace api.Tests;
@@ -275,7 +276,44 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
             })
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(_jsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal((int)HttpStatusCode.NotFound, problem!.Status);
+        Assert.Contains("99999", problem.Detail);
+
+        var alpha = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
+        var alphaRow = Assert.Single(alpha);
+        Assert.Equal(5, alphaRow.QuantityOwned);
+    }
+
+    [Fact]
+    public async Task Collection_BulkPatch_UserScoped_InvalidPrintingRollsBack()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.SendAsync(new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"/api/user/{TestDataSeeder.AliceUserId}/collection/bulk")
+        {
+            Content = JsonContent.Create(new
+            {
+                items = new[]
+                {
+                    new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, ownedDelta = 2, proxyDelta = 0 },
+                    new { printingId = 99999, ownedDelta = 1, proxyDelta = 0 },
+                }
+            })
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(_jsonOptions);
+        Assert.NotNull(problem);
+        Assert.Equal((int)HttpStatusCode.NotFound, problem!.Status);
+        Assert.Contains("99999", problem.Detail);
 
         var alpha = await GetCollectionAsync(client, $"?cardPrintingId={TestDataSeeder.LightningBoltAlphaPrintingId}");
         var alphaRow = Assert.Single(alpha);
