@@ -12,6 +12,9 @@ The goal is to eventually incorporate cards from the following games:
 - **.NET SDK**: 8.0 (pinned via `global.json`)
 - **Entity Framework Core**: 9.0.9 (Sqlite provider, design, and tools packages)
 
+### Minimal developer seed data
+- Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
+
 ## Recent API additions
 - `GET /api/cards/{id}/printings` – returns the available printings for a card, ordered by set and collector number.
 - `GET /api/cards/{id}/sparkline?days=30` – returns aggregated value points for the card across its non-proxy printings.
