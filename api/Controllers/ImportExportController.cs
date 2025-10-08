@@ -307,6 +307,7 @@ namespace api.Controllers
                     .ToListAsync();
                 var missing = allIds.Except(present).ToList();
                 if (missing.Count > 0)
+                {
                     var errors = new Dictionary<string, string[]>
                     {
                         ["cardPrintingId"] = new[]
@@ -317,6 +318,8 @@ namespace api.Controllers
 
                     return this.CreateValidationProblem(errors);
                 }
+
+            }
 
             using var trx = await _db.Database.BeginTransactionAsync();
 
