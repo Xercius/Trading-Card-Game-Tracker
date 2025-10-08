@@ -15,7 +15,7 @@ PowerShell:
 Bash:
 
 ```bash
-./scripts/ef-migrations.sh "AddCardsTable"
+./api/scripts/ef-migrations.sh "AddCardsTable"
 ```
 
 ### What the scripts do
