@@ -76,7 +76,11 @@ public class WishlistsController : ControllerBase
         int pageSize)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return (null, this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found."));
+        {
+            return (null, this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found."));
+        }
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -137,12 +141,16 @@ public class WishlistsController : ControllerBase
 
         if (await _db.Users.FindAsync(userId) is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
         }
 
         if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
         var uc = await _db.UserCards
@@ -182,7 +190,9 @@ public class WishlistsController : ControllerBase
 
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
         }
 
         var list = items.ToList();
@@ -258,7 +268,9 @@ public class WishlistsController : ControllerBase
 
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
         }
 
         var uc = await _db.UserCards
@@ -327,7 +339,12 @@ public class WishlistsController : ControllerBase
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (uc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Wishlist entry for user {userId} and card printing {cardPrintingId} was not found.");
+        }
 
         uc.QuantityWanted = 0;
 
@@ -423,7 +440,9 @@ public class WishlistsController : ControllerBase
 
         if (await _db.CardPrintings.FindAsync(dto.PrintingId) is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {dto.PrintingId} was not found.");
         }
 
         var card = await _db.UserCards

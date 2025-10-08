@@ -83,7 +83,9 @@ public class CollectionsController : ControllerBase
         {
             if (IsAdmin())
             {
-                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"User {userId} was not found.");
             }
 
             return Forbid();
@@ -145,7 +147,9 @@ public class CollectionsController : ControllerBase
         {
             if (IsAdmin())
             {
-                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"User {userId} was not found.");
             }
 
             return Forbid();
@@ -153,7 +157,9 @@ public class CollectionsController : ControllerBase
 
         if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
         var existing = await _db.UserCards
@@ -192,7 +198,12 @@ public class CollectionsController : ControllerBase
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (uc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User card for user {userId} and card printing {cardPrintingId} was not found.");
+        }
 
         uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
         uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
@@ -263,7 +274,12 @@ public class CollectionsController : ControllerBase
 
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (uc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User card for user {userId} and card printing {cardPrintingId} was not found.");
+        }
 
         var touched = false;
 
@@ -305,7 +321,9 @@ public class CollectionsController : ControllerBase
         {
             if (IsAdmin())
             {
-                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"User {userId} was not found.");
             }
 
             return Forbid();
@@ -401,7 +419,12 @@ public class CollectionsController : ControllerBase
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (uc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User card for user {userId} and card printing {cardPrintingId} was not found.");
+        }
         _db.UserCards.Remove(uc);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -528,7 +551,9 @@ public class CollectionsController : ControllerBase
 
         if (await _db.CardPrintings.FindAsync(dto.PrintingId) is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {dto.PrintingId} was not found.");
         }
 
         var card = await _db.UserCards
