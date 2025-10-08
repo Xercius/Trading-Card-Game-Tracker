@@ -421,7 +421,7 @@ public sealed class AdminImportController : ControllerBase
         var queryLimitRaw = Request.Query.TryGetValue("limit", out var queryLimitValues)
             ? queryLimitValues.ToString()
             : null;
-        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem, this))
+        if (ParseLimit(queryLimitRaw, out var queryLimit) is { } queryProblem)
         {
             return new ParseRequestResult(null, queryProblem);
         }
@@ -435,7 +435,7 @@ public sealed class AdminImportController : ControllerBase
             var formLimitRaw = form.TryGetValue("limit", out var limitValues)
                 ? limitValues.ToString()
                 : null;
-            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem, this))
+            if (ParseLimit(formLimitRaw, out var limit) is { } limitProblem)
             {
                 return new ParseRequestResult(null, limitProblem);
             }
@@ -481,23 +481,21 @@ public sealed class AdminImportController : ControllerBase
         }
     }
 
-    private static bool TryParseLimit(
-        string? raw,
-        out int? value,
-        out ObjectResult? problem,
-        AdminImportController controller)
+    private ObjectResult? ParseLimit(string? raw, out int? value)
     {
         value = null;
-        problem = null;
-        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
         if (int.TryParse(raw, out var parsed))
         {
             value = parsed;
-            return true;
+            return null;
         }
 
-        problem = controller.CreateInvalidLimitProblem();
-        return false;
+        return CreateInvalidLimitProblem();
     }
 
     private bool TryResolveImporter(string? source, out ISourceImporter importer)
