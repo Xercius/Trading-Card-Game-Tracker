@@ -9,7 +9,7 @@ Use the provided scripts from the repository root to keep migrations consistent 
 PowerShell:
 
 ```powershell
-./scripts/ef-migrations.ps1 "AddCardsTable"
+./api/scripts/ef-migrations.ps1 "AddCardsTable"
 ```
 
 Bash:
