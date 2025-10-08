@@ -601,21 +601,6 @@ public sealed class AdminImportController : ControllerBase
         return new ImportPreviewResponse(summaryPayload, rows.ToArray());
     }
 
-    private static bool TryParseLimit(string? raw, out int? value, out ObjectResult? problem, AdminImportController controller)
-    {
-        value = null;
-        problem = null;
-        if (string.IsNullOrWhiteSpace(raw)) return true;
-        if (int.TryParse(raw, out var parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        problem = controller.CreateInvalidLimitProblem();
-        return false;
-    }
-
     private ObjectResult CreateInvalidLimitProblem()
     {
         return this.CreateValidationProblem(
