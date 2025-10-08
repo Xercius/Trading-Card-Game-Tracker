@@ -2,6 +2,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using api.Common.Errors;
 using api.Data;
 using api.Filters;
 using api.Middleware;
@@ -36,15 +37,23 @@ public sealed class AdminUsersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AdminUserResponse>> CreateUser([FromBody] AdminCreateUserRequest request)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.Name))
+        if (request is null)
         {
-            return Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Name required",
-                detail: "A non-empty name is required to create a user.");
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
         }
 
-        var name = request.Name.Trim();
+        var trimmedName = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName))
+        {
+            return this.CreateValidationProblem(
+                "name",
+                "A non-empty name is required to create a user.");
+        }
+
+        var name = trimmedName!;
         var user = new User
         {
             Username = name,
@@ -63,7 +72,10 @@ public sealed class AdminUsersController : ControllerBase
     {
         if (request is null)
         {
-            return Problem(statusCode: StatusCodes.Status400BadRequest);
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync();
@@ -72,7 +84,7 @@ public sealed class AdminUsersController : ControllerBase
         if (user is null)
         {
             await tx.RollbackAsync();
-            return NotFound();
+            return this.CreateProblem(StatusCodes.Status404NotFound);
         }
 
         if (request.Name is not null)
@@ -81,10 +93,9 @@ public sealed class AdminUsersController : ControllerBase
             if (string.IsNullOrWhiteSpace(trimmedName))
             {
                 await tx.RollbackAsync();
-                return Problem(
-                    statusCode: StatusCodes.Status400BadRequest,
-                    title: "Name required",
-                    detail: "Name cannot be blank.");
+                return this.CreateValidationProblem(
+                    "name",
+                    "Name cannot be blank.");
             }
 
             user.Username = trimmedName;
@@ -121,7 +132,7 @@ public sealed class AdminUsersController : ControllerBase
         if (user is null)
         {
             await tx.RollbackAsync();
-            return NotFound();
+            return this.CreateProblem(StatusCodes.Status404NotFound);
         }
 
         if (user.IsAdmin)
@@ -155,8 +166,8 @@ public sealed class AdminUsersController : ControllerBase
 
     private IActionResult LastAdminConflict()
     {
-        return Problem(
-            statusCode: StatusCodes.Status409Conflict,
+        return this.CreateProblem(
+            StatusCodes.Status409Conflict,
             title: "Cannot remove last administrator",
             detail: "At least one administrator must remain.");
     }

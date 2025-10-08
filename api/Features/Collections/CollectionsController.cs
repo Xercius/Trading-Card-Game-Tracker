@@ -1,3 +1,4 @@
+using api.Common.Errors;
 using api.Data;
 using api.Features.Collections.Dtos;
 using api.Filters;
@@ -6,6 +7,7 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -78,7 +80,14 @@ public class CollectionsController : ControllerBase
         int pageSize)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : Forbid();
+        {
+            if (IsAdmin())
+            {
+                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            }
+
+            return Forbid();
+        }
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -119,11 +128,33 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> UpsertCore(int userId, UpsertUserCardRequest dto)
     {
-        if (dto is null) return BadRequest("Body required.");
-        if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
+        if (dto.CardPrintingId <= 0)
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
+
         if (await _db.Users.FindAsync(userId) is null)
-            return IsAdmin() ? NotFound("User not found.") : Forbid();
-        if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
+        {
+            if (IsAdmin())
+            {
+                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            }
+
+            return Forbid();
+        }
+
+        if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
 
         var existing = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == dto.CardPrintingId);
@@ -161,7 +192,7 @@ public class CollectionsController : ControllerBase
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return NotFound();
+        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
         uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
@@ -174,9 +205,29 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> SetOwnedProxyCore(int userId, int cardPrintingId, SetOwnedProxyRequest dto)
     {
-        if (dto is null) return BadRequest("Body required.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
         if (dto.OwnedQty < 0 || dto.ProxyQty < 0)
-            return BadRequest("Quantities must be non-negative.");
+        {
+            var errors = new Dictionary<string, string[]>();
+            if (dto.OwnedQty < 0)
+            {
+                errors["ownedQty"] = new[] { "Quantity must be non-negative." };
+            }
+
+            if (dto.ProxyQty < 0)
+            {
+                errors["proxyQty"] = new[] { "Quantity must be non-negative." };
+            }
+
+            return this.CreateValidationProblem(errors);
+        }
 
         var existing = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
@@ -202,11 +253,17 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> PatchQuantitiesCore(int userId, int cardPrintingId, JsonElement updates)
     {
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (updates.ValueKind != JsonValueKind.Object)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "JSON object required.");
+        }
 
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return NotFound();
+        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         var touched = false;
 
@@ -236,14 +293,30 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> ApplyDeltaCore(int userId, IEnumerable<DeltaUserCardRequest> deltas)
     {
-        if (deltas is null) return BadRequest("Deltas payload required.");
+        if (deltas is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Deltas payload required.");
+        }
+
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return IsAdmin() ? NotFound("User not found.") : Forbid();
+        {
+            if (IsAdmin())
+            {
+                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+            }
+
+            return Forbid();
+        }
 
         var deltaList = deltas.ToList();
         if (deltaList.Count == 0) return NoContent();
         if (deltaList.Any(d => d.CardPrintingId <= 0))
-            return BadRequest("CardPrintingId must be positive.");
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
 
         using var tx = await _db.Database.BeginTransactionAsync();
         var printingIds = deltaList.Select(d => d.CardPrintingId).Distinct().ToList();
@@ -254,7 +327,12 @@ public class CollectionsController : ControllerBase
         var validSet = validIds.ToHashSet();
 
         var missing = printingIds.FirstOrDefault(id => !validSet.Contains(id));
-        if (missing != 0) return NotFound($"CardPrinting not found: {missing}");
+        if (missing != 0)
+        {
+            return this.CreateValidationProblem(
+                "cardPrintingId",
+                $"CardPrinting not found: {missing}");
+        }
 
         var map = await _db.UserCards
             .Where(uc => uc.UserId == userId && printingIds.Contains(uc.CardPrintingId))
@@ -289,7 +367,13 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> ApplyBulkDeltaCore(int userId, CollectionBulkUpdateRequest request)
     {
-        if (request is null) return BadRequest("Body required.");
+        if (request is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
 
         var items = request.Items ?? Array.Empty<CollectionBulkUpdateItem>();
         var deltas = items
@@ -297,19 +381,14 @@ public class CollectionsController : ControllerBase
             .ToList();
 
         var result = await ApplyDeltaCore(userId, deltas);
-        return result switch
-        {
-            NotFoundObjectResult nf => BadRequest(nf.Value ?? "Invalid cardPrintingId."),
-            NotFoundResult => BadRequest("Invalid cardPrintingId."),
-            _ => result
-        };
+        return result;
     }
 
     private async Task<IActionResult> RemoveCore(int userId, int cardPrintingId)
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return NotFound();
+        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
         _db.UserCards.Remove(uc);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -339,7 +418,13 @@ public class CollectionsController : ControllerBase
     public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertUserCardRequest dto)
     {
         if (UserMismatch(userId)) return Forbid();
-        if (dto is null) return BadRequest("Body required.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
         return await UpsertCore(userId, dto);
     }
 
@@ -348,7 +433,13 @@ public class CollectionsController : ControllerBase
     public async Task<IActionResult> SetQuantities(int userId, int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
         if (UserMismatch(userId)) return Forbid();
-        if (dto is null) return BadRequest("Body required.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
         return await SetQuantitiesCore(userId, cardPrintingId, dto);
     }
 
@@ -364,7 +455,13 @@ public class CollectionsController : ControllerBase
     public async Task<IActionResult> ApplyDelta(int userId, [FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
         if (UserMismatch(userId)) return Forbid();
-        if (deltas is null) return BadRequest("Deltas payload required.");
+        if (deltas is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Deltas payload required.");
+        }
         return await ApplyDeltaCore(userId, deltas);
     }
 
@@ -392,11 +489,34 @@ public class CollectionsController : ControllerBase
     public async Task<ActionResult<QuickAddResponse>> QuickAddForCurrent([FromBody] QuickAddRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        if (dto is null) return BadRequest("Body required.");
-        if (dto.PrintingId <= 0) return BadRequest("printingId must be positive.");
-        if (dto.Quantity <= 0) return BadRequest("Quantity must be positive.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (dto.PrintingId <= 0)
+        {
+            errors["printingId"] = new[] { "printingId must be positive." };
+        }
+
+        if (dto.Quantity <= 0)
+        {
+            errors["quantity"] = new[] { "Quantity must be positive." };
+        }
+
+        if (errors.Count > 0)
+        {
+            return this.CreateValidationProblem(errors);
+        }
+
         if (await _db.CardPrintings.FindAsync(dto.PrintingId) is null)
-            return NotFound("CardPrinting not found.");
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
 
         var card = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == uid && x.CardPrintingId == dto.PrintingId);
@@ -443,7 +563,13 @@ public class CollectionsController : ControllerBase
     public async Task<IActionResult> UpsertForCurrent([FromBody] UpsertUserCardRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        if (dto is null) return BadRequest("Body required.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
         return await UpsertCore(uid, dto);
     }
 
@@ -470,7 +596,13 @@ public class CollectionsController : ControllerBase
     public async Task<IActionResult> ApplyDeltaForCurrent([FromBody] IEnumerable<DeltaUserCardRequest> deltas)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        if (deltas is null) return BadRequest("Deltas payload required.");
+        if (deltas is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Deltas payload required.");
+        }
         return await ApplyDeltaCore(uid, deltas);
     }
 

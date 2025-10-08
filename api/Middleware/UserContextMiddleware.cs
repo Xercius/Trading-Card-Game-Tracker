@@ -1,6 +1,9 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using api.Data;
 
 namespace api.Middleware
@@ -13,7 +16,7 @@ namespace api.Middleware
     public static class HttpContextUserExtensions
     {
         public static CurrentUser? GetCurrentUser(this HttpContext ctx)
-    => ctx.Items.TryGetValue("User", out var v) && v is CurrentUser cu ? cu : null;
+        => ctx.Items.TryGetValue("User", out var v) && v is CurrentUser cu ? cu : null;
     }
 
     public class UserContextMiddleware
@@ -40,8 +43,16 @@ namespace api.Middleware
             var requires = ep?.Metadata.GetMetadata<RequireUserHeaderAttribute>() != null;
             if (requires && cu == null)
             {
+                var factory = ctx.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+                var problem = factory.CreateProblemDetails(
+                    ctx,
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required or invalid.");
+
                 ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
-                await ctx.Response.WriteAsync("X-User-Id header required or invalid.");
+                ctx.Response.ContentType = "application/problem+json";
+                await ctx.Response.WriteAsJsonAsync(problem);
                 return;
             }
 

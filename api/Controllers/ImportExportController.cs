@@ -5,9 +5,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using api.Common.Errors;
 using api.Data;
 using api.Middleware;
 using api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,7 +53,13 @@ namespace api.Controllers
         public async Task<IActionResult> ExportJson()
         {
             var userId = CurrentUserId();
-            if (userId is null) return BadRequest("X-User-Id required.");
+            if (userId is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required.");
+            }
 
             var collection = await _db.UserCards
                 .Where(x => x.UserId == userId)
@@ -114,7 +122,13 @@ namespace api.Controllers
         public async Task<IActionResult> ExportCollectionCsv()
         {
             var userId = CurrentUserId();
-            if (userId is null) return BadRequest("X-User-Id required.");
+            if (userId is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required.");
+            }
 
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
@@ -151,7 +165,13 @@ namespace api.Controllers
         public async Task<IActionResult> ExportWishlistCsv()
         {
             var userId = CurrentUserId();
-            if (userId is null) return BadRequest("X-User-Id required.");
+            if (userId is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required.");
+            }
 
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
@@ -187,7 +207,13 @@ namespace api.Controllers
         public async Task<IActionResult> ExportDecksCsv()
         {
             var userId = CurrentUserId();
-            if (userId is null) return BadRequest("X-User-Id required.");
+            if (userId is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required.");
+            }
 
             var rows = await _db.DeckCards
                 .AsNoTracking()
@@ -245,10 +271,28 @@ namespace api.Controllers
         public async Task<IActionResult> ImportJson([FromQuery] string mode, [FromBody] ImportPayload payload)
         {
             var userId = CurrentUserId();
-            if (userId is null) return BadRequest("X-User-Id required.");
+            if (userId is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Missing required header",
+                    detail: "The X-User-Id header is required.");
+            }
+
             mode = string.IsNullOrWhiteSpace(mode) ? "merge" : mode.ToLowerInvariant();
-            if (payload is null) return BadRequest("No body.");
-            if (payload.Version != 1) return BadRequest("Unsupported version.");
+
+            if (payload is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Invalid payload",
+                    detail: "A request body is required for import.");
+            }
+
+            if (payload.Version != 1)
+            {
+                return this.CreateValidationProblem("version", "Unsupported version.");
+            }
 
             var allIds = payload.Collection.Select(c => c.CardPrintingId)
                 .Concat(payload.Wishlist.Select(w => w.CardPrintingId))
@@ -263,8 +307,16 @@ namespace api.Controllers
                     .ToListAsync();
                 var missing = allIds.Except(present).ToList();
                 if (missing.Count > 0)
-                    return BadRequest(new { error = "Unknown CardPrintingId(s).", missing });
-            }
+                    var errors = new Dictionary<string, string[]>
+                    {
+                        ["cardPrintingId"] = new[]
+                        {
+                            $"Unknown CardPrintingId(s): {string.Join(", ", missing)}"
+                        }
+                    };
+
+                    return this.CreateValidationProblem(errors);
+                }
 
             using var trx = await _db.Database.BeginTransactionAsync();
 
@@ -281,7 +333,7 @@ namespace api.Controllers
             }
             else if (mode != "merge")
             {
-                return BadRequest("mode must be merge or replace");
+                return this.CreateValidationProblem("mode", "Mode must be merge or replace.");
             }
 
             var userCardMap = await _db.UserCards

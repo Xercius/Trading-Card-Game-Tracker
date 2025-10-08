@@ -1,3 +1,4 @@
+using api.Common.Errors;
 using api.Data;
 using api.Features.Decks.Dtos;
 using api.Filters;
@@ -65,7 +66,7 @@ public class DecksController : ControllerBase
     private async Task<(Deck? deck, IActionResult? error)> GetDeckForCaller(int deckId)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return (null, NotFound());
+        if (d is null) return (null, this.CreateProblem(StatusCodes.Status404NotFound));
         if (NotOwnerAndNotAdmin(d)) return (null, Forbid());
         return (d, null);
     }
@@ -145,7 +146,8 @@ public class DecksController : ControllerBase
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return (null, NotFound("User not found."));
+        if (!await _db.Users.AnyAsync(u => u.Id == userId))
+            return (null, this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found."));
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -186,10 +188,32 @@ public class DecksController : ControllerBase
 
     private async Task<IActionResult> CreateDeckCore(int userId, CreateDeckRequest dto)
     {
-        if (dto is null) return BadRequest();
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest("Game and Name required.");
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+        {
+            var errors = new Dictionary<string, string[]>();
+            if (string.IsNullOrWhiteSpace(dto.Game))
+            {
+                errors["game"] = new[] { "Game is required." };
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Name))
+            {
+                errors["name"] = new[] { "Name is required." };
+            }
+
+            return this.CreateValidationProblem(errors);
+        }
+
+        if (!await _db.Users.AnyAsync(u => u.Id == userId))
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
 
         var name = dto.Name.Trim();
         var game = dto.Game.Trim();
@@ -199,7 +223,11 @@ public class DecksController : ControllerBase
             EF.Functions.Collate(x.Game, "NOCASE") == game &&
             EF.Functions.Collate(x.Name, "NOCASE") == name);
         if (duplicate)
-            return Conflict("Duplicate deck name for user.");
+        {
+            return this.CreateProblem(
+                StatusCodes.Status409Conflict,
+                detail: "Duplicate deck name for user.");
+        }
 
         var deck = _mapper.Map<Deck>(dto);
         deck.UserId = userId;
@@ -216,7 +244,7 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> GetDeckCore(int deckId)
     {
         var d = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return NotFound();
+        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         return Ok(_mapper.Map<DeckResponse>(d));
     }
@@ -224,10 +252,23 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return NotFound();
+        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest("Game and Name required.");
+        {
+            var errors = new Dictionary<string, string[]>();
+            if (string.IsNullOrWhiteSpace(dto.Game))
+            {
+                errors["game"] = new[] { "Game is required." };
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Name))
+            {
+                errors["name"] = new[] { "Name is required." };
+            }
+
+            return this.CreateValidationProblem(errors);
+        }
 
         var targetName = dto.Name.Trim();
         var targetGame = dto.Game.Trim();
@@ -237,7 +278,11 @@ public class DecksController : ControllerBase
             EF.Functions.Collate(x.Game, "NOCASE") == targetGame &&
             EF.Functions.Collate(x.Name, "NOCASE") == targetName);
         if (nameInUse)
-            return Conflict("Duplicate deck name for user.");
+        {
+            return this.CreateProblem(
+                StatusCodes.Status409Conflict,
+                detail: "Duplicate deck name for user.");
+        }
 
         _mapper.Map(dto, d);
         d.Game = targetGame;
@@ -249,17 +294,29 @@ public class DecksController : ControllerBase
 
     private async Task<IActionResult> PatchDeckForUserAsync(int userId, int deckId, JsonElement patch)
     {
-        if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (patch.ValueKind != JsonValueKind.Object)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "JSON object required.");
+        }
 
         var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
-        if (deck is null) return NotFound();
+        if (deck is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         return await ApplyDeckPatchAsync(deck, patch);
     }
 
     private async Task<IActionResult> ApplyDeckPatchAsync(Deck deck, JsonElement patch)
     {
-        if (patch.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (patch.ValueKind != JsonValueKind.Object)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "JSON object required.");
+        }
 
         var ownerId = deck.UserId;
         var currentName = deck.Name ?? string.Empty;
@@ -290,7 +347,12 @@ public class DecksController : ControllerBase
                     EF.Functions.Collate(d.Game, "NOCASE") == targetGameForNameCheck &&
                     EF.Functions.Collate(d.Name, "NOCASE") == requestedName);
 
-                if (exists) return Conflict("A deck with this name already exists.");
+                if (exists)
+                {
+                    return this.CreateProblem(
+                        StatusCodes.Status409Conflict,
+                        detail: "A deck with this name already exists.");
+                }
 
                 deck.Name = requestedName;
                 currentName = requestedName;
@@ -329,7 +391,12 @@ public class DecksController : ControllerBase
                     d.Id != deck.Id &&
                     string.Equals(d.Game, requestedGame, StringComparison.OrdinalIgnoreCase) &&
                     d.Name.ToLower() == normalizedName);
-                if (collision) return Conflict("Name already exists in the target game.");
+                if (collision)
+                {
+                    return this.CreateProblem(
+                        StatusCodes.Status409Conflict,
+                        detail: "Name already exists in the target game.");
+                }
             }
 
             if (!string.Equals(deck.Game, requestedGame, StringComparison.Ordinal))
@@ -348,7 +415,7 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> DeleteDeckCore(int deckId)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return NotFound();
+        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         _db.Decks.Remove(d);
         await _db.SaveChangesAsync();
@@ -372,12 +439,26 @@ public class DecksController : ControllerBase
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
-        if (dto is null) return BadRequest();
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
 
         var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
-        if (cp is null) return NotFound("CardPrinting not found.");
+        if (cp is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
+
         if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Card game does not match deck game.");
+        {
+            return this.CreateValidationProblem(
+                "cardPrintingId",
+                "Card game does not match deck game.");
+        }
 
         var dc = await _db.DeckCards
             .FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == dto.CardPrintingId);
@@ -411,7 +492,13 @@ public class DecksController : ControllerBase
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
-        if (deltas is null) return BadRequest("Deltas payload required.");
+        if (deltas is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Deltas payload required.");
+        }
 
         var list = deltas.ToList();
         if (list.Count == 0) return NoContent();
@@ -422,9 +509,19 @@ public class DecksController : ControllerBase
             .Include(cp => cp.Card)
             .ToListAsync();
 
-        if (printings.Count != ids.Count) return NotFound("One or more CardPrintings not found.");
+        if (printings.Count != ids.Count)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: "One or more CardPrintings not found.");
+        }
+
         if (printings.Any(cp => !string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase)))
-            return BadRequest("One or more card games do not match deck game.");
+        {
+            return this.CreateValidationProblem(
+                "cardPrintingId",
+                "One or more card games do not match deck game.");
+        }
 
         using var tx = await _db.Database.BeginTransactionAsync();
 
@@ -472,7 +569,10 @@ public class DecksController : ControllerBase
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
-        if (cardPrintingId <= 0) return BadRequest("Valid printingId required.");
+        if (cardPrintingId <= 0)
+        {
+            return this.CreateValidationProblem("printingId", "Valid printingId required.");
+        }
 
         var deckEntity = deck!;
         if (qtyDelta == 0)
@@ -486,9 +586,17 @@ public class DecksController : ControllerBase
 
         var printing = await _db.CardPrintings.Include(cp => cp.Card)
             .FirstOrDefaultAsync(cp => cp.Id == cardPrintingId, ct);
-        if (printing is null) return NotFound("CardPrinting not found.");
+        if (printing is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
+
         if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Card game does not match deck game.");
+        {
+            return this.CreateValidationProblem(
+                "cardPrintingId",
+                "Card game does not match deck game.");
+        }
 
         var deckCard = await _db.DeckCards
             .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == cardPrintingId, ct);
@@ -512,7 +620,9 @@ public class DecksController : ControllerBase
 
             if (targetQty > maxAllowed)
             {
-                return BadRequest("Insufficient availability for this card.");
+                return this.CreateValidationProblem(
+                    "cardPrintingId",
+                    "Insufficient availability for this card.");
             }
         }
 
@@ -530,7 +640,10 @@ public class DecksController : ControllerBase
     {
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
-        if (request.PrintingId <= 0) return BadRequest("Valid printingId required.");
+        if (request.PrintingId <= 0)
+        {
+            return this.CreateValidationProblem("printingId", "Valid printingId required.");
+        }
 
         var deckEntity = deck!;
         var ct = HttpContext.RequestAborted;
@@ -545,9 +658,16 @@ public class DecksController : ControllerBase
         {
             var printing = await _db.CardPrintings.Include(cp => cp.Card)
                 .FirstOrDefaultAsync(cp => cp.Id == request.PrintingId, ct);
-            if (printing is null) return NotFound("CardPrinting not found.");
+            if (printing is null)
+            {
+                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            }
             if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
-                return BadRequest("Card game does not match deck game.");
+            {
+                return this.CreateValidationProblem(
+                    "cardPrintingId",
+                    "Card game does not match deck game.");
+            }
 
             var userCard = await _db.UserCards
                 .FirstOrDefaultAsync(uc => uc.UserId == deckEntity.UserId && uc.CardPrintingId == request.PrintingId, ct);
@@ -560,7 +680,9 @@ public class DecksController : ControllerBase
 
             if (normalizedQty > maxAllowed)
             {
-                return BadRequest("Insufficient availability for this card.");
+                return this.CreateValidationProblem(
+                    "cardPrintingId",
+                    "Insufficient availability for this card.");
             }
         }
 
@@ -586,7 +708,7 @@ public class DecksController : ControllerBase
         if (err != null) return err;
 
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
-        if (dc is null) return NotFound();
+        if (dc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         dc.QuantityInDeck = NN(dto.QuantityInDeck);
         dc.QuantityIdea = NN(dto.QuantityIdea);
@@ -605,15 +727,28 @@ public class DecksController : ControllerBase
         var (deck, err) = await GetDeckForCaller(deckId);
         if (err != null) return err;
 
-        if (updates.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (updates.ValueKind != JsonValueKind.Object)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "JSON object required.");
+        }
 
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
         if (dc is null)
         {
             var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == cardPrintingId);
-            if (cp is null) return NotFound("CardPrinting not found.");
+            if (cp is null)
+            {
+                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            }
             if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
-                return BadRequest("Card game does not match deck game.");
+            {
+                return this.CreateValidationProblem(
+                    "cardPrintingId",
+                    "Card game does not match deck game.");
+            }
 
             dc = new DeckCard
             {
@@ -645,7 +780,7 @@ public class DecksController : ControllerBase
         if (err != null) return err;
 
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
-        if (dc is null) return NotFound();
+        if (dc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         _db.DeckCards.Remove(dc);
         await _db.SaveChangesAsync();
@@ -902,7 +1037,13 @@ public class DecksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ApplyDeckCardQuantityDelta(int deckId, [FromBody] QuantityDeltaRequest request, [FromQuery] bool includeProxies = false)
     {
-        if (request is null) return BadRequest();
+        if (request is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
         return await ApplyDeckCardQuantityDeltaCore(deckId, request.PrintingId, request.QtyDelta, includeProxies, returnUpdatedRow: true);
     }
 
@@ -916,7 +1057,13 @@ public class DecksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpsertDeckCardQuantity(int deckId, [FromBody] UpsertDeckCardRequest request, [FromQuery] bool includeProxies = false)
     {
-        if (request is null) return BadRequest();
+        if (request is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
         return await UpsertDeckCardQuantityCore(deckId, request, includeProxies, returnUpdatedRow: true);
     }
 
@@ -928,26 +1075,48 @@ public class DecksController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> UpsertDeckCard(int deckId, [FromBody] JsonElement payload, [FromQuery] bool includeProxies = false)
     {
-        if (payload.ValueKind != JsonValueKind.Object) return BadRequest("JSON object required.");
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "JSON object required.");
+        }
 
         _logger.LogWarning("Legacy deck card endpoint invoked for deck {DeckId}", deckId);
 
         if (payload.TryGetProperty("qtyDelta", out var deltaProp) && payload.TryGetProperty("printingId", out var printingProp))
         {
             if (!TryReadInt32(printingProp, out var printingId) || !TryReadInt32(deltaProp, out var qtyDelta))
-                return BadRequest("Invalid printingId or qtyDelta.");
+            {
+                var errors = new Dictionary<string, string[]>
+                {
+                    ["printingId"] = new[] { "Invalid printingId or qtyDelta." },
+                    ["qtyDelta"] = new[] { "Invalid printingId or qtyDelta." }
+                };
+                return this.CreateValidationProblem(errors);
+            }
             return await ApplyDeckCardQuantityDeltaCore(deckId, printingId, qtyDelta, includeProxies);
         }
 
         try
         {
             var dto = JsonSerializer.Deserialize<UpsertDeckCardFullRequest>(payload.GetRawText(), JsonWebOptions);
-            if (dto is null) return BadRequest();
+            if (dto is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status400BadRequest,
+                    title: "Invalid payload",
+                    detail: "A request body is required.");
+            }
             return await UpsertDeckCardCore(deckId, dto);
         }
         catch (JsonException)
         {
-            return BadRequest("Invalid payload.");
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Invalid payload.");
         }
     }
 

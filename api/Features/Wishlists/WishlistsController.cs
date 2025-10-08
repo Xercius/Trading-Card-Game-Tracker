@@ -3,12 +3,14 @@ using System.Net.Mime;
 using System.Text.Json;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using api.Common.Errors;
 using api.Data;
 using api.Features.Wishlists.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
 using api.Shared;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
@@ -73,7 +75,8 @@ public class WishlistsController : ControllerBase
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return (null, NotFound("User not found."));
+        if (!await _db.Users.AnyAsync(u => u.Id == userId))
+            return (null, this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found."));
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -119,10 +122,28 @@ public class WishlistsController : ControllerBase
     // POST upsert one (wanted)
     private async Task<IActionResult> UpsertCore(int userId, UpsertWishlistRequest dto)
     {
-        if (dto is null) return BadRequest();
-        if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
-        if (await _db.Users.FindAsync(userId) is null) return NotFound("User not found.");
-        if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null) return NotFound("CardPrinting not found.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
+        if (dto.CardPrintingId <= 0)
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
+
+        if (await _db.Users.FindAsync(userId) is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+        }
+
+        if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
 
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == dto.CardPrintingId);
@@ -151,17 +172,35 @@ public class WishlistsController : ControllerBase
     // PUT bulk set (wanted)
     private async Task<IActionResult> BulkSetCore(int userId, IEnumerable<BulkSetWishlistRequest> items)
     {
-        if (items is null) return BadRequest("Payload required.");
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+        if (items is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "Payload required.");
+        }
+
+        if (!await _db.Users.AnyAsync(u => u.Id == userId))
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+        }
 
         var list = items.ToList();
         if (list.Count == 0) return NoContent();
-        if (list.Any(i => i.CardPrintingId <= 0)) return BadRequest("CardPrintingId must be positive.");
+        if (list.Any(i => i.CardPrintingId <= 0))
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
 
         var ids = list.Select(i => i.CardPrintingId).Distinct().ToList();
         var validIds = await _db.CardPrintings.Where(cp => ids.Contains(cp.Id)).Select(cp => cp.Id).ToListAsync();
         var missing = ids.FirstOrDefault(id => !validIds.Contains(id));
-        if (missing != 0) return NotFound($"CardPrinting not found: {missing}");
+        if (missing != 0)
+        {
+            return this.CreateValidationProblem(
+                "cardPrintingId",
+                $"CardPrinting not found: {missing}");
+        }
 
         var map = await _db.UserCards
             .Where(uc => uc.UserId == userId && ids.Contains(uc.CardPrintingId))
@@ -193,10 +232,34 @@ public class WishlistsController : ControllerBase
     // POST move-to-collection (decrement wanted, increment owned/proxy)
     private async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionCore(int userId, MoveToCollectionRequest dto)
     {
-        if (dto is null) return BadRequest();
-        if (dto.CardPrintingId <= 0) return BadRequest("CardPrintingId required.");
-        if (dto.Quantity <= 0) return BadRequest("Quantity must be positive.");
-        if (!await _db.Users.AnyAsync(u => u.Id == userId)) return NotFound("User not found.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (dto.CardPrintingId <= 0)
+        {
+            errors["cardPrintingId"] = new[] { "CardPrintingId must be positive." };
+        }
+
+        if (dto.Quantity <= 0)
+        {
+            errors["quantity"] = new[] { "Quantity must be positive." };
+        }
+
+        if (errors.Count > 0)
+        {
+            return this.CreateValidationProblem(errors);
+        }
+
+        if (!await _db.Users.AnyAsync(u => u.Id == userId))
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+        }
 
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == dto.CardPrintingId);
@@ -264,7 +327,7 @@ public class WishlistsController : ControllerBase
     {
         var uc = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
-        if (uc is null) return NotFound();
+        if (uc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         uc.QuantityWanted = 0;
 
@@ -334,11 +397,34 @@ public class WishlistsController : ControllerBase
     public async Task<ActionResult<QuickAddResponse>> QuickAddForCurrent([FromBody] QuickAddRequest dto)
     {
         if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        if (dto is null) return BadRequest("Body required.");
-        if (dto.PrintingId <= 0) return BadRequest("printingId must be positive.");
-        if (dto.Quantity <= 0) return BadRequest("Quantity must be positive.");
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (dto.PrintingId <= 0)
+        {
+            errors["printingId"] = new[] { "printingId must be positive." };
+        }
+
+        if (dto.Quantity <= 0)
+        {
+            errors["quantity"] = new[] { "Quantity must be positive." };
+        }
+
+        if (errors.Count > 0)
+        {
+            return this.CreateValidationProblem(errors);
+        }
+
         if (await _db.CardPrintings.FindAsync(dto.PrintingId) is null)
-            return NotFound("CardPrinting not found.");
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+        }
 
         var card = await _db.UserCards
             .FirstOrDefaultAsync(x => x.UserId == uid && x.CardPrintingId == dto.PrintingId);
