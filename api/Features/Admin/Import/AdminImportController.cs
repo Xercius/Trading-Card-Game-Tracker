@@ -176,8 +176,7 @@ public sealed class AdminImportController : ControllerBase
         {
             if (ex.Errors is not null)
             {
-                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
-                return this.CreateValidationProblem(errors, title: ex.Message);
+                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
             }
 
             return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
@@ -243,8 +242,7 @@ public sealed class AdminImportController : ControllerBase
         {
             if (ex.Errors is not null)
             {
-                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
-                return this.CreateValidationProblem(errors, title: ex.Message);
+                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
             }
 
             return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
@@ -436,6 +434,21 @@ public sealed class AdminImportController : ControllerBase
             Invalid: summary.Errors + invalidMessages.Length);
 
         return new ImportPreviewResponse(summaryPayload, rows.ToArray());
+    }
+
+    private static bool TryParseLimit(string? raw, out int? value, out ObjectResult? problem, AdminImportController controller)
+    {
+        value = null;
+        problem = null;
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (int.TryParse(raw, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        problem = controller.CreateInvalidLimitProblem();
+        return false;
     }
 
     private ObjectResult CreateInvalidLimitProblem()
