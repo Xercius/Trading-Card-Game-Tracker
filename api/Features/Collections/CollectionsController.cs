@@ -350,9 +350,9 @@ public class CollectionsController : ControllerBase
         var missing = printingIds.FirstOrDefault(id => !validSet.Contains(id));
         if (missing != 0)
         {
-            return this.CreateValidationProblem(
-                "cardPrintingId",
-                $"CardPrinting not found: {missing}");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {missing} was not found.");
         }
 
         var map = await _db.UserCards
@@ -403,22 +403,7 @@ public class CollectionsController : ControllerBase
             .Select(i => new DeltaUserCardRequest(i.PrintingId, i.OwnedDelta, 0, i.ProxyDelta))
             .ToList();
 
-        var result = await ApplyDeltaCore(userId, deltas);
-        // Restore previous behavior: convert NotFound (404) to BadRequest (400)
-        if (result is ObjectResult objectResult &&
-            objectResult.Value is ProblemDetails problemDetails &&
-            problemDetails.Status == StatusCodes.Status404NotFound)
-        {
-            // Convert to BadRequest (400)
-            var detail = problemDetails.Detail ?? "The specified user could not be found.";
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["userId"] = new[] { detail }
-                },
-                title: problemDetails.Title ?? "Validation error");
-        }
-        return result;
+        return await ApplyDeltaCore(userId, deltas);
     }
 
     private async Task<IActionResult> RemoveCore(int userId, int cardPrintingId)
