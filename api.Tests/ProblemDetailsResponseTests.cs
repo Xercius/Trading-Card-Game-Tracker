@@ -196,7 +196,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem!.Status.Should().Be(StatusCodes.Status404NotFound);
         problem.Type.Should().Be(ProblemTypes.NotFound.Type);
         problem.Title.Should().Be(ProblemTypes.NotFound.Title);
-        problem.Detail.Should().NotBeNullOrWhiteSpace();
+        problem.Detail.Should().Be("User 99999 was not found.");
         problem.Extensions.Should().ContainKey("traceId");
         problem.Instance.Should().Be("/api/user/99999");
     }

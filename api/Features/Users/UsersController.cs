@@ -57,14 +57,24 @@ public class UsersController : ControllerBase
     private async Task<IActionResult> GetUserCore(int userId)
     {
         var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (u is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
         return Ok(_mapper.Map<UserResponse>(u));
     }
 
     private async Task<IActionResult> PatchUserCore(int userId, JsonElement updates)
     {
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (u is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
 
         if (updates.TryGetProperty("username", out var n) && n.ValueKind == JsonValueKind.String)
             u.Username = n.GetString()!.Trim();
@@ -89,7 +99,12 @@ public class UsersController : ControllerBase
         }
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (u is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
 
         if (!string.IsNullOrWhiteSpace(dto.Username))
             u.Username = dto.Username.Trim();
@@ -132,7 +147,12 @@ public class UsersController : ControllerBase
         if (NotAdmin()) return StatusCode(403, "Admin required.");
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (u is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
 
         u.IsAdmin = isAdmin;
         await _db.SaveChangesAsync();
@@ -145,7 +165,12 @@ public class UsersController : ControllerBase
         if (NotAdmin()) return StatusCode(403, "Admin required.");
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (u is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
 
         _db.Users.Remove(u);
         await _db.SaveChangesAsync();

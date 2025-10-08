@@ -84,7 +84,9 @@ public sealed class AdminUsersController : ControllerBase
         if (user is null)
         {
             await tx.RollbackAsync();
-            return this.CreateProblem(StatusCodes.Status404NotFound);
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {id} was not found.");
         }
 
         if (request.Name is not null)
@@ -132,7 +134,9 @@ public sealed class AdminUsersController : ControllerBase
         if (user is null)
         {
             await tx.RollbackAsync();
-            return this.CreateProblem(StatusCodes.Status404NotFound);
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {id} was not found.");
         }
 
         if (user.IsAdmin)

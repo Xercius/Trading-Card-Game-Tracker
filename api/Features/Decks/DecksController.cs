@@ -66,7 +66,12 @@ public class DecksController : ControllerBase
     private async Task<(Deck? deck, IActionResult? error)> GetDeckForCaller(int deckId)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return (null, this.CreateProblem(StatusCodes.Status404NotFound));
+        if (d is null)
+        {
+            return (null, this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {deckId} was not found."));
+        }
         if (NotOwnerAndNotAdmin(d)) return (null, Forbid());
         return (d, null);
     }
@@ -147,7 +152,11 @@ public class DecksController : ControllerBase
         int pageSize)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return (null, this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found."));
+        {
+            return (null, this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found."));
+        }
 
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
@@ -213,7 +222,11 @@ public class DecksController : ControllerBase
         }
 
         if (!await _db.Users.AnyAsync(u => u.Id == userId))
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "User not found.");
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"User {userId} was not found.");
+        }
 
         var name = dto.Name.Trim();
         var game = dto.Game.Trim();
@@ -244,7 +257,12 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> GetDeckCore(int deckId)
     {
         var d = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (d is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {deckId} was not found.");
+        }
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         return Ok(_mapper.Map<DeckResponse>(d));
     }
@@ -252,7 +270,12 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (d is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {deckId} was not found.");
+        }
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
         {
@@ -303,7 +326,12 @@ public class DecksController : ControllerBase
         }
 
         var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
-        if (deck is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (deck is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {deckId} for user {userId} was not found.");
+        }
 
         return await ApplyDeckPatchAsync(deck, patch);
     }
@@ -415,7 +443,12 @@ public class DecksController : ControllerBase
     private async Task<IActionResult> DeleteDeckCore(int deckId)
     {
         var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
-        if (d is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (d is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {deckId} was not found.");
+        }
         if (NotOwnerAndNotAdmin(d)) return Forbid();
         _db.Decks.Remove(d);
         await _db.SaveChangesAsync();
@@ -450,7 +483,9 @@ public class DecksController : ControllerBase
         var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
         if (cp is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
         if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
@@ -588,7 +623,9 @@ public class DecksController : ControllerBase
             .FirstOrDefaultAsync(cp => cp.Id == cardPrintingId, ct);
         if (printing is null)
         {
-            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {cardPrintingId} was not found.");
         }
 
         if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
@@ -660,7 +697,9 @@ public class DecksController : ControllerBase
                 .FirstOrDefaultAsync(cp => cp.Id == request.PrintingId, ct);
             if (printing is null)
             {
-                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"Card printing {request.PrintingId} was not found.");
             }
             if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
             {
@@ -708,7 +747,12 @@ public class DecksController : ControllerBase
         if (err != null) return err;
 
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
-        if (dc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (dc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck card for deck {deckId} and card printing {cardPrintingId} was not found.");
+        }
 
         dc.QuantityInDeck = NN(dto.QuantityInDeck);
         dc.QuantityIdea = NN(dto.QuantityIdea);
@@ -741,7 +785,9 @@ public class DecksController : ControllerBase
             var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == cardPrintingId);
             if (cp is null)
             {
-                return this.CreateProblem(StatusCodes.Status404NotFound, detail: "CardPrinting not found.");
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"Card printing {cardPrintingId} was not found.");
             }
             if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
             {
@@ -780,7 +826,12 @@ public class DecksController : ControllerBase
         if (err != null) return err;
 
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
-        if (dc is null) return this.CreateProblem(StatusCodes.Status404NotFound);
+        if (dc is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck card for deck {deckId} and card printing {cardPrintingId} was not found.");
+        }
 
         _db.DeckCards.Remove(dc);
         await _db.SaveChangesAsync();
