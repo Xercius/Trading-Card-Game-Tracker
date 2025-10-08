@@ -115,10 +115,12 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         var user = HttpContext.GetCurrentUser();
         if (user is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Missing required header",
-                detail: "The X-User-Id header is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                },
+                title: "Missing required header");
         }
 
         if (days <= 0) days = DefaultValueHistoryDays;

@@ -109,10 +109,11 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.NotNull(problem);
         Assert.Equal("Invalid limit", problem!.Title);
-        Assert.Equal($"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}", problem.Detail);
+        Assert.True(problem.Errors.TryGetValue("limit", out var messages));
+        Assert.Contains($"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}", messages);
     }
 
     [Fact]
@@ -177,9 +178,10 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.NotNull(problem);
         Assert.Equal("CSV missing required columns.", problem!.Title);
+        Assert.Contains("missing", problem.Errors.Keys);
     }
 
     [Fact]

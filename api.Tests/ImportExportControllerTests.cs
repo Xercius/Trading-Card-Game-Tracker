@@ -7,11 +7,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using api.Data;
 using api.Tests.Fixtures;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using api.Tests.Helpers;
-using Microsoft.AspNetCore.Mvc;
 
 
 namespace api.Tests;
@@ -278,6 +279,24 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
                 uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == invalidCardPrintingId);
             Assert.False(hasInvalidCard);
         }
+    }
+
+    [Fact]
+    public async Task ExportJson_WithoutUserHeader_ReturnsValidationProblem()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/export/json");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem!.Status);
+        Assert.Equal("Missing required header", problem.Title);
+        Assert.Equal("The X-User-Id header is required.", problem.Detail);
+        Assert.Contains("X-User-Id", problem.Errors.Keys);
+        Assert.Contains("The X-User-Id header is required.", problem.Errors["X-User-Id"]);
     }
 
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);

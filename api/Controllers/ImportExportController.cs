@@ -55,10 +55,12 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                    },
+                    title: "Missing required header");
             }
 
             var collection = await _db.UserCards
@@ -124,10 +126,12 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                    },
+                    title: "Missing required header");
             }
 
             var rows = await _db.UserCards
@@ -167,10 +171,12 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                    },
+                    title: "Missing required header");
             }
 
             var rows = await _db.UserCards
@@ -209,10 +215,12 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                    },
+                    title: "Missing required header");
             }
 
             var rows = await _db.DeckCards
@@ -273,20 +281,24 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Missing required header",
-                    detail: "The X-User-Id header is required.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                    },
+                    title: "Missing required header");
             }
 
             mode = string.IsNullOrWhiteSpace(mode) ? "merge" : mode.ToLowerInvariant();
 
             if (payload is null)
             {
-                return this.CreateProblem(
-                    StatusCodes.Status400BadRequest,
-                    title: "Invalid payload",
-                    detail: "A request body is required for import.");
+                return this.CreateValidationProblem(
+                    new Dictionary<string, string[]>
+                    {
+                        ["request"] = new[] { "A request body is required for import." }
+                    },
+                    title: "Invalid payload");
             }
 
             if (payload.Version != 1)
