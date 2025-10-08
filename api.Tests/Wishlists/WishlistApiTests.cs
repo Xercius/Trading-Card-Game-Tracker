@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Linq;
+
 using FluentAssertions;
 using api.Tests.Infrastructure;
 
@@ -27,11 +27,9 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
 
         var items = await response.Content.ReadFromJsonAsync<List<WishlistItemContract>>();
         items.Should().NotBeNull();
-        items!.Select(i => i.CardPrintingId).Should().BeEquivalentTo(new[]
-        {
-            Seed.LightningBetaPrintingId,
-            Seed.PhoenixPrintingId
-        });
+        items!.Should().HaveCount(2);
+        items.Should().Contain(i => i.CardPrintingId == Seed.LightningBetaPrintingId);
+        items.Should().Contain(i => i.CardPrintingId == Seed.PhoenixPrintingId);
     }
 
     [Fact]

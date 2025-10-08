@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net.Http;
-using System.Linq;
 using api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -17,15 +16,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
     public TestingWebAppFactory()
     {
         _connection = new SqliteConnection("Filename=:memory:");
-        try
-        {
-            _connection.Open();
-        }
-        catch
-        {
-            _connection.Dispose();
-            throw;
-        }
+        _connection.Open();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -62,15 +53,8 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         _ = Server; // ensure host is built
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var entityTypes = db.Model.GetEntityTypes();
-        foreach (var entityType in entityTypes)
-        {
-            var tableName = entityType.GetTableName();
-            if (!string.IsNullOrEmpty(tableName))
-            {
-                await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{tableName}\"");
-            }
-        }
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
     }
 
     public async Task ExecuteScopeAsync(Func<IServiceProvider, Task> action)

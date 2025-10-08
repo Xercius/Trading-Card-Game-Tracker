@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Linq;
-using FluentAssertions;
+
 using Microsoft.AspNetCore.Mvc;
+
+using FluentAssertions;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Users;
@@ -28,7 +29,8 @@ public class UsersApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
 
         var payload = await response.Content.ReadFromJsonAsync<List<UserResponseContract>>();
         payload.Should().NotBeNull();
-        payload!.Select(u => u.Id).Should().Contain(new[] { Seed.AdminUserId, Seed.SecondaryUserId });
+        payload!.Should().Contain(u => u.Id == Seed.AdminUserId);
+        payload.Should().Contain(u => u.Id == Seed.SecondaryUserId);
     }
 
     [Fact]

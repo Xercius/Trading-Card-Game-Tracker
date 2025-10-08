@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Linq;
+
 using FluentAssertions;
 using api.Tests.Infrastructure;
 
@@ -24,7 +24,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
 
         var payload = await client.GetFromJsonAsync<PagedResponse<CollectionItemContract>>("/api/collection");
         payload.Should().NotBeNull();
-        var card = payload!.Items.Single(i => i.CardPrintingId == Seed.LightningBetaPrintingId);
+        var card = payload!.Items.Should().ContainSingle(i => i.CardPrintingId == Seed.LightningBetaPrintingId).Which;
         card.QuantityOwned.Should().Be(3);
         card.Availability.Should().Be(1);
     }
@@ -39,7 +39,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var items = await response.Content.ReadFromJsonAsync<List<DeckCardAvailabilityContract>>();
         items.Should().NotBeNull();
-        var card = items!.Single(i => i.PrintingId == Seed.LightningBetaPrintingId);
+        var card = items!.Should().ContainSingle(i => i.PrintingId == Seed.LightningBetaPrintingId).Which;
         card.QuantityInDeck.Should().Be(2);
         card.Availability.Should().Be(1);
     }
@@ -52,7 +52,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
 
         var payload = await client.GetFromJsonAsync<PagedResponse<CollectionItemContract>>("/api/collection");
         payload.Should().NotBeNull();
-        var card = payload!.Items.Single(i => i.CardPrintingId == Seed.PhoenixPrintingId);
+        var card = payload!.Items.Should().ContainSingle(i => i.CardPrintingId == Seed.PhoenixPrintingId).Which;
         card.QuantityOwned.Should().Be(0);
         card.QuantityWanted.Should().Be(2);
         card.Availability.Should().Be(0);
@@ -73,7 +73,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
 
         var snapshot = await client.GetFromJsonAsync<List<DeckCardAvailabilityContract>>($"/api/decks/{Seed.AdminDeckId}/cards-with-availability");
         snapshot.Should().NotBeNull();
-        var card = snapshot!.Single(i => i.PrintingId == Seed.LightningBetaPrintingId);
+        var card = snapshot!.Should().ContainSingle(i => i.PrintingId == Seed.LightningBetaPrintingId).Which;
         card.QuantityInDeck.Should().Be(3);
         card.Availability.Should().Be(0);
 

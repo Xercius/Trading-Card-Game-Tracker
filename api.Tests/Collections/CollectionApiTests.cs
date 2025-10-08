@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Linq;
-using FluentAssertions;
+
 using Microsoft.AspNetCore.Mvc;
+
+using FluentAssertions;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Collections;
@@ -29,14 +30,11 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
         var payload = await response.Content.ReadFromJsonAsync<PagedResponse<CollectionItemContract>>();
         payload.Should().NotBeNull();
         payload!.Items.Should().NotBeEmpty();
-        payload.Items.Select(i => i.CardPrintingId).Should().Contain(new[]
-        {
-            Seed.LightningAlphaPrintingId,
-            Seed.LightningBetaPrintingId,
-            Seed.PhoenixPrintingId,
-            Seed.GoblinPrintingId
-        });
-        payload.Items.Select(i => i.CardPrintingId).Should().NotContain(Seed.DragonPrintingId);
+        payload.Items.Should().Contain(i => i.CardPrintingId == Seed.LightningAlphaPrintingId);
+        payload.Items.Should().Contain(i => i.CardPrintingId == Seed.LightningBetaPrintingId);
+        payload.Items.Should().Contain(i => i.CardPrintingId == Seed.PhoenixPrintingId);
+        payload.Items.Should().Contain(i => i.CardPrintingId == Seed.GoblinPrintingId);
+        payload.Items.Should().NotContain(i => i.CardPrintingId == Seed.DragonPrintingId);
     }
 
     [Fact]
