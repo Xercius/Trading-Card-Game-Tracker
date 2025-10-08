@@ -68,7 +68,7 @@ export function parseProblemDetails(data: unknown): ParsedProblemDetails | null 
     for (const [key, value] of Object.entries(errorsSource)) {
       const messages = toStringArray(value);
       if (messages.length > 0) {
-        errors.push({ field: key || null, messages });
+        errors.push({ field: key === "" ? null : key, messages });
       }
     }
   }
