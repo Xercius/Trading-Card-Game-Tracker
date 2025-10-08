@@ -21,7 +21,6 @@ var builder = WebApplication.CreateBuilder(filteredArgs);
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
-        options.SuppressMapClientErrors = true;
         options.InvalidModelStateResponseFactory = context =>
         {
             var problemDetailsFactory = context.HttpContext.RequestServices
@@ -62,7 +61,7 @@ builder.Services.Configure<ProblemDetailsOptions>(options =>
     };
 });
 
-builder.Services.AddScoped<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
+builder.Services.AddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));

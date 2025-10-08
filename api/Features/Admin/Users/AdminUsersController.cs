@@ -38,13 +38,10 @@ public sealed class AdminUsersController : ControllerBase
     {
         if (request is null || string.IsNullOrWhiteSpace(request.Name))
         {
-            var problem = new ProblemDetails
-            {
-                Title = "Name required",
-                Detail = "A non-empty name is required to create a user.",
-                Status = StatusCodes.Status400BadRequest,
-            };
-            return BadRequest(problem);
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Name required",
+                detail: "A non-empty name is required to create a user.");
         }
 
         var name = request.Name.Trim();
@@ -66,7 +63,7 @@ public sealed class AdminUsersController : ControllerBase
     {
         if (request is null)
         {
-            return BadRequest();
+            return Problem(statusCode: StatusCodes.Status400BadRequest);
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync();
@@ -84,13 +81,10 @@ public sealed class AdminUsersController : ControllerBase
             if (string.IsNullOrWhiteSpace(trimmedName))
             {
                 await tx.RollbackAsync();
-                var problem = new ProblemDetails
-                {
-                    Title = "Name required",
-                    Detail = "Name cannot be blank.",
-                    Status = StatusCodes.Status400BadRequest,
-                };
-                return BadRequest(problem);
+                return Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Name required",
+                    detail: "Name cannot be blank.");
             }
 
             user.Username = trimmedName;
@@ -159,15 +153,11 @@ public sealed class AdminUsersController : ControllerBase
             user.CreatedUtc);
     }
 
-    private static ObjectResult LastAdminConflict()
+    private IActionResult LastAdminConflict()
     {
-        var problem = new ProblemDetails
-        {
-            Title = "Cannot remove last administrator",
-            Detail = "At least one administrator must remain.",
-            Status = StatusCodes.Status409Conflict,
-        };
-
-        return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        return Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Cannot remove last administrator",
+            detail: "At least one administrator must remain.");
     }
 }
