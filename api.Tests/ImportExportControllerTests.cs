@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using api.Tests.Helpers;
+using Microsoft.AspNetCore.Mvc;
 
 
 namespace api.Tests;
@@ -236,6 +239,36 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             Assert.Equal(exportedLorcanaDeck.Description, lorcanaDeck!.Description);
             Assert.Equal(exportedLorcanaDeck.Cards.Count, lorcanaDeck.Cards.Count);
         }
+    }
+
+    [Fact]
+    public async Task ImportJson_WithUnknownCardPrintingId_ReturnsValidationProblem()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var payload = new
+        {
+            version = 1,
+            collection = new[]
+            {
+                new { cardPrintingId = 999999, qtyOwned = 1, qtyProxyOwned = 0 }
+            },
+            wishlist = Array.Empty<object>(),
+            decks = Array.Empty<object>()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/import/json?mode=merge", payload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+
+        var cardPrintingErrors = Assert.Contains("cardPrintingId", problem!.Errors);
+        var message = Assert.Single(cardPrintingErrors);
+        Assert.Contains("999999", message);
     }
 
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);

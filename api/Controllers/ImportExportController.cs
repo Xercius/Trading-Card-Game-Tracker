@@ -308,15 +308,13 @@ namespace api.Controllers
                 var missing = allIds.Except(present).ToList();
                 if (missing.Count > 0)
                 {
-                    var errors = new Dictionary<string, string[]>
+                    return this.CreateValidationProblem(new Dictionary<string, string[]>
                     {
                         ["cardPrintingId"] = new[]
                         {
                             $"Unknown CardPrintingId(s): {string.Join(", ", missing)}"
                         }
-                    };
-
-                    return this.CreateValidationProblem(errors);
+                    });
                 }
 
             }
