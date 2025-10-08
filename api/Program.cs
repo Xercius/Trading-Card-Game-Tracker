@@ -1,10 +1,15 @@
 using api.Common;
+using api.Common.Errors;
 using api.Data;
 using api.Middleware;
 using api.Models;
 using api.Importing;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 var isSeedCommand = args.Length > 0 && string.Equals(args[0], "seed", StringComparison.OrdinalIgnoreCase);
@@ -13,9 +18,50 @@ var filteredArgs = isSeedCommand ? args[1..] : args;
 var builder = WebApplication.CreateBuilder(filteredArgs);
 
 // Services
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problemDetailsFactory = context.HttpContext.RequestServices
+                .GetRequiredService<ProblemDetailsFactory>();
+
+            var problemDetails = problemDetailsFactory.CreateValidationProblemDetails(
+                context.HttpContext,
+                context.ModelState);
+
+            return new ObjectResult(problemDetails)
+            {
+                StatusCode = problemDetails.Status ?? StatusCodes.Status400BadRequest,
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+builder.Services.Configure<ProblemDetailsOptions>(options =>
+{
+    options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData
+    {
+        Link = ProblemTypes.BadRequest.Type,
+        Title = ProblemTypes.BadRequest.Title
+    };
+
+    options.ClientErrorMapping[StatusCodes.Status404NotFound] = new ClientErrorData
+    {
+        Link = ProblemTypes.NotFound.Type,
+        Title = ProblemTypes.NotFound.Title
+    };
+
+    options.ClientErrorMapping[StatusCodes.Status409Conflict] = new ClientErrorData
+    {
+        Link = ProblemTypes.Conflict.Type,
+        Title = ProblemTypes.Conflict.Title
+    };
+});
+
+builder.Services.AddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));
@@ -79,6 +125,22 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 // Pipeline
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+
+        var problemDetailsFactory = context.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+        var problemDetails = problemDetailsFactory.CreateProblemDetails(
+            context,
+            context.Response.StatusCode);
+
+        await context.Response.WriteAsJsonAsync(problemDetails);
+    });
+});
+
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();

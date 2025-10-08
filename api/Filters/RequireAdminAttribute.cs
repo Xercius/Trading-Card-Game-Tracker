@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using api.Middleware;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace api.Filters;
 
@@ -17,13 +19,17 @@ public sealed class RequireAdminAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
-        var problem = new ProblemDetails
-        {
-            Title = "Forbidden",
-            Detail = "Administrator access required.",
-            Status = StatusCodes.Status403Forbidden,
-        };
+        var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+        var problem = factory.CreateProblemDetails(
+            context.HttpContext,
+            statusCode: StatusCodes.Status403Forbidden,
+            title: "Forbidden",
+            detail: "Administrator access required.");
 
-        context.Result = new ObjectResult(problem) { StatusCode = StatusCodes.Status403Forbidden };
+        context.Result = new ObjectResult(problem)
+        {
+            StatusCode = StatusCodes.Status403Forbidden,
+            ContentTypes = { "application/problem+json" }
+        };
     }
 }
