@@ -1,4 +1,5 @@
 import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
+import { toProblemDetailsError } from "./problemDetails";
 
 // ------------------------------------
 // Base URL setup
@@ -118,6 +119,11 @@ http.interceptors.request.use((cfg: Cfg) => {
   cfg.headers = headers;
   return cfg;
 });
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(toProblemDetailsError(error))
+);
 
 // ------------------------------------
 // Image URL resolver

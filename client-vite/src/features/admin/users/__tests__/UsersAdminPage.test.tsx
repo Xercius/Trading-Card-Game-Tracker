@@ -159,6 +159,50 @@ describe("UsersAdminPage", () => {
     await cleanup();
   });
 
+  it("surfaces validation problems when create fails", async () => {
+    const users: AdminUserApi[] = [...baseUsers];
+
+    vi.spyOn(http, "get").mockResolvedValue({ data: users });
+    vi.spyOn(http, "post").mockRejectedValue({
+      isAxiosError: true,
+      toJSON: () => ({}),
+      message: "Bad Request",
+      response: {
+        status: 400,
+        data: {
+          errors: {
+            Name: ["Name already exists."],
+          },
+        },
+      },
+    });
+
+    const { container, cleanup } = await renderWithProviders(users);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const input = container.querySelector<HTMLInputElement>("form input[type='text']");
+    const form = container.querySelector<HTMLFormElement>("form");
+    expect(input).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      input!.value = "Alice";
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      form!.dispatchEvent(new Event("submit", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent ?? "").toContain("Name already exists.");
+
+    await cleanup();
+  });
+
   it("shows conflict message when delete fails", async () => {
     const users: AdminUserApi[] = [
       ...baseUsers,

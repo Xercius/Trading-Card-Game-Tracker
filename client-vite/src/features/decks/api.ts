@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { collectionKeys } from "@/features/collection/api";
 import { QUERY_STALE_MS_VALUE_HISTORY } from "@/constants";
 import type { ValuePoint } from "@/types/value";
+import { toProblemDetailsError } from "@/lib/problemDetails";
 
 export type DeckDetails = {
   id: number;
@@ -33,27 +34,39 @@ export const deckBuilderKeys = {
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
 
-async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
-  const response = await api.get<DeckDetails>(`decks/${deckId}`);
-  return response.data;
+export async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
+  try {
+    const response = await api.get<DeckDetails>(`decks/${deckId}`);
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }
 
-async function fetchDeckCards(
+export async function fetchDeckCards(
   deckId: number,
   includeProxies: boolean
 ): Promise<DeckCardWithAvailability[]> {
-  const response = await api.get<DeckCardWithAvailability[]>(
-    `decks/${deckId}/cards-with-availability`,
-    { params: { includeProxies } }
-  );
-  return response.data;
+  try {
+    const response = await api.get<DeckCardWithAvailability[]>(
+      `decks/${deckId}/cards-with-availability`,
+      { params: { includeProxies } }
+    );
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }
 
-async function fetchDeckValueHistory(deckId: number, days: number): Promise<ValuePoint[]> {
-  const response = await api.get<ValuePoint[]>(`decks/${deckId}/value/history`, {
-    params: { days },
-  });
-  return response.data;
+export async function fetchDeckValueHistory(deckId: number, days: number): Promise<ValuePoint[]> {
+  try {
+    const response = await api.get<ValuePoint[]>(`decks/${deckId}/value/history`, {
+      params: { days },
+    });
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }
 
 export function useDeckDetails(deckId: number | null) {
@@ -164,11 +177,15 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
   return useMutation({
     mutationFn: async (variables: QuantityMutationVariables) => {
       if (deckId == null) throw new Error("Deck not selected");
-      await postDeckQuantityDelta(deckId, includeProxies, {
-        printingId: variables.printingId,
-        qtyDelta: variables.qtyDelta,
-      });
-      return variables;
+      try {
+        await postDeckQuantityDelta(deckId, includeProxies, {
+          printingId: variables.printingId,
+          qtyDelta: variables.qtyDelta,
+        });
+        return variables;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async (variables) => {
       if (deckId == null) return {} satisfies QuantityMutationContext;
@@ -201,5 +218,9 @@ export async function postDeckQuantityDelta(
   includeProxies: boolean,
   payload: QuantityDeltaPayload
 ) {
-  await api.post(`decks/${deckId}/cards/quantity-delta`, payload, { params: { includeProxies } });
+  try {
+    await api.post(`decks/${deckId}/cards/quantity-delta`, payload, { params: { includeProxies } });
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }
