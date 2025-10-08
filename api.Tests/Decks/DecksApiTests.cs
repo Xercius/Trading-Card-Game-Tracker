@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using api.Common.Errors;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Decks;
@@ -111,6 +114,27 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
             var deckCard = await db.DeckCards.FirstOrDefaultAsync(dc => dc.DeckId == Seed.AdminDeckId && dc.CardPrintingId == Seed.GoblinPrintingId);
             deckCard.Should().BeNull();
         });
+    }
+
+    [Fact]
+    public async Task GetDeck_WithUnknownId_ReturnsNotFoundProblem()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+
+        var response = await client.GetAsync("/api/deck/9999");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Type.Should().Be(ProblemTypes.NotFound.Type);
+        problem.Title.Should().Be(ProblemTypes.NotFound.Title);
+        problem.Status.Should().Be(StatusCodes.Status404NotFound);
+        problem.Detail.Should().Be(ProblemTypes.NotFound.DefaultDetail);
+        problem.Instance.Should().Be("/api/deck/9999");
+        problem.Extensions.Should().ContainKey("traceId");
     }
 
     private sealed record DeckResponseContract(int Id, int UserId, string Game, string Name, string? Description, DateTime CreatedUtc, DateTime? UpdatedUtc);
