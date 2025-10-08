@@ -232,7 +232,11 @@ public class CardsController : ControllerBase
 
         if (dto is null)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, detail: "Printing payload is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "Printing payload is required." }
+                });
         }
 
         if (dto.CardId <= 0)

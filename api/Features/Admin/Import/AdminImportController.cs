@@ -133,7 +133,13 @@ public sealed class AdminImportController : ControllerBase
         var request = parse.Request;
         if (request is null)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A valid import request is required." }
+                },
+                title: "Invalid request.",
+                detail: ProblemTypes.BadRequest.DefaultDetail);
         }
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
@@ -179,7 +185,12 @@ public sealed class AdminImportController : ControllerBase
                 return this.CreateValidationProblem(ex.Errors, title: ex.Message);
             }
 
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["file"] = new[] { ex.Message }
+                },
+                title: ex.Message);
         }
         catch (Exception ex)
         {
@@ -199,7 +210,13 @@ public sealed class AdminImportController : ControllerBase
         var request = parse.Request;
         if (request is null)
         {
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A valid import request is required." }
+                },
+                title: "Invalid request.",
+                detail: ProblemTypes.BadRequest.DefaultDetail);
         }
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
@@ -245,7 +262,12 @@ public sealed class AdminImportController : ControllerBase
                 return this.CreateValidationProblem(ex.Errors, title: ex.Message);
             }
 
-            return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["file"] = new[] { ex.Message }
+                },
+                title: ex.Message);
         }
         catch (Exception ex)
         {
@@ -305,7 +327,15 @@ public sealed class AdminImportController : ControllerBase
             }
             catch (JsonException)
             {
-                return new ParseRequestResult(null, this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request."));
+                return new ParseRequestResult(
+                    null,
+                    this.CreateValidationProblem(
+                        new Dictionary<string, string[]>
+                        {
+                            ["request"] = new[] { "The request body could not be parsed as JSON." }
+                        },
+                        title: "Invalid request.",
+                        detail: ProblemTypes.BadRequest.DefaultDetail));
             }
 
             if (payload is null || string.IsNullOrWhiteSpace(payload.Source)) return new ParseRequestResult(null, null);
@@ -453,10 +483,16 @@ public sealed class AdminImportController : ControllerBase
 
     private ObjectResult CreateInvalidLimitProblem()
     {
-        return this.CreateProblem(
-            StatusCodes.Status400BadRequest,
+        return this.CreateValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["limit"] = new[]
+                {
+                    $"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}"
+                }
+            },
             title: "Invalid limit",
-            detail: $"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}");
+            detail: ProblemTypes.BadRequest.DefaultDetail);
     }
 
     private ObjectResult? ValidateLimit(int? requested, out int effectiveLimit)

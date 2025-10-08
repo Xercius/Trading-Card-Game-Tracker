@@ -369,10 +369,12 @@ public class CollectionsController : ControllerBase
     {
         if (request is null)
         {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "A request body is required.");
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["request"] = new[] { "A request body is required." }
+                },
+                title: "Invalid payload");
         }
 
         var items = request.Items ?? Array.Empty<CollectionBulkUpdateItem>();

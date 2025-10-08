@@ -142,7 +142,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
 
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
 
         problem.Should().NotBeNull();
         problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
@@ -150,6 +150,8 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem.Status.Should().Be(StatusCodes.Status400BadRequest);
         problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
         problem.Instance.Should().Be("/api/admin/import/dry-run");
+        problem.Errors.Should().ContainKey("request")
+            .WhoseValue.Should().Contain("The request body could not be parsed as JSON.");
         problem.Extensions.Should().ContainKey("traceId");
     }
 
@@ -165,14 +167,16 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
 
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
 
         problem.Should().NotBeNull();
         problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
         problem.Title.Should().Be("Invalid limit");
         problem.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Detail.Should().Be($"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}");
+        problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
         problem.Instance.Should().Be("/api/admin/import/dry-run");
+        problem.Errors.Should().ContainKey("limit")
+            .WhoseValue.Should().Contain($"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}");
         problem.Extensions.Should().ContainKey("traceId");
     }
 
