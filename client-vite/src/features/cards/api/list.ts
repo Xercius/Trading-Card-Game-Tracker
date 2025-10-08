@@ -102,29 +102,10 @@ export async function fetchCardsPage({
       name: item.name ?? item.Name ?? "",
       game: item.game ?? item.Game ?? "",
       imageUrl:
-        primaryCamel?.imageUrl ??
-        primaryPascal?.ImageUrl ??
-        item.imageUrl ??
-        item.ImageUrl ??
-        null,
-      setName:
-        primaryCamel?.set ??
-        primaryPascal?.Set ??
-        item.setName ??
-        item.SetName ??
-        null,
-      number:
-        primaryCamel?.number ??
-        primaryPascal?.Number ??
-        item.number ??
-        item.Number ??
-        null,
-      rarity:
-        primaryCamel?.rarity ??
-        primaryPascal?.Rarity ??
-        item.rarity ??
-        item.Rarity ??
-        null,
+        primaryCamel?.imageUrl ?? primaryPascal?.ImageUrl ?? item.imageUrl ?? item.ImageUrl ?? null,
+      setName: primaryCamel?.set ?? primaryPascal?.Set ?? item.setName ?? item.SetName ?? null,
+      number: primaryCamel?.number ?? primaryPascal?.Number ?? item.number ?? item.Number ?? null,
+      rarity: primaryCamel?.rarity ?? primaryPascal?.Rarity ?? item.rarity ?? item.Rarity ?? null,
     };
   });
 
@@ -194,7 +175,11 @@ export async function fetchCardSets({ games }: { games: string[] }): Promise<Car
   return { game, sets };
 }
 
-export async function fetchCardRarities({ games }: { games: string[] }): Promise<CardFacetRarities> {
+export async function fetchCardRarities({
+  games,
+}: {
+  games: string[];
+}): Promise<CardFacetRarities> {
   const params = new URLSearchParams();
   if (games.length > 0) params.set("game", games.join(","));
   const res = await api.get<RawRaritiesResponse>("cards/facets/rarities", { params });

@@ -84,18 +84,21 @@ export default function DeckBuilderPage({ deckId }: Props) {
   const deckValuePoints = deckValueHistoryQuery.data ?? [];
   const deckLatestValue = useMemo(() => latestValue(deckValuePoints), [deckValuePoints]);
 
-  const handleCardDragStart = useCallback((event: React.DragEvent<HTMLDivElement>, card: CardSummary) => {
-    const printingId = normalizePrintingId(card.primaryPrintingId);
-    if (printingId == null) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData(PRINTING_ID_DATA, String(printingId));
-    event.dataTransfer.setData(CARD_NAME_DATA, card.name);
-    if (card.imageUrl) event.dataTransfer.setData(CARD_IMAGE_DATA, card.imageUrl);
-    event.dataTransfer.setData(DRAG_SOURCE_DATA, DRAG_SOURCE_GRID);
-  }, []);
+  const handleCardDragStart = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, card: CardSummary) => {
+      const printingId = normalizePrintingId(card.primaryPrintingId);
+      if (printingId == null) {
+        event.preventDefault();
+        return;
+      }
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setData(PRINTING_ID_DATA, String(printingId));
+      event.dataTransfer.setData(CARD_NAME_DATA, card.name);
+      if (card.imageUrl) event.dataTransfer.setData(CARD_IMAGE_DATA, card.imageUrl);
+      event.dataTransfer.setData(DRAG_SOURCE_DATA, DRAG_SOURCE_GRID);
+    },
+    []
+  );
 
   const renderCard = useCallback(
     (card: CardSummary) => (
@@ -111,7 +114,16 @@ export default function DeckBuilderPage({ deckId }: Props) {
   );
 
   const handleQuantityChange = useCallback(
-    (printingId: number, delta: number, meta?: { cardName?: string; imageUrl?: string | null; availability?: number; availabilityWithProxies?: number }) => {
+    (
+      printingId: number,
+      delta: number,
+      meta?: {
+        cardName?: string;
+        imageUrl?: string | null;
+        availability?: number;
+        availabilityWithProxies?: number;
+      }
+    ) => {
       if (!Number.isFinite(printingId) || delta === 0) return;
       deckQuantityMutation.mutate({
         printingId,

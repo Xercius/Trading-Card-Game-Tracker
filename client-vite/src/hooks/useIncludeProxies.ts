@@ -32,13 +32,16 @@ export function useIncludeProxies(): [boolean, (next: boolean) => void] {
     }
   }, [queryValue]);
 
-  const update = useCallback((next: boolean) => {
-    setIncludeProxies(next);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, next ? "1" : "0");
-    }
-    setQueryValue(next ? "1" : "");
-  }, [setQueryValue]);
+  const update = useCallback(
+    (next: boolean) => {
+      setIncludeProxies(next);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, next ? "1" : "0");
+      }
+      setQueryValue(next ? "1" : "");
+    },
+    [setQueryValue]
+  );
 
   return [includeProxies, update];
 }

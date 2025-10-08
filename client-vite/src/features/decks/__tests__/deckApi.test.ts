@@ -8,9 +8,7 @@ describe("deck API helpers", () => {
   });
 
   it("posts quantity deltas to the dedicated endpoint", async () => {
-    const spy = vi
-      .spyOn(api, "post")
-      .mockResolvedValue({} as Awaited<ReturnType<typeof api.post>>);
+    const spy = vi.spyOn(api, "post").mockResolvedValue({} as Awaited<ReturnType<typeof api.post>>);
 
     await postDeckQuantityDelta(7, true, { printingId: 42, qtyDelta: 3 });
 

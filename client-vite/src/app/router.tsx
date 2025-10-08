@@ -6,14 +6,14 @@ import CardsPage from "@/pages/CardsPage";
 import { paths } from "@/routes/paths";
 import { RequireAdmin } from "@/app/RequireAdmin";
 
-const CollectionPage  = lazy(() => import("@/pages/CollectionPage"));
-const WishlistPage    = lazy(() => import("@/pages/WishlistPage"));
-const DecksPage       = lazy(() => import("@/pages/DecksPage"));
+const CollectionPage = lazy(() => import("@/pages/CollectionPage"));
+const WishlistPage = lazy(() => import("@/pages/WishlistPage"));
+const DecksPage = lazy(() => import("@/pages/DecksPage"));
 const DeckBuilderPage = lazy(() => import("@/pages/DeckBuilderPage"));
 const AdminImportPage = lazy(() => import("@/pages/AdminImportPage"));
-const UsersPage       = lazy(() => import("@/pages/UsersPage"));
-const ValueHubPage    = lazy(() => import("@/pages/ValueHubPage"));
-const NotFoundPage    = lazy(() => import("@/pages/NotFoundPage"));
+const UsersPage = lazy(() => import("@/pages/UsersPage"));
+const ValueHubPage = lazy(() => import("@/pages/ValueHubPage"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 const router = createBrowserRouter([
   {

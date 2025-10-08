@@ -19,7 +19,13 @@ function clamp(value: number) {
   return intValue;
 }
 
-export default function QtyField({ printingId, value, otherValue, field, queryKey }: QtyFieldProps) {
+export default function QtyField({
+  printingId,
+  value,
+  otherValue,
+  field,
+  queryKey,
+}: QtyFieldProps) {
   const mutation = useSetOwnedProxyMutation(queryKey);
   const [draft, setDraft] = useState(() => String(value));
   const [error, setError] = useState<string | null>(null);
@@ -28,26 +34,29 @@ export default function QtyField({ printingId, value, otherValue, field, queryKe
     setDraft(String(value));
   }, [value]);
 
-  const commit = useCallback(async (raw: string) => {
-    const next = clamp(Number(raw));
-    const current = field === "owned" ? value : otherValue;
-    if (next === current) {
+  const commit = useCallback(
+    async (raw: string) => {
+      const next = clamp(Number(raw));
+      const current = field === "owned" ? value : otherValue;
+      if (next === current) {
+        setDraft(String(next));
+        return;
+      }
+
+      const ownedQty = field === "owned" ? next : otherValue;
+      const proxyQty = field === "proxy" ? next : otherValue;
       setDraft(String(next));
-      return;
-    }
+      setError(null);
 
-    const ownedQty = field === "owned" ? next : otherValue;
-    const proxyQty = field === "proxy" ? next : otherValue;
-    setDraft(String(next));
-    setError(null);
-
-    try {
-      await mutation.mutateAsync({ printingId, ownedQty, proxyQty });
-    } catch (err) {
-      setError("Update failed");
-      setDraft(String(current));
-    }
-  }, [field, otherValue, printingId, value, mutation]);
+      try {
+        await mutation.mutateAsync({ printingId, ownedQty, proxyQty });
+      } catch (err) {
+        setError("Update failed");
+        setDraft(String(current));
+      }
+    },
+    [field, otherValue, printingId, value, mutation]
+  );
 
   const handleBlur = useCallback(() => {
     void commit(draft);
@@ -57,19 +66,25 @@ export default function QtyField({ printingId, value, otherValue, field, queryKe
     setDraft(event.target.value);
   }, []);
 
-  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void commit((event.target as HTMLInputElement).value);
-    }
-  }, [commit]);
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void commit((event.target as HTMLInputElement).value);
+      }
+    },
+    [commit]
+  );
 
-  const applyDelta = useCallback((delta: number) => {
-    const current = clamp(Number(draft));
-    const next = clamp(current + delta);
-    setDraft(String(next));
-    void commit(String(next));
-  }, [commit, draft]);
+  const applyDelta = useCallback(
+    (delta: number) => {
+      const current = clamp(Number(draft));
+      const next = clamp(current + delta);
+      setDraft(String(next));
+      void commit(String(next));
+    },
+    [commit, draft]
+  );
 
   return (
     <div className="flex flex-col gap-1">

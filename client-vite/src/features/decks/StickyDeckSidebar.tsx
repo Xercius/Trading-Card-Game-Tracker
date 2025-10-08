@@ -61,9 +61,7 @@ export function extractDragData(dataTransfer: DataTransfer): DragData {
   const name = dataTransfer.getData(CARD_NAME_DATA) || undefined;
   const image = dataTransfer.getData(CARD_IMAGE_DATA) || undefined;
   const availability = toIntOrUndef(dataTransfer.getData(AVAILABILITY_DATA));
-  const availabilityWithProxies = toIntOrUndef(
-    dataTransfer.getData(AVAILABILITY_PROXY_DATA)
-  );
+  const availabilityWithProxies = toIntOrUndef(dataTransfer.getData(AVAILABILITY_PROXY_DATA));
   const source = dataTransfer.getData(DRAG_SOURCE_DATA) || undefined;
 
   return {
@@ -86,10 +84,7 @@ export default function StickyDeckSidebar({
   valueHistory,
   formatCurrency,
 }: Props) {
-  const total = useMemo(
-    () => rows.reduce((sum, row) => sum + row.quantityInDeck, 0),
-    [rows]
-  );
+  const total = useMemo(() => rows.reduce((sum, row) => sum + row.quantityInDeck, 0), [rows]);
 
   const hasValueHistory = valueHistory.points.length > 0;
 
@@ -129,7 +124,10 @@ export default function StickyDeckSidebar({
     });
   };
 
-  const handleRowDragStart = (event: React.DragEvent<HTMLLIElement>, row: DeckCardWithAvailability) => {
+  const handleRowDragStart = (
+    event: React.DragEvent<HTMLLIElement>,
+    row: DeckCardWithAvailability
+  ) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData(PRINTING_ID_DATA, String(row.printingId));
     event.dataTransfer.setData(CARD_NAME_DATA, row.cardName);
@@ -196,7 +194,9 @@ export default function StickyDeckSidebar({
         {isLoading ? (
           <div className="p-4 text-sm text-muted-foreground">Loading deck…</div>
         ) : rows.length === 0 ? (
-          <div className="p-4 text-sm text-muted-foreground">Drag cards here to add them to the deck.</div>
+          <div className="p-4 text-sm text-muted-foreground">
+            Drag cards here to add them to the deck.
+          </div>
         ) : (
           <ul className="divide-y">
             {rows.map((row) => (

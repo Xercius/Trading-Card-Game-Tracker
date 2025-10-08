@@ -95,7 +95,7 @@ export function useCardFilters(): UseCardFiltersResult {
 
   const stableKey = useMemo(
     () => [filters.q, gamesKey, setsKey, raritiesKey] as const,
-    [filters.q, gamesKey, setsKey, raritiesKey],
+    [filters.q, gamesKey, setsKey, raritiesKey]
   );
 
   const setFilters = useCallback<SetFiltersFn>(
@@ -104,15 +104,15 @@ export function useCardFilters(): UseCardFiltersResult {
         (prev) => {
           const prevFilters = parseFilters(prev);
           const nextFilters = sanitizeFilters(
-            typeof updater === "function" ? updater(prevFilters) : updater,
+            typeof updater === "function" ? updater(prevFilters) : updater
           );
 
           return applyFiltersToParams(prev, nextFilters);
         },
-        { replace: true },
+        { replace: true }
       );
     },
-    [setSearchParams],
+    [setSearchParams]
   );
 
   const clearAll = useCallback(() => {
@@ -124,7 +124,7 @@ export function useCardFilters(): UseCardFiltersResult {
         }
         return next;
       },
-      { replace: true },
+      { replace: true }
     );
   }, [setSearchParams]);
 

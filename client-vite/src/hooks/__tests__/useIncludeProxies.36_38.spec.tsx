@@ -39,7 +39,7 @@ async function renderProbe(initialEntry: string) {
     root.render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <IncludeProxiesProbe />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
   });
 

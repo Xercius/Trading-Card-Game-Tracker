@@ -12,9 +12,7 @@ if (import.meta.env.DEV) {
   for (const [key, value] of Object.entries(paths)) {
     if (typeof value === "string" && value.startsWith("/")) {
       // eslint-disable-next-line no-console
-      console.warn(
-        `[paths] "${key}" starts with "/". Make it relative: "${value.slice(1)}"`
-      );
+      console.warn(`[paths] "${key}" starts with "/". Make it relative: "${value.slice(1)}"`);
     }
   }
 }

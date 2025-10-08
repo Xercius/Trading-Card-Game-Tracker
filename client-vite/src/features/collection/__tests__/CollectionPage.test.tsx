@@ -56,9 +56,7 @@ vi.mock("../useCollectionValueHistory", () => ({
 
 describe("CollectionPage", () => {
   it("toggles availability label when include proxies changes", async () => {
-    const router = createMemoryRouter([
-      { path: "/", element: <CollectionPage /> },
-    ]);
+    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
 
     const container = document.createElement("div");
     document.body.appendChild(container);

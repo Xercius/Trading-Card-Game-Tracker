@@ -33,7 +33,9 @@ const queryKey = collectionKeys.list({
 });
 
 function renderQtyField(item: CollectionItem) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const data: Paged<CollectionItem> = { items: [item], total: 1, page: 1, pageSize: 50 };
   client.setQueryData(queryKey, data);
 
@@ -44,7 +46,13 @@ function renderQtyField(item: CollectionItem) {
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
-        <QtyField printingId={item.cardPrintingId} value={item.quantityOwned} otherValue={item.quantityProxyOwned} field="owned" queryKey={queryKey} />
+        <QtyField
+          printingId={item.cardPrintingId}
+          value={item.quantityOwned}
+          otherValue={item.quantityProxyOwned}
+          field="owned"
+          queryKey={queryKey}
+        />
       </QueryClientProvider>
     );
   });
@@ -66,7 +74,12 @@ function renderQtyField(item: CollectionItem) {
 describe("QtyField", () => {
   it("clamps to MAX_QTY and sends clamped value", async () => {
     const putSpy = vi.spyOn(api, "put").mockResolvedValue({ data: null } as never);
-    const item = { ...baseItem, quantityOwned: MAX_QTY - 1, availability: MAX_QTY - 1, availabilityWithProxies: MAX_QTY - 1 };
+    const item = {
+      ...baseItem,
+      quantityOwned: MAX_QTY - 1,
+      availability: MAX_QTY - 1,
+      availabilityWithProxies: MAX_QTY - 1,
+    };
     const { container, cleanup } = renderQtyField(item);
 
     const inc = container.querySelector<HTMLButtonElement>('button[aria-label="Increase"]');
@@ -88,9 +101,10 @@ describe("QtyField", () => {
   it("optimistically updates value before the request resolves", async () => {
     let resolveFn: (() => void) | null = null;
     const putSpy = vi.spyOn(api, "put").mockImplementation(
-      () => new Promise((resolve) => {
-        resolveFn = () => resolve({ data: null } as never);
-      })
+      () =>
+        new Promise((resolve) => {
+          resolveFn = () => resolve({ data: null } as never);
+        })
     );
 
     const { container, cleanup } = renderQtyField(baseItem);

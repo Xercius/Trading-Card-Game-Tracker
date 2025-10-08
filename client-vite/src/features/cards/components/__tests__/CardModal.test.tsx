@@ -63,7 +63,12 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
   return act(async () => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <CardModal open cardId={props.cardId} initialPrintingId={props.initialPrintingId} onOpenChange={() => {}} />
+        <CardModal
+          open
+          cardId={props.cardId}
+          initialPrintingId={props.initialPrintingId}
+          onOpenChange={() => {}}
+        />
       </QueryClientProvider>
     );
     await flushPromises();
@@ -172,7 +177,12 @@ describe("CardModal", () => {
 
     postSpy.mockImplementation((url: string, body: unknown) => {
       if (url === "wishlist/items") {
-        return Promise.resolve({ data: { printingId: (body as { printingId: number }).printingId, quantityWanted: (body as { quantity: number }).quantity } });
+        return Promise.resolve({
+          data: {
+            printingId: (body as { printingId: number }).printingId,
+            quantityWanted: (body as { quantity: number }).quantity,
+          },
+        });
       }
       throw new Error(`Unexpected POST ${url}`);
     });
@@ -190,8 +200,9 @@ describe("CardModal", () => {
       await flushPromises();
     });
 
-    const wishlistButton = Array.from(container.querySelectorAll("button"))
-      .find((btn) => btn.textContent?.includes("Add to Wishlist"));
+    const wishlistButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("Add to Wishlist")
+    );
     expect(wishlistButton).not.toBeUndefined();
 
     await act(async () => {
@@ -240,8 +251,9 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 300, initialPrintingId: 3001 });
 
-    const priceTab = Array.from(container.querySelectorAll("button"))
-      .find((btn) => btn.textContent === "Price");
+    const priceTab = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent === "Price"
+    );
     expect(priceTab).not.toBeUndefined();
 
     await act(async () => {

@@ -4,7 +4,13 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/VirtualizedCardGrid", () => ({
-  default: ({ items, onCardClick }: { items: Array<{ id: number | string }>; onCardClick?: (card: unknown) => void }) => (
+  default: ({
+    items,
+    onCardClick,
+  }: {
+    items: Array<{ id: number | string }>;
+    onCardClick?: (card: unknown) => void;
+  }) => (
     <div data-testid="grid">
       {items.map((item) => (
         <button
@@ -75,9 +81,7 @@ describe("CardsPage", () => {
   });
 
   it("includes filters in the query key", async () => {
-    const router = createMemoryRouter([
-      { path: "/", element: <CardsPage /> },
-    ], {
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
       initialEntries: ["/?game=Magic"],
     });
 
@@ -135,9 +139,7 @@ describe("CardsPage", () => {
       })
     );
 
-    const router = createMemoryRouter([
-      { path: "/", element: <CardsPage /> },
-    ]);
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
     const container = document.createElement("div");
     const root = createRoot(container);

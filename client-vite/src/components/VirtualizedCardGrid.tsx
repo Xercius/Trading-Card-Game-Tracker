@@ -92,7 +92,11 @@ export default function VirtualizedCardGrid({
           const rowItems = items.slice(start, end);
 
           return (
-            <div key={rowIndex} className="absolute left-0 w-full" style={{ transform: `translateY(${startY}px)` }}>
+            <div
+              key={rowIndex}
+              className="absolute left-0 w-full"
+              style={{ transform: `translateY(${startY}px)` }}
+            >
               <div
                 className="grid"
                 style={{
@@ -112,7 +116,9 @@ export default function VirtualizedCardGrid({
       </div>
 
       {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">Loading more…</div>
+        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+          Loading more…
+        </div>
       )}
     </div>
   );

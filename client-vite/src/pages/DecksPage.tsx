@@ -99,9 +99,11 @@ export default function DecksPage() {
         </div>
       </div>
       <ul className="list-disc pl-6">
-        {decks.map(d => (
+        {decks.map((d) => (
           <li key={d.id}>
-            {d.game} — {d.name}{d.description ? ` (${d.description})` : ''} · {new Date(d.createdUtc).toLocaleDateString()}
+            {d.game} — {d.name}
+            {d.description ? ` (${d.description})` : ""} ·{" "}
+            {new Date(d.createdUtc).toLocaleDateString()}
           </li>
         ))}
       </ul>

@@ -43,7 +43,9 @@ type WishlistPaged = {
 const wishlistQueryKey = ["wishlist", 42, 1, 50, "", ""] as const;
 
 function createClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
 }
 
 async function flush() {
@@ -136,7 +138,7 @@ describe("WishlistPage", () => {
     };
 
     const getMock = vi.spyOn(http, "get").mockResolvedValue({
-      data: ({ items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged),
+      data: { items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged,
     });
     const postMock = vi.spyOn(http, "post").mockResolvedValue({
       data: {
@@ -215,7 +217,7 @@ describe("WishlistPage", () => {
     };
 
     vi.spyOn(http, "get").mockResolvedValue({
-      data: ({ items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged),
+      data: { items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged,
     });
     const postMock = vi.spyOn(http, "post").mockResolvedValue({
       data: {
@@ -285,34 +287,35 @@ describe("WishlistPage", () => {
     ];
 
     vi.spyOn(http, "get").mockResolvedValue({
-      data: ({ items, total: 2, page: 1, pageSize: 50 } satisfies WishlistPaged),
+      data: { items, total: 2, page: 1, pageSize: 50 } satisfies WishlistPaged,
     });
 
-    const postMock = vi.spyOn(http, "post").mockImplementation((url, body: { cardPrintingId: number }) => {
-      if (body.cardPrintingId === 3001) {
-        return Promise.resolve({
-          data: {
-            printingId: 3001,
-            wantedAfter: 0,
-            ownedAfter: 2,
-            proxyAfter: 0,
-            availability: 2,
-            availabilityWithProxies: 2,
-          },
-        });
-      }
-      return Promise.reject(new Error("boom"));
-    });
+    const postMock = vi
+      .spyOn(http, "post")
+      .mockImplementation((url, body: { cardPrintingId: number }) => {
+        if (body.cardPrintingId === 3001) {
+          return Promise.resolve({
+            data: {
+              printingId: 3001,
+              wantedAfter: 0,
+              ownedAfter: 2,
+              proxyAfter: 0,
+              availability: 2,
+              availabilityWithProxies: 2,
+            },
+          });
+        }
+        return Promise.reject(new Error("boom"));
+      });
 
-    const promptMock = vi
-      .spyOn(window, "prompt")
-      .mockReturnValueOnce("1")
-      .mockReturnValueOnce("1");
+    const promptMock = vi.spyOn(window, "prompt").mockReturnValueOnce("1").mockReturnValueOnce("1");
 
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
 
-    const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>("input[type=checkbox]"));
+    const checkboxes = Array.from(
+      container.querySelectorAll<HTMLInputElement>("input[type=checkbox]")
+    );
     checkboxes.forEach((box) => box.click());
     await flush();
 

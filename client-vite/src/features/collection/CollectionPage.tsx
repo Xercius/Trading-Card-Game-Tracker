@@ -64,7 +64,10 @@ export default function CollectionPage() {
 
   const valueHistoryQuery = useCollectionValueHistory(undefined, !!userId);
   const valueHistoryPoints = valueHistoryQuery.data ?? [];
-  const collectionLatestValue = useMemo(() => latestValue(valueHistoryPoints), [valueHistoryPoints]);
+  const collectionLatestValue = useMemo(
+    () => latestValue(valueHistoryPoints),
+    [valueHistoryPoints]
+  );
 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const rowVirtualizer = useVirtualizer({
@@ -83,14 +86,22 @@ export default function CollectionPage() {
   };
 
   if (!userId) {
-    return <div className="p-6 text-sm text-muted-foreground">Select a user to view their collection.</div>;
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        Select a user to view their collection.
+      </div>
+    );
   }
 
   if (isError) {
     return (
       <div className="flex flex-col gap-4 p-6">
         <p className="text-sm text-destructive">Failed to load collection.</p>
-        <button type="button" className="w-fit rounded border border-input bg-background px-3 py-2 text-sm" onClick={() => refetch()}>
+        <button
+          type="button"
+          className="w-fit rounded border border-input bg-background px-3 py-2 text-sm"
+          onClick={() => refetch()}
+        >
           Retry
         </button>
       </div>
@@ -101,7 +112,10 @@ export default function CollectionPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium uppercase text-muted-foreground" htmlFor="collection-q">
+          <label
+            className="text-xs font-medium uppercase text-muted-foreground"
+            htmlFor="collection-q"
+          >
             Search
           </label>
           <input
@@ -113,7 +127,10 @@ export default function CollectionPage() {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium uppercase text-muted-foreground" htmlFor="collection-game">
+          <label
+            className="text-xs font-medium uppercase text-muted-foreground"
+            htmlFor="collection-game"
+          >
             Game
           </label>
           <input
@@ -125,7 +142,10 @@ export default function CollectionPage() {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium uppercase text-muted-foreground" htmlFor="collection-set">
+          <label
+            className="text-xs font-medium uppercase text-muted-foreground"
+            htmlFor="collection-set"
+          >
             Set
           </label>
           <input
@@ -137,7 +157,10 @@ export default function CollectionPage() {
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium uppercase text-muted-foreground" htmlFor="collection-rarity">
+          <label
+            className="text-xs font-medium uppercase text-muted-foreground"
+            htmlFor="collection-rarity"
+          >
             Rarity
           </label>
           <input
@@ -167,7 +190,9 @@ export default function CollectionPage() {
           <div>
             <h2 className="text-sm font-semibold">Collection value (last 90 days)</h2>
             {collectionLatestValue != null && (
-              <p className="text-xs text-muted-foreground">Latest: {formatCurrency(collectionLatestValue)}</p>
+              <p className="text-xs text-muted-foreground">
+                Latest: {formatCurrency(collectionLatestValue)}
+              </p>
             )}
           </div>
           <span className="text-xs text-muted-foreground">Proxies excluded.</span>
@@ -179,9 +204,11 @@ export default function CollectionPage() {
           {valueHistoryQuery.isError && (
             <p className="text-xs text-destructive">Failed to load value history.</p>
           )}
-          {!valueHistoryQuery.isLoading && !valueHistoryQuery.isError && valueHistoryPoints.length === 0 && (
-            <p className="text-xs text-muted-foreground">No value data.</p>
-          )}
+          {!valueHistoryQuery.isLoading &&
+            !valueHistoryQuery.isError &&
+            valueHistoryPoints.length === 0 && (
+              <p className="text-xs text-muted-foreground">No value data.</p>
+            )}
           {valueHistoryPoints.length > 0 && (
             <LineSparkline
               points={valueHistoryPoints}
@@ -196,7 +223,8 @@ export default function CollectionPage() {
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div>
-          Page {page} · Showing {items.length} of {total} cards {isFetching && <span className="ml-2">Refreshing…</span>}
+          Page {page} · Showing {items.length} of {total} cards{" "}
+          {isFetching && <span className="ml-2">Refreshing…</span>}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -220,9 +248,13 @@ export default function CollectionPage() {
 
       <div className="flex-1 overflow-hidden rounded border border-border">
         {isPending ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading collection…</div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Loading collection…
+          </div>
         ) : items.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No cards matched your filters.</div>
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            No cards matched your filters.
+          </div>
         ) : (
           <div className="flex h-full flex-col">
             <div className="grid grid-cols-[2fr,1.2fr,0.8fr,0.8fr,0.8fr,0.8fr,1fr] border-b bg-muted/50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -238,7 +270,11 @@ export default function CollectionPage() {
               <div style={{ height: rowVirtualizer.getTotalSize() }}>
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const item = items[virtualRow.index];
-                  const availability = getAvailabilityDisplay(item.availability, item.availabilityWithProxies, includeProxies);
+                  const availability = getAvailabilityDisplay(
+                    item.availability,
+                    item.availabilityWithProxies,
+                    includeProxies
+                  );
                   return (
                     <div
                       key={item.cardPrintingId}
@@ -248,7 +284,9 @@ export default function CollectionPage() {
                       <div className="grid grid-cols-[2fr,1.2fr,0.8fr,0.8fr,0.8fr,0.8fr,1fr] items-center gap-2">
                         <div>
                           <div className="font-medium">{item.cardName}</div>
-                          <div className="text-xs text-muted-foreground">#{item.number} · {item.game}</div>
+                          <div className="text-xs text-muted-foreground">
+                            #{item.number} · {item.game}
+                          </div>
                         </div>
                         <div className="text-sm text-muted-foreground">{item.set}</div>
                         <div className="text-sm text-muted-foreground">{item.rarity}</div>

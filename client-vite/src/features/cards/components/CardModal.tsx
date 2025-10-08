@@ -52,11 +52,18 @@ function formatValue(value: number | undefined | null): string {
   return `$${value.toFixed(2)}`;
 }
 
-export default function CardModal({ cardId, open, onOpenChange, initialPrintingId }: CardModalProps) {
+export default function CardModal({
+  cardId,
+  open,
+  onOpenChange,
+  initialPrintingId,
+}: CardModalProps) {
   const detailsQuery = useCardDetails(open ? cardId : 0);
   const printingsQuery = useCardPrintings(open ? cardId : 0);
 
-  const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(initialPrintingId ?? null);
+  const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(
+    initialPrintingId ?? null
+  );
   const [quantity, setQuantity] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<TabId>("details");
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -75,10 +82,7 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
   useEffect(() => {
     if (!open) return;
     if (selectedPrintingId != null) return;
-    const fallback =
-      printings[0]?.printingId ??
-      details?.printings[0]?.id ??
-      null;
+    const fallback = printings[0]?.printingId ?? details?.printings[0]?.id ?? null;
     if (fallback != null) setSelectedPrintingId(fallback);
   }, [details, open, printings, selectedPrintingId]);
 
@@ -180,7 +184,10 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
                   </div>
                 )}
               </div>
-              <div className="text-center text-sm text-muted-foreground" data-testid="selected-printing-label">
+              <div
+                className="text-center text-sm text-muted-foreground"
+                data-testid="selected-printing-label"
+              >
                 {selectedPrinting ? (
                   <>
                     <span className="font-medium">{selectedPrinting.setName}</span>
@@ -216,7 +223,9 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
               {activeTab === "details" && (
                 <div className="space-y-3" aria-live="polite">
                   {detailsQuery.isLoading && <p>Loading details…</p>}
-                  {detailsQuery.isError && <p className="text-destructive">Failed to load card details.</p>}
+                  {detailsQuery.isError && (
+                    <p className="text-destructive">Failed to load card details.</p>
+                  )}
                   {details && (
                     <>
                       <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
@@ -236,7 +245,9 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
               {activeTab === "printings" && (
                 <div className="space-y-3" aria-live="polite">
                   {printingsQuery.isLoading && <p>Loading printings…</p>}
-                  {printingsQuery.isError && <p className="text-destructive">Failed to load printings.</p>}
+                  {printingsQuery.isError && (
+                    <p className="text-destructive">Failed to load printings.</p>
+                  )}
                   {printings.length > 0 ? (
                     <div
                       role="listbox"
@@ -255,7 +266,9 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
                             aria-selected={isActive}
                             aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
                             className={`flex w-28 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary ${
-                              isActive ? "border-primary bg-primary/10" : "border-border hover:border-primary"
+                              isActive
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary"
                             }`}
                             onClick={() => setSelectedPrintingId(printing.printingId)}
                           >
@@ -273,8 +286,12 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
                                 </span>
                               )}
                             </div>
-                            <span className="line-clamp-2 text-center font-medium">{printing.setName}</span>
-                            {printing.number && <span className="text-muted-foreground">#{printing.number}</span>}
+                            <span className="line-clamp-2 text-center font-medium">
+                              {printing.setName}
+                            </span>
+                            {printing.number && (
+                              <span className="text-muted-foreground">#{printing.number}</span>
+                            )}
                           </button>
                         );
                       })}
@@ -288,8 +305,12 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
               {activeTab === "price" && (
                 <div className="space-y-4" aria-live="polite">
                   {sparklineQuery.isLoading && <p>Loading value history…</p>}
-                  {sparklineQuery.isError && <p className="text-destructive">Failed to load value history.</p>}
-                  {!sparklineQuery.isLoading && !sparklineQuery.isError && pricePoints.length === 0 && <p>No value data.</p>}
+                  {sparklineQuery.isError && (
+                    <p className="text-destructive">Failed to load value history.</p>
+                  )}
+                  {!sparklineQuery.isLoading &&
+                    !sparklineQuery.isError &&
+                    pricePoints.length === 0 && <p>No value data.</p>}
                   {pricePoints.length > 0 && (
                     <div className="space-y-2">
                       <LineSparkline
@@ -298,7 +319,9 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
                         height={96}
                         className="h-24"
                       />
-                      <div className="text-sm text-muted-foreground">Last recorded value: {formatPrice(latestPrice)}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Last recorded value: {formatPrice(latestPrice)}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -343,7 +366,9 @@ export default function CardModal({ cardId, open, onOpenChange, initialPrintingI
           <div
             role="status"
             className={`pointer-events-none absolute inset-x-0 bottom-4 mx-auto w-fit rounded-full px-4 py-2 text-sm shadow ${
-              toast.type === "success" ? "bg-emerald-500 text-white" : "bg-destructive text-destructive-foreground"
+              toast.type === "success"
+                ? "bg-emerald-500 text-white"
+                : "bg-destructive text-destructive-foreground"
             }`}
           >
             {toast.message}

@@ -10,11 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IMPORT_MAX_ROWS_PREVIEW, UPLOAD_MAX_SIZE_MB } from "@/constants";
-import {
-  useApply,
-  useDryRun,
-  useImportOptions,
-} from "@/features/admin/import/hooks";
+import { useApply, useDryRun, useImportOptions } from "@/features/admin/import/hooks";
 import type {
   DryRunParams,
   ImportPreviewResponse,
@@ -44,7 +40,7 @@ export default function AdminImportPage() {
   const sources = options?.sources ?? [];
   const activeSource = useMemo<ImportSourceOption | undefined>(
     () => sources.find((s) => s.key === sourceKey),
-    [sources, sourceKey],
+    [sources, sourceKey]
   );
 
   const dryRun = useDryRun(dryRunParams);
@@ -170,7 +166,9 @@ export default function AdminImportPage() {
     <div className="p-4 space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Admin · Import</h1>
-        <p className="text-sm text-muted-foreground">Preview remote imports or upload files before applying changes.</p>
+        <p className="text-sm text-muted-foreground">
+          Preview remote imports or upload files before applying changes.
+        </p>
       </div>
 
       {toast && (
@@ -282,7 +280,11 @@ export default function AdminImportPage() {
         )}
       </div>
 
-      {error && <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+      {error && (
+        <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <Button type="button" onClick={onDryRun} disabled={disableDryRun}>

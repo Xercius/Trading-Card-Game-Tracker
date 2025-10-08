@@ -5,7 +5,8 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "lg";
 };
 
-const base = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+const base =
+  "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
 const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   default: "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -22,7 +23,7 @@ const sizes: Record<NonNullable<ButtonProps["size"]>, string> = {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { className = "", variant = "default", size = "md", type = "button", ...props },
-  ref,
+  ref
 ) {
   const classes = [base, variants[variant], sizes[size], className].filter(Boolean).join(" ");
   return <button ref={ref} type={type} className={classes} {...props} />;

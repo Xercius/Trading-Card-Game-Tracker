@@ -1,7 +1,4 @@
-import axios, {
-  AxiosHeaders,
-  type InternalAxiosRequestConfig,
-} from "axios";
+import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 
 // ------------------------------------
 // Base URL setup

@@ -1,12 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 type SelectContextValue = {
   value: string;
@@ -67,7 +60,7 @@ export function Select({
       setSelectedLabel(label);
       setOpen(false);
     },
-    [value, onValueChange],
+    [value, onValueChange]
   );
 
   const contextValue = useMemo<SelectContextValue>(
@@ -80,7 +73,7 @@ export function Select({
       selectedLabel,
       setSelectedLabel,
     }),
-    [currentValue, open, disabled, onSelect, selectedLabel],
+    [currentValue, open, disabled, onSelect, selectedLabel]
   );
 
   return (
@@ -136,8 +129,12 @@ type SelectValueProps = {
 export function SelectValue({ placeholder, className = "" }: SelectValueProps) {
   const { selectedLabel, value } = useSelectContext();
   const showPlaceholder = !selectedLabel && !value;
-  const classes = [showPlaceholder ? "text-muted-foreground" : "", className].filter(Boolean).join(" ");
-  return <span className={classes}>{selectedLabel ?? (showPlaceholder ? placeholder : value)}</span>;
+  const classes = [showPlaceholder ? "text-muted-foreground" : "", className]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span className={classes}>{selectedLabel ?? (showPlaceholder ? placeholder : value)}</span>
+  );
 }
 
 type SelectContentProps = React.HTMLAttributes<HTMLDivElement>;

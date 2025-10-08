@@ -34,7 +34,11 @@ async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<Rende
   const ctx: Ctx = {
     userId: 1,
     setUserId: () => {},
-    users: baseUsers.map((u) => ({ id: u.id, name: u.name ?? u.username ?? "User", isAdmin: Boolean(u.isAdmin) })),
+    users: baseUsers.map((u) => ({
+      id: u.id,
+      name: u.name ?? u.username ?? "User",
+      isAdmin: Boolean(u.isAdmin),
+    })),
     refreshUsers,
   };
 

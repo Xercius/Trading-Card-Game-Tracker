@@ -35,7 +35,7 @@ describe("useCardFilters", () => {
       root.render(
         <MemoryRouter initialEntries={["/cards?game=Magic,Lorcana&set=Rise&rarity=R,U&q=bolt"]}>
           <FiltersProbe />
-        </MemoryRouter>,
+        </MemoryRouter>
       );
     });
 

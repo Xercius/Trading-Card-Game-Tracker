@@ -24,11 +24,20 @@ type ChecklistProps = {
   loading?: boolean;
 };
 
-function Checklist({ idPrefix, title, options, selected, onToggle, loading = false }: ChecklistProps) {
+function Checklist({
+  idPrefix,
+  title,
+  options,
+  selected,
+  onToggle,
+  loading = false,
+}: ChecklistProps) {
   if (loading) {
     return (
       <section aria-label={title} className="space-y-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h3>
         <p className="text-sm text-muted-foreground">Loading…</p>
       </section>
     );
@@ -37,7 +46,9 @@ function Checklist({ idPrefix, title, options, selected, onToggle, loading = fal
   if (options.length === 0) {
     return (
       <section aria-label={title} className="space-y-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h3>
         <p className="text-sm text-muted-foreground">No options available</p>
       </section>
     );
@@ -45,13 +56,19 @@ function Checklist({ idPrefix, title, options, selected, onToggle, loading = fal
 
   return (
     <section aria-label={title} className="space-y-2">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
       <div className="space-y-2">
         {options.map((option) => {
           const id = `${idPrefix}-${option.replace(/\s+/g, "-").toLowerCase()}`;
           const isChecked = selected.includes(option);
           return (
-            <label key={option} htmlFor={id} className="flex cursor-pointer items-center gap-2 text-sm">
+            <label
+              key={option}
+              htmlFor={id}
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
               <input
                 id={id}
                 type="checkbox"
@@ -78,7 +95,9 @@ export default function FiltersRail({ onClose }: FiltersRailProps) {
 
   useEffect(() => {
     const handler = window.setTimeout(() => {
-      setFilters((prev) => (prev.q === searchText.trim() ? prev : { ...prev, q: searchText.trim() }));
+      setFilters((prev) =>
+        prev.q === searchText.trim() ? prev : { ...prev, q: searchText.trim() }
+      );
     }, 300);
     return () => window.clearTimeout(handler);
   }, [searchText, setFilters]);
@@ -126,7 +145,9 @@ export default function FiltersRail({ onClose }: FiltersRailProps) {
   const handleGameToggle = (value: string) => {
     setFilters((prev) => {
       const hasValue = prev.games.includes(value);
-      const nextGames = hasValue ? prev.games.filter((game) => game !== value) : [...prev.games, value];
+      const nextGames = hasValue
+        ? prev.games.filter((game) => game !== value)
+        : [...prev.games, value];
       return { ...prev, games: nextGames };
     });
   };
@@ -184,7 +205,10 @@ export default function FiltersRail({ onClose }: FiltersRailProps) {
 
       <div className="space-y-6 overflow-y-auto pr-1">
         <div className="space-y-2">
-          <label htmlFor="card-filter-search" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <label
+            htmlFor="card-filter-search"
+            className="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+          >
             Search
           </label>
           <Input
