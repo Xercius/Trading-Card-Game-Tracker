@@ -1,3 +1,4 @@
+using api.Common.Errors;
 using api.Data;
 using api.Features.Cards.Dtos;
 using api.Filters;
@@ -5,6 +6,7 @@ using api.Middleware;
 using api.Models;
 using api.Shared;
 using AutoMapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -196,7 +198,12 @@ public class CardsController : ControllerBase
     private async Task<IActionResult> GetCardCore(int cardId)
     {
         var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.CardId == cardId);
-        if (c is null) return NotFound();
+        if (c is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card {cardId} was not found.");
+        }
 
         var printings = await _db.CardPrintings
             .AsNoTracking()
@@ -218,10 +225,25 @@ public class CardsController : ControllerBase
 
     private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingRequest dto)
     {
-        if (NotAdmin()) return StatusCode(403, "Admin required.");
-        if (dto is null) return BadRequest();
-        if (dto.CardId <= 0) return BadRequest("CardId required.");
-        if (await _db.Cards.FindAsync(dto.CardId) is null) return NotFound("Card not found.");
+        if (NotAdmin())
+        {
+            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to modify printings.");
+        }
+
+        if (dto is null)
+        {
+            return this.CreateProblem(StatusCodes.Status400BadRequest, detail: "Printing payload is required.");
+        }
+
+        if (dto.CardId <= 0)
+        {
+            return this.CreateValidationProblem(nameof(dto.CardId), "CardId must be provided.");
+        }
+
+        if (await _db.Cards.FindAsync(dto.CardId) is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {dto.CardId} was not found.");
+        }
 
         string? set = dto.Set?.Trim();
         string? number = dto.Number?.Trim();
@@ -232,12 +254,31 @@ public class CardsController : ControllerBase
         if (dto.Id.HasValue)
         {
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
-            if (cp is null) return NotFound("Printing not found by Id.");
+            if (cp is null)
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"Printing {dto.Id.Value} was not found.");
+            }
         }
         else
         {
             if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
-                return BadRequest("Set and Number required when Id is omitted.");
+            {
+                var errors = new Dictionary<string, string[]>();
+
+                if (string.IsNullOrWhiteSpace(set))
+                {
+                    errors[nameof(dto.Set)] = new[] { "Set is required when Id is omitted." };
+                }
+
+                if (string.IsNullOrWhiteSpace(number))
+                {
+                    errors[nameof(dto.Number)] = new[] { "Number is required when Id is omitted." };
+                }
+
+                return this.CreateValidationProblem(errors);
+            }
 
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x =>
                 x.CardId == dto.CardId &&
@@ -275,10 +316,25 @@ public class CardsController : ControllerBase
 
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
     {
-        if (NotAdmin()) return StatusCode(403, "Admin required.");
-        if (cardId <= 0) return BadRequest("CardId required.");
-        if (items is null) return BadRequest("Payload required.");
-        if (await _db.Cards.FindAsync(cardId) is null) return NotFound("Card not found.");
+        if (NotAdmin())
+        {
+            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to bulk import printings.");
+        }
+
+        if (cardId <= 0)
+        {
+            return this.CreateValidationProblem(nameof(cardId), "CardId must be provided.");
+        }
+
+        if (items is null)
+        {
+            return this.CreateProblem(StatusCodes.Status400BadRequest, detail: "Import payload is required.");
+        }
+
+        if (await _db.Cards.FindAsync(cardId) is null)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");
+        }
 
         var list = items.ToList();
         if (list.Count == 0) return NoContent();
@@ -346,7 +402,10 @@ public class CardsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId)
     {
         var exists = await _db.Cards.AnyAsync(c => c.CardId == cardId);
-        if (!exists) return NotFound();
+        if (!exists)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");
+        }
 
         var rows = await _db.CardPrintings
             .AsNoTracking()
