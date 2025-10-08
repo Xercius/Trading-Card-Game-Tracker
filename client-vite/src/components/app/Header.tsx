@@ -3,7 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/state/useUser";
 import { useQueryState } from "@/hooks/useQueryState";
@@ -118,10 +124,18 @@ export default function Header() {
               onClick={() => setMobileOpen((open) => !open)}
             >
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path
+                  d="M3 6h18M3 12h18M3 18h18"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
-            <Select value={userId ? String(userId) : ""} onValueChange={(v) => setUserId(Number(v))}>
+            <Select
+              value={userId ? String(userId) : ""}
+              onValueChange={(v) => setUserId(Number(v))}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Select user" />
               </SelectTrigger>

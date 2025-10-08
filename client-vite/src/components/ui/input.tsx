@@ -4,7 +4,7 @@ type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className = "", type = "text", ...props },
-  ref,
+  ref
 ) {
   const classes = [
     "flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm",

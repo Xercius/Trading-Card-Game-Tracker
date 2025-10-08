@@ -38,7 +38,10 @@ async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
   return response.data;
 }
 
-async function fetchDeckCards(deckId: number, includeProxies: boolean): Promise<DeckCardWithAvailability[]> {
+async function fetchDeckCards(
+  deckId: number,
+  includeProxies: boolean
+): Promise<DeckCardWithAvailability[]> {
   const response = await api.get<DeckCardWithAvailability[]>(
     `decks/${deckId}/cards-with-availability`,
     { params: { includeProxies } }
@@ -198,9 +201,5 @@ export async function postDeckQuantityDelta(
   includeProxies: boolean,
   payload: QuantityDeltaPayload
 ) {
-  await api.post(
-    `decks/${deckId}/cards/quantity-delta`,
-    payload,
-    { params: { includeProxies } }
-  );
+  await api.post(`decks/${deckId}/cards/quantity-delta`, payload, { params: { includeProxies } });
 }

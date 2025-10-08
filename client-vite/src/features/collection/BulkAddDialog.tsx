@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { QueryKey } from "@tanstack/react-query";
 import { BULK_DEBOUNCE_MS } from "@/constants";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useBulkUpdateMutation } from "./api";
 
 type BulkAddDialogProps = {
@@ -17,7 +25,10 @@ type ParsedRow = {
 type ResultRow = ParsedRow & { status: "success" | "error" };
 
 function parseCsvLine(line: string): number[] | null {
-  const parts = line.split(",").map((p) => p.trim()).filter(Boolean);
+  const parts = line
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
   if (parts.length === 0) return null;
   const numbers = parts.map((p) => Number(p));
   if (numbers.some((n) => !Number.isFinite(n))) return null;
@@ -49,7 +60,10 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
   }, [results]);
 
   const parseRows = useCallback(() => {
-    const lines = rawInput.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = rawInput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
     const parsed: ParsedRow[] = [];
     const nextErrors: string[] = [];
     const ownedFallback = Number(defaultOwnedDelta);
@@ -67,7 +81,11 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
           nextErrors.push(`Line "${line}" missing deltas and defaults are invalid.`);
           continue;
         }
-        parsed.push({ printingId: numbers[0], ownedDelta: ownedFallback, proxyDelta: proxyFallback });
+        parsed.push({
+          printingId: numbers[0],
+          ownedDelta: ownedFallback,
+          proxyDelta: proxyFallback,
+        });
       } else if (numbers.length >= 3) {
         parsed.push({ printingId: numbers[0], ownedDelta: numbers[1], proxyDelta: numbers[2] });
       } else {
@@ -84,7 +102,11 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
     if (parsed.length === 0 || nextErrors.length > 0) return;
 
     try {
-      const payload = parsed.map(({ printingId, ownedDelta, proxyDelta }) => ({ printingId, ownedDelta, proxyDelta }));
+      const payload = parsed.map(({ printingId, ownedDelta, proxyDelta }) => ({
+        printingId,
+        ownedDelta,
+        proxyDelta,
+      }));
       await mutation.mutateAsync({ items: payload });
       setResults(parsed.map((row) => ({ ...row, status: "success" as const })));
       setRawInput("");
@@ -116,7 +138,8 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
         <DialogHeader>
           <DialogTitle>Bulk update collection</DialogTitle>
           <DialogDescription>
-            Paste printing IDs (one per line) or CSV rows in the format <code>printingId,ownedDelta,proxyDelta</code>.
+            Paste printing IDs (one per line) or CSV rows in the format{" "}
+            <code>printingId,ownedDelta,proxyDelta</code>.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 p-6">
@@ -166,7 +189,8 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
               <ul className="mt-2 max-h-32 overflow-auto font-mono text-xs">
                 {results.map((row, index) => (
                   <li key={`${row.printingId}-${index}`}>
-                    #{row.printingId}: ΔOwned {row.ownedDelta}, ΔProxy {row.proxyDelta} – {row.status}
+                    #{row.printingId}: ΔOwned {row.ownedDelta}, ΔProxy {row.proxyDelta} –{" "}
+                    {row.status}
                   </li>
                 ))}
               </ul>

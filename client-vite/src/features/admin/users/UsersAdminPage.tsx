@@ -198,7 +198,8 @@ export default function UsersAdminPage() {
           <tbody className="divide-y divide-gray-200">
             {usersList.map((user) => {
               const disableToggle = pendingId === user.id || pendingDeleteId === user.id;
-              const disableDelete = (user.isAdmin && adminCount <= 1) || pendingDeleteId === user.id;
+              const disableDelete =
+                (user.isAdmin && adminCount <= 1) || pendingDeleteId === user.id;
 
               return (
                 <tr key={user.id} className="bg-white">
@@ -277,9 +278,7 @@ export default function UsersAdminPage() {
         </table>
       </div>
 
-      {isAnyMutationPending ? (
-        <div className="text-xs text-gray-500">Updating users…</div>
-      ) : null}
+      {isAnyMutationPending ? <div className="text-xs text-gray-500">Updating users…</div> : null}
     </div>
   );
 }

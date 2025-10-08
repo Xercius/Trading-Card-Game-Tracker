@@ -47,7 +47,9 @@ describe("BulkAddDialog", () => {
       numberInputs[1].dispatchEvent(new Event("input", { bubbles: true }));
     });
 
-    const apply = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((btn) => btn.textContent === "Apply changes");
+    const apply = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (btn) => btn.textContent === "Apply changes"
+    );
     expect(apply).not.toBeNull();
 
     await act(async () => {

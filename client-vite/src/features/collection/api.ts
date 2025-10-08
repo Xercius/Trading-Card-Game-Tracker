@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, keepPreviousData, type QueryKey } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { DEFAULT_PAGE_SIZE, STALE_TIME_MS, MIN_QTY, MAX_QTY } from "@/constants";
 
@@ -43,16 +49,17 @@ export type CollectionQueryParams = {
 
 export const collectionKeys = {
   all: ["collection"] as const,
-  list: (params: Omit<CollectionQueryParams, "userId"> & { userId: number | null }) => [
-    "collection",
-    {
-      userId: params.userId,
-      page: params.page,
-      pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
-      filters: params.filters,
-      includeProxies: params.includeProxies,
-    },
-  ] as const,
+  list: (params: Omit<CollectionQueryParams, "userId"> & { userId: number | null }) =>
+    [
+      "collection",
+      {
+        userId: params.userId,
+        page: params.page,
+        pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
+        filters: params.filters,
+        includeProxies: params.includeProxies,
+      },
+    ] as const,
 };
 
 async function fetchCollection(params: CollectionQueryParams) {
@@ -168,7 +175,10 @@ export function useBulkUpdateMutation(queryKey: QueryKey) {
           existing.ownedDelta += item.ownedDelta;
           existing.proxyDelta += item.proxyDelta;
         } else {
-          deltaMap.set(item.printingId, { ownedDelta: item.ownedDelta, proxyDelta: item.proxyDelta });
+          deltaMap.set(item.printingId, {
+            ownedDelta: item.ownedDelta,
+            proxyDelta: item.proxyDelta,
+          });
         }
       }
 

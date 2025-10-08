@@ -42,8 +42,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [applyUserId]);
 
   useEffect(() => {
-    const saved =
-      typeof window !== "undefined" ? window.localStorage.getItem("userId") : null;
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("userId") : null;
     const parsed = saved ? Number(saved) : NaN;
     const initial = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     applyUserId(initial);

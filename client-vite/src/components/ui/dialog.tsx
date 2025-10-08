@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 const DialogContext = createContext<{
@@ -46,7 +39,12 @@ export type DialogContentProps = {
   describedBy?: string;
 };
 
-export function DialogContent({ className = "", children, labelledBy, describedBy }: DialogContentProps) {
+export function DialogContent({
+  className = "",
+  children,
+  labelledBy,
+  describedBy,
+}: DialogContentProps) {
   const { open, onOpenChange } = useDialogContext("DialogContent");
   const contentRef = useRef<HTMLDivElement | null>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -108,11 +106,12 @@ export function DialogContent({ className = "", children, labelledBy, describedB
   if (!open) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      role="presentation"
-    >
-      <div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={() => onOpenChange(false)} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
+      <div
+        className="absolute inset-0 bg-black/50"
+        aria-hidden="true"
+        onClick={() => onOpenChange(false)}
+      />
       <div
         ref={contentRef}
         role="dialog"
@@ -129,11 +128,25 @@ export function DialogContent({ className = "", children, labelledBy, describedB
   );
 }
 
-export function DialogHeader({ className = "", children }: { className?: string; children: ReactNode }) {
+export function DialogHeader({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return <div className={`space-y-1.5 border-b px-6 pb-4 pt-6 ${className}`}>{children}</div>;
 }
 
-export function DialogTitle({ className = "", children, id }: { className?: string; children: ReactNode; id?: string }) {
+export function DialogTitle({
+  className = "",
+  children,
+  id,
+}: {
+  className?: string;
+  children: ReactNode;
+  id?: string;
+}) {
   return (
     <h2 id={id} className={`text-xl font-semibold leading-none tracking-tight ${className}`}>
       {children}
@@ -141,7 +154,15 @@ export function DialogTitle({ className = "", children, id }: { className?: stri
   );
 }
 
-export function DialogDescription({ className = "", children, id }: { className?: string; children: ReactNode; id?: string }) {
+export function DialogDescription({
+  className = "",
+  children,
+  id,
+}: {
+  className?: string;
+  children: ReactNode;
+  id?: string;
+}) {
   return (
     <p id={id} className={`text-sm text-muted-foreground ${className}`}>
       {children}
@@ -149,8 +170,20 @@ export function DialogDescription({ className = "", children, id }: { className?
   );
 }
 
-export function DialogFooter({ className = "", children }: { className?: string; children: ReactNode }) {
-  return <div className={`flex flex-col gap-2 border-t px-6 py-4 sm:flex-row sm:justify-end ${className}`}>{children}</div>;
+export function DialogFooter({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-2 border-t px-6 py-4 sm:flex-row sm:justify-end ${className}`}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function DialogClose({

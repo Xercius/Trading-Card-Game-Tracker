@@ -25,12 +25,7 @@ export default function LineSparkline({
       .filter(Boolean)
       .join(" ");
     return (
-      <div
-        role="img"
-        aria-label={`${ariaLabel} (no data)`}
-        className={classes}
-        style={{ height }}
-      >
+      <div role="img" aria-label={`${ariaLabel} (no data)`} className={classes} style={{ height }}>
         {emptyLabel}
       </div>
     );
@@ -47,7 +42,14 @@ export default function LineSparkline({
       className={svgClass}
       style={{ height }}
     >
-      <path d={path} fill="none" stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={path}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -49,7 +49,10 @@ export default function PillsBar() {
       label: `Rarity: ${rarity}`,
       ariaLabel: `Remove rarity filter ${rarity}`,
       onRemove: () =>
-        setFilters((prev) => ({ ...prev, rarities: prev.rarities.filter((value) => value !== rarity) })),
+        setFilters((prev) => ({
+          ...prev,
+          rarities: prev.rarities.filter((value) => value !== rarity),
+        })),
     });
   });
 

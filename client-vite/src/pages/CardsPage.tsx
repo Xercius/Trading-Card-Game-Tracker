@@ -47,7 +47,7 @@ export default function CardsPage() {
   });
 
   const items: CardSummary[] = useMemo(
-    () => query.data?.pages.flatMap(p => p.items) ?? [],
+    () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data]
   );
 

@@ -53,10 +53,7 @@ type ToastMessage = {
 
 function promptForQuantity(item: WishlistItemDto): number | null {
   const defaultQty = Math.max(1, item.quantityWanted);
-  const input = window.prompt(
-    `Move how many copies of ${item.cardName}?`,
-    String(defaultQty)
-  );
+  const input = window.prompt(`Move how many copies of ${item.cardName}?`, String(defaultQty));
   if (input == null) return null;
   const parsed = Number(input);
   if (!Number.isFinite(parsed)) return null;
@@ -299,14 +296,18 @@ export default function WishlistPage() {
   if (items.length === 0)
     return (
       <div className="p-4">
-        {toast && <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>}
+        {toast && (
+          <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>
+        )}
         No wishlist items found
       </div>
     );
 
   return (
     <div className="p-4">
-      {toast && <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>}
+      {toast && (
+        <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>
+      )}
       <div className="mb-2 text-sm text-gray-500">
         Showing {items.length} of {total} items
         <div className="mt-2 flex flex-wrap items-center gap-2">

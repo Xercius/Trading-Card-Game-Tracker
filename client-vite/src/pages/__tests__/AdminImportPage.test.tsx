@@ -17,7 +17,9 @@ vi.mock("@/state/useUser", () => ({
 }));
 
 function createClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
 }
 
 async function flush() {
@@ -37,7 +39,7 @@ async function renderPage(client: QueryClient) {
         <QueryClientProvider client={client}>
           <AdminImportPage />
         </QueryClientProvider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
   });
 
@@ -112,7 +114,7 @@ describe("AdminImportPage", () => {
     await flush();
 
     const option = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Dummy Importer"),
+      el.textContent?.includes("Dummy Importer")
     );
     expect(option).toBeDefined();
     option && option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -124,14 +126,14 @@ describe("AdminImportPage", () => {
     await flush();
 
     const setOption = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Alpha"),
+      el.textContent?.includes("Alpha")
     );
     expect(setOption).toBeDefined();
     setOption && setOption.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flush();
 
     const dryRunButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Dry-run"),
+      button.textContent?.includes("Dry-run")
     );
     expect(dryRunButton).toBeDefined();
     await act(async () => {
@@ -185,13 +187,13 @@ describe("AdminImportPage", () => {
     combobox && combobox.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flush();
     const option = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Dummy Importer"),
+      el.textContent?.includes("Dummy Importer")
     );
     option && option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flush();
 
     const dryRunButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Dry-run"),
+      button.textContent?.includes("Dry-run")
     );
     await act(async () => {
       dryRunButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -200,14 +202,18 @@ describe("AdminImportPage", () => {
     await flush();
 
     const applyButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Apply"),
+      button.textContent?.includes("Apply")
     );
     await act(async () => {
       applyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flush();
 
-    expect(postMock).toHaveBeenCalledWith("admin/import/apply", expect.anything(), expect.any(Object));
+    expect(postMock).toHaveBeenCalledWith(
+      "admin/import/apply",
+      expect.anything(),
+      expect.any(Object)
+    );
     expect(container.textContent).toContain("Import applied");
     const table = container.querySelector("table");
     expect(table).toBeNull();
@@ -222,7 +228,7 @@ describe("AdminImportPage", () => {
     const { container, cleanup } = await renderPage(client);
 
     const uploadTab = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Upload file"),
+      button.textContent?.includes("Upload file")
     );
     await act(async () => {
       uploadTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

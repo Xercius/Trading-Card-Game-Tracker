@@ -20,9 +20,15 @@ export default function LazyImage({ src, alt, className, onLoad, skeletonClassNa
       setIsInView(true);
       return;
     }
-    const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { setIsInView(true); io.disconnect(); }
-    }, { rootMargin: "400px" });
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "400px" }
+    );
     io.observe(el);
     return () => io.disconnect();
   }, []);
@@ -39,7 +45,10 @@ export default function LazyImage({ src, alt, className, onLoad, skeletonClassNa
         src={isInView ? src : undefined}
         alt={alt}
         className={`h-full w-full object-cover ${loaded ? "" : "opacity-0"}`}
-        onLoad={() => { setLoaded(true); onLoad?.(); }}
+        onLoad={() => {
+          setLoaded(true);
+          onLoad?.();
+        }}
       />
     </div>
   );
