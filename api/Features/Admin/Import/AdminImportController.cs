@@ -200,8 +200,7 @@ public sealed class AdminImportController : ControllerBase
                 {
                     [field] = new[] { ex.Message }
                 },
-                title: "Import failed",
-                detail: ex.Message);
+                title: "Import failed");
         }
 
         var response = BuildPreviewResponse(request, summary);
