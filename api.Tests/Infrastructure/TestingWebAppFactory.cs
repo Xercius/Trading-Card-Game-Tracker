@@ -62,8 +62,15 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         _ = Server; // ensure host is built
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.EnsureCreatedAsync();
+        var entityTypes = db.Model.GetEntityTypes();
+        foreach (var entityType in entityTypes)
+        {
+            var tableName = entityType.GetTableName();
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                await db.Database.ExecuteSqlRawAsync($"DELETE FROM \"{tableName}\"");
+            }
+        }
     }
 
     public async Task ExecuteScopeAsync(Func<IServiceProvider, Task> action)
