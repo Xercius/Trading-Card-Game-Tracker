@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
+using api.Common.Errors;
 using api.Filters;
 using api.Data;
 using api.Features.Values.Dtos;
 using api.Middleware;
 using api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,8 +38,35 @@ public class ValuesController : ControllerBase
             return Forbid();
 
         // ---- START existing refresh logic ----
-        if (string.IsNullOrWhiteSpace(game)) return BadRequest("game required");
-        if (items == null || items.Count == 0) return BadRequest("no items");
+        if (string.IsNullOrWhiteSpace(game))
+        {
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["game"] = new[] { "The 'game' query parameter is required." }
+                },
+                detail: "The refresh request must specify a game.");
+        }
+
+        if (items is null)
+        {
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["items"] = new[] { "The request body must include an array of items." }
+                },
+                detail: "The refresh request body is missing.");
+        }
+
+        if (items.Count == 0)
+        {
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["items"] = new[] { "At least one item must be provided." }
+                },
+                detail: "The refresh request must include at least one item.");
+        }
 
         var cpIds = items.Select(i => i.CardPrintingId).ToHashSet();
         var valid = await _db.CardPrintings.Include(cp => cp.Card)
@@ -75,7 +104,12 @@ public class ValuesController : ControllerBase
     public async Task<ActionResult<SeriesResponse>> GetCardPrintingSeries(int id)
     {
         var exists = await _db.CardPrintings.AnyAsync(x => x.Id == id);
-        if (!exists) return NotFound();
+        if (!exists)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing with id {id} was not found.");
+        }
 
         var histories = await _db.ValueHistories
             .Where(v => v.ScopeType == ValueScopeType.CardPrinting && v.ScopeId == id)
@@ -90,7 +124,15 @@ public class ValuesController : ControllerBase
     public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary()
     {
         var user = HttpContext.GetCurrentUser();
-        if (user == null) return BadRequest("X-User-Id header required");
+        if (user == null)
+        {
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["X-User-Id"] = new[] { "The X-User-Id header is required." }
+                },
+                detail: "The request must include a user identifier.");
+        }
 
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
 
@@ -124,7 +166,12 @@ public class ValuesController : ControllerBase
     public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
     {
         var deck = await _db.Decks.FindAsync(deckId);
-        if (deck == null) return NotFound();
+        if (deck == null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck with id {deckId} was not found.");
+        }
 
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
 
