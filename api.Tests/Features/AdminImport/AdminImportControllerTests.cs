@@ -200,7 +200,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task DryRun_File_InvalidCsv_ReturnsProblem()
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
         using var form = new MultipartFormDataContent();
         var csv = "name,number\nLightning Bolt,1\n";
         form.Add(new StringContent("dummy"), "source");
