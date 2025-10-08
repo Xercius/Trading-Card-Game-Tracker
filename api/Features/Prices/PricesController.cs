@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using api.Common.Errors;
 using api.Data;
 using api.Features.Prices.Dtos;
 using api.Middleware;
 using api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,10 +28,16 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         int printingId,
         [FromQuery] int days = DefaultHistoryDays)
     {
-        if (printingId <= 0) return BadRequest("printingId must be positive.");
+        if (printingId <= 0)
+        {
+            return this.CreateValidationProblem("printingId", "printingId must be positive.");
+        }
 
         var exists = await _db.CardPrintings.AnyAsync(cp => cp.Id == printingId);
-        if (!exists) return NotFound();
+        if (!exists)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Card printing not found.");
+        }
 
         if (days <= 0) days = DefaultHistoryDays;
 
@@ -60,10 +68,16 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         int cardId,
         [FromQuery] int days = DefaultHistoryDays)
     {
-        if (cardId <= 0) return BadRequest("cardId must be positive.");
+        if (cardId <= 0)
+        {
+            return this.CreateValidationProblem("cardId", "cardId must be positive.");
+        }
 
         var cardExists = await _db.Cards.AnyAsync(c => c.CardId == cardId);
-        if (!cardExists) return NotFound();
+        if (!cardExists)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Card not found.");
+        }
 
         if (days <= 0) days = DefaultHistoryDays;
 
@@ -99,7 +113,13 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         [FromQuery] int days = DefaultValueHistoryDays)
     {
         var user = HttpContext.GetCurrentUser();
-        if (user is null) return BadRequest("X-User-Id header required.");
+        if (user is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Missing required header",
+                detail: "The X-User-Id header is required.");
+        }
 
         if (days <= 0) days = DefaultValueHistoryDays;
 
@@ -145,10 +165,16 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         int deckId,
         [FromQuery] int days = DefaultValueHistoryDays)
     {
-        if (deckId <= 0) return BadRequest("deckId must be positive.");
+        if (deckId <= 0)
+        {
+            return this.CreateValidationProblem("deckId", "deckId must be positive.");
+        }
 
         var deckExists = await _db.Decks.AnyAsync(d => d.Id == deckId);
-        if (!deckExists) return NotFound();
+        if (!deckExists)
+        {
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Deck not found.");
+        }
 
         if (days <= 0) days = DefaultValueHistoryDays;
 

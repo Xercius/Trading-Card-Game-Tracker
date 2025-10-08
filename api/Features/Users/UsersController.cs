@@ -1,10 +1,12 @@
 using System.Text.Json;
 using AutoMapper;
+using api.Common.Errors;
 using api.Data;
 using api.Features.Users.Dtos;
 using api.Filters;
 using api.Middleware;
 using api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -55,14 +57,14 @@ public class UsersController : ControllerBase
     private async Task<IActionResult> GetUserCore(int userId)
     {
         var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return NotFound();
+        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
         return Ok(_mapper.Map<UserResponse>(u));
     }
 
     private async Task<IActionResult> PatchUserCore(int userId, JsonElement updates)
     {
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return NotFound();
+        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         if (updates.TryGetProperty("username", out var n) && n.ValueKind == JsonValueKind.String)
             u.Username = n.GetString()!.Trim();
@@ -78,10 +80,16 @@ public class UsersController : ControllerBase
 
     private async Task<IActionResult> PutUserCore(int userId, UpdateUserRequest dto)
     {
-        if (dto is null) return BadRequest();
+        if (dto is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: "Invalid payload",
+                detail: "A request body is required.");
+        }
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return NotFound();
+        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         if (!string.IsNullOrWhiteSpace(dto.Username))
             u.Username = dto.Username.Trim();
@@ -124,7 +132,7 @@ public class UsersController : ControllerBase
         if (NotAdmin()) return StatusCode(403, "Admin required.");
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return NotFound();
+        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         u.IsAdmin = isAdmin;
         await _db.SaveChangesAsync();
@@ -137,7 +145,7 @@ public class UsersController : ControllerBase
         if (NotAdmin()) return StatusCode(403, "Admin required.");
 
         var u = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
-        if (u is null) return NotFound();
+        if (u is null) return this.CreateProblem(StatusCodes.Status404NotFound);
 
         _db.Users.Remove(u);
         await _db.SaveChangesAsync();
