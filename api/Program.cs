@@ -62,7 +62,7 @@ builder.Services.Configure<ProblemDetailsOptions>(options =>
     };
 });
 
-builder.Services.AddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
+builder.Services.AddScoped<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=app.db"));
