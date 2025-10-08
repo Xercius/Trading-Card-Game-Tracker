@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import http from "@/lib/http";
+import { toProblemDetailsError } from "@/lib/problemDetails";
 import { mapAdminUser } from "@/lib/mapUser";
 import type { AdminUser, AdminUserApi } from "@/types/user";
 
@@ -11,8 +12,12 @@ export function useAdminUsersQuery(enabled: boolean) {
   return useQuery<AdminUser[]>({
     queryKey: adminUsersKeys.all,
     queryFn: async () => {
-      const response = await http.get<AdminUserApi[]>("admin/users");
-      return response.data.map(mapAdminUser);
+      try {
+        const response = await http.get<AdminUserApi[]>("admin/users");
+        return response.data.map(mapAdminUser);
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     enabled,
   });
@@ -27,8 +32,12 @@ export function useCreateAdminUserMutation() {
 
   return useMutation<AdminUser, unknown, string, CreateContext>({
     mutationFn: async (name: string) => {
-      const response = await http.post<AdminUserApi>("admin/users", { name });
-      return mapAdminUser(response.data);
+      try {
+        const response = await http.post<AdminUserApi>("admin/users", { name });
+        return mapAdminUser(response.data);
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async (name: string) => {
       await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });
@@ -85,8 +94,12 @@ export function useUpdateAdminUserMutation() {
 
   return useMutation<AdminUser, unknown, UpdateInput, UpdateContext>({
     mutationFn: async ({ id, updates }) => {
-      const response = await http.put<AdminUserApi>(`admin/users/${id}`, updates);
-      return mapAdminUser(response.data);
+      try {
+        const response = await http.put<AdminUserApi>(`admin/users/${id}`, updates);
+        return mapAdminUser(response.data);
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });
@@ -143,7 +156,11 @@ export function useDeleteAdminUserMutation() {
 
   return useMutation<void, unknown, number, DeleteContext>({
     mutationFn: async (id: number) => {
-      await http.delete(`admin/users/${id}`);
+      try {
+        await http.delete(`admin/users/${id}`);
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async (id: number) => {
       await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });

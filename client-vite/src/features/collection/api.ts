@@ -6,6 +6,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toProblemDetailsError } from "@/lib/problemDetails";
 import { DEFAULT_PAGE_SIZE, STALE_TIME_MS, MIN_QTY, MAX_QTY } from "@/constants";
 
 export type CollectionItem = {
@@ -62,19 +63,23 @@ export const collectionKeys = {
     ] as const,
 };
 
-async function fetchCollection(params: CollectionQueryParams) {
+export async function fetchCollection(params: CollectionQueryParams) {
   const { page, pageSize = DEFAULT_PAGE_SIZE, filters } = params;
-  const response = await api.get<Paged<CollectionItem>>("collection", {
-    params: {
-      page,
-      pageSize,
-      game: filters.game || undefined,
-      set: filters.set || undefined,
-      rarity: filters.rarity || undefined,
-      name: filters.q || undefined,
-    },
-  });
-  return response.data;
+  try {
+    const response = await api.get<Paged<CollectionItem>>("collection", {
+      params: {
+        page,
+        pageSize,
+        game: filters.game || undefined,
+        set: filters.set || undefined,
+        rarity: filters.rarity || undefined,
+        name: filters.q || undefined,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }
 
 export function useCollectionQuery(params: CollectionQueryParams) {
@@ -110,11 +115,15 @@ export function useSetOwnedProxyMutation(queryKey: QueryKey) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (variables: SetOwnedProxyVariables) => {
-      await api.put(`collection/${variables.printingId}`, {
-        ownedQty: variables.ownedQty,
-        proxyQty: variables.proxyQty,
-      });
-      return variables;
+      try {
+        await api.put(`collection/${variables.printingId}`, {
+          ownedQty: variables.ownedQty,
+          proxyQty: variables.proxyQty,
+        });
+        return variables;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey });
@@ -160,8 +169,12 @@ export function useBulkUpdateMutation(queryKey: QueryKey) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (variables: BulkUpdateVariables) => {
-      await api.patch("collection/bulk", { items: variables.items });
-      return variables.items;
+      try {
+        await api.patch("collection/bulk", { items: variables.items });
+        return variables.items;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey });
