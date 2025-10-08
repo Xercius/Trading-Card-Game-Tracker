@@ -38,17 +38,17 @@ public static class ProblemDetailsFactoryExtensions
 
         foreach (var (key, messages) in errors)
         {
-            var field = key ?? string.Empty;
+            var propertyName = key ?? string.Empty;
             if (messages is { Length: > 0 })
             {
                 foreach (var message in messages)
                 {
-                    modelState.AddModelError(field, message);
+                    modelState.AddModelError(propertyName, message);
                 }
             }
             else
             {
-                modelState.AddModelError(field, string.Empty);
+                modelState.AddModelError(propertyName, string.Empty);
             }
         }
 
