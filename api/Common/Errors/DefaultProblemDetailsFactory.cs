@@ -13,7 +13,11 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
 
     public DefaultProblemDetailsFactory(IOptions<ProblemDetailsOptions> options)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+        _options = options.Value;
     }
 
     public override ProblemDetails CreateProblemDetails(
