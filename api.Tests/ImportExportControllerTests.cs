@@ -247,12 +247,13 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
+        const int invalidCardPrintingId = 999999;
         var payload = new
         {
             version = 1,
             collection = new[]
             {
-                new { cardPrintingId = 999999, qtyOwned = 1, qtyProxyOwned = 0 }
+                new { cardPrintingId = invalidCardPrintingId, qtyOwned = 1, qtyProxyOwned = 0 }
             },
             wishlist = Array.Empty<object>(),
             decks = Array.Empty<object>()
@@ -268,7 +269,15 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
 
         var cardPrintingErrors = Assert.Contains("cardPrintingId", problem!.Errors);
         var message = Assert.Single(cardPrintingErrors);
-        Assert.Contains("999999", message);
+        Assert.Contains(invalidCardPrintingId.ToString(), message);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var hasInvalidCard = await db.UserCards.AnyAsync(uc =>
+                uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == invalidCardPrintingId);
+            Assert.False(hasInvalidCard);
+        }
     }
 
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);

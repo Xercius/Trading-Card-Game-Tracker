@@ -299,24 +299,25 @@ namespace api.Controllers
                 .Concat(payload.Decks.SelectMany(d => d.Cards.Select(c => c.CardPrintingId)))
                 .ToHashSet();
 
+            List<int> missing = new();
             if (allIds.Count > 0)
             {
                 var present = await _db.CardPrintings
                     .Where(cp => allIds.Contains(cp.Id))
                     .Select(cp => cp.Id)
                     .ToListAsync();
-                var missing = allIds.Except(present).ToList();
-                if (missing.Count > 0)
-                {
-                    return this.CreateValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["cardPrintingId"] = new[]
-                        {
-                            $"Unknown CardPrintingId(s): {string.Join(", ", missing)}"
-                        }
-                    });
-                }
+                missing = allIds.Except(present).ToList();
+            }
 
+            if (missing.Count > 0)
+            {
+                return this.CreateValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["cardPrintingId"] = new[]
+                    {
+                        $"Unknown CardPrintingId(s): {string.Join(", ", missing)}"
+                    }
+                });
             }
 
             using var trx = await _db.Database.BeginTransactionAsync();
