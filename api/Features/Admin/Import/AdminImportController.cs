@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using api.Common.Errors;
 using api.Filters;
 using api.Importing;
 using api.Middleware;
@@ -128,13 +129,16 @@ public sealed class AdminImportController : ControllerBase
     public async Task<ActionResult<ImportPreviewResponse>> DryRun(CancellationToken ct)
     {
         var parse = await ParseRequestAsync(ct);
-        if (parse.Problem is not null) return BadRequest(parse.Problem);
+        if (parse.Problem is not null) return parse.Problem;
         var request = parse.Request;
-        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+        if (request is null)
+        {
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request.");
+        }
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
-            return BadRequest(limitProblem);
+            return limitProblem;
         }
 
         var importer = request.Importer;
@@ -170,11 +174,17 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
-            return CreateProblem(ex);
+            if (ex.Errors is not null)
+            {
+                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return this.CreateValidationProblem(errors, title: ex.Message);
+            }
+
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
         }
         catch (Exception ex)
         {
-            return BadRequest(new ProblemDetails { Title = "Import failed", Detail = ex.Message });
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Import failed", detail: ex.Message);
         }
 
         var response = BuildPreviewResponse(request, summary);
@@ -186,13 +196,16 @@ public sealed class AdminImportController : ControllerBase
     public async Task<ActionResult<ImportApplyResponse>> Apply(CancellationToken ct)
     {
         var parse = await ParseRequestAsync(ct);
-        if (parse.Problem is not null) return BadRequest(parse.Problem);
+        if (parse.Problem is not null) return parse.Problem;
         var request = parse.Request;
-        if (request is null) return BadRequest(new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+        if (request is null)
+        {
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request.");
+        }
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
-            return BadRequest(limitProblem);
+            return limitProblem;
         }
 
         var importer = request.Importer;
@@ -228,11 +241,17 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
-            return CreateProblem(ex);
+            if (ex.Errors is not null)
+            {
+                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return this.CreateValidationProblem(errors, title: ex.Message);
+            }
+
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
         }
         catch (Exception ex)
         {
-            return BadRequest(new ProblemDetails { Title = "Import failed", Detail = ex.Message });
+            return this.CreateProblem(StatusCodes.Status400BadRequest, title: "Import failed", detail: ex.Message);
         }
 
         return Ok(new ImportApplyResponse(
@@ -244,25 +263,10 @@ public sealed class AdminImportController : ControllerBase
 
     private async Task<ParseRequestResult> ParseRequestAsync(CancellationToken ct)
     {
-        static bool TryParseLimit(string? raw, out int? value, out ProblemDetails? problem)
-        {
-            value = null;
-            problem = null;
-            if (string.IsNullOrWhiteSpace(raw)) return true;
-            if (int.TryParse(raw, out var parsed))
-            {
-                value = parsed;
-                return true;
-            }
-
-            problem = CreateInvalidLimitProblem();
-            return false;
-        }
-
         var queryLimitRaw = Request.Query.TryGetValue("limit", out var queryLimitValues)
             ? queryLimitValues.ToString()
             : null;
-        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem))
+        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem, this))
         {
             return new ParseRequestResult(null, queryProblem);
         }
@@ -276,7 +280,7 @@ public sealed class AdminImportController : ControllerBase
             var formLimitRaw = form.TryGetValue("limit", out var limitValues)
                 ? limitValues.ToString()
                 : null;
-            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem))
+            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem, this))
             {
                 return new ParseRequestResult(null, limitProblem);
             }
@@ -303,7 +307,7 @@ public sealed class AdminImportController : ControllerBase
             }
             catch (JsonException)
             {
-                return new ParseRequestResult(null, new ProblemDetails { Title = "Invalid request.", Status = StatusCodes.Status400BadRequest });
+                return new ParseRequestResult(null, this.CreateProblem(StatusCodes.Status400BadRequest, title: "Invalid request."));
             }
 
             if (payload is null || string.IsNullOrWhiteSpace(payload.Source)) return new ParseRequestResult(null, null);
@@ -312,6 +316,25 @@ public sealed class AdminImportController : ControllerBase
             var limit = payload.Limit ?? queryLimit;
             return new ParseRequestResult(new ResolvedImportRequest(importer, payload.Set, limit, null), null);
         }
+    }
+
+    private static bool TryParseLimit(
+        string? raw,
+        out int? value,
+        out ObjectResult? problem,
+        AdminImportController controller)
+    {
+        value = null;
+        problem = null;
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (int.TryParse(raw, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        problem = controller.CreateInvalidLimitProblem();
+        return false;
     }
 
     private bool TryResolveImporter(string? source, out ISourceImporter importer)
@@ -415,35 +438,15 @@ public sealed class AdminImportController : ControllerBase
         return new ImportPreviewResponse(summaryPayload, rows.ToArray());
     }
 
-    private static ActionResult CreateProblem(FileParserException ex)
+    private ObjectResult CreateInvalidLimitProblem()
     {
-        if (ex.Errors is not null)
-        {
-            return new ObjectResult(new ValidationProblemDetails(ex.Errors)
-            {
-                Title = ex.Message,
-                Status = StatusCodes.Status400BadRequest,
-            }) { StatusCode = StatusCodes.Status400BadRequest };
-        }
-
-        return new ObjectResult(new ProblemDetails
-        {
-            Title = ex.Message,
-            Status = StatusCodes.Status400BadRequest,
-        }) { StatusCode = StatusCodes.Status400BadRequest };
+        return this.CreateProblem(
+            StatusCodes.Status400BadRequest,
+            title: "Invalid limit",
+            detail: $"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}");
     }
 
-    private static ProblemDetails CreateInvalidLimitProblem()
-    {
-        return new ProblemDetails
-        {
-            Title = "Invalid limit",
-            Detail = $"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}",
-            Status = StatusCodes.Status400BadRequest,
-        };
-    }
-
-    private static ProblemDetails? ValidateLimit(int? requested, out int effectiveLimit)
+    private ObjectResult? ValidateLimit(int? requested, out int effectiveLimit)
     {
         if (requested is null)
         {
@@ -468,7 +471,7 @@ public sealed class AdminImportController : ControllerBase
         public int? Limit { get; init; }
     }
 
-    private sealed record ParseRequestResult(ResolvedImportRequest? Request, ProblemDetails? Problem);
+    private sealed record ParseRequestResult(ResolvedImportRequest? Request, ObjectResult? Problem);
 
     private sealed record ResolvedImportRequest(
         ISourceImporter Importer,
