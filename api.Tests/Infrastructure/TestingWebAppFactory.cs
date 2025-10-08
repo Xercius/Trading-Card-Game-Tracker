@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net.Http;
-using System.Linq;
 using api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
