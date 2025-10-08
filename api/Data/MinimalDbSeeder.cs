@@ -22,7 +22,7 @@ public static class MinimalDbSeeder
         var cards = CreateSampleCards();
         context.Cards.AddRange(cards);
         context.SaveChanges();
-        Console.WriteLine("Minimal seed complete: added sample games and sets.");
+        Console.WriteLine("Minimal seed complete: added sample cards and printings.");
     }
 
     private static IReadOnlyList<Card> CreateSampleCards() => new List<Card>
