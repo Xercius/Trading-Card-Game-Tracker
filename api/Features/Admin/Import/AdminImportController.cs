@@ -230,8 +230,18 @@ public sealed class AdminImportController : ControllerBase
         }
 
         var duration = RequestTiming.Stop(stopwatch);
-        LogImportSuccess(operation, request, summary!, duration);
-        var response = BuildPreviewResponse(request, summary!);
+        if (summary is null)
+        {
+            _logger.LogError("Admin import {Operation} failed: ImportSummary is null after import.", operation);
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["import"] = new[] { "Import did not produce a summary." }
+                },
+                title: "Import failed");
+        }
+        LogImportSuccess(operation, request, summary, duration);
+        var response = BuildPreviewResponse(request, summary);
         return Ok(response);
     }
 
