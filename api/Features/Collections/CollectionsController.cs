@@ -381,6 +381,17 @@ public class CollectionsController : ControllerBase
             .ToList();
 
         var result = await ApplyDeltaCore(userId, deltas);
+        // Restore previous behavior: convert NotFound (404) to BadRequest (400)
+        if (result is ObjectResult objectResult &&
+            objectResult.Value is ProblemDetails problemDetails &&
+            problemDetails.Status == StatusCodes.Status404NotFound)
+        {
+            // Convert to BadRequest (400)
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                title: problemDetails.Title ?? "Validation error",
+                detail: problemDetails.Detail ?? "A validation error occurred.");
+        }
         return result;
     }
 
