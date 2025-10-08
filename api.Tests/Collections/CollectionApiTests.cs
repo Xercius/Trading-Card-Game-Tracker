@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using FluentAssertions;
+using api.Common.Errors;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Collections;
@@ -78,9 +80,39 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         problem.Should().NotBeNull();
-        problem!.Errors.Should().ContainKey("QuantityOwned");
+        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
+        problem.Title.Should().Be(ProblemTypes.BadRequest.Title);
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
+        problem.Instance.Should().Be("/api/collection");
+        problem.Extensions.Should().ContainKey("traceId");
+        problem.Errors.Should().ContainKey("QuantityOwned");
+        problem.Errors["QuantityOwned"].Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetCollection_WithoutUserHeader_ReturnsMissingHeaderProblem()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/collection");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
+        problem.Title.Should().Be("Missing required header");
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+        problem.Detail.Should().Be("The X-User-Id header is required or invalid.");
+        problem.Instance.Should().Be("/api/collection");
+        problem.Extensions.Should().ContainKey("traceId");
     }
 
     [Fact]

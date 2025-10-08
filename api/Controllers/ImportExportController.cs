@@ -309,7 +309,7 @@ namespace api.Controllers
                 missing = allIds.Except(present).ToList();
             }
 
-            if (missing.Count > 0)
+            if (missing.Any())
             {
                 return this.CreateValidationProblem(new Dictionary<string, string[]>
                 {
