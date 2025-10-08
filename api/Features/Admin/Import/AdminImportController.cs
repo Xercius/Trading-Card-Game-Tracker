@@ -176,7 +176,8 @@ public sealed class AdminImportController : ControllerBase
         {
             if (ex.Errors is not null)
             {
-                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
+                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return this.CreateValidationProblem(errors, title: ex.Message);
             }
 
             return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
@@ -242,7 +243,8 @@ public sealed class AdminImportController : ControllerBase
         {
             if (ex.Errors is not null)
             {
-                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
+                var errors = ex.Errors.ToDictionary(pair => pair.Key, pair => pair.Value);
+                return this.CreateValidationProblem(errors, title: ex.Message);
             }
 
             return this.CreateProblem(StatusCodes.Status400BadRequest, title: ex.Message);
@@ -261,27 +263,10 @@ public sealed class AdminImportController : ControllerBase
 
     private async Task<ParseRequestResult> ParseRequestAsync(CancellationToken ct)
     {
-        ObjectResult CreateInvalidLimitProblemResult() => CreateInvalidLimitProblem();
-
-        bool TryParseLimit(string? raw, out int? value, out ObjectResult? problem)
-        {
-            value = null;
-            problem = null;
-            if (string.IsNullOrWhiteSpace(raw)) return true;
-            if (int.TryParse(raw, out var parsed))
-            {
-                value = parsed;
-                return true;
-            }
-
-            problem = CreateInvalidLimitProblemResult();
-            return false;
-        }
-
         var queryLimitRaw = Request.Query.TryGetValue("limit", out var queryLimitValues)
             ? queryLimitValues.ToString()
             : null;
-        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem))
+        if (!TryParseLimit(queryLimitRaw, out var queryLimit, out var queryProblem, this))
         {
             return new ParseRequestResult(null, queryProblem);
         }
@@ -295,7 +280,7 @@ public sealed class AdminImportController : ControllerBase
             var formLimitRaw = form.TryGetValue("limit", out var limitValues)
                 ? limitValues.ToString()
                 : null;
-            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem))
+            if (!TryParseLimit(formLimitRaw, out var limit, out var limitProblem, this))
             {
                 return new ParseRequestResult(null, limitProblem);
             }
@@ -331,6 +316,25 @@ public sealed class AdminImportController : ControllerBase
             var limit = payload.Limit ?? queryLimit;
             return new ParseRequestResult(new ResolvedImportRequest(importer, payload.Set, limit, null), null);
         }
+    }
+
+    private static bool TryParseLimit(
+        string? raw,
+        out int? value,
+        out ObjectResult? problem,
+        AdminImportController controller)
+    {
+        value = null;
+        problem = null;
+        if (string.IsNullOrWhiteSpace(raw)) return true;
+        if (int.TryParse(raw, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        problem = controller.CreateInvalidLimitProblem();
+        return false;
     }
 
     private bool TryResolveImporter(string? source, out ISourceImporter importer)
