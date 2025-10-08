@@ -267,15 +267,8 @@ public class CardsController : ControllerBase
             {
                 var errors = new Dictionary<string, string[]>();
 
-                if (string.IsNullOrWhiteSpace(set))
-                {
-                    errors[nameof(dto.Set)] = new[] { "Set is required when Id is omitted." };
-                }
-
-                if (string.IsNullOrWhiteSpace(number))
-                {
-                    errors[nameof(dto.Number)] = new[] { "Number is required when Id is omitted." };
-                }
+                AddRequiredFieldError(errors, set, nameof(dto.Set), "Set is required when Id is omitted.");
+                AddRequiredFieldError(errors, number, nameof(dto.Number), "Number is required when Id is omitted.");
 
                 return this.CreateValidationProblem(errors);
             }
@@ -323,7 +316,7 @@ public class CardsController : ControllerBase
 
         if (cardId <= 0)
         {
-            return this.CreateValidationProblem(nameof(cardId), "CardId must be provided.");
+            return this.CreateValidationProblem(nameof(cardId), "cardId must be provided.");
         }
 
         if (items is null)
@@ -431,4 +424,12 @@ public class CardsController : ControllerBase
     [HttpPost("{cardId:int}/printings/import")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
+
+    private static void AddRequiredFieldError(IDictionary<string, string[]> errors, string? value, string fieldName, string message)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errors[fieldName] = new[] { message };
+        }
+    }
 }
