@@ -9,8 +9,10 @@ using api.Filters;
 using api.Importing;
 using api.Middleware;
 using api.Shared.Importing;
+using api.Shared.Telemetry;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace api.Features.Admin.Import;
 
@@ -22,6 +24,7 @@ public sealed class AdminImportController : ControllerBase
 {
     private readonly ImporterRegistry _registry;
     private readonly FileParser _fileParser;
+    private readonly ILogger<AdminImportController> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -91,15 +94,17 @@ public sealed class AdminImportController : ControllerBase
         ],
     };
 
-    public AdminImportController(ImporterRegistry registry, FileParser fileParser)
+    public AdminImportController(ImporterRegistry registry, FileParser fileParser, ILogger<AdminImportController> logger)
     {
         _registry = registry;
         _fileParser = fileParser;
+        _logger = logger;
     }
 
     [HttpGet("options")]
     public ActionResult<ImportOptionsResponse> GetOptions()
     {
+        var stopwatch = RequestTiming.Start();
         var sources = _registry.All
             .Select(importer =>
             {
@@ -121,18 +126,30 @@ public sealed class AdminImportController : ControllerBase
             .OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return Ok(new ImportOptionsResponse(sources));
+        var response = new ImportOptionsResponse(sources);
+        var durationMs = RequestTiming.Stop(stopwatch);
+        _logger.LogInformation(
+            "Admin import options retrieved in {DurationMs}ms. SourceCount={SourceCount}",
+            durationMs,
+            sources.Length);
+        return Ok(response);
     }
 
     [HttpPost("dry-run")]
     [Consumes("application/json", "multipart/form-data")]
     public async Task<ActionResult<ImportPreviewResponse>> DryRun(CancellationToken ct)
     {
+        const string operation = "dry-run";
         var parse = await ParseRequestAsync(ct);
-        if (parse.Problem is not null) return parse.Problem;
+        if (parse.Problem is not null)
+        {
+            LogProblem(operation, parse.Problem);
+            return parse.Problem;
+        }
         var request = parse.Request;
         if (request is null)
         {
+            _logger.LogWarning("Admin import {Operation} rejected due to invalid request payload.", operation);
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
                 {
@@ -144,6 +161,10 @@ public sealed class AdminImportController : ControllerBase
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
+            _logger.LogWarning(
+                "Admin import {Operation} rejected due to invalid limit {RequestedLimit}.",
+                operation,
+                request.Limit);
             return limitProblem;
         }
 
@@ -156,7 +177,8 @@ public sealed class AdminImportController : ControllerBase
             UserId: user?.Id,
             SetCode: request.Set);
 
-        ImportSummary summary;
+        ImportSummary? summary = null;
+        var stopwatch = RequestTiming.Start();
         try
         {
             if (request.File is { } file)
@@ -180,6 +202,8 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
+            var durationMs = RequestTiming.Stop(stopwatch);
+            LogImportFailure(operation, request, durationMs, ex, "FileParser");
             if (ex.Errors is not null)
             {
                 return this.CreateValidationProblem(ex.Errors, title: ex.Message);
@@ -194,6 +218,8 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
+            var durationMs = RequestTiming.Stop(stopwatch);
+            LogImportFailure(operation, request, durationMs, ex, "Importer");
             var field = request.File is null ? "request" : "file";
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
@@ -203,7 +229,9 @@ public sealed class AdminImportController : ControllerBase
                 title: "Import failed");
         }
 
-        var response = BuildPreviewResponse(request, summary);
+        var duration = RequestTiming.Stop(stopwatch);
+        LogImportSuccess(operation, request, summary!, duration);
+        var response = BuildPreviewResponse(request, summary!);
         return Ok(response);
     }
 
@@ -211,11 +239,17 @@ public sealed class AdminImportController : ControllerBase
     [Consumes("application/json", "multipart/form-data")]
     public async Task<ActionResult<ImportApplyResponse>> Apply(CancellationToken ct)
     {
+        const string operation = "apply";
         var parse = await ParseRequestAsync(ct);
-        if (parse.Problem is not null) return parse.Problem;
+        if (parse.Problem is not null)
+        {
+            LogProblem(operation, parse.Problem);
+            return parse.Problem;
+        }
         var request = parse.Request;
         if (request is null)
         {
+            _logger.LogWarning("Admin import {Operation} rejected due to invalid request payload.", operation);
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
                 {
@@ -227,6 +261,10 @@ public sealed class AdminImportController : ControllerBase
 
         if (ValidateLimit(request.Limit, out var effectiveLimit) is { } limitProblem)
         {
+            _logger.LogWarning(
+                "Admin import {Operation} rejected due to invalid limit {RequestedLimit}.",
+                operation,
+                request.Limit);
             return limitProblem;
         }
 
@@ -239,7 +277,8 @@ public sealed class AdminImportController : ControllerBase
             UserId: user?.Id,
             SetCode: request.Set);
 
-        ImportSummary summary;
+        ImportSummary? summary = null;
+        var stopwatch = RequestTiming.Start();
         try
         {
             if (request.File is { } file)
@@ -263,6 +302,8 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
+            var durationMs = RequestTiming.Stop(stopwatch);
+            LogImportFailure(operation, request, durationMs, ex, "FileParser");
             if (ex.Errors is not null)
             {
                 return this.CreateValidationProblem(ex.Errors, title: ex.Message);
@@ -277,6 +318,8 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
+            var durationMs = RequestTiming.Stop(stopwatch);
+            LogImportFailure(operation, request, durationMs, ex, "Importer");
             var field = request.File is null ? "request" : "file";
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
@@ -286,11 +329,71 @@ public sealed class AdminImportController : ControllerBase
                 title: "Import failed");
         }
 
+        var duration = RequestTiming.Stop(stopwatch);
+        LogImportSuccess(operation, request, summary!, duration);
         return Ok(new ImportApplyResponse(
             Created: summary.CardsCreated + summary.PrintingsCreated,
             Updated: summary.CardsUpdated + summary.PrintingsUpdated,
             Skipped: 0,
             Invalid: summary.Errors));
+    }
+
+    private void LogProblem(string operation, ObjectResult problem)
+    {
+        if (problem.Value is ProblemDetails details)
+        {
+            _logger.LogWarning(
+                "Admin import {Operation} request returned problem: {Title}",
+                operation,
+                details.Title);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Admin import {Operation} request returned problem result.",
+                operation);
+        }
+    }
+
+    private void LogImportSuccess(string operation, ResolvedImportRequest request, ImportSummary summary, long durationMs)
+    {
+        var source = string.IsNullOrWhiteSpace(summary.Source) ? request.Importer.Key : summary.Source;
+        var mode = request.File is null ? "remote" : "file";
+        var created = summary.CardsCreated + summary.PrintingsCreated;
+        var updated = summary.CardsUpdated + summary.PrintingsUpdated;
+        var total = created + updated;
+
+        _logger.LogInformation(
+            "Admin import {Operation} completed for {Source} via {Mode} in {DurationMs}ms. ItemCount={ItemCount}, Created={Created}, Updated={Updated}, Errors={Errors}, Success={Success}",
+            operation,
+            source,
+            mode,
+            durationMs,
+            total,
+            created,
+            updated,
+            summary.Errors,
+            true);
+    }
+
+    private void LogImportFailure(string operation, ResolvedImportRequest request, long durationMs, Exception exception, string errorType)
+    {
+        var source = request.Importer.Key;
+        var mode = request.File is null ? "remote" : "file";
+
+        _logger.LogError(
+            exception,
+            "Admin import {Operation} failed for {Source} via {Mode} after {DurationMs}ms. ErrorType={ErrorType}, ItemCount={ItemCount}, Created={Created}, Updated={Updated}, Errors={Errors}, Success={Success}",
+            operation,
+            source,
+            mode,
+            durationMs,
+            errorType,
+            0,
+            0,
+            0,
+            0,
+            false);
     }
 
     private async Task<ParseRequestResult> ParseRequestAsync(CancellationToken ct)

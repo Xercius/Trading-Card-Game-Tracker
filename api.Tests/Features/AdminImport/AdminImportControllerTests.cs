@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,6 +18,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace api.Tests.Features.AdminImport;
@@ -26,7 +30,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task DryRun_Remote_ComputesSummary_WithoutPersisting()
     {
-        var (client, services) = CreateClientWithTestImporter(factory);
+        var (client, services, _) = CreateClientWithTestImporter(factory);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
@@ -50,7 +54,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task DryRun_Limit_Defaults_To_100()
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
@@ -66,7 +70,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task Apply_Remote_IsIdempotent()
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
 
         var first = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
         {
@@ -99,7 +103,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [InlineData("5000")]
     public async Task DryRun_Limit_Rejected_When_Negative_Or_Zero_Or_TooLarge(string limit)
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/import/dry-run?limit={limit}")
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
@@ -119,7 +123,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task DryRun_File_FlagsDuplicates()
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
         using var form = new MultipartFormDataContent();
         var csv = "name,set,number\nLightning Bolt,Alpha,1\nLightning Bolt,Alpha,1\n";
         form.Add(new StringContent("dummy"), "source");
@@ -140,7 +144,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     [Fact]
     public async Task DryRun_Respects_Limit_Caps_Number_Of_Preview_Rows()
     {
-        var (client, _) = CreateClientWithTestImporter(factory);
+        var (client, _, _) = CreateClientWithTestImporter(factory);
         using var form = new MultipartFormDataContent();
         var builder = new StringBuilder();
         builder.AppendLine("name,set,number");
@@ -161,6 +165,36 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         Assert.Equal(2, TestImporter.LastLimit);
         Assert.Equal(2, TestImporter.LastPreviewRowCount);
+    }
+
+    [Fact]
+    public async Task DryRun_Logs_Timing_And_Summary_Metadata()
+    {
+        var loggerProvider = new TestLoggerProvider();
+        var (client, _, provider) = CreateClientWithTestImporter(factory, loggerProvider);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
+        {
+            Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
+        };
+        request.Headers.Add("X-User-Id", "1");
+
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var entries = provider.Entries
+            .Where(e => e.Category.Contains(nameof(AdminImportController)))
+            .ToArray();
+
+        Assert.NotEmpty(entries);
+        var completion = entries.Last(e => e.Level == LogLevel.Information && e.State.Any(s => s.Key == "Operation" && s.Value?.ToString() == "dry-run"));
+        var state = completion.State.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+        Assert.True(state.TryGetValue("DurationMs", out var durationObj));
+        Assert.True(Convert.ToInt64(durationObj) >= 0);
+        Assert.Equal("dummy", state["Source"]);
+        Assert.Equal("remote", state["Mode"]);
+        Assert.Equal(true, state["Success"]);
+        Assert.True(state.ContainsKey("ItemCount"));
     }
 
     [Fact]
@@ -201,7 +235,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         Assert.Contains("Lightning Bolt", content);
     }
 
-    private static (HttpClient Client, IServiceProvider Services) CreateClientWithTestImporter(CustomWebApplicationFactory factory)
+    private static (HttpClient Client, IServiceProvider Services, TestLoggerProvider LoggerProvider) CreateClientWithTestImporter(CustomWebApplicationFactory factory, TestLoggerProvider? loggerProvider = null)
     {
         TestImporter.Reset();
         var customized = factory.WithWebHostBuilder(builder =>
@@ -211,9 +245,14 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
                 services.RemoveAll(typeof(ISourceImporter));
                 services.AddScoped<ISourceImporter, TestImporter>();
             });
+
+            if (loggerProvider is not null)
+            {
+                builder.ConfigureLogging(logging => logging.AddProvider(loggerProvider));
+            }
         });
 
-        return (customized.CreateClient(), customized.Services);
+        return (customized.CreateClient(), customized.Services, loggerProvider ?? new TestLoggerProvider());
     }
 
     private sealed class TestImporter(AppDbContext db) : ISourceImporter
@@ -301,5 +340,47 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             Errors = 0,
             Messages = new List<string>(),
         };
+    }
+
+    internal sealed record TestLogEntry(string Category, LogLevel Level, IReadOnlyList<KeyValuePair<string, object?>> State, string Message, Exception? Exception);
+
+    internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScope
+    {
+        private readonly ConcurrentQueue<TestLogEntry> _entries = new();
+        private IExternalScopeProvider _scopeProvider = NullExternalScopeProvider.Instance;
+
+        public IReadOnlyCollection<TestLogEntry> Entries => _entries.ToArray();
+
+        public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, _entries, () => _scopeProvider);
+
+        public void Dispose()
+        {
+        }
+
+        public void SetScopeProvider(IExternalScopeProvider scopeProvider)
+        {
+            _scopeProvider = scopeProvider;
+        }
+
+        private sealed class TestLogger(
+            string categoryName,
+            ConcurrentQueue<TestLogEntry> sink,
+            Func<IExternalScopeProvider> scopeProviderAccessor) : ILogger
+        {
+            public IDisposable BeginScope<TState>(TState state) => scopeProviderAccessor().Push(state!);
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (!IsEnabled(logLevel))
+                {
+                    return;
+                }
+
+                var stateValues = state as IReadOnlyList<KeyValuePair<string, object?>> ?? Array.Empty<KeyValuePair<string, object?>>();
+                sink.Enqueue(new TestLogEntry(categoryName, logLevel, stateValues, formatter(state, exception), exception));
+            }
+        }
     }
 }
