@@ -45,11 +45,16 @@ public sealed class HeaderUserAuthenticationHandler : AuthenticationHandler<Auth
             return AuthenticateResult.Fail("Unknown X-User-Id header.");
         }
 
+        if (string.IsNullOrEmpty(user.Username))
+        {
+            return AuthenticateResult.Fail("User record has no username.");
+        }
+
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim("sub", user.Id.ToString()),
-            new Claim("username", user.Username ?? string.Empty),
+            new Claim("username", user.Username),
             new Claim("is_admin", user.IsAdmin ? "true" : "false")
         };
 
