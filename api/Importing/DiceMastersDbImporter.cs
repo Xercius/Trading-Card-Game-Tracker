@@ -110,11 +110,11 @@ public sealed class DiceMastersDbImporter : ISourceImporter
                          string.Empty).Trim();
 
         string name = (Text(doc, "h1.card-title", ".card-header h1", ".title h1", "h1" ) ?? "Unknown").Trim();
-        string subtitle = Text(doc, ".card-subtitle", ".subtitle") ?? TextByLabel(doc, "Subtitle", "Version");
+        string? subtitle = Text(doc, ".card-subtitle", ".subtitle") ?? TextByLabel(doc, "Subtitle", "Version");
         string rarity = (Text(doc, ".card-rarity", ".rarity") ?? TextByLabel(doc, "Rarity") ?? "Unknown").Trim();
-        string energy = Text(doc, ".card-energy", ".energy") ?? TextByLabel(doc, "Energy", "Energy Type");
-        string cost = Text(doc, ".card-cost", ".purchase-cost") ?? TextByLabel(doc, "Purchase Cost", "Cost");
-        string cardType = Text(doc, ".type", ".card-type") ?? TextByLabel(doc, "Type");
+        string? energy = Text(doc, ".card-energy", ".energy") ?? TextByLabel(doc, "Energy", "Energy Type");
+        string? cost = Text(doc, ".card-cost", ".purchase-cost") ?? TextByLabel(doc, "Purchase Cost", "Cost");
+        string? cardType = Text(doc, ".type", ".card-type") ?? TextByLabel(doc, "Type");
         string text = Text(doc, ".rules-text", ".card-text", ".abilities", ".game-text") ??
                       TextByLabel(doc, "Card Text", "Abilities", "Ability") ?? string.Empty;
 

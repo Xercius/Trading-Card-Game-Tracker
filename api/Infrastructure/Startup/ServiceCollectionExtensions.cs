@@ -56,6 +56,9 @@ internal static class ServiceCollectionExtensions
         services.AddControllers()
             .AddJsonOptions(JsonOptionsConfigurator.Configure);
 
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen();
+
         services.Configure<ApiBehaviorOptions>(options =>
         {
             // Title/Link defaults for automatic 4xx responses
@@ -88,8 +91,7 @@ internal static class ServiceCollectionExtensions
             };
         });
 
-
-        services.AddAutoMapper(typeof(Program).Assembly);
+        services.AddAutoMapper(typeof(Program));
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
         var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)

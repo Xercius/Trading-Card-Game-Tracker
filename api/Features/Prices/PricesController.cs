@@ -193,7 +193,7 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
 
         var deckPrintings = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId && dc.QuantityInDeck > 0)
-            .Where(dc => !EF.Functions.Like(dc.CardPrinting.Style, "%proxy%"))
+            .Where(dc => dc.CardPrinting != null && !EF.Functions.Like(dc.CardPrinting.Style ?? string.Empty, "%proxy%"))
             .Select(dc => new { dc.CardPrintingId, dc.QuantityInDeck })
             .ToListAsync();
 

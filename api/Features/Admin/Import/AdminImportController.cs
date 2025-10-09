@@ -201,7 +201,7 @@ public sealed class AdminImportController : ControllerBase
             LogImportFailure(operation, request, durationMs, ex, "FileParser");
             if (ex.Errors is not null)
             {
-                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
+                return this.CreateValidationProblem(new Dictionary<string, string[]>(ex.Errors), title: ex.Message);
             }
 
             return this.CreateValidationProblem(
@@ -311,7 +311,7 @@ public sealed class AdminImportController : ControllerBase
             LogImportFailure(operation, request, durationMs, ex, "FileParser");
             if (ex.Errors is not null)
             {
-                return this.CreateValidationProblem(ex.Errors, title: ex.Message);
+                return this.CreateValidationProblem(new Dictionary<string, string[]>(ex.Errors), title: ex.Message);
             }
 
             return this.CreateValidationProblem(

@@ -90,24 +90,6 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
 
     private static List<IPAddress>? GetForwardedChain(HttpContext httpContext, ForwardedHeadersOptions options)
     {
-        var forwardedFeature = httpContext.Features.Get<IForwardedHeadersFeature>();
-        if (forwardedFeature?.ForwardedFor is { Count: > 0 })
-        {
-            var fromFeature = new List<IPAddress>(forwardedFeature.ForwardedFor.Count);
-            foreach (var forwarded in forwardedFeature.ForwardedFor)
-            {
-                var normalized = NormalizeIp(forwarded);
-                if (normalized is null)
-                {
-                    return null;
-                }
-
-                fromFeature.Add(normalized);
-            }
-
-            return fromFeature;
-        }
-
         var headerName = options.ForwardedForHeaderName ?? ForwardedHeadersDefaults.XForwardedForHeaderName;
         var headerValues = httpContext.Request.Headers[headerName];
         if (headerValues.Count == 0)
@@ -169,6 +151,12 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
             {
                 var segment = rawSegment.Trim();
                 if (!TryParseIp(segment, out var parsed))
+                {
+                    results.Clear();
+                    return false;
+                }
+
+                if (parsed is null)
                 {
                     results.Clear();
                     return false;

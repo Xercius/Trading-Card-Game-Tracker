@@ -265,19 +265,19 @@ public class WishlistsController : ControllerBase
 
         if (uc is null)
         {
-            var moveQuantity = dto.Quantity;
+            var initialMoveQuantity = dto.Quantity;
             var newUserCard = new UserCard
             {
                 UserId = userId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityWanted = 0,
-                QuantityOwned = dto.UseProxy ? 0 : moveQuantity,
-                QuantityProxyOwned = dto.UseProxy ? moveQuantity : 0
+                QuantityOwned = dto.UseProxy ? 0 : initialMoveQuantity,
+                QuantityProxyOwned = dto.UseProxy ? initialMoveQuantity : 0
             };
             _db.UserCards.Add(newUserCard);
             await _db.SaveChangesAsync();
 
-            var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
+            var (initialAvailability, initialAvailabilityWithProxies) = CardAvailabilityHelper.Calculate(
                 newUserCard.QuantityOwned,
                 newUserCard.QuantityProxyOwned);
 
@@ -286,8 +286,8 @@ public class WishlistsController : ControllerBase
                 newUserCard.QuantityWanted,
                 newUserCard.QuantityOwned,
                 newUserCard.QuantityProxyOwned,
-                availability,
-                availabilityWithProxies));
+                initialAvailability,
+                initialAvailabilityWithProxies));
         }
 
         var desiredQuantity = QuantityGuards.Clamp(uc.QuantityWanted);

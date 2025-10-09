@@ -188,9 +188,9 @@ public class UsersController : ControllerBase
         }
 
         var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, u.IsAdmin);
-        if (guardResult is not null)
+        if (guardResult is { } actionResult)
         {
-            return guardResult;
+            return actionResult;
         }
 
         _db.Users.Remove(u);
