@@ -131,7 +131,7 @@ internal static class ServiceCollectionExtensions
 
                 if (!IPAddress.TryParse(network.Prefix, out var prefixAddress))
                 {
-                    continue;
+                    throw new Exception($"Invalid network prefix in ForwardedHeadersSettings: '{network.Prefix}' is not a valid IP address.");
                 }
 
                 var prefixLength = network.PrefixLength;
