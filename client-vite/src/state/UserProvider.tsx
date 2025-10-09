@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import http, { setHttpAccessToken } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
@@ -16,9 +16,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userId, setUserIdState] = useState<number | null>(null);
   const [users, setUsers] = useState<UserLite[]>([]);
-  const [pickerUsers, setPickerUsers] = useState<UserLite[]>([]);
-  const [pickerError, setPickerError] = useState<string | null>(null);
-  const [pickerLoading, setPickerLoading] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const persistToken = useCallback((token: string | null) => {
     setAccessToken(token);
@@ -77,40 +78,53 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   }, [persistToken, populateUsers, clearUserState]);
 
-  useEffect(() => {
-    if (accessToken) {
-      setPickerUsers([]);
-      setPickerError(null);
-      setPickerLoading(false);
-      return;
-    }
+  const handleLogin = useCallback(
+    async (event?: FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
 
-    let cancelled = false;
-    setPickerLoading(true);
-    setPickerError(null);
+      const username = loginUsername.trim();
+      const password = loginPassword;
 
-    http
-      .get<ApiUser[]>("user/list")
-      .then((response) => {
-        if (cancelled) return;
-        setPickerUsers(response.data.map(mapUser));
-      })
-      .catch((error) => {
-        if (cancelled) return;
+      if (!username || !password) {
+        setLoginError("Username and password are required.");
+        return;
+      }
+
+      setLoginLoading(true);
+      setLoginError(null);
+
+      try {
+        const response = await http.post<LoginResponse>("auth/login", {
+          username,
+          password,
+        });
+
+        persistToken(response.data.accessToken);
+
+        try {
+          await populateUsers();
+          qc.invalidateQueries();
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error("[UserContext] Failed to populate user state after login:", error);
+          persistToken(null);
+          clearUserState();
+          setLoginError("Failed to load user information.");
+          return;
+        }
+
+        setLoginUsername("");
+        setLoginPassword("");
+      } catch (error) {
         // eslint-disable-next-line no-console
-        console.error("[UserContext] Failed to load user list:", error);
-        setPickerUsers([]);
-        setPickerError("Failed to load users. Please try again.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setPickerLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken]);
+        console.error("[UserContext] Login failed:", error);
+        setLoginError("Invalid username or password.");
+      } finally {
+        setLoginLoading(false);
+      }
+    },
+    [loginUsername, loginPassword, persistToken, populateUsers, qc, clearUserState]
+  );
 
   const selectUser = useCallback(
     (id: number | null) => {
@@ -155,39 +169,54 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         >
           <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
             <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">Select a user</h2>
-              <p className="text-sm text-muted-foreground">Choose an account to continue.</p>
+              <h2 className="text-xl font-semibold">Sign in</h2>
+              <p className="text-sm text-muted-foreground">Enter your credentials to continue.</p>
             </div>
-            {pickerError ? (
+            {loginError ? (
               <div className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
-                {pickerError}
+                {loginError}
               </div>
             ) : null}
-            {pickerLoading ? (
-              <div className="text-center text-sm text-muted-foreground">Loading users…</div>
-            ) : pickerUsers.length > 0 ? (
-              <ul className="space-y-2">
-                {pickerUsers.map((user) => (
-                  <li key={user.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        selectUser(user.id);
-                      }}
-                      data-testid={`user-option-${user.id}`}
-                      className="flex w-full items-center justify-between rounded-lg border border-input bg-background px-4 py-2 text-left text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <span>{user.name}</span>
-                      {user.isAdmin ? (
-                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Admin</span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center text-sm text-muted-foreground">No users available.</div>
-            )}
+            <form className="space-y-3" onSubmit={handleLogin}>
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="login-username">
+                  Username
+                </label>
+                <input
+                  id="login-username"
+                  type="text"
+                  autoComplete="username"
+                  value={loginUsername}
+                  onChange={(event) => setLoginUsername(event.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium" htmlFor="login-password">
+                  Password
+                </label>
+                <input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                disabled={loginLoading}
+              >
+                {loginLoading ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+            {import.meta.env.DEV ? (
+              <div className="text-xs text-muted-foreground text-center">
+                Use seeded credentials as documented in your environment setup.
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

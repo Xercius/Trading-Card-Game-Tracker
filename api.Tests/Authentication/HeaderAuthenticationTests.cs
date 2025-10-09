@@ -34,9 +34,19 @@ public class HeaderAuthenticationTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task UserList_IsAccessibleWithoutAuthentication()
+    public async Task UserList_RequiresAuthentication()
     {
         using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/user/list");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserList_ReturnsData_WhenAuthenticated()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var users = await client.GetFromJsonAsync<UserResponse[]>("/api/user/list");
 

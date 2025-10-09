@@ -73,9 +73,6 @@ describe("UserProvider", () => {
       if (url === "user/me") {
         return Promise.reject(new Error("401"));
       }
-      if (url === "user/list") {
-        return Promise.resolve({ data: [] } as MockResponse<unknown>);
-      }
       return Promise.reject(new Error(`Unexpected url: ${url}`));
     });
     window.localStorage.setItem("authToken", "stale-token");
@@ -94,57 +91,54 @@ describe("UserProvider", () => {
     await view.cleanup();
   });
 
-  it("omits Authorization header when no user is selected", async () => {
+  it("renders a login form when unauthenticated", async () => {
     const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
-    getMock.mockImplementation((url: string) => {
-      if (url === "user/list") {
-        expect(httpMod.__debugGetCurrentAccessToken()).toBeNull();
-        const common = httpMod.default.defaults.headers.common as Record<string, string | undefined>;
-        expect(common["Authorization"]).toBeUndefined();
-        return Promise.resolve({ data: [] } as MockResponse<unknown>);
-      }
-      return Promise.reject(new Error(`Unexpected url: ${url}`));
-    });
+    getMock.mockResolvedValue({ data: {} } as MockResponse<unknown>);
 
     const view = renderWithProvider(<Consumer />);
     await view.render();
     await view.flush();
 
-    expect(getMock).toHaveBeenCalledWith("user/list");
+    const username = view.container.querySelector<HTMLInputElement>("#login-username");
+    const password = view.container.querySelector<HTMLInputElement>("#login-password");
+    const button = view.container.querySelector<HTMLButtonElement>('button[type="submit"]');
+
+    expect(username).not.toBeNull();
+    expect(password).not.toBeNull();
+    expect(button?.textContent).toContain("Sign in");
+    expect(getMock).not.toHaveBeenCalled();
 
     await view.cleanup();
   });
 
-  it("selecting a user sets the token and preserves the impersonated user list", async () => {
+  it("logs in successfully and populates users", async () => {
     const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
-    const postMock = vi.spyOn(httpMod.default, "post") as unknown as vi.MockedFunction<AxiosPost>;
-
-    const sequence = vi.fn<Promise<MockResponse<unknown>>, [string]>((url: string) => {
-      if (url === "user/list") {
-        return Promise.resolve({
-          data: [
-            { id: 1, username: "alice", displayName: "Alice" },
-            { id: 2, username: "bob", displayName: "Bob" },
-          ],
-        });
-      }
+    getMock.mockImplementation((url: string) => {
       if (url === "user/me") {
         return Promise.resolve({
-          data: { id: 1, username: "alice", displayName: "Alice", isAdmin: false },
+          data: { id: 1, username: "alice", displayName: "Alice", isAdmin: true },
+        });
+      }
+      if (url === "admin/users") {
+        return Promise.resolve({
+          data: [
+            { id: 1, username: "alice", displayName: "Alice", isAdmin: true },
+            { id: 2, username: "bob", displayName: "Bob", isAdmin: false },
+          ],
         });
       }
       throw new Error(`Unexpected url: ${url}`);
     });
-    getMock.mockImplementation(sequence);
 
+    const postMock = vi.spyOn(httpMod.default, "post") as unknown as vi.MockedFunction<AxiosPost>;
     postMock.mockImplementation((url: string, body: unknown) => {
-      if (url === "auth/impersonate") {
-        expect(body).toEqual({ userId: 1 });
+      if (url === "auth/login") {
+        expect(body).toEqual({ username: "alice", password: "Password123!" });
         return Promise.resolve({
           data: {
             accessToken: "token-1",
             expiresAtUtc: new Date().toISOString(),
-            user: { id: 1, username: "alice", displayName: "Alice", isAdmin: false },
+            user: { id: 1, username: "alice", displayName: "Alice", isAdmin: true },
           },
         } as MockResponse<unknown>);
       }
@@ -157,28 +151,41 @@ describe("UserProvider", () => {
     await view.render();
     await view.flush();
 
-    const button = view.container.querySelector('[data-testid="user-option-1"]');
-    expect(button).not.toBeNull();
+    const username = view.container.querySelector<HTMLInputElement>("#login-username");
+    const password = view.container.querySelector<HTMLInputElement>("#login-password");
+    const form = view.container.querySelector<HTMLFormElement>("form");
+    expect(username).not.toBeNull();
+    expect(password).not.toBeNull();
+    expect(form).not.toBeNull();
 
     await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      if (username) {
+        username.value = "alice";
+        username.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      if (password) {
+        password.value = "Password123!";
+        password.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
     await view.flush();
+    await view.flush();
 
-    expect(postMock).toHaveBeenCalledWith("auth/impersonate", { userId: 1 });
+    expect(postMock).toHaveBeenCalledWith("auth/login", { username: "alice", password: "Password123!" });
     expect(setSpy).toHaveBeenCalledWith("token-1");
     expect(window.localStorage.getItem("authToken")).toBe("token-1");
     expect(httpMod.__debugGetCurrentAccessToken()).toBe("token-1");
 
-    const urls = getMock.mock.calls.map(([url]) => url);
-    expect(urls).toEqual(["user/list"]);
-
     const count = view.container.querySelector('[data-testid="user-count"]');
-    expect(count?.textContent).toBe("1");
+    expect(count?.textContent).toBe("2");
 
     const names = view.container.querySelector('[data-testid="user-names"]');
-    expect(names?.textContent).toBe("Alice");
+    expect(names?.textContent).toBe("Alice,Bob");
 
     await view.cleanup();
   });
