@@ -1,4 +1,3 @@
-import LazyImage from "@/components/LazyImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { resolveImageUrl } from "@/lib/http";
@@ -209,10 +208,12 @@ export default function StickyDeckSidebar({
               >
                 <div className="h-16 w-12 overflow-hidden rounded border bg-muted">
                   {row.imageUrl ? (
-                    <LazyImage
+                    <img
+                      loading="lazy"
+                      decoding="async"
                       src={resolveImageUrl(row.imageUrl)}
                       alt={row.cardName}
-                      className="h-full w-full"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">

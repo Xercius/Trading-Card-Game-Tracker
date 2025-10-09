@@ -32,9 +32,9 @@ jobs:
       - name: Restore
         run: dotnet restore
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build -c Release --no-restore -warnaserror
       - name: dotnet format check
-        run: dotnet format api --verify-no-changes --verbosity minimal
+        run: dotnet format api.sln --verify-no-changes --verbosity minimal
       - name: Test
         run: dotnet test -c Release --no-build --logger "trx;LogFileName=tests.trx"
       - name: Upload .NET test results
@@ -59,11 +59,9 @@ jobs:
           cache-dependency-path: client-vite/package-lock.json
       - name: Install
         run: npm ci
-      - name: Lint and format check
-        run: |
-          npm ci
-          npm run lint
-          npm run format
-        working-directory: client-vite
+      - name: Lint (strict)
+        run: npm run lint:strict
+      - name: Format check
+        run: npm run format
       - name: Test (Vitest)
         run: npm test -- --run
