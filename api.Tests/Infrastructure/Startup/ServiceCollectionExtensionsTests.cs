@@ -16,7 +16,7 @@ public static class ServiceCollectionExtensionsTests
         var options = new CorsPolicyOptions
         {
             AllowCredentials = true,
-            Origins = Array.Empty<string>()
+            Origins = null
         };
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
