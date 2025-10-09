@@ -8,7 +8,7 @@ var filteredArgs = isSeedCommand ? args[1..] : args;
 
 var builder = WebApplication.CreateBuilder(filteredArgs);
 
-builder.Services.AddApiBasics();
+builder.Services.AddApiBasics(builder.Configuration);
 var usingDevFallbackKey = builder.Services.AddAppServices(builder.Configuration, builder.Environment);
 
 var app = builder.Build();

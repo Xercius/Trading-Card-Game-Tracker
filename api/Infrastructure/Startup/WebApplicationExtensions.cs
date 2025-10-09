@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace api.Infrastructure.Startup;
 
@@ -11,6 +12,8 @@ internal static class WebApplicationExtensions
 {
     public static WebApplication UseApiPipeline(this WebApplication app)
     {
+        app.UseForwardedHeaders();
+
         app.UseExceptionHandler(errorApp =>
         {
             errorApp.Run(async context =>
@@ -30,7 +33,8 @@ internal static class WebApplicationExtensions
         app.UseHttpsRedirection();
         app.UseStaticFiles();
         app.UseRouting();
-        app.UseCors("AllowReact");
+        var corsOptions = app.Services.GetRequiredService<IOptions<CorsPolicyOptions>>().Value;
+        app.UseCors(string.IsNullOrWhiteSpace(corsOptions.PolicyName) ? "AllowReact" : corsOptions.PolicyName);
         app.UseAuthentication();
         app.UseAuthorization();
 
