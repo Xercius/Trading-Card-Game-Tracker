@@ -1,29 +1,24 @@
-using System;
-// Required for accessing Activity.Current?.Id (used for trace ID generation in distributed tracing)
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Importing;
 using api.Models;
 using api.Shared.Importing;
+using AutoMapper;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using HttpIPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
 
 namespace api.Infrastructure.Startup;
 
@@ -35,29 +30,11 @@ internal static class ServiceCollectionExtensions
     {
         services.AddProblemDetails(options =>
         {
-            options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData
-            {
-                Link = ProblemTypes.BadRequest.Type,
-                Title = ProblemTypes.BadRequest.Title
-            };
-
-            options.ClientErrorMapping[StatusCodes.Status404NotFound] = new ClientErrorData
-            {
-                Link = ProblemTypes.NotFound.Type,
-                Title = ProblemTypes.NotFound.Title
-            };
-
-            options.ClientErrorMapping[StatusCodes.Status409Conflict] = new ClientErrorData
-            {
-                Link = ProblemTypes.Conflict.Type,
-                Title = ProblemTypes.Conflict.Title
-            };
-
             options.CustomizeProblemDetails = context =>
             {
                 var httpContext = context.HttpContext;
                 var problemDetails = context.ProblemDetails;
-                var statusCode = problemDetails.Status ?? context.StatusCode ?? StatusCodes.Status500InternalServerError;
+                var statusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
 
                 if (ProblemTypes.TryGet(statusCode, out var problemType))
                 {
@@ -81,22 +58,36 @@ internal static class ServiceCollectionExtensions
 
         services.Configure<ApiBehaviorOptions>(options =>
         {
+            // Title/Link defaults for automatic 4xx responses
+            options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData
+            {
+                Link = ProblemTypes.BadRequest.Type,
+                Title = ProblemTypes.BadRequest.Title
+            };
+            options.ClientErrorMapping[StatusCodes.Status404NotFound] = new ClientErrorData
+            {
+                Link = ProblemTypes.NotFound.Type,
+                Title = ProblemTypes.NotFound.Title
+            };
+            options.ClientErrorMapping[StatusCodes.Status409Conflict] = new ClientErrorData
+            {
+                Link = ProblemTypes.Conflict.Type,
+                Title = ProblemTypes.Conflict.Title
+            };
+
+            // Custom payload for model validation failures
             options.InvalidModelStateResponseFactory = context =>
             {
-                var problemDetailsFactory = context.HttpContext.RequestServices
-                    .GetRequiredService<ProblemDetailsFactory>();
-
-                var problemDetails = problemDetailsFactory.CreateValidationProblemDetails(
-                    context.HttpContext,
-                    context.ModelState);
-
-                return new ObjectResult(problemDetails)
+                var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+                var pd = factory.CreateValidationProblemDetails(context.HttpContext, context.ModelState);
+                return new ObjectResult(pd)
                 {
-                    StatusCode = problemDetails.Status ?? StatusCodes.Status400BadRequest,
+                    StatusCode = pd.Status ?? StatusCodes.Status400BadRequest,
                     ContentTypes = { "application/problem+json" }
                 };
             };
         });
+
 
         services.AddAutoMapper(typeof(Program).Assembly);
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
@@ -135,7 +126,7 @@ internal static class ServiceCollectionExtensions
             .Configure<ILoggerFactory>((options, loggerFactory) =>
             {
                 var logger = loggerFactory?.CreateLogger<ServiceCollectionExtensions>()
-                    ?? NullLogger<ServiceCollectionExtensions>.Instance;
+                    ?? NullLogger.Instance;
                 ConfigureForwardedHeadersOptions(options, forwardedHeadersSettings, logger);
             });
 
@@ -298,11 +289,6 @@ internal static class ServiceCollectionExtensions
     /// <summary>
     /// Ensures that credentialed CORS policies explicitly specify trusted origins to avoid wildcard usage.
     /// </summary>
-    /// <param name="corsPolicyOptions">The configured CORS options.</param>
-    /// <param name="originsConfigPath">The configuration key path for the origins list.</param>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when credentials are allowed but no explicit origins have been configured.
-    /// </exception>
     internal static void ValidateCorsCredentialsWithOrigins(
         CorsPolicyOptions corsPolicyOptions,
         string originsConfigPath)
@@ -325,11 +311,6 @@ internal static class ServiceCollectionExtensions
     /// <summary>
     /// Parses a known proxy entry, ensuring invalid IP addresses are surfaced immediately.
     /// </summary>
-    /// <param name="value">The configured IP address string.</param>
-    /// <param name="configKey">The configuration key path for the proxy entry.</param>
-    /// <param name="logger">The logger used to record validation warnings.</param>
-    /// <returns>The parsed <see cref="IPAddress"/>.</returns>
-    /// <exception cref="FormatException">Thrown when the configured value is not a valid IP address.</exception>
     internal static IPAddress ParseKnownProxy(
         string? value,
         string configKey,
@@ -353,15 +334,11 @@ internal static class ServiceCollectionExtensions
     /// <summary>
     /// Parses a known network entry, validating both the IP prefix and the prefix length.
     /// </summary>
-    /// <param name="networkEntry">The configured network entry.</param>
-    /// <param name="prefixConfigKey">The configuration key path for the prefix.</param>
-    /// <param name="prefixLengthConfigKey">The configuration key path for the prefix length.</param>
-    /// <param name="logger">The logger used to record validation warnings.</param>
-    /// <returns>The parsed <see cref="IPNetwork"/>.</returns>
+    /// <returns>The parsed <see cref="HttpIPNetwork"/>.</returns>
     /// <exception cref="FormatException">
     /// Thrown when the prefix is missing/invalid or the prefix length is outside the valid range for the address family.
     /// </exception>
-    internal static IPNetwork ParseKnownNetwork(
+    internal static HttpIPNetwork ParseKnownNetwork(
         ForwardedHeadersSettings.NetworkEntry? networkEntry,
         string prefixConfigKey,
         string prefixLengthConfigKey,
@@ -408,15 +385,12 @@ internal static class ServiceCollectionExtensions
                 $"Forwarded headers known network prefix length '{prefixLength}' at '{prefixLengthConfigKey}' is not valid for address family {prefixAddress.AddressFamily}.");
         }
 
-        return new IPNetwork(prefixAddress, prefixLength);
+        return new HttpIPNetwork(prefixAddress, prefixLength);
     }
 
     /// <summary>
     /// Applies forwarded headers configuration while ensuring known proxies and networks are validated.
     /// </summary>
-    /// <param name="options">The forwarded headers options being configured.</param>
-    /// <param name="settings">The raw configuration settings.</param>
-    /// <param name="logger">The logger used for validation warnings.</param>
     private static void ConfigureForwardedHeadersOptions(
         ForwardedHeadersOptions options,
         ForwardedHeadersSettings settings,
