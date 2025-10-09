@@ -109,16 +109,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     [applyUserId, qc, refreshUsersInternal]
   );
 
-  const setUserId = useCallback(
-    (id: number) => {
-      selectUser(id);
-    },
-    [selectUser]
-  );
 
   const value = useMemo(
-    () => ({ userId, setUserId, users, refreshUsers }),
-    [userId, users, setUserId, refreshUsers]
+    () => ({ userId, setUserId: selectUser, users, refreshUsers }),
+    [userId, users, selectUser, refreshUsers]
   );
 
   return (
