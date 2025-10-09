@@ -8,6 +8,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Filters;
 using api.Authentication;
+using api.Features.Admin;
 using api.Models;
 
 namespace api.Features.Admin.Users;
@@ -114,11 +115,11 @@ public sealed class AdminUsersController : ControllerBase
         {
             if (!request.IsAdmin.Value)
             {
-                var adminCount = await _db.Users.CountAsync(u => u.IsAdmin);
-                if (adminCount <= 1)
+                var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, user.IsAdmin);
+                if (guardResult is not null)
                 {
                     await tx.RollbackAsync();
-                    return LastAdminConflict();
+                    return guardResult;
                 }
             }
 
@@ -145,14 +146,11 @@ public sealed class AdminUsersController : ControllerBase
                 detail: $"User {id} was not found.");
         }
 
-        if (user.IsAdmin)
+        var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, user.IsAdmin);
+        if (guardResult is not null)
         {
-            var adminCount = await _db.Users.CountAsync(u => u.IsAdmin);
-            if (adminCount <= 1)
-            {
-                await tx.RollbackAsync();
-                return LastAdminConflict();
-            }
+            await tx.RollbackAsync();
+            return guardResult;
         }
 
         _db.Users.Remove(user);
@@ -172,13 +170,5 @@ public sealed class AdminUsersController : ControllerBase
             user.DisplayName,
             user.IsAdmin,
             user.CreatedUtc);
-    }
-
-    private IActionResult LastAdminConflict()
-    {
-        return this.CreateProblem(
-            StatusCodes.Status409Conflict,
-            title: "Cannot remove last administrator",
-            detail: "At least one administrator must remain.");
     }
 }
