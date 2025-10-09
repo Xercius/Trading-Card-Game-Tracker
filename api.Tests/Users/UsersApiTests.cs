@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 
 using Microsoft.AspNetCore.Http;
@@ -116,6 +117,44 @@ public class UsersApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
         using var client = _factory.CreateClientForUser(Seed.AdminUserId);
 
         var response = await client.DeleteAsync($"/api/user/{Seed.AdminUserId}");
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Title.Should().Be("Cannot remove last administrator");
+        problem.Detail.Should().Be("At least one administrator must remain.");
+    }
+
+    [Fact]
+    public async Task SetAdminLegacy_LastAdmin_ReturnsConflict()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Put,
+            $"/api/user/{Seed.AdminUserId}/admin?value=false");
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Title.Should().Be("Cannot remove last administrator");
+        problem.Detail.Should().Be("At least one administrator must remain.");
+    }
+
+    [Fact]
+    public async Task SetAdminAlias_LastAdmin_ReturnsConflict()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Put,
+            $"/api/users/{Seed.AdminUserId}/admin?value=false");
+        var response = await client.SendAsync(request);
+
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();

@@ -159,12 +159,13 @@ public class UsersController : ControllerBase
                 detail: $"User {userId} was not found.");
         }
 
-        if (!isAdmin && u.IsAdmin)
+        var removingAdmin = u.IsAdmin && !isAdmin;
+        if (removingAdmin)
         {
-            var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, u.IsAdmin);
-            if (guardResult is not null)
+            var adminCount = await _db.Users.CountAsync(user => user.IsAdmin);
+            if (adminCount <= 1)
             {
-                return guardResult;
+                return this.LastAdminConflict();
             }
         }
 
