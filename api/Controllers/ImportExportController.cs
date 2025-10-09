@@ -162,6 +162,7 @@ namespace api.Controllers
 
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
+                .Where(x => x.CardPrinting != null && x.CardPrinting.Card != null)
                 .Where(x => x.UserId == userId && x.QuantityWanted > 0)
                 .OrderBy(r => r.CardPrinting.Card.Game)
                 .ThenBy(r => r.CardPrinting.Card.Name)

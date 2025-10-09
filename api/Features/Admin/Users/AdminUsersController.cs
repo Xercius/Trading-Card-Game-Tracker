@@ -111,10 +111,10 @@ public sealed class AdminUsersController : ControllerBase
             if (!request.IsAdmin.Value)
             {
                 var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, user.IsAdmin);
-                if (guardResult is not null)
+                if (guardResult is { } actionResult)
                 {
                     await tx.RollbackAsync();
-                    return guardResult;
+                    return actionResult;
                 }
             }
 
@@ -142,10 +142,10 @@ public sealed class AdminUsersController : ControllerBase
         }
 
         var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, user.IsAdmin);
-        if (guardResult is not null)
+        if (guardResult is { } actionResult)
         {
             await tx.RollbackAsync();
-            return guardResult;
+            return actionResult;
         }
 
         _db.Users.Remove(user);

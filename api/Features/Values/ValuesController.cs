@@ -172,7 +172,7 @@ public class ValuesController : ControllerBase
                 detail: $"Deck with id {deckId} was not found.");
         }
 
-        if (!DeckAuthorization.OwnsDeckOrAdmin(currentUser, deck.UserId))
+        if (currentUser is null || !DeckAuthorization.OwnsDeckOrAdmin(currentUser, deck.UserId))
         {
             return Forbid();
         }

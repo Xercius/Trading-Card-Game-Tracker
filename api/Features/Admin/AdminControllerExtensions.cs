@@ -7,7 +7,7 @@ namespace api.Features.Admin;
 
 internal static class AdminControllerExtensions
 {
-    public static IActionResult LastAdminConflict(this ControllerBase controller)
+    public static ActionResult LastAdminConflict(this ControllerBase controller)
     {
         return controller.CreateProblem(
             StatusCodes.Status409Conflict,
@@ -15,7 +15,7 @@ internal static class AdminControllerExtensions
             detail: "At least one administrator must remain.");
     }
 
-    public static async Task<IActionResult?> EnsureAnotherAdminRemainsAsync(
+    public static async Task<ActionResult?> EnsureAnotherAdminRemainsAsync(
         this ControllerBase controller,
         AppDbContext db,
         bool removingAdmin,

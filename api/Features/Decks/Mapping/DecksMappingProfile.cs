@@ -26,13 +26,13 @@ public sealed class DecksMappingProfile : Profile
             .ForCtorParam(nameof(DeckCardItemResponse.QuantityIdea), opt => opt.MapFrom(dc => dc.QuantityIdea))
             .ForCtorParam(nameof(DeckCardItemResponse.QuantityAcquire), opt => opt.MapFrom(dc => dc.QuantityAcquire))
             .ForCtorParam(nameof(DeckCardItemResponse.QuantityProxy), opt => opt.MapFrom(dc => dc.QuantityProxy))
-            .ForCtorParam(nameof(DeckCardItemResponse.CardId), opt => opt.MapFrom(dc => dc.CardPrinting.CardId))
-            .ForCtorParam(nameof(DeckCardItemResponse.CardName), opt => opt.MapFrom(dc => dc.CardPrinting.Card.Name))
-            .ForCtorParam(nameof(DeckCardItemResponse.Game), opt => opt.MapFrom(dc => dc.CardPrinting.Card.Game))
-            .ForCtorParam(nameof(DeckCardItemResponse.Set), opt => opt.MapFrom(dc => dc.CardPrinting.Set))
-            .ForCtorParam(nameof(DeckCardItemResponse.Number), opt => opt.MapFrom(dc => dc.CardPrinting.Number))
-            .ForCtorParam(nameof(DeckCardItemResponse.Rarity), opt => opt.MapFrom(dc => dc.CardPrinting.Rarity))
-            .ForCtorParam(nameof(DeckCardItemResponse.Style), opt => opt.MapFrom(dc => dc.CardPrinting.Style))
-            .ForCtorParam(nameof(DeckCardItemResponse.ImageUrl), opt => opt.MapFrom(dc => dc.CardPrinting.ImageUrl));
+            .ForCtorParam(nameof(DeckCardItemResponse.CardId), opt => opt.MapFrom(dc => dc.CardPrinting?.CardId ?? 0))
+            .ForCtorParam(nameof(DeckCardItemResponse.CardName), opt => opt.MapFrom(dc => dc.CardPrinting?.Card?.Name ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.Game), opt => opt.MapFrom(dc => dc.CardPrinting?.Card?.Game ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.Set), opt => opt.MapFrom(dc => dc.CardPrinting?.Set ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.Number), opt => opt.MapFrom(dc => dc.CardPrinting?.Number ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.Rarity), opt => opt.MapFrom(dc => dc.CardPrinting?.Rarity ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.Style), opt => opt.MapFrom(dc => dc.CardPrinting?.Style ?? string.Empty))
+            .ForCtorParam(nameof(DeckCardItemResponse.ImageUrl), opt => opt.MapFrom(dc => dc.CardPrinting?.ImageUrl));
     }
 }
