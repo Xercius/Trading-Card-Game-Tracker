@@ -47,8 +47,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
             CardsUpdated = 0,
             PrintingsCreated = 0,
             PrintingsUpdated = 0,
-            Errors = 0,
-            Messages = { "Dummy importer ran" }
+            Errors = 0
         };
 
         return await _db.WithDryRunAsync(options.DryRun, async () =>
@@ -158,8 +157,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
             CardsUpdated = 0,
             PrintingsCreated = 0,
             PrintingsUpdated = 0,
-            Errors = 0,
-            Messages = { "Dummy importer ran" }
+            Errors = 0
         };
         var limit = options.Limit ?? int.MaxValue;
 

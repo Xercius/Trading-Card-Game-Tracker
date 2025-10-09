@@ -50,8 +50,7 @@ public sealed class SwccgdbImporter : ISourceImporter
             CardsUpdated = 0,
             PrintingsCreated = 0,
             PrintingsUpdated = 0,
-            Errors = 0,
-            Messages = { "Dummy importer ran" }
+            Errors = 0
         };
         var url = $"api/public/cards/{Uri.EscapeDataString(setCode)}.json"; // returns array of cards
         var cards = await _http.GetFromJsonAsync<List<SwccgCard>>(url, Json, ct)

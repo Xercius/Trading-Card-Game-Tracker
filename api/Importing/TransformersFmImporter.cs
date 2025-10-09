@@ -53,8 +53,7 @@ public sealed class TransformersFmImporter : ISourceImporter
             CardsUpdated = 0,
             PrintingsCreated = 0,
             PrintingsUpdated = 0,
-            Errors = 0,
-            Messages = { "Dummy importer ran" }
+            Errors = 0
         };
         var limit = options.Limit ?? int.MaxValue;
 
