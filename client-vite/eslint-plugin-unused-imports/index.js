@@ -1,4 +1,4 @@
-const tsEslintPlugin = require("@typescript-eslint/eslint-plugin");
+import tsEslintPlugin from "@typescript-eslint/eslint-plugin";
 
 function removeSpecifierWithComma(fixer, sourceCode, specifier) {
   let [start, end] = specifier.range;
@@ -105,9 +105,11 @@ const noUnusedImportsRule = {
   },
 };
 
-module.exports = {
+const plugin = {
   rules: {
     "no-unused-imports": noUnusedImportsRule,
     "no-unused-vars": tsEslintPlugin.rules["no-unused-vars"],
   },
 };
+
+export default plugin;
