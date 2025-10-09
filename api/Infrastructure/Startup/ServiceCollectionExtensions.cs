@@ -34,11 +34,7 @@ internal static class ServiceCollectionExtensions
             {
                 var httpContext = context.HttpContext;
                 var problemDetails = context.ProblemDetails;
-                var statusCode = problemDetails.Status ?? httpContext.Response.StatusCode;
-                if (statusCode == 0)
-                {
-                    statusCode = StatusCodes.Status500InternalServerError;
-                }
+                var statusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
 
                 if (ProblemTypes.TryGet(statusCode, out var problemType))
                 {
