@@ -39,6 +39,11 @@ internal static class WebApplicationExtensions
 
     public static WebApplication UseDeveloperApi(this WebApplication app)
     {
+        // Enable developer exception page for detailed error information
+        app.UseDeveloperExceptionPage();
+        // Enable Swagger UI for API documentation (if Swagger is registered)
+        app.UseSwagger();
+        app.UseSwaggerUI();
         return app;
     }
 }
