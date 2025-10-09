@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import LazyImage from "@/components/LazyImage";
 import { resolveImageUrl } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,11 +171,13 @@ export default function CardModal({
             <div className="flex flex-col items-center gap-3">
               <div className="w-full max-w-sm overflow-hidden rounded-xl border bg-muted">
                 {resolvedImageUrl ? (
-                  <LazyImage
+                  <img
                     key={resolvedImageUrl}
+                    loading="lazy"
+                    decoding="async"
                     src={resolvedImageUrl}
                     alt={details?.name ?? "Selected printing"}
-                    className="aspect-[3/4]"
+                    className="aspect-[3/4] h-full w-full object-cover"
                   />
                 ) : (
                   <div className="flex aspect-[3/4] items-center justify-center text-sm text-muted-foreground">
