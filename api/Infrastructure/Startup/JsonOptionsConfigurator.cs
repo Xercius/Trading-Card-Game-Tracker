@@ -25,13 +25,8 @@ internal static class JsonOptionsConfigurator
 
     public static JsonSerializerOptions CreateSerializerOptions()
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            DictionaryKeyPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-
-        EnsureEnumConverter(options);
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        Configure(options);
         return options;
     }
 
