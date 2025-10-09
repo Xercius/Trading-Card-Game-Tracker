@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using api.Infrastructure.Startup;
 using api.Common.Errors;
 using api.Data;
 using api.Authentication;
@@ -97,12 +98,11 @@ namespace api.Controllers
                 Decks: decks
             );
 
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            var jsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
+            jsonOptions.WriteIndented = true;
+            jsonOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+
+            var json = JsonSerializer.Serialize(payload, jsonOptions);
 
             var bytes = Encoding.UTF8.GetBytes(json);
             return File(bytes, "application/json", $"tcgtracker_export_user_{userId}_utc_{DateTime.UtcNow:yyyyMMddHHmmss}.json");

@@ -24,6 +24,7 @@ internal static class ServiceCollectionExtensions
     public static IServiceCollection AddApiBasics(this IServiceCollection services)
     {
         services.AddControllers()
+            .AddJsonOptions(JsonOptionsConfigurator.Configure)
             .ConfigureApiBehaviorOptions(options =>
             {
                 options.InvalidModelStateResponseFactory = context =>

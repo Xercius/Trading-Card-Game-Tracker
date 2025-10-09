@@ -3,6 +3,7 @@ using api.Common.Errors;
 using api.Filters;
 using api.Importing;
 using api.Authentication;
+using api.Infrastructure.Startup;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,7 @@ public sealed class AdminImportController : ControllerBase
     private readonly FileParser _fileParser;
     private readonly ILogger<AdminImportController> _logger;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     private static readonly Dictionary<string, string> SourceMap = new(StringComparer.OrdinalIgnoreCase)
     {
