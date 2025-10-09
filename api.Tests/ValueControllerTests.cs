@@ -12,7 +12,6 @@ using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using api.Tests.Helpers;
 
 
 namespace api.Tests;
@@ -20,11 +19,11 @@ namespace api.Tests;
 public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
-    public async Task Refresh_WithoutUserHeader_IsBadRequest()
+    public async Task Refresh_WithoutUserHeader_ReturnsUnauthorized()
     {
         var client = factory.CreateClient();
         var res = await client.PostAsync("/api/value/refresh?game=Magic", content: null);
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     [Fact]
@@ -65,6 +64,26 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
         var res = await client.SendAsync(req);
 
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_WithUnknownUserHeader_IsUnauthorized()
+    {
+        var client = factory.CreateClient();
+
+        var payload = new[]
+        {
+            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
+        };
+
+        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
+        {
+            Content = JsonContent.Create(payload)
+        };
+        req.Headers.Add("X-User-Id", "123456");
+        var res = await client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     private sealed record CollectionSummaryResponse(long totalCents, GameSliceResponse[] byGame);
@@ -173,5 +192,32 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
         Assert.NotNull(deckValue);
         var expectedTotal = 250L * 4 + 300L * 1; // Deck has four Alpha and one Beta copies
         Assert.Equal(expectedTotal, deckValue!.totalCents);
+    }
+
+    [Fact]
+    public async Task Value_DeckValue_ReturnsNotFound_ForMissingDeck()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var response = await client.GetAsync("/api/value/deck/999999");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Value_DeckValue_Forbids_WhenNotOwner()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        var response = await client.GetAsync($"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Value_DeckValue_AllowsAdminForAnyDeck()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        var response = await client.GetAsync($"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

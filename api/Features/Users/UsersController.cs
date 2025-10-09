@@ -5,7 +5,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Users.Dtos;
 using api.Filters;
-using api.Middleware;
+using api.Authentication;
 using api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

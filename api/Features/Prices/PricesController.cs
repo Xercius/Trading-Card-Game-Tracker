@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Prices.Dtos;
-using api.Middleware;
+using api.Authentication;
+using api.Features.Decks;
 using api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -172,10 +173,21 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
             return this.CreateValidationProblem("deckId", "deckId must be positive.");
         }
 
-        var deckExists = await _db.Decks.AnyAsync(d => d.Id == deckId);
-        if (!deckExists)
+        var user = HttpContext.GetCurrentUser();
+        if (user is null)
+        {
+            return Forbid();
+        }
+
+        var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
+        if (deck is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Deck not found.");
+        }
+
+        if (!DeckAuthorization.OwnsDeckOrAdmin(user, deck.UserId))
+        {
+            return Forbid();
         }
 
         if (days <= 0) days = DefaultValueHistoryDays;

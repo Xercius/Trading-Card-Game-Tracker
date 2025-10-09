@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using api.Data;
 using api.Features.Cards.Dtos;
-using api.Middleware;
+using api.Authentication;
 using api.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
