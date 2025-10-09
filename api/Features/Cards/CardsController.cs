@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using api.Common.Errors;
 using api.Data;
+using api.Features._Common;
 using api.Features.Cards.Dtos;
 using api.Filters;
 using api.Authentication;
@@ -12,7 +13,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +25,12 @@ namespace api.Features.Cards;
 public class CardsController : ControllerBase
 {
     private const string PlaceholderCardImage = "/images/placeholders/card-3x4.png";
+    private const int VirtualizedDefaultTake = 60;
+    private const int VirtualizedMaxTake = 200;
+    private const int MinimumSkip = 0;
+    private const int DefaultPageNumber = 1;
+    private const int SearchDefaultPageSize = 50;
+    private const int SearchMaxPageSize = 200;
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
@@ -47,40 +53,19 @@ public class CardsController : ControllerBase
         [FromQuery] bool includeTotal = false,
         CancellationToken ct = default)
     {
-        take = take <= 0 ? 60 : take;
-        if (take > 200) take = 200;
-        if (skip < 0) skip = 0;
+        take = take <= 0 ? VirtualizedDefaultTake : Math.Min(take, VirtualizedMaxTake);
+        if (skip < 0) skip = MinimumSkip;
 
         var games = CsvUtils.Parse(game);
         var sets = CsvUtils.Parse(set);
         var rarities = CsvUtils.Parse(rarity);
 
-        IQueryable<Card> query = _db.Cards.AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim();
-            query = query.Where(c =>
-                EF.Functions.Like(c.Name, $"%{term}%") ||
-                EF.Functions.Like(c.CardType, $"%{term}%"));
-        }
-
-        if (games.Count > 0)
-        {
-            query = query.Where(c => games.Contains(c.Game));
-        }
-
-        if (sets.Count > 0)
-        {
-            query = query.Where(c => c.Printings.Any(p => sets.Contains(p.Set)));
-        }
-
-        if (rarities.Count > 0)
-        {
-            query = query.Where(c => c.Printings.Any(p => rarities.Contains(p.Rarity)));
-        }
-
-        query = query.OrderBy(c => c.Game).ThenBy(c => c.Name).ThenBy(c => c.CardId);
+        var query = _db.Cards
+            .AsNoTracking()
+            .ApplyCardSearchFilters(q, games, sets, rarities)
+            .OrderBy(c => c.Game)
+            .ThenBy(c => c.Name)
+            .ThenBy(c => c.CardId);
 
         int? total = null;
         if (includeTotal)
@@ -91,30 +76,7 @@ public class CardsController : ControllerBase
         var items = await query
             .Skip(skip)
             .Take(take)
-            .Select(c => new CardListItemResponse
-            {
-                CardId = c.CardId,
-                Game = c.Game,
-                Name = c.Name,
-                CardType = c.CardType,
-                PrintingsCount = c.Printings.Count(),
-                Primary = c.Printings
-                    .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
-                    .ThenByDescending(p => p.Style == "Standard")
-                    .ThenBy(p => p.Set)
-                    .ThenBy(p => p.Number)
-                    .ThenBy(p => p.Id)
-                    .Select(p => new CardListItemResponse.PrimaryPrintingResponse
-                    {
-                        Id = p.Id,
-                        Set = p.Set,
-                        Number = p.Number,
-                        Rarity = p.Rarity,
-                        Style = p.Style,
-                        ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? PlaceholderCardImage : p.ImageUrl
-                    })
-                    .FirstOrDefault()
-            })
+            .SelectCardSummaries(PlaceholderCardImage)
             .ToListAsync(ct);
 
         var nextSkip = items.Count < take ? (int?)null : skip + take;
@@ -139,8 +101,8 @@ public class CardsController : ControllerBase
         bool includePrintings,
         int page, int pageSize)
     {
-        if (page <= 0) page = 1;
-        if (pageSize <= 0 || pageSize > 200) pageSize = 50;
+        if (page <= 0) page = DefaultPageNumber;
+        if (pageSize <= 0 || pageSize > SearchMaxPageSize) pageSize = SearchDefaultPageSize;
 
         var q = _db.Cards.AsNoTracking().AsQueryable();
         var ct = HttpContext.RequestAborted;
