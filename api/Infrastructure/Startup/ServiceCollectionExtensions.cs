@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -31,31 +32,7 @@ internal static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddControllers()
-            .AddJsonOptions(JsonOptionsConfigurator.Configure)
-            .ConfigureApiBehaviorOptions(options =>
-            {
-                options.InvalidModelStateResponseFactory = context =>
-                {
-                    var problemDetailsFactory = context.HttpContext.RequestServices
-                        .GetRequiredService<ProblemDetailsFactory>();
-
-                    var problemDetails = problemDetailsFactory.CreateValidationProblemDetails(
-                        context.HttpContext,
-                        context.ModelState);
-
-                    return new ObjectResult(problemDetails)
-                    {
-                        StatusCode = problemDetails.Status ?? StatusCodes.Status400BadRequest,
-                        ContentTypes = { "application/problem+json" }
-                    };
-                };
-            });
-
-        services.AddAutoMapper(typeof(Program).Assembly);
-        services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-
-        services.Configure<ProblemDetailsOptions>(options =>
+        services.AddProblemDetails(options =>
         {
             options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData
             {
@@ -74,9 +51,54 @@ internal static class ServiceCollectionExtensions
                 Link = ProblemTypes.Conflict.Type,
                 Title = ProblemTypes.Conflict.Title
             };
+
+            options.CustomizeProblemDetails = context =>
+            {
+                var httpContext = context.HttpContext;
+                var problemDetails = context.ProblemDetails;
+                var statusCode = problemDetails.Status ?? context.StatusCode ?? StatusCodes.Status500InternalServerError;
+
+                if (ProblemTypes.TryGet(statusCode, out var problemType))
+                {
+                    problemType.Apply(httpContext, problemDetails);
+                }
+                else if (string.IsNullOrEmpty(problemDetails.Instance))
+                {
+                    problemDetails.Instance = httpContext.Request.Path;
+                }
+
+                var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier;
+                if (!string.IsNullOrEmpty(traceId))
+                {
+                    problemDetails.Extensions["traceId"] = traceId;
+                }
+            };
         });
 
-        services.AddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
+        services.AddControllers()
+            .AddJsonOptions(JsonOptionsConfigurator.Configure);
+
+        services.Configure<ApiBehaviorOptions>(options =>
+        {
+            options.InvalidModelStateResponseFactory = context =>
+            {
+                var problemDetailsFactory = context.HttpContext.RequestServices
+                    .GetRequiredService<ProblemDetailsFactory>();
+
+                var problemDetails = problemDetailsFactory.CreateValidationProblemDetails(
+                    context.HttpContext,
+                    context.ModelState);
+
+                return new ObjectResult(problemDetails)
+                {
+                    StatusCode = problemDetails.Status ?? StatusCodes.Status400BadRequest,
+                    ContentTypes = { "application/problem+json" }
+                };
+            };
+        });
+
+        services.AddAutoMapper(typeof(Program).Assembly);
+        services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
         var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
             .Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
