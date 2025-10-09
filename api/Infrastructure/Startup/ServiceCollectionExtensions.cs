@@ -19,6 +19,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace api.Infrastructure.Startup;
@@ -78,6 +80,9 @@ internal static class ServiceCollectionExtensions
 
         var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
             .Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+        ValidateCorsCredentialsWithOrigins(
+            corsPolicyOptions,
+            ConfigurationPath.Combine(CorsPolicyOptions.SectionName, nameof(CorsPolicyOptions.Origins)));
         var resolvedCorsPolicyName = string.IsNullOrWhiteSpace(corsPolicyOptions.PolicyName)
             ? "AllowReact"
             : corsPolicyOptions.PolicyName;
@@ -103,58 +108,13 @@ internal static class ServiceCollectionExtensions
             options.KnownNetworks = forwardedHeadersSettings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>();
         });
 
-        services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = forwardedHeadersSettings.ForwardedHeaders;
-
-            if (forwardedHeadersSettings.ForwardLimit.HasValue)
+        services.AddOptions<ForwardedHeadersOptions>()
+            .Configure<ILoggerFactory>((options, loggerFactory) =>
             {
-                options.ForwardLimit = forwardedHeadersSettings.ForwardLimit.Value;
-            }
-
-            options.KnownProxies.Clear();
-            foreach (var proxy in forwardedHeadersSettings.KnownProxies ?? Array.Empty<string>())
-            {
-                if (IPAddress.TryParse(proxy, out var parsed))
-                {
-                    options.KnownProxies.Add(parsed);
-                }
-            }
-
-            options.KnownNetworks.Clear();
-            foreach (var network in forwardedHeadersSettings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>())
-            {
-                if (network?.Prefix is null)
-                {
-                    continue;
-                }
-
-                if (!IPAddress.TryParse(network.Prefix, out var prefixAddress))
-                {
-                    throw new Exception($"Invalid network prefix in ForwardedHeadersSettings: '{network.Prefix}' is not a valid IP address.");
-                }
-
-                var prefixLength = network.PrefixLength;
-                if (prefixLength < 0)
-                {
-                    continue;
-                }
-
-                var maxPrefix = prefixAddress.AddressFamily switch
-                {
-                    AddressFamily.InterNetwork => 32,
-                    AddressFamily.InterNetworkV6 => 128,
-                    _ => -1
-                };
-
-                if (maxPrefix >= 0 && prefixLength > maxPrefix)
-                {
-                    continue;
-                }
-
-                options.KnownNetworks.Add(new IPNetwork(prefixAddress, prefixLength));
-            }
-        });
+                var logger = loggerFactory?.CreateLogger<ServiceCollectionExtensions>()
+                    ?? NullLogger<ServiceCollectionExtensions>.Instance;
+                ConfigureForwardedHeadersOptions(options, forwardedHeadersSettings, logger);
+            });
 
         // Explicit HTTPS port for redirects
         services.AddHttpsRedirection(options => options.HttpsPort = 7226);
@@ -310,5 +270,170 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<FileParser>();
 
         return usingDevFallbackKey;
+    }
+
+    /// <summary>
+    /// Ensures that credentialed CORS policies explicitly specify trusted origins to avoid wildcard usage.
+    /// </summary>
+    /// <param name="corsPolicyOptions">The configured CORS options.</param>
+    /// <param name="originsConfigPath">The configuration key path for the origins list.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when credentials are allowed but no explicit origins have been configured.
+    /// </exception>
+    internal static void ValidateCorsCredentialsWithOrigins(
+        CorsPolicyOptions corsPolicyOptions,
+        string originsConfigPath)
+    {
+        if (!corsPolicyOptions.AllowCredentials)
+        {
+            return;
+        }
+
+        var origins = corsPolicyOptions.Origins ?? Array.Empty<string>();
+        if (origins.Length > 0)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"CORS configuration invalid: AllowCredentials requires explicit origins. Configure '{originsConfigPath}' with at least one origin.");
+    }
+
+    /// <summary>
+    /// Parses a known proxy entry, ensuring invalid IP addresses are surfaced immediately.
+    /// </summary>
+    /// <param name="value">The configured IP address string.</param>
+    /// <param name="configKey">The configuration key path for the proxy entry.</param>
+    /// <param name="logger">The logger used to record validation warnings.</param>
+    /// <returns>The parsed <see cref="IPAddress"/>.</returns>
+    /// <exception cref="FormatException">Thrown when the configured value is not a valid IP address.</exception>
+    internal static IPAddress ParseKnownProxy(
+        string? value,
+        string configKey,
+        ILogger logger)
+    {
+        if (IPAddress.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        var loggedValue = value ?? "<null>";
+        logger.LogWarning(
+            "Invalid known proxy entry at {ConfigKey}: value '{Value}' is not a valid IP address.",
+            configKey,
+            loggedValue);
+
+        throw new FormatException(
+            $"Forwarded headers known proxy value '{loggedValue}' at '{configKey}' is not a valid IP address.");
+    }
+
+    /// <summary>
+    /// Parses a known network entry, validating both the IP prefix and the prefix length.
+    /// </summary>
+    /// <param name="networkEntry">The configured network entry.</param>
+    /// <param name="prefixConfigKey">The configuration key path for the prefix.</param>
+    /// <param name="prefixLengthConfigKey">The configuration key path for the prefix length.</param>
+    /// <param name="logger">The logger used to record validation warnings.</param>
+    /// <returns>The parsed <see cref="IPNetwork"/>.</returns>
+    /// <exception cref="FormatException">
+    /// Thrown when the prefix is missing/invalid or the prefix length is outside the valid range for the address family.
+    /// </exception>
+    internal static IPNetwork ParseKnownNetwork(
+        ForwardedHeadersSettings.NetworkEntry? networkEntry,
+        string prefixConfigKey,
+        string prefixLengthConfigKey,
+        ILogger logger)
+    {
+        if (networkEntry is null)
+        {
+            logger.LogWarning(
+                "Invalid known network entry at {PrefixKey}: entry is null.",
+                prefixConfigKey);
+            throw new FormatException(
+                $"Forwarded headers known network entry at '{prefixConfigKey}' is null.");
+        }
+
+        var prefixValue = networkEntry.Prefix ?? "<null>";
+        if (!IPAddress.TryParse(networkEntry.Prefix, out var prefixAddress))
+        {
+            logger.LogWarning(
+                "Invalid known network prefix at {ConfigKey}: value '{Value}' is not a valid IP address.",
+                prefixConfigKey,
+                prefixValue);
+
+            throw new FormatException(
+                $"Forwarded headers known network prefix '{prefixValue}' at '{prefixConfigKey}' is not a valid IP address.");
+        }
+
+        var prefixLength = networkEntry.PrefixLength;
+        var maxPrefix = prefixAddress.AddressFamily switch
+        {
+            AddressFamily.InterNetwork => 32,
+            AddressFamily.InterNetworkV6 => 128,
+            _ => -1
+        };
+
+        if (prefixLength < 0 || maxPrefix < 0 || prefixLength > maxPrefix)
+        {
+            logger.LogWarning(
+                "Invalid known network prefix length at {ConfigKey}: value '{Value}' is outside the allowed range for {Family}.",
+                prefixLengthConfigKey,
+                prefixLength,
+                prefixAddress.AddressFamily);
+
+            throw new FormatException(
+                $"Forwarded headers known network prefix length '{prefixLength}' at '{prefixLengthConfigKey}' is not valid for address family {prefixAddress.AddressFamily}.");
+        }
+
+        return new IPNetwork(prefixAddress, prefixLength);
+    }
+
+    /// <summary>
+    /// Applies forwarded headers configuration while ensuring known proxies and networks are validated.
+    /// </summary>
+    /// <param name="options">The forwarded headers options being configured.</param>
+    /// <param name="settings">The raw configuration settings.</param>
+    /// <param name="logger">The logger used for validation warnings.</param>
+    private static void ConfigureForwardedHeadersOptions(
+        ForwardedHeadersOptions options,
+        ForwardedHeadersSettings settings,
+        ILogger logger)
+    {
+        options.ForwardedHeaders = settings.ForwardedHeaders;
+
+        if (settings.ForwardLimit.HasValue)
+        {
+            options.ForwardLimit = settings.ForwardLimit.Value;
+        }
+
+        options.KnownProxies.Clear();
+        var proxies = settings.KnownProxies ?? Array.Empty<string>();
+        for (var i = 0; i < proxies.Length; i++)
+        {
+            var proxyConfigKey = ConfigurationPath.Combine(
+                ForwardedHeadersSettings.SectionName,
+                nameof(ForwardedHeadersSettings.KnownProxies),
+                i.ToString());
+
+            options.KnownProxies.Add(ParseKnownProxy(proxies[i], proxyConfigKey, logger));
+        }
+
+        options.KnownNetworks.Clear();
+        var networks = settings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>();
+        for (var i = 0; i < networks.Length; i++)
+        {
+            var prefixKey = ConfigurationPath.Combine(
+                ForwardedHeadersSettings.SectionName,
+                nameof(ForwardedHeadersSettings.KnownNetworks),
+                i.ToString(),
+                nameof(ForwardedHeadersSettings.NetworkEntry.Prefix));
+            var prefixLengthKey = ConfigurationPath.Combine(
+                ForwardedHeadersSettings.SectionName,
+                nameof(ForwardedHeadersSettings.KnownNetworks),
+                i.ToString(),
+                nameof(ForwardedHeadersSettings.NetworkEntry.PrefixLength));
+
+            options.KnownNetworks.Add(ParseKnownNetwork(networks[i], prefixKey, prefixLengthKey, logger));
+        }
     }
 }
