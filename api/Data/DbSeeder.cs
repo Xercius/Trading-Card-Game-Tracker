@@ -1,5 +1,6 @@
 ﻿using api.Data;
 using api.Models;
+using Microsoft.AspNetCore.Identity;
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -14,9 +15,17 @@ namespace api.Data // Update to match your folder/namespace
             if (context.Cards.Any()) return;
 
             // Seed Users
+            var hasher = new PasswordHasher<User>();
+            const string defaultPassword = "Password123!";
+
             var user1 = new User { Username = "Jason", DisplayName = "Xercius", IsAdmin = true };
+            user1.PasswordHash = hasher.HashPassword(user1, defaultPassword);
+
             var user2 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
+            user2.PasswordHash = hasher.HashPassword(user2, defaultPassword);
+
             var user3 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = true };
+            user3.PasswordHash = hasher.HashPassword(user3, defaultPassword);
 
             context.Users.AddRange(user1, user2, user3);
             context.SaveChanges();

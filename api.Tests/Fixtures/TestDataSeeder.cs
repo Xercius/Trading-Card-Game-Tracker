@@ -1,5 +1,6 @@
 using api.Data;
 using api.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Tests.Fixtures;
@@ -31,11 +32,18 @@ public static class TestDataSeeder
     {
         await ClearDatabaseAsync(db);
 
-        db.Users.AddRange(
-            new User { Id = AdminUserId, Username = "admin", DisplayName = "Admin", IsAdmin = true },
-            new User { Id = AliceUserId, Username = "alice", DisplayName = "Alice" },
-            new User { Id = BobUserId, Username = "bob", DisplayName = "Bob" }
-        );
+        var hasher = new PasswordHasher<User>();
+
+        var adminUser = new User { Id = AdminUserId, Username = "admin", DisplayName = "Admin", IsAdmin = true };
+        adminUser.PasswordHash = hasher.HashPassword(adminUser, "Password123!");
+
+        var aliceUser = new User { Id = AliceUserId, Username = "alice", DisplayName = "Alice" };
+        aliceUser.PasswordHash = hasher.HashPassword(aliceUser, "Password123!");
+
+        var bobUser = new User { Id = BobUserId, Username = "bob", DisplayName = "Bob" };
+        bobUser.PasswordHash = hasher.HashPassword(bobUser, "Password123!");
+
+        db.Users.AddRange(adminUser, aliceUser, bobUser);
 
         var lightningBolt = new Card
         {

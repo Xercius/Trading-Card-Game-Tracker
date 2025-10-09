@@ -1,1 +1,1 @@
-export { default as api, setHttpUserId as setApiUserId } from "./http";
+export { default as api, setHttpAccessToken as setApiAccessToken } from "./http";

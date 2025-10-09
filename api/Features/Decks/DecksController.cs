@@ -7,6 +7,7 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,7 @@ using DeckDto = api.Features.Decks.Dtos.DeckResponse;
 namespace api.Features.Decks;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 // Legacy, user-scoped routes for compatibility:
 [Route("api/user/{userId:int}/deck")]
 public class DecksController : ControllerBase

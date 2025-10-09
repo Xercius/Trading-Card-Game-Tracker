@@ -9,7 +9,7 @@ describe("http module", () => {
     vi.resetModules();
     const mod = await import("./http");
     expect(typeof mod.default).toBe("function");
-    expect(typeof mod.setHttpUserId).toBe("function");
+    expect(typeof mod.setHttpAccessToken).toBe("function");
     (globalThis as { window?: unknown }).window = originalWindow;
     vi.resetModules();
   });

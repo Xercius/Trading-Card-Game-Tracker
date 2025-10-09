@@ -9,6 +9,7 @@ using api.Features.Prices.Dtos;
 using api.Authentication;
 using api.Features.Decks;
 using api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ namespace api.Features.Prices;
 
 [ApiController]
 [Route("api/prices")]
-[RequireUserHeader]
+[Authorize]
 public sealed class PricesController(AppDbContext db) : ControllerBase
 {
     private const int DefaultHistoryDays = 30;
@@ -116,12 +117,7 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         var user = HttpContext.GetCurrentUser();
         if (user is null)
         {
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                },
-                title: "Missing required header");
+            return Unauthorized();
         }
 
         if (days <= 0) days = DefaultValueHistoryDays;

@@ -5,6 +5,7 @@
         public int Id { get; set; }
         public string Username { get; set; } = null!;
         public string DisplayName { get; set; } = null!;
+        public string PasswordHash { get; set; } = string.Empty;
         public bool IsAdmin { get; set; } = false;
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 

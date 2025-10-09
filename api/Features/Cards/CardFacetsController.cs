@@ -7,13 +7,14 @@ using api.Data;
 using api.Features.Cards.Dtos;
 using api.Authentication;
 using api.Shared;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Cards;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 [Route("api/cards/facets")]
 public sealed class CardFacetsController : ControllerBase
 {

@@ -7,6 +7,7 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ using CollectionItemDto = api.Features.Collections.Dtos.UserCardItemResponse;
 namespace api.Features.Collections;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 [Route("api/user/{userId:int}/collection")]
 // TODO: Eventually remove legacy userId routes after clients migrate to /api/collection.
 public class CollectionsController : ControllerBase

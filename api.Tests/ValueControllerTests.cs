@@ -4,6 +4,7 @@
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using api.Data;
@@ -29,19 +30,14 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     [Fact]
     public async Task Refresh_WithNonAdminUser_IsForbidden()
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClientForUser(TestDataSeeder.BobUserId);
 
         var payload = new[]
         {
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
         };
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
-        {
-            Content = JsonContent.Create(payload)
-        };
-        req.Headers.Add("X-User-Id", "2"); // ensure test data seeds user 2 as NON-admin
-        var res = await client.SendAsync(req);
+        var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
 
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
@@ -49,25 +45,20 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     [Fact]
     public async Task Refresh_WithAdminUser_IsNoContent()
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClientForUser(TestDataSeeder.AdminUserId);
 
         var payload = new[]
         {
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1500L, source = (string?)"seed" }
         };
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
-        {
-            Content = JsonContent.Create(payload)
-        };
-        req.Headers.Add("X-User-Id", "999"); // ensure test data seeds user 999 as ADMIN
-        var res = await client.SendAsync(req);
+        var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
 
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
     }
 
     [Fact]
-    public async Task Refresh_WithUnknownUserHeader_IsUnauthorized()
+    public async Task Refresh_WithUnknownToken_IsUnauthorized()
     {
         var client = factory.CreateClient();
 
@@ -76,12 +67,8 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
         };
 
-        var req = new HttpRequestMessage(HttpMethod.Post, "/api/value/refresh?game=Magic")
-        {
-            Content = JsonContent.Create(payload)
-        };
-        req.Headers.Add("X-User-Id", "123456");
-        var res = await client.SendAsync(req);
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "invalid-token");
+        var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
 
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
