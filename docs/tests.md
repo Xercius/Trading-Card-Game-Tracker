@@ -13,5 +13,5 @@
 ## Adding new API tests
 - Create test classes under `api.Tests/<Area>` and depend on `TestingWebAppFactory` via `IClassFixture`.
 - Call `ResetStateAsync` followed by `ExecuteDbContextAsync(Seed.SeedAsync)` (or a custom seeder) at the start of each test to ensure isolation.
-- Use `CreateClientForUser(userId)` to obtain an `HttpClient` with the required `X-User-Id` header.
+- Use `CreateClientForUser(userId)` to obtain an `HttpClient` authenticated via a bearer token generated for the requested user.
 - Prefer strongly typed DTO contracts (records) and `HttpClient` JSON helpers for assertions; `FluentAssertions` is available for expressive checks.

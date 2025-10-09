@@ -10,6 +10,7 @@ using api.Importing;
 using api.Authentication;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ using Microsoft.Extensions.Logging;
 namespace api.Features.Admin.Import;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 [AdminGuard]
 [Route("api/admin/import")]
 public sealed class AdminImportController : ControllerBase

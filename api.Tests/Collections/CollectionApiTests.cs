@@ -102,19 +102,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
 
         var response = await client.GetAsync("/api/collection");
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        problem.Should().NotBeNull();
-        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
-        problem.Title.Should().Be("Missing required header");
-        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Detail.Should().Be("The X-User-Id header is required or invalid.");
-        problem.Instance.Should().Be("/api/collection");
-        problem.Extensions.Should().ContainKey("traceId");
-        problem.Errors.Should().ContainKey("X-User-Id");
-        problem.Errors["X-User-Id"].Should().ContainSingle().Which.Should().Be("The X-User-Id header is required or invalid.");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

@@ -289,14 +289,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
 
         var response = await client.GetAsync("/api/export/json");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotNull(problem);
-        Assert.Equal(StatusCodes.Status400BadRequest, problem!.Status);
-        Assert.Equal("Missing required header", problem.Title);
-        Assert.Equal("The X-User-Id header is required.", problem.Detail);
-        Assert.Contains("X-User-Id", problem.Errors.Keys);
-        Assert.Contains("The X-User-Id header is required.", problem.Errors["X-User-Id"]);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);

@@ -9,6 +9,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Authentication;
 using api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Controllers
 {
     [ApiController]
-    [RequireUserHeader]
+    [Authorize]
     [Route("api")]
     public class ImportExportController : ControllerBase
     {
@@ -55,12 +56,7 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                    },
-                    title: "Missing required header");
+                return Unauthorized();
             }
 
             var collection = await _db.UserCards
@@ -126,12 +122,7 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                    },
-                    title: "Missing required header");
+                return Unauthorized();
             }
 
             var rows = await _db.UserCards
@@ -171,12 +162,7 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                    },
-                    title: "Missing required header");
+                return Unauthorized();
             }
 
             var rows = await _db.UserCards
@@ -215,12 +201,7 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                    },
-                    title: "Missing required header");
+                return Unauthorized();
             }
 
             var rows = await _db.DeckCards
@@ -281,12 +262,7 @@ namespace api.Controllers
             var userId = CurrentUserId();
             if (userId is null)
             {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                    },
-                    title: "Missing required header");
+                return Unauthorized();
             }
 
             mode = string.IsNullOrWhiteSpace(mode) ? "merge" : mode.ToLowerInvariant();

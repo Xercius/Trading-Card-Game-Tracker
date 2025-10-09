@@ -40,20 +40,20 @@ const basePath: string | null = (() => {
 })();
 
 // ------------------------------------
-// X-User-Id management
+// Authorization management
 // ------------------------------------
-let currentUserId: number | null = null;
+let currentAccessToken: string | null = null;
 
 type MutableCommonHeaders = Record<string, string>;
 
-export function setHttpUserId(id: number | null) {
-  currentUserId = id ?? null;
+export function setHttpAccessToken(token: string | null) {
+  currentAccessToken = token ?? null;
 
   const common = http.defaults.headers.common as unknown as MutableCommonHeaders;
-  if (currentUserId == null) {
-    delete common["X-User-Id"];
+  if (currentAccessToken == null) {
+    delete common["Authorization"];
   } else {
-    common["X-User-Id"] = String(currentUserId);
+    common["Authorization"] = `Bearer ${currentAccessToken}`;
   }
 }
 
@@ -110,10 +110,10 @@ http.interceptors.request.use((cfg: Cfg) => {
 
   const headers = AxiosHeaders.from(cfg.headers);
 
-  if (currentUserId != null) {
-    headers.set("X-User-Id", String(currentUserId));
+  if (currentAccessToken != null) {
+    headers.set("Authorization", `Bearer ${currentAccessToken}`);
   } else {
-    headers.delete("X-User-Id");
+    headers.delete("Authorization");
   }
 
   cfg.headers = headers;
@@ -145,6 +145,6 @@ export function resolveImageUrl(path: string): string {
 // ------------------------------------
 export default http;
 
-export function __debugGetCurrentUserId() {
-  return import.meta.env.DEV ? currentUserId : null;
+export function __debugGetCurrentAccessToken() {
+  return import.meta.env.DEV ? currentAccessToken : null;
 }

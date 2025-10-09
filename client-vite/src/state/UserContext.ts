@@ -3,7 +3,7 @@ import type { UserLite } from "@/types/user";
 
 export type Ctx = {
   userId: number | null;
-  setUserId: (id: number) => void;
+  setUserId: (id: number | null) => void;
   users: UserLite[];
   refreshUsers: () => Promise<void>;
 };

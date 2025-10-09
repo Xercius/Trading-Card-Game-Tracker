@@ -8,6 +8,7 @@ import { UserProvider } from "./UserProvider";
 import { useUser } from "./useUser";
 
 type AxiosGet = (typeof httpMod.default)["get"];
+type AxiosPost = (typeof httpMod.default)["post"];
 
 type MockResponse<T> = { data: T };
 
@@ -71,15 +72,15 @@ describe("UserProvider", () => {
       }
       return Promise.reject(new Error(`Unexpected url: ${url}`));
     });
-    window.localStorage.setItem("userId", "999");
+    window.localStorage.setItem("authToken", "stale-token");
 
-    const setSpy = vi.spyOn(httpMod, "setHttpUserId").mockImplementation(() => {});
+    const setSpy = vi.spyOn(httpMod, "setHttpAccessToken").mockImplementation(() => {});
     const view = renderWithProvider(<Consumer />);
     await view.render();
     await view.flush();
 
     expect(setSpy).toHaveBeenLastCalledWith(null);
-    expect(window.localStorage.getItem("userId")).toBeNull();
+    expect(window.localStorage.getItem("authToken")).toBeNull();
 
     const value = view.container.querySelector('[data-testid="user-id"]');
     expect(value?.textContent).toBe("null");
@@ -87,13 +88,13 @@ describe("UserProvider", () => {
     await view.cleanup();
   });
 
-  it("omits X-User-Id header when no user is selected", async () => {
+  it("omits Authorization header when no user is selected", async () => {
     const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
     getMock.mockImplementation((url: string) => {
       if (url === "user/list") {
-        expect(httpMod.__debugGetCurrentUserId()).toBeNull();
+        expect(httpMod.__debugGetCurrentAccessToken()).toBeNull();
         const common = httpMod.default.defaults.headers.common as Record<string, string | undefined>;
-        expect(common["X-User-Id"]).toBeUndefined();
+        expect(common["Authorization"]).toBeUndefined();
         return Promise.resolve({ data: [] } as MockResponse<unknown>);
       }
       return Promise.reject(new Error(`Unexpected url: ${url}`));
@@ -108,8 +109,10 @@ describe("UserProvider", () => {
     await view.cleanup();
   });
 
-  it("selecting a user sets the header and refreshes user data", async () => {
+  it("selecting a user sets the token and refreshes user data", async () => {
     const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
+    const postMock = vi.spyOn(httpMod.default, "post") as unknown as vi.MockedFunction<AxiosPost>;
+
     const sequence = vi.fn<Promise<MockResponse<unknown>>, [string]>((url: string) => {
       if (url === "user/list") {
         return Promise.resolve({
@@ -128,7 +131,21 @@ describe("UserProvider", () => {
     });
     getMock.mockImplementation(sequence);
 
-    const setSpy = vi.spyOn(httpMod, "setHttpUserId").mockImplementation(() => {});
+    postMock.mockImplementation((url: string, body: unknown) => {
+      if (url === "auth/impersonate") {
+        expect(body).toEqual({ userId: 1 });
+        return Promise.resolve({
+          data: {
+            accessToken: "token-1",
+            expiresAtUtc: new Date().toISOString(),
+            user: { id: 1, username: "alice", displayName: "Alice", isAdmin: false },
+          },
+        } as MockResponse<unknown>);
+      }
+      throw new Error(`Unexpected url: ${url}`);
+    });
+
+    const setSpy = vi.spyOn(httpMod, "setHttpAccessToken").mockImplementation(() => {});
 
     const view = renderWithProvider(<Consumer />);
     await view.render();
@@ -143,10 +160,11 @@ describe("UserProvider", () => {
 
     await view.flush();
 
-    expect(setSpy).toHaveBeenCalledWith(1);
-    expect(window.localStorage.getItem("userId")).toBe("1");
+    expect(postMock).toHaveBeenCalledWith("auth/impersonate", { userId: 1 });
+    expect(setSpy).toHaveBeenCalledWith("token-1");
+    expect(window.localStorage.getItem("authToken")).toBe("token-1");
     expect(getMock).toHaveBeenCalledWith("user/me");
-    expect(httpMod.__debugGetCurrentUserId()).toBe(1);
+    expect(httpMod.__debugGetCurrentAccessToken()).toBe("token-1");
 
     await view.cleanup();
   });

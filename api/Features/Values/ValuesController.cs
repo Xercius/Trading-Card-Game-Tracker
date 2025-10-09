@@ -10,6 +10,7 @@ using api.Features.Values.Dtos;
 using api.Authentication;
 using api.Features.Decks;
 using api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ namespace api.Features.Values;
 
 [ApiController]
 [Route("api/value")]
+[Authorize]
 public class ValuesController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -30,7 +32,7 @@ public class ValuesController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    [RequireUserHeader] // caller must identify as a user
+    // caller must identify as a user
     public async Task<IActionResult> Refresh([FromQuery] string game, [FromBody] List<RefreshItemRequest> items)
     {
         // Admin gate
@@ -101,7 +103,6 @@ public class ValuesController : ControllerBase
     }
 
     [HttpGet("cardprinting/{id:int}")]
-    [RequireUserHeader]
     public async Task<ActionResult<SeriesResponse>> GetCardPrintingSeries(int id)
     {
         var exists = await _db.CardPrintings.AnyAsync(x => x.Id == id);
@@ -121,18 +122,13 @@ public class ValuesController : ControllerBase
         return Ok(new SeriesResponse(id, points));
     }
 
-    [HttpGet("collection/summary"), RequireUserHeader]
+    [HttpGet("collection/summary")]
     public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary()
     {
         var user = HttpContext.GetCurrentUser();
         if (user == null)
         {
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["X-User-Id"] = new[] { "The X-User-Id header is required." }
-                },
-                detail: "The request must include a user identifier.");
+            return Unauthorized();
         }
 
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
@@ -164,7 +160,6 @@ public class ValuesController : ControllerBase
     }
 
     [HttpGet("deck/{deckId:int}")]
-    [RequireUserHeader]
     public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
     {
         var currentUser = HttpContext.GetCurrentUser();

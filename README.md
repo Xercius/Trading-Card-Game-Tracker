@@ -24,6 +24,6 @@ The goal is to eventually incorporate cards from the following games:
 - `POST /api/wishlist/items` – quick-add endpoint that increments the desired quantity for the authenticated user.
 
 ## Admin operations
-- `[RequireAdmin]` enforces administrator access based on the `X-User-Id` middleware context and returns a `403` problem response otherwise.
+- `[RequireAdmin]` enforces administrator access based on the authenticated JWT principal and returns a `403` problem response otherwise.
 - `/api/admin/users` exposes admin-only CRUD operations for users with optimistic UI support in the Vite client. The API prevents demoting or deleting the final administrator and returns a `409 Conflict` problem response when that safeguard triggers.
 - `/api/admin/prices/ingest` ingests per-printing price points and safely upserts duplicates based on `(cardPrintingId, capturedAt)`.

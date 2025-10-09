@@ -1,6 +1,6 @@
-using System.Globalization;
 using System.Net.Http;
 using api.Data;
+using api.Tests;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -42,11 +42,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
     }
 
     public HttpClient CreateClientForUser(int userId)
-    {
-        var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-User-Id", userId.ToString(CultureInfo.InvariantCulture));
-        return client;
-    }
+        => CreateClient().WithUser(userId);
 
     public async Task ResetStateAsync()
     {

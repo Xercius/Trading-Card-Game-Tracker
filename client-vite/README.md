@@ -32,4 +32,4 @@ npm install
 npm run dev
 ```
 
-The app expects the API to be available at the configured base URL. Requests are issued through a shared Axios instance that automatically adds the `X-User-Id` header based on the currently selected user.
+The app expects the API to be available at the configured base URL. Requests are issued through a shared Axios instance that automatically attaches a bearer token obtained when the user is selected.

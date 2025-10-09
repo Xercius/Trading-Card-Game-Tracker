@@ -7,6 +7,7 @@ using api.Features.Users.Dtos;
 using api.Filters;
 using api.Authentication;
 using api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Features.Users;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 // Legacy, userId-in-route endpoints kept for compatibility:
 [Route("api/user/{userId:int}")]
 public class UsersController : ControllerBase

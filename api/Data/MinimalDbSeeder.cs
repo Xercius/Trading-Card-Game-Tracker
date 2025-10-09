@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using api.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace api.Data;
 
@@ -13,6 +14,20 @@ public static class MinimalDbSeeder
 {
     public static void Seed(AppDbContext context)
     {
+        if (!context.Users.Any())
+        {
+            var hasher = new PasswordHasher<User>();
+            var admin = new User
+            {
+                Username = "demo",
+                DisplayName = "Demo Admin",
+                IsAdmin = true
+            };
+            admin.PasswordHash = hasher.HashPassword(admin, "Password123!");
+            context.Users.Add(admin);
+            context.SaveChanges();
+        }
+
         if (context.Cards.Any() || context.CardPrintings.Any())
         {
             Console.WriteLine("Minimal seed skipped: database already contains card data.");

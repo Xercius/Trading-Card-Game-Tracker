@@ -149,7 +149,7 @@ export default function Header() {
             </Select>
             {import.meta.env.DEV && userId != null && (
               <span className="text-xs text-muted-foreground" aria-hidden>
-                X-User-Id={userId}
+                UserId={userId}
               </span>
             )}
           </div>

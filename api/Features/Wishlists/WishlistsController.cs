@@ -10,6 +10,7 @@ using api.Filters;
 using api.Authentication;
 using api.Models;
 using api.Shared;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ using WishlistItemDto = api.Features.Wishlists.Dtos.WishlistItemResponse;
 namespace api.Features.Wishlists;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 [Route("api/user/{userId:int}/wishlist")]
 // NOTE: Keep legacy {userId}-based routes for now; prefer /api/wishlist aliases below.
 public class WishlistsController : ControllerBase

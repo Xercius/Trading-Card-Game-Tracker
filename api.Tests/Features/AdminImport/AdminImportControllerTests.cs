@@ -35,7 +35,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
         };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -59,7 +58,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
         };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -76,7 +74,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             Content = JsonContent.Create(new { source = "dummy", set = "BETA" }),
         };
-        first.Headers.Add("X-User-Id", "1");
         var firstResponse = await client.SendAsync(first);
         firstResponse.EnsureSuccessStatusCode();
         var firstPayload = await firstResponse.Content.ReadFromJsonAsync<ImportApplyResponse>();
@@ -88,7 +85,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             Content = JsonContent.Create(new { source = "dummy", set = "BETA" }),
         };
-        second.Headers.Add("X-User-Id", "1");
         var secondResponse = await client.SendAsync(second);
         secondResponse.EnsureSuccessStatusCode();
         var secondPayload = await secondResponse.Content.ReadFromJsonAsync<ImportApplyResponse>();
@@ -104,11 +100,11 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     public async Task DryRun_Limit_Rejected_When_Negative_Or_Zero_Or_TooLarge(string limit)
     {
         var (client, _, _) = CreateClientWithTestImporter(factory);
+        client.WithUser(TestDataSeeder.AdminUserId);
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/import/dry-run?limit={limit}")
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
         };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -130,7 +126,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(csv))), "file", "cards.csv");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run") { Content = form };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -158,7 +153,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(builder.ToString()))), "file", "cards.csv");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run") { Content = form };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -176,7 +170,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
         };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -207,7 +200,6 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(csv))), "file", "cards.csv");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run") { Content = form };
-        request.Headers.Add("X-User-Id", "1");
 
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -252,7 +244,8 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             }
         });
 
-        return (customized.CreateClient(), customized.Services, loggerProvider ?? new TestLoggerProvider());
+        var client = customized.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        return (client, customized.Services, loggerProvider ?? new TestLoggerProvider());
     }
 
     private sealed class TestImporter(AppDbContext db) : ISourceImporter

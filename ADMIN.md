@@ -4,7 +4,7 @@ The admin import tools expose a unified workflow across both remote sources and 
 
 ## API endpoints
 
-All routes require the `X-User-Id` header for an administrator.
+All routes require an administrator authenticated via JWT bearer token.
 
 - `GET /api/admin/import/options` — returns the available importers, supported games, and known set codes. Use this to populate selection lists in the UI.
 - `POST /api/admin/import/dry-run` — accepts either a JSON payload (`{ "source": "dummy", "set": "ALP" }`) or `multipart/form-data` with `source` and a `.csv`/`.json` upload. No database changes are persisted; the response includes a summary with new/update counts and preview rows.

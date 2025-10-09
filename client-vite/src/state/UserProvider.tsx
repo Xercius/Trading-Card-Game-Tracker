@@ -1,72 +1,84 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import http, { setHttpUserId } from "@/lib/http";
+import http, { setHttpAccessToken } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
 import type { AdminUserApi, ApiUser, UserLite } from "@/types/user";
 import { UserContext } from "./UserContext";
 
+type LoginResponse = {
+  accessToken: string;
+  expiresAtUtc: string;
+  user: ApiUser;
+};
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userId, setUserIdState] = useState<number | null>(null);
   const [users, setUsers] = useState<UserLite[]>([]);
   const [pickerUsers, setPickerUsers] = useState<UserLite[]>([]);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [pickerLoading, setPickerLoading] = useState(false);
 
-  const applyUserId = useCallback((id: number | null) => {
-    setUserIdState(id);
-    setHttpUserId(id);
+  const persistToken = useCallback((token: string | null) => {
+    setAccessToken(token);
+    setHttpAccessToken(token);
     if (typeof window !== "undefined") {
       const storage = window.localStorage;
-      if (id != null) storage.setItem("userId", String(id));
-      else storage.removeItem("userId");
+      if (token) storage.setItem("authToken", token);
+      else storage.removeItem("authToken");
     }
   }, []);
 
-  const refreshUsersInternal = useCallback(async (id: number | null) => {
-    if (id == null) {
-      setUsers([]);
+  const clearUserState = useCallback(() => {
+    setUserIdState(null);
+    setUsers([]);
+  }, []);
+
+  const populateUsers = useCallback(async () => {
+    const meRes = await http.get<ApiUser>("user/me");
+    const meLite = mapUser(meRes.data);
+    setUserIdState(meLite.id);
+
+    if (!meLite.isAdmin) {
+      setUsers([meLite]);
       return;
     }
 
+    const listRes = await http.get<AdminUserApi[]>("admin/users");
+    setUsers(listRes.data.map(mapUser));
+  }, []);
+
+  const refreshUsers = useCallback(async () => {
+    if (!accessToken) return;
     try {
-      const meRes = await http.get<ApiUser>("user/me");
-      const meLite = mapUser(meRes.data);
-      applyUserId(meLite.id);
-
-      if (!meLite.isAdmin) {
-        setUsers([meLite]);
-        return;
-      }
-
-      const listRes = await http.get<AdminUserApi[]>("admin/users");
-      setUsers(listRes.data.map(mapUser));
+      await populateUsers();
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("[UserContext] Failed to refresh users:", err);
-      setUsers([]);
-      applyUserId(null);
+      persistToken(null);
+      clearUserState();
     }
-  }, [applyUserId]);
-
-  const refreshUsers = useCallback(async () => {
-    await refreshUsersInternal(userId);
-  }, [refreshUsersInternal, userId]);
+  }, [accessToken, populateUsers, persistToken, clearUserState]);
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("userId") : null;
-    const parsed = saved ? Number(saved) : NaN;
-    if (Number.isInteger(parsed) && parsed > 0) {
-      applyUserId(parsed);
-      void refreshUsersInternal(parsed);
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("authToken") : null;
+    if (saved) {
+      persistToken(saved);
+      populateUsers().catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error("[UserContext] Failed to restore session:", error);
+        persistToken(null);
+        clearUserState();
+      });
     } else {
-      applyUserId(null);
-      setUsers([]);
+      persistToken(null);
+      clearUserState();
     }
-  }, [applyUserId, refreshUsersInternal]);
+  }, [persistToken, populateUsers, clearUserState]);
 
   useEffect(() => {
-    if (userId != null) {
+    if (accessToken) {
       setPickerUsers([]);
       setPickerError(null);
       setPickerLoading(false);
@@ -98,17 +110,34 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [accessToken]);
 
   const selectUser = useCallback(
-    (id: number) => {
-      applyUserId(id);
-      qc.invalidateQueries();
-      void refreshUsersInternal(id);
-    },
-    [applyUserId, qc, refreshUsersInternal]
-  );
+    (id: number | null) => {
+      if (id == null) {
+        persistToken(null);
+        clearUserState();
+        return;
+      }
 
+      (async () => {
+        try {
+          const response = await http.post<LoginResponse>("auth/impersonate", { userId: id });
+          persistToken(response.data.accessToken);
+          setUserIdState(response.data.user.id);
+          setUsers([mapUser(response.data.user)]);
+          await populateUsers();
+          qc.invalidateQueries();
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error("[UserContext] Failed to impersonate user:", error);
+          persistToken(null);
+          clearUserState();
+        }
+      })();
+    },
+    [persistToken, clearUserState, populateUsers, qc]
+  );
 
   const value = useMemo(
     () => ({ userId, setUserId: selectUser, users, refreshUsers }),
@@ -118,7 +147,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   return (
     <UserContext.Provider value={value}>
       {children}
-      {userId == null ? (
+      {!accessToken ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6"
           role="dialog"

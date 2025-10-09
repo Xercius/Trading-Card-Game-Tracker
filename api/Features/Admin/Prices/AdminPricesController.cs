@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 using api.Data;
 using api.Filters;
 using api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Admin.Prices;
 
 [ApiController]
-[RequireUserHeader]
+[Authorize]
 [AdminGuard]
 [Route("api/admin/prices")]
 public sealed class AdminPricesController(AppDbContext db) : ControllerBase

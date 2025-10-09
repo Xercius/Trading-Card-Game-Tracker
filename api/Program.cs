@@ -5,12 +5,15 @@ using api.Authentication;
 using api.Models;
 using api.Importing;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var isSeedCommand = args.Length > 0 && string.Equals(args[0], "seed", StringComparison.OrdinalIgnoreCase);
 var filteredArgs = isSeedCommand ? args[1..] : args;
@@ -68,16 +71,44 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddHttpClient();
 
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+{
+    throw new InvalidOperationException("JWT signing key is not configured. Set Jwt:Key in configuration.");
+}
+
+var signingKeyBytes = Encoding.UTF8.GetBytes(jwtOptions.Key);
+if (signingKeyBytes.Length < 32)
+{
+    throw new InvalidOperationException("JWT signing key must be at least 256 bits (32 bytes).");
+}
+
+builder.Services.Configure<JwtOptions>(jwtSection);
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
 builder.Services
     .AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = HeaderUserAuthenticationHandler.SchemeName;
-        options.DefaultChallengeScheme = HeaderUserAuthenticationHandler.SchemeName;
-        options.DefaultForbidScheme = HeaderUserAuthenticationHandler.SchemeName;
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultForbidScheme = JwtBearerDefaults.AuthenticationScheme;
     })
-    .AddScheme<AuthenticationSchemeOptions, HeaderUserAuthenticationHandler>(
-        HeaderUserAuthenticationHandler.SchemeName,
-        _ => { });
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(signingKeyBytes)
+        };
+    });
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<api.Importing.ISourceImporter, api.Importing.ScryfallImporter>();
@@ -100,7 +131,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReact", p => p
         .WithOrigins("http://localhost:5173")
-        .WithHeaders("X-User-Id", "Content-Type")
+        .WithHeaders("Authorization", "Content-Type")
         .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
 });
 
