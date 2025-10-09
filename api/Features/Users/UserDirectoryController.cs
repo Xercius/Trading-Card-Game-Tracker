@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using api.Data;
 using api.Features.Users.Dtos;
+using api.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Features.Users;
 
 [ApiController]
-[AllowAnonymous]
+[RequireUserHeader]
 [Route("api/user/list")]
 public sealed class UserDirectoryController(AppDbContext db) : ControllerBase
 {
