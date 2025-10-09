@@ -1,4 +1,5 @@
 using System;
+// Required for accessing Activity.Current?.Id (used for trace ID generation in distributed tracing)
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
