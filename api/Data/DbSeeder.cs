@@ -1,9 +1,6 @@
-﻿using api.Data;
-using api.Models;
+﻿using api.Models;
 using Microsoft.AspNetCore.Identity;
-using System;
 using System.Diagnostics;
-using System.Linq;
 
 namespace api.Data // Update to match your folder/namespace
 {

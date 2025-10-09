@@ -1,14 +1,9 @@
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using api.Common.Errors;
 using api.Data;
 using api.Filters;
-using api.Authentication;
-using api.Features.Admin;
 using api.Models;
 
 namespace api.Features.Admin.Users;

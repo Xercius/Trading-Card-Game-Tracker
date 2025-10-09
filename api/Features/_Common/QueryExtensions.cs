@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using api.Features.Cards.Dtos;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
