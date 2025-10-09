@@ -1,5 +1,6 @@
 using api.Common.Errors;
 using api.Data;
+using api.Features._Common;
 using api.Features.Collections.Dtos;
 using api.Filters;
 using api.Authentication;
@@ -27,6 +28,9 @@ namespace api.Features.Collections;
 // TODO: Eventually remove legacy userId routes after clients migrate to /api/collection.
 public class CollectionsController : ControllerBase
 {
+    private const int DefaultPageNumber = 1;
+    private const int DefaultPageSize = 50;
+
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
 
@@ -91,35 +95,20 @@ public class CollectionsController : ControllerBase
             return Forbid();
         }
 
-        if (page <= 0) page = 1;
-        if (pageSize <= 0) pageSize = 50;
+        if (page <= 0) page = DefaultPageNumber;
+        if (pageSize <= 0) pageSize = DefaultPageSize;
 
         var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
             .Where(uc => uc.UserId == userId)
             .AsNoTracking()
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(game))
-            query = query.Where(uc => uc.CardPrinting.Card.Game == game);
-        if (!string.IsNullOrWhiteSpace(set))
-            query = query.Where(uc => uc.CardPrinting.Set == set);
-        if (!string.IsNullOrWhiteSpace(rarity))
-            query = query.Where(uc => uc.CardPrinting.Rarity == rarity);
-        if (!string.IsNullOrWhiteSpace(name))
-        {
-            var pattern = $"%{name.Trim()}%";
-            query = query.Where(uc => EF.Functions.Like(uc.CardPrinting.Card.Name, pattern));
-        }
-        if (cardPrintingId.HasValue)
-            query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
+            .FilterByPrintingMetadata(game, set, rarity, name, cardPrintingId, useCaseInsensitiveName: false);
 
         var total = await query.CountAsync(ct);
 
         var items = await query
-            .OrderBy(uc => uc.CardPrinting.Card.Name)
-            .ThenBy(uc => uc.CardPrintingId)
+            .OrderByCardNameAndPrinting()
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ProjectTo<CollectionItemDto>(_mapper.ConfigurationProvider)
@@ -171,9 +160,9 @@ public class CollectionsController : ControllerBase
             {
                 UserId = userId,
                 CardPrintingId = dto.CardPrintingId,
-                QuantityOwned = Math.Max(0, dto.QuantityOwned),
-                QuantityWanted = Math.Max(0, dto.QuantityWanted),
-                QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned)
+                QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned),
+                QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted),
+                QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned)
             };
 
             // Optional: skip creating an all-zero row on first insert.
@@ -183,9 +172,9 @@ public class CollectionsController : ControllerBase
         }
         else
         {
-            existing.QuantityOwned = Math.Max(0, dto.QuantityOwned);
-            existing.QuantityWanted = Math.Max(0, dto.QuantityWanted);
-            existing.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
+            existing.QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned);
+            existing.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted);
+            existing.QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned);
 
             // IMPORTANT: do NOT delete when all quantities are zero.
         }
@@ -205,9 +194,9 @@ public class CollectionsController : ControllerBase
                 detail: $"User card for user {userId} and card printing {cardPrintingId} was not found.");
         }
 
-        uc.QuantityOwned = Math.Max(0, dto.QuantityOwned);
-        uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
-        uc.QuantityProxyOwned = Math.Max(0, dto.QuantityProxyOwned);
+        uc.QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned);
+        uc.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted);
+        uc.QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned);
 
         // Do NOT remove row when zero.
         await _db.SaveChangesAsync();
@@ -249,9 +238,9 @@ public class CollectionsController : ControllerBase
             {
                 UserId = userId,
                 CardPrintingId = cardPrintingId,
-                QuantityOwned = dto.OwnedQty,
+                QuantityOwned = QuantityGuards.Clamp(dto.OwnedQty),
                 QuantityWanted = 0,
-                QuantityProxyOwned = dto.ProxyQty
+                QuantityProxyOwned = QuantityGuards.Clamp(dto.ProxyQty)
             };
             _db.UserCards.Add(newUserCard);
             await _db.SaveChangesAsync();
@@ -285,19 +274,19 @@ public class CollectionsController : ControllerBase
 
         if (TryGetInt(updates, "quantityOwned", "QuantityOwned", out var owned))
         {
-            uc.QuantityOwned = Math.Max(0, owned);
+            uc.QuantityOwned = QuantityGuards.Clamp(owned);
             touched = true;
         }
 
         if (TryGetInt(updates, "quantityWanted", "QuantityWanted", out var wanted))
         {
-            uc.QuantityWanted = Math.Max(0, wanted);
+            uc.QuantityWanted = QuantityGuards.Clamp(wanted);
             touched = true;
         }
 
         if (TryGetInt(updates, "quantityProxyOwned", "QuantityProxyOwned", out var proxyOwned))
         {
-            uc.QuantityProxyOwned = Math.Max(0, proxyOwned);
+            uc.QuantityProxyOwned = QuantityGuards.Clamp(proxyOwned);
             touched = true;
         }
 
@@ -374,9 +363,9 @@ public class CollectionsController : ControllerBase
                 map[d.CardPrintingId] = row;
             }
 
-            row.QuantityOwned = UserCardMath.AddClamped(row.QuantityOwned, d.DeltaOwned);
-            row.QuantityWanted = UserCardMath.AddClamped(row.QuantityWanted, d.DeltaWanted);
-            row.QuantityProxyOwned = UserCardMath.AddClamped(row.QuantityProxyOwned, d.DeltaProxyOwned);
+            row.QuantityOwned = QuantityGuards.ClampDelta(row.QuantityOwned, d.DeltaOwned);
+            row.QuantityWanted = QuantityGuards.ClampDelta(row.QuantityWanted, d.DeltaWanted);
+            row.QuantityProxyOwned = QuantityGuards.ClampDelta(row.QuantityProxyOwned, d.DeltaProxyOwned);
         }
 
         // Do NOT remove rows when zero.
@@ -555,7 +544,7 @@ public class CollectionsController : ControllerBase
             {
                 UserId = uid,
                 CardPrintingId = dto.PrintingId,
-                QuantityOwned = dto.Quantity,
+                QuantityOwned = QuantityGuards.Clamp(dto.Quantity),
                 QuantityWanted = 0,
                 QuantityProxyOwned = 0
             };
@@ -563,7 +552,7 @@ public class CollectionsController : ControllerBase
         }
         else
         {
-            card.QuantityOwned = UserCardMath.AddClamped(card.QuantityOwned, dto.Quantity);
+            card.QuantityOwned = QuantityGuards.ClampDelta(card.QuantityOwned, dto.Quantity);
         }
 
         await _db.SaveChangesAsync();

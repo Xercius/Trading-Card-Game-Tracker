@@ -5,6 +5,7 @@ using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using api.Common.Errors;
 using api.Data;
+using api.Features._Common;
 using api.Features.Wishlists.Dtos;
 using api.Filters;
 using api.Authentication;
@@ -27,6 +28,9 @@ namespace api.Features.Wishlists;
 // NOTE: Keep legacy {userId}-based routes for now; prefer /api/wishlist aliases below.
 public class WishlistsController : ControllerBase
 {
+    private const int DefaultPageNumber = 1;
+    private const int DefaultPageSize = 50;
+
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
 
@@ -83,37 +87,19 @@ public class WishlistsController : ControllerBase
                 detail: $"User {userId} was not found."));
         }
 
-        if (page <= 0) page = 1;
-        if (pageSize <= 0) pageSize = 50;
+        if (page <= 0) page = DefaultPageNumber;
+        if (pageSize <= 0) pageSize = DefaultPageSize;
 
         var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
             .Where(uc => uc.UserId == userId && uc.QuantityWanted > 0)
             .AsNoTracking()
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(game))
-            query = query.Where(uc => uc.CardPrinting.Card.Game == game);
-        if (!string.IsNullOrWhiteSpace(set))
-            query = query.Where(uc => uc.CardPrinting.Set == set);
-        if (!string.IsNullOrWhiteSpace(rarity))
-            query = query.Where(uc => uc.CardPrinting.Rarity == rarity);
-        if (!string.IsNullOrWhiteSpace(name))
-        {
-            var pattern = $"%{name.Trim()}%";
-            query = query.Where(uc => EF.Functions.Like(
-                EF.Functions.Collate(uc.CardPrinting.Card.Name, "NOCASE"),
-                pattern));
-        }
-        if (cardPrintingId.HasValue)
-            query = query.Where(uc => uc.CardPrintingId == cardPrintingId.Value);
+            .FilterByPrintingMetadata(game, set, rarity, name, cardPrintingId, useCaseInsensitiveName: true);
 
         var total = await query.CountAsync(ct);
 
-        query = query
-            .OrderBy(uc => uc.CardPrinting.Card.Name)
-            .ThenBy(uc => uc.CardPrintingId);
+        query = query.OrderByCardNameAndPrinting();
 
         var items = await query
             .Skip((page - 1) * pageSize)
@@ -165,13 +151,13 @@ public class WishlistsController : ControllerBase
                 CardPrintingId = dto.CardPrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,
-                QuantityWanted = Math.Max(0, dto.QuantityWanted)
+                QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted)
             };
             _db.UserCards.Add(uc);
         }
         else
         {
-            uc.QuantityWanted = Math.Max(0, dto.QuantityWanted);
+            uc.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted);
         }
 
         await _db.SaveChangesAsync();
@@ -233,7 +219,7 @@ public class WishlistsController : ControllerBase
                 map[i.CardPrintingId] = uc;
             }
 
-            uc.QuantityWanted = Math.Max(0, i.QuantityWanted);
+            uc.QuantityWanted = QuantityGuards.Clamp(i.QuantityWanted);
         }
 
         await _db.SaveChangesAsync();
@@ -304,19 +290,20 @@ public class WishlistsController : ControllerBase
                 availabilityWithProxies));
         }
 
-        var moveQuantity = Math.Min(dto.Quantity, Math.Max(0, uc.QuantityWanted));
+        var desiredQuantity = QuantityGuards.Clamp(uc.QuantityWanted);
+        var moveQuantity = Math.Min(dto.Quantity, desiredQuantity);
 
         if (moveQuantity > 0)
         {
-            uc.QuantityWanted = Math.Max(0, uc.QuantityWanted - moveQuantity);
+            uc.QuantityWanted = QuantityGuards.ClampDelta(uc.QuantityWanted, -moveQuantity);
 
             if (dto.UseProxy)
             {
-                uc.QuantityProxyOwned = Math.Max(0, uc.QuantityProxyOwned + moveQuantity);
+                uc.QuantityProxyOwned = QuantityGuards.ClampDelta(uc.QuantityProxyOwned, moveQuantity);
             }
             else
             {
-                uc.QuantityOwned = Math.Max(0, uc.QuantityOwned + moveQuantity);
+                uc.QuantityOwned = QuantityGuards.ClampDelta(uc.QuantityOwned, moveQuantity);
             }
 
             await _db.SaveChangesAsync();
@@ -457,13 +444,13 @@ public class WishlistsController : ControllerBase
                 CardPrintingId = dto.PrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,
-                QuantityWanted = dto.Quantity
+                QuantityWanted = QuantityGuards.Clamp(dto.Quantity)
             };
             _db.UserCards.Add(card);
         }
         else
         {
-            card.QuantityWanted = UserCardMath.AddClamped(card.QuantityWanted, dto.Quantity);
+            card.QuantityWanted = QuantityGuards.ClampDelta(card.QuantityWanted, dto.Quantity);
         }
 
         await _db.SaveChangesAsync();
