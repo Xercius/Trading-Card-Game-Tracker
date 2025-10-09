@@ -1,3 +1,6 @@
+using System;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using api.Authentication;
 using api.Common.Errors;
@@ -8,6 +11,7 @@ using api.Shared.Importing;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -21,7 +25,9 @@ namespace api.Infrastructure.Startup;
 
 internal static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddApiBasics(this IServiceCollection services)
+    public static IServiceCollection AddApiBasics(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddControllers()
             .AddJsonOptions(JsonOptionsConfigurator.Configure)
@@ -70,16 +76,134 @@ internal static class ServiceCollectionExtensions
 
         services.AddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
 
+        var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
+            .Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+        var resolvedCorsPolicyName = string.IsNullOrWhiteSpace(corsPolicyOptions.PolicyName)
+            ? "AllowReact"
+            : corsPolicyOptions.PolicyName;
+
+        services.Configure<CorsPolicyOptions>(options =>
+        {
+            options.PolicyName = resolvedCorsPolicyName;
+            options.Origins = corsPolicyOptions.Origins;
+            options.Headers = corsPolicyOptions.Headers;
+            options.Methods = corsPolicyOptions.Methods;
+            options.AllowCredentials = corsPolicyOptions.AllowCredentials;
+            options.PreflightMaxAge = corsPolicyOptions.PreflightMaxAge;
+        });
+
+        var forwardedHeadersSettings = configuration.GetSection(ForwardedHeadersSettings.SectionName)
+            .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
+
+        services.Configure<ForwardedHeadersSettings>(options =>
+        {
+            options.ForwardedHeaders = forwardedHeadersSettings.ForwardedHeaders;
+            options.ForwardLimit = forwardedHeadersSettings.ForwardLimit;
+            options.KnownProxies = forwardedHeadersSettings.KnownProxies ?? Array.Empty<string>();
+            options.KnownNetworks = forwardedHeadersSettings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>();
+        });
+
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = forwardedHeadersSettings.ForwardedHeaders;
+
+            if (forwardedHeadersSettings.ForwardLimit.HasValue)
+            {
+                options.ForwardLimit = forwardedHeadersSettings.ForwardLimit.Value;
+            }
+
+            options.KnownProxies.Clear();
+            foreach (var proxy in forwardedHeadersSettings.KnownProxies ?? Array.Empty<string>())
+            {
+                if (IPAddress.TryParse(proxy, out var parsed))
+                {
+                    options.KnownProxies.Add(parsed);
+                }
+            }
+
+            options.KnownNetworks.Clear();
+            foreach (var network in forwardedHeadersSettings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>())
+            {
+                if (network?.Prefix is null)
+                {
+                    continue;
+                }
+
+                if (!IPAddress.TryParse(network.Prefix, out var prefixAddress))
+                {
+                    continue;
+                }
+
+                var prefixLength = network.PrefixLength;
+                if (prefixLength < 0)
+                {
+                    continue;
+                }
+
+                var maxPrefix = prefixAddress.AddressFamily switch
+                {
+                    AddressFamily.InterNetwork => 32,
+                    AddressFamily.InterNetworkV6 => 128,
+                    _ => -1
+                };
+
+                if (maxPrefix >= 0 && prefixLength > maxPrefix)
+                {
+                    continue;
+                }
+
+                options.KnownNetworks.Add(new IPNetwork(prefixAddress, prefixLength));
+            }
+        });
+
         // Explicit HTTPS port for redirects
         services.AddHttpsRedirection(options => options.HttpsPort = 7226);
 
         // CORS: Vite only
         services.AddCors(options =>
         {
-            options.AddPolicy("AllowReact", policy => policy
-                .WithOrigins("http://localhost:5173")
-                .WithHeaders("Authorization", "Content-Type")
-                .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+            options.AddPolicy(resolvedCorsPolicyName, policy =>
+            {
+                var origins = corsPolicyOptions.Origins ?? Array.Empty<string>();
+                if (origins.Length > 0)
+                {
+                    policy.WithOrigins(origins);
+                }
+                else if (!corsPolicyOptions.AllowCredentials)
+                {
+                    policy.AllowAnyOrigin();
+                }
+
+                var headers = corsPolicyOptions.Headers ?? Array.Empty<string>();
+                if (headers.Length > 0)
+                {
+                    policy.WithHeaders(headers);
+                }
+                else
+                {
+                    policy.AllowAnyHeader();
+                }
+
+                var methods = corsPolicyOptions.Methods ?? Array.Empty<string>();
+                if (methods.Length > 0)
+                {
+                    policy.WithMethods(methods);
+                }
+                else
+                {
+                    policy.AllowAnyMethod();
+                }
+
+                if (corsPolicyOptions.AllowCredentials)
+                {
+                    policy.AllowCredentials();
+                }
+
+                if (corsPolicyOptions.PreflightMaxAge is { } maxAge)
+                {
+                    policy.SetPreflightMaxAge(maxAge);
+                }
+            });
         });
 
         return services;
