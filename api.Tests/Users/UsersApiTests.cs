@@ -109,6 +109,21 @@ public class UsersApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
         problem.Errors["request"].Should().Contain("A request body is required.");
     }
 
+    [Fact]
+    public async Task DeleteLegacyUser_LastAdmin_ReturnsConflict()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+
+        var response = await client.DeleteAsync($"/api/user/{Seed.AdminUserId}");
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        problem.Should().NotBeNull();
+        problem!.Title.Should().Be("Cannot remove last administrator");
+        problem.Detail.Should().Be("At least one administrator must remain.");
+    }
+
     private sealed record UserResponseContract(int Id, string Username, string DisplayName, bool IsAdmin);
 
     private sealed record AdminUserResponseContract(int Id, string Name, string Username, string DisplayName, bool IsAdmin, DateTime CreatedUtc);

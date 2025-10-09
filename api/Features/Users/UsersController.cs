@@ -6,6 +6,7 @@ using api.Data;
 using api.Features.Users.Dtos;
 using api.Filters;
 using api.Authentication;
+using api.Features.Admin;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -158,6 +159,15 @@ public class UsersController : ControllerBase
                 detail: $"User {userId} was not found.");
         }
 
+        if (!isAdmin && u.IsAdmin)
+        {
+            var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, u.IsAdmin);
+            if (guardResult is not null)
+            {
+                return guardResult;
+            }
+        }
+
         u.IsAdmin = isAdmin;
         await _db.SaveChangesAsync();
         return NoContent();
@@ -174,6 +184,12 @@ public class UsersController : ControllerBase
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"User {userId} was not found.");
+        }
+
+        var guardResult = await this.EnsureAnotherAdminRemainsAsync(_db, u.IsAdmin);
+        if (guardResult is not null)
+        {
+            return guardResult;
         }
 
         _db.Users.Remove(u);
