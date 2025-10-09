@@ -2,6 +2,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Decks.Dtos;
 using api.Filters;
+using api.Infrastructure.Startup;
 using api.Authentication;
 using api.Models;
 using api.Shared;
@@ -32,7 +33,7 @@ public class DecksController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
     private readonly ILogger<DecksController> _logger;
-    private static readonly JsonSerializerOptions JsonWebOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(AppDbContext db, IMapper mapper, ILogger<DecksController> logger)
     {
