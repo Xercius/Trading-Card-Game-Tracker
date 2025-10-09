@@ -63,16 +63,18 @@ public sealed class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash ?? string.Empty, password);
+        if (user.PasswordHash is null)
+        {
+            return Unauthorized();
+        }
+
+        var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (verification == PasswordVerificationResult.Failed)
         {
             return Unauthorized();
         }
 
-        var token = _tokenService.CreateToken(user);
-        var userDto = new UserResponse(user.Id, user.Username ?? string.Empty, user.DisplayName ?? string.Empty, user.IsAdmin);
-
-        return Ok(new LoginResponse(token.AccessToken, token.ExpiresAtUtc, userDto));
+        return CreateLoginResult(user);
     }
 
     [HttpPost("impersonate")]
@@ -100,8 +102,31 @@ public sealed class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        var token = _tokenService.CreateToken(user);
-        var userDto = new UserResponse(user.Id, user.Username ?? string.Empty, user.DisplayName ?? string.Empty, user.IsAdmin);
+        return CreateLoginResult(user);
+    }
+
+    private ActionResult<LoginResponse> CreateLoginResult(User user)
+    {
+        var username = user.Username?.Trim();
+        var displayName = user.DisplayName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(displayName))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "User record invalid",
+                detail: "User record invalid: missing Username or DisplayName");
+        }
+
+        var token = _tokenService.CreateToken(new User
+        {
+            Id = user.Id,
+            Username = username,
+            DisplayName = displayName,
+            IsAdmin = user.IsAdmin
+        });
+
+        var userDto = new UserResponse(user.Id, username, displayName, user.IsAdmin);
         return Ok(new LoginResponse(token.AccessToken, token.ExpiresAtUtc, userDto));
     }
 }

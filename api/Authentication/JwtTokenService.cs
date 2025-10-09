@@ -37,6 +37,11 @@ public sealed class JwtTokenService : IJwtTokenService
     {
         ArgumentNullException.ThrowIfNull(user);
 
+        if (string.IsNullOrWhiteSpace(user.Username))
+        {
+            throw new InvalidOperationException("Username required to create token");
+        }
+
         var now = DateTimeOffset.UtcNow;
         var expires = now.Add(_options.AccessTokenLifetime);
 
@@ -45,7 +50,7 @@ public sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new("username", user.Username ?? string.Empty),
+            new("username", user.Username),
             new("is_admin", user.IsAdmin ? "true" : "false")
         };
 

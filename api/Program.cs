@@ -10,9 +10,10 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Hosting;
 using System.Text;
 
 var isSeedCommand = args.Length > 0 && string.Equals(args[0], "seed", StringComparison.OrdinalIgnoreCase);
@@ -71,21 +72,57 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddHttpClient();
 
+var environment = builder.Environment;
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
 
-if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+var configuredKey = jwtOptions.Key;
+if (string.IsNullOrWhiteSpace(configuredKey))
 {
-    throw new InvalidOperationException("JWT signing key is not configured. Set Jwt:Key in configuration.");
+    var envKey = Environment.GetEnvironmentVariable("JWT__KEY");
+    if (!string.IsNullOrWhiteSpace(envKey))
+    {
+        jwtOptions.Key = envKey;
+    }
+}
+
+const string DevFallbackKey = "DevOnly_Minimum_32_Chars_Key_For_Local_Use_1234";
+var usingDevFallbackKey = false;
+
+if (string.IsNullOrWhiteSpace(jwtOptions.Key) && (environment.IsDevelopment() || environment.IsEnvironment("Testing")))
+{
+    jwtOptions.Key = DevFallbackKey;
+    usingDevFallbackKey = true;
+}
+
+var requiresStrongKey = environment.IsProduction() || environment.IsStaging();
+
+if (requiresStrongKey)
+{
+    if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+    {
+        throw new InvalidOperationException("JWT signing key is not configured. Set Jwt:Key or JWT__KEY for Production/Staging environments.");
+    }
+
+    if (Encoding.UTF8.GetByteCount(jwtOptions.Key) < 32)
+    {
+        throw new InvalidOperationException("JWT signing key must be at least 256 bits (32 bytes) when running in Production or Staging.");
+    }
+}
+else if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+{
+    throw new InvalidOperationException("JWT signing key is not configured. Set Jwt:Key in configuration or provide JWT__KEY.");
 }
 
 var signingKeyBytes = Encoding.UTF8.GetBytes(jwtOptions.Key);
-if (signingKeyBytes.Length < 32)
-{
-    throw new InvalidOperationException("JWT signing key must be at least 256 bits (32 bytes).");
-}
 
-builder.Services.Configure<JwtOptions>(jwtSection);
+builder.Services.Configure<JwtOptions>(options =>
+{
+    options.Issuer = jwtOptions.Issuer;
+    options.Audience = jwtOptions.Audience;
+    options.Key = jwtOptions.Key;
+    options.AccessTokenLifetimeMinutes = jwtOptions.AccessTokenLifetimeMinutes;
+});
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
@@ -136,6 +173,11 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (usingDevFallbackKey)
+{
+    app.Logger.LogWarning("Using built-in development JWT signing key. Provide JWT__KEY before deploying to Production.");
+}
 
 if (isSeedCommand)
 {

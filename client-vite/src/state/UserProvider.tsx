@@ -126,7 +126,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           persistToken(response.data.accessToken);
           setUserIdState(response.data.user.id);
           setUsers([mapUser(response.data.user)]);
-          await populateUsers();
           qc.invalidateQueries();
         } catch (error) {
           // eslint-disable-next-line no-console
@@ -136,7 +135,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
       })();
     },
-    [persistToken, clearUserState, populateUsers, qc]
+    [persistToken, clearUserState, qc]
   );
 
   const value = useMemo(

@@ -13,8 +13,14 @@ type AxiosPost = (typeof httpMod.default)["post"];
 type MockResponse<T> = { data: T };
 
 function Consumer() {
-  const { userId } = useUser();
-  return <div data-testid="user-id">{userId ?? "null"}</div>;
+  const { userId, users } = useUser();
+  return (
+    <div>
+      <div data-testid="user-id">{userId ?? "null"}</div>
+      <div data-testid="user-count">{users.length}</div>
+      <div data-testid="user-names">{users.map((u) => u.name).join(",") || ""}</div>
+    </div>
+  );
 }
 
 function renderWithProvider(children: ReactNode) {
@@ -109,7 +115,7 @@ describe("UserProvider", () => {
     await view.cleanup();
   });
 
-  it("selecting a user sets the token and refreshes user data", async () => {
+  it("selecting a user sets the token and preserves the impersonated user list", async () => {
     const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
     const postMock = vi.spyOn(httpMod.default, "post") as unknown as vi.MockedFunction<AxiosPost>;
 
@@ -163,8 +169,16 @@ describe("UserProvider", () => {
     expect(postMock).toHaveBeenCalledWith("auth/impersonate", { userId: 1 });
     expect(setSpy).toHaveBeenCalledWith("token-1");
     expect(window.localStorage.getItem("authToken")).toBe("token-1");
-    expect(getMock).toHaveBeenCalledWith("user/me");
     expect(httpMod.__debugGetCurrentAccessToken()).toBe("token-1");
+
+    const urls = getMock.mock.calls.map(([url]) => url);
+    expect(urls).toEqual(["user/list"]);
+
+    const count = view.container.querySelector('[data-testid="user-count"]');
+    expect(count?.textContent).toBe("1");
+
+    const names = view.container.querySelector('[data-testid="user-names"]');
+    expect(names?.textContent).toBe("Alice");
 
     await view.cleanup();
   });
