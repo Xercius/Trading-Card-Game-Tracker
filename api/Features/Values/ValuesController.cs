@@ -168,10 +168,6 @@ public class ValuesController : ControllerBase
     public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
     {
         var currentUser = HttpContext.GetCurrentUser();
-        if (currentUser is null)
-        {
-            return Forbid();
-        }
 
         var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
         if (deck is null)
