@@ -1,5 +1,3 @@
-using System;
-
 namespace api.Authentication;
 
 public sealed class JwtOptions

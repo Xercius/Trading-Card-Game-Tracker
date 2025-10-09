@@ -1,5 +1,4 @@
-using System.Collections.Generic;
-using Microsoft.AspNetCore.Http;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 
 namespace api.Common.Errors;
@@ -35,7 +34,10 @@ public static class ProblemTypes
     public static ProblemType Conflict => Types[StatusCodes.Status409Conflict];
     public static ProblemType InternalServerError => Types[StatusCodes.Status500InternalServerError];
 
-    public static bool TryGet(int statusCode, out ProblemType problemType) => Types.TryGetValue(statusCode, out problemType);
+    public static bool TryGet(
+        int statusCode,
+        [NotNullWhen(true)] out ProblemType? problemType) =>
+        Types.TryGetValue(statusCode, out problemType);
 }
 
 public sealed record ProblemType(string Type, string Title, int Status, string DefaultDetail)
@@ -49,7 +51,7 @@ public sealed record ProblemType(string Type, string Title, int Status, string D
 
         if (problemDetails.Instance is null)
         {
-            problemDetails.Instance = httpContext.Request.Path;
+            problemDetails.Instance = httpContext.Request.Path.ToString();
         }
     }
 }

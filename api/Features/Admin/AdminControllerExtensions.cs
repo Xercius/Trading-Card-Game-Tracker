@@ -1,8 +1,5 @@
-using System.Threading;
-using System.Threading.Tasks;
 using api.Common.Errors;
 using api.Data;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 

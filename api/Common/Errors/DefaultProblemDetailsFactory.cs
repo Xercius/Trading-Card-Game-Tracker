@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -9,11 +8,11 @@ namespace api.Common.Errors;
 
 public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
 {
-    private readonly ProblemDetailsOptions _options;
+    private readonly ApiBehaviorOptions _apiBehavior;
 
-    public DefaultProblemDetailsFactory(IOptions<ProblemDetailsOptions> options)
+    public DefaultProblemDetailsFactory(IOptions<ApiBehaviorOptions> apiBehavior)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _apiBehavior = apiBehavior?.Value ?? throw new ArgumentNullException(nameof(apiBehavior));
     }
 
     public override ProblemDetails CreateProblemDetails(
@@ -24,10 +23,7 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
         string? detail = null,
         string? instance = null)
     {
-        if (httpContext is null)
-        {
-            throw new ArgumentNullException(nameof(httpContext));
-        }
+        if (httpContext is null) throw new ArgumentNullException(nameof(httpContext));
 
         statusCode ??= StatusCodes.Status500InternalServerError;
 
@@ -41,7 +37,6 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
         };
 
         ApplyDefaults(httpContext, problemDetails, statusCode.Value);
-
         return problemDetails;
     }
 
@@ -54,15 +49,8 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
         string? detail = null,
         string? instance = null)
     {
-        if (httpContext is null)
-        {
-            throw new ArgumentNullException(nameof(httpContext));
-        }
-
-        if (modelStateDictionary is null)
-        {
-            throw new ArgumentNullException(nameof(modelStateDictionary));
-        }
+        if (httpContext is null) throw new ArgumentNullException(nameof(httpContext));
+        if (modelStateDictionary is null) throw new ArgumentNullException(nameof(modelStateDictionary));
 
         statusCode ??= StatusCodes.Status400BadRequest;
 
@@ -76,16 +64,15 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
         };
 
         ApplyDefaults(httpContext, problemDetails, statusCode.Value);
-
         return problemDetails;
     }
 
     private void ApplyDefaults(HttpContext httpContext, ProblemDetails problemDetails, int statusCode)
     {
-        if (_options.ClientErrorMapping.TryGetValue(statusCode, out var clientErrorData))
+        if (_apiBehavior.ClientErrorMapping.TryGetValue(statusCode, out var clientErrorData))
         {
             problemDetails.Title ??= clientErrorData.Title;
-            problemDetails.Type ??= clientErrorData.Link;
+            problemDetails.Type  ??= clientErrorData.Link;
         }
 
         if (ProblemTypes.TryGet(statusCode, out var problemType))

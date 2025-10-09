@@ -1,9 +1,4 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using api.Common.Errors;
 using api.Filters;
 using api.Importing;
@@ -11,9 +6,7 @@ using api.Authentication;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 
 namespace api.Features.Admin.Import;
 
