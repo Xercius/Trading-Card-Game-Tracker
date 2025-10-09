@@ -1,43 +1,30 @@
-# Trading Card Game Tracker – Copilot Quickstart
+# Copilot Instructions
 
-## Getting Started
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/<your-account>/Trading-Card-Game-Tracker.git
-   cd Trading-Card-Game-Tracker
-   ```
-2. **Install required SDKs**
-   - .NET SDK 9 (global.json pins the version)
-   - Node.js 20+
-3. **Restore and build the API**
-   ```bash
-   dotnet build ./api/api.csproj
-   ```
-4. **Install client dependencies**
-   ```bash
-   pnpm install --filter client-vite...
-   ```
-5. **Run the API and client**
-   ```bash
-   dotnet run --project ./api/api.csproj
-   pnpm --filter client-vite dev
-   ```
+## How to Start
+- Install the .NET SDK specified in `global.json` (currently .NET 9) and Node.js 20+.
+- Restore and build the API:
+  ```bash
+  dotnet restore ./api/api.csproj
+  dotnet build ./api/api.csproj
+  dotnet run --project ./api/api.csproj
+  ```
+- Install client dependencies and run the Vite dev server:
+  ```bash
+  pnpm install --filter client-vite...
+  pnpm --filter client-vite dev
+  ```
 
 ## Coding Standards
-- **C#**: Prefer expression-bodied members when terse, favor `async`/`await` over synchronous blocking, and keep DI-friendly constructors.
-- **TypeScript/React**: Use functional components, hooks, and TypeScript types/interfaces. Avoid implicit `any` and prefer composition over inheritance.
-- **ProblemDetails**: Surface validation and error information through RFC 7807 responses. Avoid returning raw exception messages to clients.
-- **DTOs**: Keep API DTOs immutable (`record`/`readonly`), ensure naming consistency between API and client models, and avoid leaking EF entities.
-- **Testing**: Write deterministic unit/integration tests. Prefer xUnit + WebApplicationFactory for API, and Vitest + React Testing Library for client.
+- **C#**: Favor async code paths, dependency injection, and small focused services. Keep DTOs immutable where possible.
+- **TypeScript/React**: Use functional components, hooks, and explicit typings. Avoid implicit `any` and prefer composition.
+- **ProblemDetails**: Surface validation/errors with RFC 7807 responses; never expose raw exception details.
+- **Testing**: Add deterministic xUnit tests for backend changes and Vitest/RTL coverage for the client when applicable.
 
-## Security Rules
-- Never commit real secrets or production configuration. Use environment variables or developer secrets locally.
-- JWT signing key must be supplied through configuration or `JWT__KEY` environment variable outside local development.
-- Tokens must include `sub`, `username`, and `is_admin` claims. Do not mint tokens without validating required fields.
-- Always enforce administrator-only flows on the server; client-side checks are insufficient.
+## Security Guidance
+- Never trust the left-most `X-Forwarded-For` entry; resolve the effective client by walking from the right while skipping trusted proxies (`KnownProxies`/`KnownNetworks`) and respecting `ForwardLimit`.
+- Do not rely on the `Host` header for authorization. Treat forwarded headers as trustworthy only when the caller is a configured proxy.
+- Keep secrets and API keys out of source control; provide them via configuration or environment variables.
 
 ## Pull Request Guidance
-- Keep diffs focused and well-scoped. Split unrelated changes into separate PRs.
-- Include automated test coverage for new features or bug fixes.
-- Use the commit message convention: `type(area): summary of change`.
-- PR descriptions should summarize the change, list testing commands, and call out any follow-up work.
+- Keep diffs small and focused; split unrelated work into separate PRs.
+- Include the commands used for testing in the PR description and ensure automated tests pass locally.

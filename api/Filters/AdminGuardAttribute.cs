@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using api.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -20,9 +21,9 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
         var forwardedOptions = http.RequestServices.GetService(typeof(IOptions<ForwardedHeadersOptions>))
             as IOptions<ForwardedHeadersOptions>;
 
-        var clientIp = ResolveClientIp(http, forwardedOptions?.Value);
+        var clientIp = ResolveEffectiveClientIp(http, forwardedOptions?.Value);
 
-        if (IsTrusted(clientIp, forwardedOptions?.Value))
+        if (clientIp is not null && IPAddress.IsLoopback(clientIp))
         {
             base.OnActionExecuting(context);
             return;
@@ -38,90 +39,106 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
         context.Result = new ForbidResult();
     }
 
-    private static IPAddress? ResolveClientIp(HttpContext httpContext, ForwardedHeadersOptions? options)
+    private static IPAddress? ResolveEffectiveClientIp(HttpContext httpContext, ForwardedHeadersOptions? options)
     {
-        var remoteIp = httpContext.Connection.RemoteIpAddress;
+        var remoteIp = NormalizeIp(httpContext.Connection.RemoteIpAddress);
 
         if (options is null)
         {
             return remoteIp;
         }
 
-        if (!IsTrustedProxy(remoteIp, options))
+        if (remoteIp is null)
+        {
+            return null;
+        }
+
+        if (!IsIpTrusted(remoteIp, options))
         {
             return remoteIp;
         }
 
-        var forwardedFeature = httpContext.Features.Get<IForwardedHeadersFeature>();
-        if (forwardedFeature?.ForwardedFor is { Count: > 0 })
+        if (!options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedFor))
         {
-            foreach (var forwarded in forwardedFeature.ForwardedFor)
-            {
-                if (forwarded is not null)
-                {
-                    return forwarded;
-                }
-            }
+            return remoteIp;
         }
 
-        if (options.ForwardedHeaders.HasFlag(ForwardedHeaders.XForwardedFor))
+        var forwardedValues = GetForwardedChain(httpContext, options);
+        if (forwardedValues is null)
         {
-            var headerName = options.ForwardedForHeaderName ?? ForwardedHeadersDefaults.XForwardedForHeaderName;
-            if (TryParseAddressFromHeader(httpContext.Request.Headers[headerName], out var forwardedIp))
-            {
-                return forwardedIp;
-            }
+            return remoteIp;
         }
 
-        if (TryParseAddressFromHeader(httpContext.Request.Headers["X-Real-IP"], out var realIp))
+        if (options.ForwardLimit > 0 && forwardedValues.Count > options.ForwardLimit)
         {
-            return realIp;
+            return null;
+        }
+
+        for (var i = forwardedValues.Count - 1; i >= 0; i--)
+        {
+            var hop = forwardedValues[i];
+            if (IsIpTrusted(hop, options))
+            {
+                continue;
+            }
+
+            return hop;
         }
 
         return remoteIp;
     }
 
-    private static bool IsTrustedProxy(IPAddress? address, ForwardedHeadersOptions options)
+    private static List<IPAddress>? GetForwardedChain(HttpContext httpContext, ForwardedHeadersOptions options)
     {
-        if (address is null || IPAddress.IsLoopback(address))
+        var forwardedFeature = httpContext.Features.Get<IForwardedHeadersFeature>();
+        if (forwardedFeature?.ForwardedFor is { Count: > 0 })
         {
-            return true;
-        }
-
-        foreach (var proxy in options.KnownProxies)
-        {
-            if (address.Equals(proxy))
+            var fromFeature = new List<IPAddress>(forwardedFeature.ForwardedFor.Count);
+            foreach (var forwarded in forwardedFeature.ForwardedFor)
             {
-                return true;
+                var normalized = NormalizeIp(forwarded);
+                if (normalized is null)
+                {
+                    return null;
+                }
+
+                fromFeature.Add(normalized);
             }
+
+            return fromFeature;
         }
 
-        foreach (var network in options.KnownNetworks)
+        var headerName = options.ForwardedForHeaderName ?? ForwardedHeadersDefaults.XForwardedForHeaderName;
+        var headerValues = httpContext.Request.Headers[headerName];
+        if (headerValues.Count == 0)
         {
-            if (network?.Contains(address) == true)
-            {
-                return true;
-            }
+            return null;
         }
 
-        return false;
+        var parsed = new List<IPAddress>();
+        if (!TryParseForwardedFor(headerValues, parsed))
+        {
+            return null;
+        }
+
+        return parsed.Count == 0 ? null : parsed;
     }
 
-    private static bool IsTrusted(IPAddress? address, ForwardedHeadersOptions? options)
+    private static bool IsIpTrusted(IPAddress? address, ForwardedHeadersOptions? options)
     {
-        if (address is null || IPAddress.IsLoopback(address))
-        {
-            return true;
-        }
-
-        if (options is null)
+        if (address is null || options is null)
         {
             return false;
         }
 
         foreach (var proxy in options.KnownProxies)
         {
-            if (address.Equals(proxy))
+            if (proxy is null)
+            {
+                continue;
+            }
+
+            if (proxy.Equals(address))
             {
                 return true;
             }
@@ -138,7 +155,7 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
         return false;
     }
 
-    private static bool TryParseAddressFromHeader(StringValues headerValues, out IPAddress? address)
+    private static bool TryParseForwardedFor(StringValues headerValues, List<IPAddress> results)
     {
         foreach (var value in headerValues)
         {
@@ -147,18 +164,21 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
                 continue;
             }
 
-            var segments = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var segment in segments)
+            var segments = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var rawSegment in segments)
             {
-                if (TryParseIp(segment, out address))
+                var segment = rawSegment.Trim();
+                if (!TryParseIp(segment, out var parsed))
                 {
-                    return true;
+                    results.Clear();
+                    return false;
                 }
+
+                results.Add(parsed);
             }
         }
 
-        address = null;
-        return false;
+        return true;
     }
 
     private static bool TryParseIp(string value, out IPAddress? address)
@@ -170,34 +190,34 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
             value = value[1..^1];
         }
 
-        if (IPAddress.TryParse(value, out var parsed))
-        {
-            address = parsed;
-            return true;
-        }
-
         if (value.StartsWith("[") && value.Contains(']'))
         {
             var closingIndex = value.IndexOf(']');
             if (closingIndex > 1)
             {
                 var inner = value.Substring(1, closingIndex - 1);
-                if (IPAddress.TryParse(inner, out parsed))
+                if (IPAddress.TryParse(inner, out var parsedInner))
                 {
-                    address = parsed;
+                    address = NormalizeIp(parsedInner);
                     return true;
                 }
             }
         }
         else
         {
+            if (IPAddress.TryParse(value, out var parsedDirect))
+            {
+                address = NormalizeIp(parsedDirect);
+                return true;
+            }
+
             var lastColon = value.LastIndexOf(':');
-            if (lastColon > 0)
+            if (lastColon > 0 && value.IndexOf(':') == lastColon)
             {
                 var withoutPort = value[..lastColon];
-                if (IPAddress.TryParse(withoutPort, out parsed))
+                if (IPAddress.TryParse(withoutPort, out var parsedWithoutPort))
                 {
-                    address = parsed;
+                    address = NormalizeIp(parsedWithoutPort);
                     return true;
                 }
             }
@@ -205,5 +225,15 @@ public sealed class AdminGuardAttribute : ActionFilterAttribute
 
         address = null;
         return false;
+    }
+
+    private static IPAddress? NormalizeIp(IPAddress? address)
+    {
+        if (address is null)
+        {
+            return null;
+        }
+
+        return address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
     }
 }
