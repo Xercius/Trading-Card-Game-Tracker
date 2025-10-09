@@ -214,7 +214,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             </form>
             {import.meta.env.DEV ? (
               <div className="text-xs text-muted-foreground text-center">
-                Use seeded credentials like <code>alice</code> / <code>Password123!</code>.
+                Use seeded credentials as documented in your environment setup.
               </div>
             ) : null}
           </div>
