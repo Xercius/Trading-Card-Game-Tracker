@@ -364,5 +364,3 @@ namespace api.Migrations
         }
     }
 }
-    }
-}
