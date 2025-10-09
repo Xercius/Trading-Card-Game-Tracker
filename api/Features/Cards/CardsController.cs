@@ -3,7 +3,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Cards.Dtos;
 using api.Filters;
-using api.Middleware;
+using api.Authentication;
 using api.Models;
 using api.Shared;
 using AutoMapper;

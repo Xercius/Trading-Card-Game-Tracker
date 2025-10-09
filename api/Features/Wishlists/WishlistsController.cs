@@ -7,7 +7,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Wishlists.Dtos;
 using api.Filters;
-using api.Middleware;
+using api.Authentication;
 using api.Models;
 using api.Shared;
 using Microsoft.AspNetCore.Http;

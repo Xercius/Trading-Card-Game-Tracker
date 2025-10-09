@@ -7,7 +7,8 @@ using api.Common.Errors;
 using api.Filters;
 using api.Data;
 using api.Features.Values.Dtos;
-using api.Middleware;
+using api.Authentication;
+using api.Features.Decks;
 using api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -163,14 +164,26 @@ public class ValuesController : ControllerBase
     }
 
     [HttpGet("deck/{deckId:int}")]
+    [RequireUserHeader]
     public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
     {
-        var deck = await _db.Decks.FindAsync(deckId);
-        if (deck == null)
+        var currentUser = HttpContext.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Forbid();
+        }
+
+        var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
+        if (deck is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"Deck with id {deckId} was not found.");
+        }
+
+        if (!DeckAuthorization.OwnsDeckOrAdmin(currentUser, deck.UserId))
+        {
+            return Forbid();
         }
 
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);

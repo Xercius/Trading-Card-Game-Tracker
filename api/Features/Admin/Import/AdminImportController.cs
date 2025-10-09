@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using api.Common.Errors;
 using api.Filters;
 using api.Importing;
-using api.Middleware;
+using api.Authentication;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
 using Microsoft.AspNetCore.Http;

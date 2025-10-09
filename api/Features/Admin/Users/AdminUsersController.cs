@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using api.Common.Errors;
 using api.Data;
 using api.Filters;
-using api.Middleware;
+using api.Authentication;
 using api.Models;
 
 namespace api.Features.Admin.Users;

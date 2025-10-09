@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using api.Middleware;
+using api.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace api.Filters;

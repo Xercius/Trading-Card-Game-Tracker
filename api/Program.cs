@@ -1,7 +1,7 @@
 using api.Common;
 using api.Common.Errors;
 using api.Data;
-using api.Middleware;
+using api.Authentication;
 using api.Models;
 using api.Importing;
 using FluentValidation;
@@ -71,12 +71,12 @@ builder.Services.AddHttpClient();
 builder.Services
     .AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = DummyAuthenticationHandler.SchemeName;
-        options.DefaultChallengeScheme = DummyAuthenticationHandler.SchemeName;
-        options.DefaultForbidScheme = DummyAuthenticationHandler.SchemeName;
+        options.DefaultAuthenticateScheme = HeaderUserAuthenticationHandler.SchemeName;
+        options.DefaultChallengeScheme = HeaderUserAuthenticationHandler.SchemeName;
+        options.DefaultForbidScheme = HeaderUserAuthenticationHandler.SchemeName;
     })
-    .AddScheme<AuthenticationSchemeOptions, DummyAuthenticationHandler>(
-        DummyAuthenticationHandler.SchemeName,
+    .AddScheme<AuthenticationSchemeOptions, HeaderUserAuthenticationHandler>(
+        HeaderUserAuthenticationHandler.SchemeName,
         _ => { });
 
 builder.Services.AddAuthorization();
@@ -147,7 +147,6 @@ app.UseRouting();
 app.UseCors("AllowReact");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseMiddleware<UserContextMiddleware>();
 
 app.MapControllers();
 
