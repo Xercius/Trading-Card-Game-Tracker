@@ -2,7 +2,6 @@
 // Validates /api/wishlist endpoints and legacy routes via full HTTP calls.
 
 using api.Data;
-using api.Features.Collections.Dtos;
 using api.Features.Wishlists.Dtos;
 using api.Shared;
 using api.Tests.Fixtures;
