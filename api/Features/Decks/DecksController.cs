@@ -81,17 +81,19 @@ public class DecksController : ControllerBase
     private async Task<(Deck? Deck, List<DeckCard> Cards, IActionResult? Error)> LoadDeckWithCards(int deckId)
     {
         var (deck, err) = await GetDeckForCaller(deckId);
-        if (err != null || deck is null) return (deck, new List<DeckCard>(), err);
+        if (err is not null || deck is null) return (deck, new List<DeckCard>(), err);
 
-        var ct = HttpContext.RequestAborted;
+        var ct = HttpContext?.RequestAborted ?? CancellationToken.None;
+
         var cards = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId)
-            .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
+            .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card)
             .AsNoTracking()
             .ToListAsync(ct);
 
         return (deck, cards, null);
     }
+
 
     private static int NN(long v) => v < 0 ? 0 : v > int.MaxValue ? int.MaxValue : (int)v;
 
@@ -848,7 +850,7 @@ public class DecksController : ControllerBase
     {
         var deckCard = await _db.DeckCards
             .Where(dc => dc.DeckId == deck.Id && dc.CardPrintingId == cardPrintingId)
-            .Include(dc => dc.CardPrinting)
+            .Include(dc => dc.CardPrinting!)
             .ThenInclude(cp => cp.Card)
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);

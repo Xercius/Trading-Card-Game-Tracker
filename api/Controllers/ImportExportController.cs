@@ -203,7 +203,7 @@ namespace api.Controllers
             var rows = await _db.DeckCards
                 .AsNoTracking()
                 .Include(dc => dc.Deck)
-                .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
+                .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card)
                 .Where(dc =>
                     dc.Deck != null &&
                     dc.CardPrinting != null &&

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 
 using FluentAssertions;
+using Xunit;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Availability;

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using FluentAssertions;
+using Xunit;
 using api.Common.Errors;
 using api.Tests.Infrastructure;
 

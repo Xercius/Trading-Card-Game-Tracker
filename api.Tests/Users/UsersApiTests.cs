@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using FluentAssertions;
+using Xunit;
 using api.Tests.Infrastructure;
 
 namespace api.Tests.Users;
