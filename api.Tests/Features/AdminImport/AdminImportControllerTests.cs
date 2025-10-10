@@ -360,7 +360,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             ConcurrentQueue<TestLogEntry> sink,
             Func<IExternalScopeProvider> scopeProviderAccessor) : ILogger
         {
-            public IDisposable BeginScope<TState>(TState state) => scopeProviderAccessor().Push(state!);
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull => scopeProviderAccessor().Push(state!);
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
