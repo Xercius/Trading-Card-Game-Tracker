@@ -8,18 +8,18 @@ internal sealed class CorsPolicyOptions
 
     public string PolicyName { get; set; } = "AllowReact";
 
-    public string[] Origins { get; set; } = new[]
+    public string[]? Origins { get; set; } = new[]
     {
         "http://localhost:5173"
     };
 
-    public string[] Headers { get; set; } = new[]
+    public string[]? Headers { get; set; } = new[]
     {
         "Authorization",
         "Content-Type"
     };
 
-    public string[] Methods { get; set; } = new[]
+    public string[]? Methods { get; set; } = new[]
     {
         "GET",
         "POST",
