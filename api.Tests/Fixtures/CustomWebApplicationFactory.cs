@@ -1,4 +1,6 @@
 using api.Data;
+using api.Tests;
+using System.Net.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -51,4 +53,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         await db.Database.MigrateAsync();
         await TestDataSeeder.SeedAsync(db);
     }
+
+    public HttpClient CreateClientForUser(int userId)
+        => CreateClient().WithUser(userId);
 }
