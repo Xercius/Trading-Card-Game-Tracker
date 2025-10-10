@@ -49,4 +49,4 @@ yarn-error.log*
 pnpm-debug.log*
 
 # ---- Static assets (local images, not source-controlled) ----
-api/wwwroot/images/**.binlog
+api/wwwroot/images/*
