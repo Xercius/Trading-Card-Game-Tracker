@@ -115,7 +115,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             Assert.Equal(payload.Decks.Count, decks.Count);
             foreach (var exportedDeck in payload.Decks)
             {
-                var deck = Assert.Single(decks.Where(d => d.Game == exportedDeck.Game && d.Name == exportedDeck.Name));
+                var deck = Assert.Single(decks, d => d.Game == exportedDeck.Game && d.Name == exportedDeck.Name);
                 Assert.Equal(exportedDeck.Description, deck.Description);
 
                 var expectedDeckCards = exportedDeck.Cards.OrderBy(c => c.CardPrintingId).ToList();

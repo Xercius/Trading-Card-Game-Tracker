@@ -140,10 +140,10 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
         var expectedLorcana = 5678L * 1; // Alice owns one Elsa printing
         Assert.Equal(expectedMagic + expectedLorcana, summary!.totalCents);
 
-        var magicSlice = Assert.Single(summary.byGame.Where(s => s.game == "Magic"));
+        var magicSlice = Assert.Single(summary.byGame, s => s.game == "Magic");
         Assert.Equal(expectedMagic, magicSlice.cents);
 
-        var lorcanaSlice = Assert.Single(summary.byGame.Where(s => s.game == "Lorcana"));
+        var lorcanaSlice = Assert.Single(summary.byGame, s => s.game == "Lorcana");
         Assert.Equal(expectedLorcana, lorcanaSlice.cents);
     }
 
