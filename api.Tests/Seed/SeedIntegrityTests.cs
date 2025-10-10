@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace api.Tests.Seed;
+namespace api.Tests.Infrastructure;
 
 public class SeedIntegrityTests(CustomWebApplicationFactory factory)
     : IClassFixture<CustomWebApplicationFactory>
