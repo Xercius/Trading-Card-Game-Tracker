@@ -87,7 +87,7 @@ public class DecksController : ControllerBase
 
         var cards = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId)
-            .Include(dc => dc.CardPrinting).ThenInclude(cp => cp.Card)
+            .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -850,7 +850,7 @@ public class DecksController : ControllerBase
     {
         var deckCard = await _db.DeckCards
             .Where(dc => dc.DeckId == deck.Id && dc.CardPrintingId == cardPrintingId)
-            .Include(dc => dc.CardPrinting)
+            .Include(dc => dc.CardPrinting!)
             .ThenInclude(cp => cp.Card)
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
