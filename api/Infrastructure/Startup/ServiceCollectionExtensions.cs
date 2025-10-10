@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Reflection;
 using HttpIPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
 
 namespace api.Infrastructure.Startup;
@@ -91,7 +92,7 @@ internal static class ServiceCollectionExtensions
             };
         });
 
-        services.AddAutoMapper(typeof(Program));
+        services.AddAutoMapper(typeof(Program).Assembly);
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
         var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
