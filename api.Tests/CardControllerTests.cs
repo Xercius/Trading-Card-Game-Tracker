@@ -1,13 +1,12 @@
 // Run these tests with `dotnet test` at the solution root or from Visual Studio Test Explorer.
 // This suite exercises the CardController integration endpoints end-to-end via WebApplicationFactory.
 
+using api.Features.Cards.Dtos;
+using api.Shared;
+using api.Tests.Fixtures;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using api.Shared;
-using api.Features.Cards.Dtos;
-using api.Tests.Fixtures;
-using api.Tests.Helpers;
 using Xunit;
 
 namespace api.Tests;

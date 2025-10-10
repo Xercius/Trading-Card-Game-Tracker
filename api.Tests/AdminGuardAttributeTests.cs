@@ -1,15 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Reflection;
 using api.Authentication;
 using api.Filters;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Reflection;
 using Xunit;
 
 namespace api.Tests;

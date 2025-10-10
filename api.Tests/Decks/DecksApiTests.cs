@@ -1,12 +1,12 @@
-using System.Net;
-using System.Net.Http.Json;
+using api.Common.Errors;
+using api.Tests.Infrastructure;
 using FluentAssertions;
-using Xunit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using api.Common.Errors;
-using api.Tests.Infrastructure;
+using System.Net;
+using System.Net.Http.Json;
+using Xunit;
 
 namespace api.Tests.Decks;
 

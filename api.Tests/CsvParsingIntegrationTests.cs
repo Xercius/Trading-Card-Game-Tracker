@@ -1,9 +1,6 @@
-using System.Linq;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
 using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
-using api.Tests.Helpers;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace api.Tests;

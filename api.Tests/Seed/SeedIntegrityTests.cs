@@ -1,4 +1,3 @@
-using System.Linq;
 using api.Data;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;

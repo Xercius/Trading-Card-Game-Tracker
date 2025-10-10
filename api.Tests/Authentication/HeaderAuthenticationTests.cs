@@ -1,7 +1,6 @@
+using api.Tests.Fixtures;
 using System.Net;
 using System.Net.Http.Json;
-using api.Tests.Fixtures;
-using api.Tests;
 using Xunit;
 
 namespace api.Tests.Authentication;

@@ -1,4 +1,3 @@
-using System;
 using api.Authentication;
 using api.Models;
 using Microsoft.Extensions.Options;

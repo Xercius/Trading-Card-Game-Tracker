@@ -1,10 +1,10 @@
-using System.Net;
-using System.Net.Http.Json;
 using api.Data;
 using api.Features.Prices.Dtos;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace api.Tests;

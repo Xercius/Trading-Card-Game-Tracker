@@ -1,17 +1,13 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Covers /api/value endpoints including refresh and collection summary calculations.
 
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
 using api.Data;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 

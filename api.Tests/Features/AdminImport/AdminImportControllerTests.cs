@@ -1,25 +1,20 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text;
 using api.Data;
 using api.Features.Admin.Import;
 using api.Importing;
 using api.Models;
 using api.Shared.Importing;
 using api.Tests.Fixtures;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
 using Xunit;
 
 namespace api.Tests.Features.AdminImport;
@@ -346,9 +341,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, _entries, () => _scopeProvider);
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() { }
 
         public void SetScopeProvider(IExternalScopeProvider scopeProvider)
         {
@@ -360,16 +353,14 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             ConcurrentQueue<TestLogEntry> sink,
             Func<IExternalScopeProvider> scopeProviderAccessor) : ILogger
         {
-            public IDisposable BeginScope<TState>(TState state) => scopeProviderAccessor().Push(state!);
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull
+                => scopeProviderAccessor().Push(state);
 
             public bool IsEnabled(LogLevel logLevel) => true;
 
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
-                if (!IsEnabled(logLevel))
-                {
-                    return;
-                }
+                if (!IsEnabled(logLevel)) return;
 
                 var stateValues = state as IReadOnlyList<KeyValuePair<string, object?>> ?? Array.Empty<KeyValuePair<string, object?>>();
                 sink.Enqueue(new TestLogEntry(categoryName, logLevel, stateValues, formatter(state, exception), exception));

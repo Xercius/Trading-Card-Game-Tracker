@@ -1,10 +1,10 @@
-using System.Net;
-using System.Net.Http.Json;
 using api.Data;
 using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace api.Tests.Features.Auth;

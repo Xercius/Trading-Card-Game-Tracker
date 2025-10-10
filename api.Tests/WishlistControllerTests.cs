@@ -1,19 +1,17 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Validates /api/wishlist endpoints and legacy routes via full HTTP calls.
 
-using System.Linq;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using api.Data;
 using api.Features.Collections.Dtos;
 using api.Features.Wishlists.Dtos;
-using api.Tests.Fixtures;
 using api.Shared;
+using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Xunit;
-using api.Tests.Helpers;
 
 
 namespace api.Tests;

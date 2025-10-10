@@ -1,13 +1,11 @@
-using System.Net;
-using System.Net.Http.Json;
-
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-
-using FluentAssertions;
-using Xunit;
 using api.Common.Errors;
 using api.Tests.Infrastructure;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Net.Http.Json;
+using Xunit;
 
 namespace api.Tests.AdminUsers;
 
