@@ -128,7 +128,7 @@ internal static class ServiceCollectionExtensions
         services.AddOptions<ForwardedHeadersOptions>()
             .Configure<ILoggerFactory>((options, loggerFactory) =>
             {
-                var logger = loggerFactory?.CreateLogger<ServiceCollectionExtensions>()
+                var logger = loggerFactory?.CreateLogger("ServiceCollectionExtensions")
                     ?? NullLogger.Instance;
                 ConfigureForwardedHeadersOptions(options, forwardedHeadersSettings, logger);
             });
