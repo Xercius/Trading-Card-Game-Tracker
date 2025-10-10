@@ -1,9 +1,7 @@
-using Microsoft.AspNetCore.Http;
+using api.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using api.Authentication;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace api.Filters;
 

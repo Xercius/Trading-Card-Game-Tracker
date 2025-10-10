@@ -1,5 +1,5 @@
-using FluentValidation;
 using api.Features.Wishlists.Dtos;
+using FluentValidation;
 
 namespace api.Features.Wishlists.Validation;
 

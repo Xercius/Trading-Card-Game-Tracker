@@ -1,7 +1,7 @@
-using AutoMapper;
 using api.Features.Collections.Dtos;
 using api.Models;
 using api.Shared;
+using AutoMapper;
 
 namespace api.Features.Collections.Mapping;
 

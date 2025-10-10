@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using api.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;

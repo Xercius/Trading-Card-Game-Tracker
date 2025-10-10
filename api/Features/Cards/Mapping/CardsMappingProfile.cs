@@ -1,6 +1,6 @@
-using AutoMapper;
 using api.Features.Cards.Dtos;
 using api.Models;
+using AutoMapper;
 
 namespace api.Features.Cards.Mapping;
 

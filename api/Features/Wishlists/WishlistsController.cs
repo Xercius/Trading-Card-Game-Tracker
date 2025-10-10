@@ -1,23 +1,16 @@
-using System.Collections.Generic;
-using System.Net.Mime;
-using System.Text.Json;
-using AutoMapper;
-using AutoMapper.QueryableExtensions;
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
 using api.Features.Wishlists.Dtos;
-using api.Filters;
-using api.Authentication;
 using api.Models;
 using api.Shared;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Net.Mime;
 using WishlistItemDto = api.Features.Wishlists.Dtos.WishlistItemResponse;
 
 namespace api.Features.Wishlists;

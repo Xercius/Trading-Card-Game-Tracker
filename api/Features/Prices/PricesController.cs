@@ -1,18 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
-using api.Features.Prices.Dtos;
-using api.Authentication;
 using api.Features.Decks;
-using api.Models;
+using api.Features.Prices.Dtos;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace api.Features.Prices;
 

@@ -1,13 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Net;
 using api.Authentication;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using System.Net;
 
 namespace api.Filters;
 

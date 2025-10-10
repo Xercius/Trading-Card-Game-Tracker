@@ -1,11 +1,9 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
 using AngleSharp;
 using AngleSharp.Dom;
 using api.Data;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace api.Importing;
 
@@ -109,7 +107,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
                          TextByLabel(doc, "Card Number", "Card #", "Number") ??
                          string.Empty).Trim();
 
-        string name = (Text(doc, "h1.card-title", ".card-header h1", ".title h1", "h1" ) ?? "Unknown").Trim();
+        string name = (Text(doc, "h1.card-title", ".card-header h1", ".title h1", "h1") ?? "Unknown").Trim();
         string? subtitle = Text(doc, ".card-subtitle", ".subtitle") ?? TextByLabel(doc, "Subtitle", "Version");
         string rarity = (Text(doc, ".card-rarity", ".rarity") ?? TextByLabel(doc, "Rarity") ?? "Unknown").Trim();
         string? energy = Text(doc, ".card-energy", ".energy") ?? TextByLabel(doc, "Energy", "Energy Type");
