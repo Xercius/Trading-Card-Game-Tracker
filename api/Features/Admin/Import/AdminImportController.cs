@@ -1,3 +1,5 @@
+// File: api/Features/Admin/Import/AdminImportController.cs
+
 using api.Authentication;
 using api.Common.Errors;
 using api.Filters;
@@ -23,77 +25,85 @@ public sealed class AdminImportController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
-    // IMPORTANT: All keys in SourceMap must be lowercase.
-    // This is because StringComparer.Ordinal is case-sensitive.
-    // When adding new keys or performing lookups, always use lowercase.
-    private static readonly Dictionary<string, string> SourceMap = new(StringComparer.Ordinal)
-        ["lorcanajson"] = "LorcanaJSON",
-        ["lorcana-json"] = "LorcanaJSON",
-        ["lorcana"] = "LorcanaJSON",
-        ["disneylorcana"] = "LorcanaJSON",
+    // IMPORTANT: All keys in SourceMap are lowercase because StringComparer.Ordinal is case-sensitive.
+    private static readonly Dictionary<string, string> SourceMap =
+        new(StringComparer.Ordinal)
+        {
+            ["lorcanajson"] = "LorcanaJSON",
+            ["lorcana-json"] = "LorcanaJSON",
+            ["lorcana"] = "LorcanaJSON",
+            ["disneylorcana"] = "LorcanaJSON",
 
-        ["fabdb"] = "FabDb",
-        ["fab"] = "FabDb",
-        ["fleshandblood"] = "FabDb",
+            ["fabdb"] = "FabDb",
+            ["fab"] = "FabDb",
+            ["fleshandblood"] = "FabDb",
 
-        ["scryfall"] = "Scryfall",
-        ["swccgdb"] = "Swccgdb",
-        ["swu"] = "SwuDb",
-        ["swudb"] = "SwuDb",
-        ["pokemontcg"] = "PokemonTcg",
-        ["guardianslocal"] = "GuardiansLocal",
-        ["guardians"] = "GuardiansLocal",
-        ["dicemastersdb"] = "DiceMastersDb",
-        ["dicemasters"] = "DiceMastersDb",
-        ["transformersfm"] = "TransformersFm",
-        ["transformers"] = "TransformersFm",
-        ["dummy"] = "Dummy",
-    };
+            ["scryfall"] = "Scryfall",
+            ["swccgdb"] = "Swccgdb",
+            ["swu"] = "SwuDb",
+            ["swudb"] = "SwuDb",
 
-    private static readonly Dictionary<string, string> CanonicalToImporterKey = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["LorcanaJSON"] = "lorcanajson",
-        ["FabDb"] = "fabdb",
-        ["Scryfall"] = "scryfall",
-        ["Swccgdb"] = "swccgdb",
-        ["SwuDb"] = "swu",
-        ["PokemonTcg"] = "pokemon",
-        ["GuardiansLocal"] = "guardians",
-        ["DiceMastersDb"] = "dicemasters",
-        ["TransformersFm"] = "tftcg",
-        ["Dummy"] = "dummy",
-    };
+            ["pokemontcg"] = "PokemonTcg",
 
-    private static readonly Dictionary<string, ImportSetOption[]> StaticSetOptions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["LorcanaJSON"] =
-        [
-            new ImportSetOption("TFC", "The First Chapter"),
-            new ImportSetOption("ROTF", "Rise of the Floodborn"),
-            new ImportSetOption("ITI", "Into the Inklands"),
-            new ImportSetOption("UTS", "Ursula's Return"),
-        ],
-        ["FabDb"] =
-        [
-            new ImportSetOption("WTR", "Welcome to Rathe"),
-            new ImportSetOption("ARC", "Arcane Rising"),
-            new ImportSetOption("MON", "Monarch"),
-            new ImportSetOption("DYN", "Dynasty"),
-            new ImportSetOption("MST", "Monarch: Soulbound"),
-        ],
-    };
+            ["guardianslocal"] = "GuardiansLocal",
+            ["guardians"] = "GuardiansLocal",
+
+            ["dicemastersdb"] = "DiceMastersDb",
+            ["dicemasters"] = "DiceMastersDb",
+
+            ["transformersfm"] = "TransformersFm",
+            ["transformers"] = "TransformersFm",
+
+            ["dummy"] = "Dummy"
+        };
+
+    private static readonly Dictionary<string, string> CanonicalToImporterKey =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["LorcanaJSON"] = "lorcanajson",
+            ["FabDb"] = "fabdb",
+            ["Scryfall"] = "scryfall",
+            ["Swccgdb"] = "swccgdb",
+            ["SwuDb"] = "swu",
+            ["PokemonTcg"] = "pokemontcg",
+            ["GuardiansLocal"] = "guardianslocal",
+            ["DiceMastersDb"] = "dicemastersdb",
+            ["TransformersFm"] = "transformersfm",
+            ["Dummy"] = "dummy",
+        };
+
+    private static readonly Dictionary<string, ImportSetOption[]> StaticSetOptions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["LorcanaJSON"] = new[]
+            {
+                new ImportSetOption("TFC", "The First Chapter"),
+                new ImportSetOption("ROTF", "Rise of the Floodborn"),
+                new ImportSetOption("ITI", "Into the Inklands"),
+                new ImportSetOption("UTS", "Ursula's Return"),
+            },
+            ["FabDb"] = new[]
+            {
+                new ImportSetOption("WTR", "Welcome to Rathe"),
+                new ImportSetOption("ARC", "Arcane Rising"),
+                new ImportSetOption("MON", "Monarch"),
+                new ImportSetOption("DYN", "Dynasty"),
+                new ImportSetOption("MST", "Monarch: Soulbound"),
+            },
+        };
 
     public AdminImportController(ImporterRegistry registry, FileParser fileParser, ILogger<AdminImportController> logger)
     {
-        _registry = registry;
-        _fileParser = fileParser;
-        _logger = logger;
+        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _fileParser = fileParser ?? throw new ArgumentNullException(nameof(fileParser));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [HttpGet("options")]
     public ActionResult<ImportOptionsResponse> GetOptions()
     {
-        var stopwatch = RequestTiming.Start();
+        var sw = RequestTiming.Start();
+
         var sources = _registry.All
             .Select(importer =>
             {
@@ -101,26 +111,30 @@ public sealed class AdminImportController : ControllerBase
                 var importerKey = CanonicalToImporterKey.TryGetValue(canonical, out var mapped)
                     ? mapped
                     : importer.Key;
+
                 var sets = StaticSetOptions.TryGetValue(canonical, out var options)
                     ? options
                     : Array.Empty<ImportSetOption>();
+
                 return new ImportSourceOption(
-                    canonical,
-                    importerKey,
-                    importer.DisplayName,
-                    importer.SupportedGames.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                    sets
+                    Key: canonical,
+                    ImporterKey: importerKey,
+                    DisplayName: importer.DisplayName,
+                    Games: importer.SupportedGames.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    Sets: sets
                 );
             })
             .OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         var response = new ImportOptionsResponse(sources);
-        var durationMs = RequestTiming.Stop(stopwatch);
+        var durationMs = RequestTiming.Stop(sw);
+
         _logger.LogInformation(
             "Admin import options retrieved in {DurationMs}ms. SourceCount={SourceCount}",
             durationMs,
             sources.Length);
+
         return Ok(response);
     }
 
@@ -129,12 +143,14 @@ public sealed class AdminImportController : ControllerBase
     public async Task<ActionResult<ImportPreviewResponse>> DryRun(CancellationToken ct)
     {
         const string operation = "dry-run";
+
         var parse = await ParseRequestAsync(ct);
         if (parse.Problem is not null)
         {
             LogProblem(operation, parse.Problem);
             return parse.Problem;
         }
+
         var request = parse.Request;
         if (request is null)
         {
@@ -167,7 +183,8 @@ public sealed class AdminImportController : ControllerBase
             SetCode: request.Set);
 
         ImportSummary? summary = null;
-        var stopwatch = RequestTiming.Start();
+        var sw = RequestTiming.Start();
+
         try
         {
             if (request.File is { } file)
@@ -191,8 +208,9 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
-            var durationMs = RequestTiming.Stop(stopwatch);
+            var durationMs = RequestTiming.Stop(sw);
             LogImportFailure(operation, request, durationMs, ex, "FileParser");
+
             if (ex.Errors is not null)
             {
                 return this.CreateValidationProblem(new Dictionary<string, string[]>(ex.Errors), title: ex.Message);
@@ -207,8 +225,9 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
-            var durationMs = RequestTiming.Stop(stopwatch);
+            var durationMs = RequestTiming.Stop(sw);
             LogImportFailure(operation, request, durationMs, ex, "Importer");
+
             var field = request.File is null ? "request" : "file";
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
@@ -218,7 +237,8 @@ public sealed class AdminImportController : ControllerBase
                 title: "Import failed");
         }
 
-        var duration = RequestTiming.Stop(stopwatch);
+        var duration = RequestTiming.Stop(sw);
+
         if (summary is null)
         {
             _logger.LogError("Admin import {Operation} failed: ImportSummary is null after import.", operation);
@@ -229,7 +249,9 @@ public sealed class AdminImportController : ControllerBase
                 },
                 title: "Import failed");
         }
+
         LogImportSuccess(operation, request, summary, duration);
+
         var response = BuildPreviewResponse(request, summary);
         return Ok(response);
     }
@@ -239,12 +261,14 @@ public sealed class AdminImportController : ControllerBase
     public async Task<ActionResult<ImportApplyResponse>> Apply(CancellationToken ct)
     {
         const string operation = "apply";
+
         var parse = await ParseRequestAsync(ct);
         if (parse.Problem is not null)
         {
             LogProblem(operation, parse.Problem);
             return parse.Problem;
         }
+
         var request = parse.Request;
         if (request is null)
         {
@@ -277,7 +301,8 @@ public sealed class AdminImportController : ControllerBase
             SetCode: request.Set);
 
         ImportSummary? summary = null;
-        var stopwatch = RequestTiming.Start();
+        var sw = RequestTiming.Start();
+
         try
         {
             if (request.File is { } file)
@@ -285,6 +310,7 @@ public sealed class AdminImportController : ControllerBase
                 FileParseResult? parsed = null;
                 try
                 {
+                    // For apply we still cap parsing to MaxPreviewLimit for safety during uploads.
                     parsed = await _fileParser.ParseAsync(file, ImportingOptions.MaxPreviewLimit, ct);
                     parsed.Stream.Position = 0;
                     summary = await importer.ImportFromFileAsync(parsed.Stream, options, ct);
@@ -301,8 +327,9 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (FileParserException ex)
         {
-            var durationMs = RequestTiming.Stop(stopwatch);
+            var durationMs = RequestTiming.Stop(sw);
             LogImportFailure(operation, request, durationMs, ex, "FileParser");
+
             if (ex.Errors is not null)
             {
                 return this.CreateValidationProblem(new Dictionary<string, string[]>(ex.Errors), title: ex.Message);
@@ -317,8 +344,9 @@ public sealed class AdminImportController : ControllerBase
         }
         catch (Exception ex)
         {
-            var durationMs = RequestTiming.Stop(stopwatch);
+            var durationMs = RequestTiming.Stop(sw);
             LogImportFailure(operation, request, durationMs, ex, "Importer");
+
             var field = request.File is null ? "request" : "file";
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
@@ -328,7 +356,8 @@ public sealed class AdminImportController : ControllerBase
                 title: "Import failed");
         }
 
-        var duration = RequestTiming.Stop(stopwatch);
+        var duration = RequestTiming.Stop(sw);
+
         if (summary is null)
         {
             _logger.LogError("Admin import {Operation} failed: ImportSummary was not set.", operation);
@@ -339,7 +368,9 @@ public sealed class AdminImportController : ControllerBase
                 },
                 title: "Import failed");
         }
+
         LogImportSuccess(operation, request, summary, duration);
+
         return Ok(new ImportApplyResponse(
             Created: summary.CardsCreated + summary.PrintingsCreated,
             Updated: summary.CardsUpdated + summary.PrintingsUpdated,
@@ -410,6 +441,7 @@ public sealed class AdminImportController : ControllerBase
         var queryLimitRaw = Request.Query.TryGetValue("limit", out var queryLimitValues)
             ? queryLimitValues.ToString()
             : null;
+
         if (ParseLimit(queryLimitRaw, out var queryLimit) is { } queryProblem)
         {
             return new ParseRequestResult(null, queryProblem);
@@ -419,11 +451,13 @@ public sealed class AdminImportController : ControllerBase
         {
             var form = await Request.ReadFormAsync(ct);
             var source = form["source"].ToString();
-            if (!TryResolveImporter(source, out var importer)) return new ParseRequestResult(null, null);
+            if (!TryResolveImporter(source, out var importer))
+                return new ParseRequestResult(null, null);
 
             var formLimitRaw = form.TryGetValue("limit", out var limitValues)
                 ? limitValues.ToString()
                 : null;
+
             if (ParseLimit(formLimitRaw, out var limit) is { } limitProblem)
             {
                 return new ParseRequestResult(null, limitProblem);
@@ -437,14 +471,19 @@ public sealed class AdminImportController : ControllerBase
             var set = form["set"].ToString();
             if (string.IsNullOrWhiteSpace(set)) set = null;
 
-            return new ParseRequestResult(new ResolvedImportRequest(importer, set, limit, form.Files.FirstOrDefault()), null);
+            return new ParseRequestResult(
+                new ResolvedImportRequest(importer, set, limit, form.Files.FirstOrDefault()),
+                null);
         }
         else
         {
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync(ct);
-            if (string.IsNullOrWhiteSpace(body)) return new ParseRequestResult(null, null);
+            if (string.IsNullOrWhiteSpace(body))
+                return new ParseRequestResult(null, null);
+
             ImportRequestPayload? payload;
+
             try
             {
                 payload = JsonSerializer.Deserialize<ImportRequestPayload>(body, JsonOptions);
@@ -462,21 +501,26 @@ public sealed class AdminImportController : ControllerBase
                         detail: ProblemTypes.BadRequest.DefaultDetail));
             }
 
-            if (payload is null || string.IsNullOrWhiteSpace(payload.Source)) return new ParseRequestResult(null, null);
-            if (!TryResolveImporter(payload.Source, out var importer)) return new ParseRequestResult(null, null);
+            if (payload is null || string.IsNullOrWhiteSpace(payload.Source))
+                return new ParseRequestResult(null, null);
+
+            if (!TryResolveImporter(payload.Source, out var importer))
+                return new ParseRequestResult(null, null);
 
             var limit = payload.Limit ?? queryLimit;
-            return new ParseRequestResult(new ResolvedImportRequest(importer, payload.Set, limit, null), null);
+
+            return new ParseRequestResult(
+                new ResolvedImportRequest(importer, payload.Set, limit, null),
+                null);
         }
     }
 
     private ObjectResult? ParseLimit(string? raw, out int? value)
     {
         value = null;
+
         if (string.IsNullOrWhiteSpace(raw))
-        {
             return null;
-        }
 
         if (int.TryParse(raw, out var parsed))
         {
@@ -491,18 +535,17 @@ public sealed class AdminImportController : ControllerBase
     {
         importer = null!;
         if (string.IsNullOrWhiteSpace(source)) return false;
+
         var canonical = GetCanonicalSource(source);
         var importerKey = CanonicalToImporterKey.TryGetValue(canonical, out var mapped) ? mapped : canonical;
+
         return _registry.TryGet(importerKey, out importer);
     }
 
     private static string GetCanonicalSource(string source)
     {
         var normalized = source.Trim();
-        if (normalized.Length == 0)
-        {
-            return normalized;
-        }
+        if (normalized.Length == 0) return normalized;
 
         var lookupKey = normalized.ToLowerInvariant();
         return SourceMap.TryGetValue(lookupKey, out var canonical) ? canonical : normalized;
@@ -512,9 +555,11 @@ public sealed class AdminImportController : ControllerBase
     {
         var defaultGame = request.Importer.SupportedGames.FirstOrDefault() ?? request.Set ?? "Unknown";
         var setLabel = request.Set ?? "(remote)";
+
         var rows = new List<ImportPreviewRow>();
-        int newCount = summary.CardsCreated + summary.PrintingsCreated;
-        int updateCount = summary.CardsUpdated + summary.PrintingsUpdated;
+
+        var newCount = summary.CardsCreated + summary.PrintingsCreated;
+        var updateCount = summary.CardsUpdated + summary.PrintingsUpdated;
 
         if (newCount > 0)
         {
@@ -528,8 +573,7 @@ public sealed class AdminImportController : ControllerBase
                 ImageUrl: null,
                 Price: null,
                 Status: "New",
-                Messages: new[] { $"{newCount} new entities will be created." }
-            ));
+                Messages: new[] { $"{newCount} new entities will be created." }));
         }
 
         if (updateCount > 0)
@@ -544,13 +588,13 @@ public sealed class AdminImportController : ControllerBase
                 ImageUrl: null,
                 Price: null,
                 Status: "Update",
-                Messages: new[] { $"{updateCount} entities will be updated." }
-            ));
+                Messages: new[] { $"{updateCount} entities will be updated." }));
         }
 
         var invalidMessages = summary.Messages
             .Where(m => m.StartsWith("Error", StringComparison.OrdinalIgnoreCase))
             .ToArray();
+
         foreach (var (message, index) in invalidMessages.Select((m, i) => (m, i)))
         {
             rows.Add(new ImportPreviewRow(
@@ -563,13 +607,13 @@ public sealed class AdminImportController : ControllerBase
                 ImageUrl: null,
                 Price: null,
                 Status: "Invalid",
-                Messages: new[] { message }
-            ));
+                Messages: new[] { message }));
         }
 
         var infoMessages = summary.Messages
             .Except(invalidMessages, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
         foreach (var (message, index) in infoMessages.Select((m, i) => (m, i)))
         {
             rows.Add(new ImportPreviewRow(
@@ -582,8 +626,7 @@ public sealed class AdminImportController : ControllerBase
                 ImageUrl: null,
                 Price: null,
                 Status: "Info",
-                Messages: new[] { message }
-            ));
+                Messages: new[] { message }));
         }
 
         var summaryPayload = new ImportPreviewSummary(
@@ -643,14 +686,16 @@ public sealed class AdminImportController : ControllerBase
         IFormFile? File);
 }
 
+// ---------- shared DTOs for this controller (same namespace) ----------
+
+public sealed record ImportSetOption(string Code, string Name);
+
 public sealed record ImportSourceOption(
     string Key,
     string ImporterKey,
     string DisplayName,
     string[] Games,
     ImportSetOption[] Sets);
-
-public sealed record ImportSetOption(string Code, string Name);
 
 public sealed record ImportOptionsResponse(ImportSourceOption[] Sources);
 

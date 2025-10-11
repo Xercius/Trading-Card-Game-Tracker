@@ -1,5 +1,6 @@
 using api.Models;
 using Microsoft.AspNetCore.Identity;
+using System.Diagnostics;
 
 namespace api.Data // Update to match your folder/namespace
 {
