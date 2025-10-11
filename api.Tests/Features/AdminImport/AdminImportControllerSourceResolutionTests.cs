@@ -59,18 +59,26 @@ public sealed class AdminImportControllerSourceResolutionTests
         return new AdminImportController(registry, new FileParser(), NullLogger<AdminImportController>.Instance);
     }
 
-    private sealed class StubImporter(string key) : ISourceImporter
+    private sealed class StubImporter : ISourceImporter
     {
-        public string Key { get; } = key;
+        private readonly string _key;
 
-        public string DisplayName => $"{key} importer";
+        // The backing field avoids CS9124 when compiling on .NET 9.
+        public StubImporter(string key)
+        {
+            _key = key;
+        }
+
+        public string Key => _key;
+
+        public string DisplayName => $"{_key} importer";
 
         public IEnumerable<string> SupportedGames => Array.Empty<string>();
 
         public Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
-            => Task.FromResult(new ImportSummary { Source = Key });
+            => Task.FromResult(new ImportSummary { Source = _key });
 
         public Task<ImportSummary> ImportFromFileAsync(Stream file, ImportOptions options, CancellationToken ct = default)
-            => Task.FromResult(new ImportSummary { Source = Key });
+            => Task.FromResult(new ImportSummary { Source = _key });
     }
 }
