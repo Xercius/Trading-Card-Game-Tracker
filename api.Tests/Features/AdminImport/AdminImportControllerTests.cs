@@ -330,42 +330,42 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             Messages = new List<string>(),
         };
     }
+}
 
-    internal sealed record TestLogEntry(string Category, LogLevel Level, IReadOnlyList<KeyValuePair<string, object?>> State, string Message, Exception? Exception);
+internal sealed record TestLogEntry(string Category, LogLevel Level, IReadOnlyList<KeyValuePair<string, object?>> State, string Message, Exception? Exception);
 
-    internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScope
+internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScope
+{
+    private readonly ConcurrentQueue<TestLogEntry> _entries = new();
+    private IExternalScopeProvider _scopeProvider = NullExternalScopeProvider.Instance;
+
+    public IReadOnlyCollection<TestLogEntry> Entries => _entries.ToArray();
+
+    public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, _entries, () => _scopeProvider);
+
+    public void Dispose() { }
+
+    public void SetScopeProvider(IExternalScopeProvider scopeProvider)
     {
-        private readonly ConcurrentQueue<TestLogEntry> _entries = new();
-        private IExternalScopeProvider _scopeProvider = NullExternalScopeProvider.Instance;
+        _scopeProvider = scopeProvider ?? NullExternalScopeProvider.Instance;
+    }
 
-        public IReadOnlyCollection<TestLogEntry> Entries => _entries.ToArray();
+    private sealed class TestLogger(
+        string categoryName,
+        ConcurrentQueue<TestLogEntry> sink,
+        Func<IExternalScopeProvider> scopeProviderAccessor) : ILogger
+    {
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull
+            => scopeProviderAccessor().Push(state);
 
-        public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, _entries, () => _scopeProvider);
+        public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Dispose() { }
-
-        public void SetScopeProvider(IExternalScopeProvider scopeProvider)
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            _scopeProvider = scopeProvider;
-        }
+            if (!IsEnabled(logLevel)) return;
 
-        private sealed class TestLogger(
-            string categoryName,
-            ConcurrentQueue<TestLogEntry> sink,
-            Func<IExternalScopeProvider> scopeProviderAccessor) : ILogger
-        {
-            public IDisposable BeginScope<TState>(TState state) where TState : notnull
-                => scopeProviderAccessor().Push(state);
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                if (!IsEnabled(logLevel)) return;
-
-                var stateValues = state as IReadOnlyList<KeyValuePair<string, object?>> ?? Array.Empty<KeyValuePair<string, object?>>();
-                sink.Enqueue(new TestLogEntry(categoryName, logLevel, stateValues, formatter(state, exception), exception));
-            }
+            var stateValues = state as IReadOnlyList<KeyValuePair<string, object?>> ?? Array.Empty<KeyValuePair<string, object?>>();
+            sink.Enqueue(new TestLogEntry(categoryName, logLevel, stateValues, formatter(state, exception), exception));
         }
     }
 }

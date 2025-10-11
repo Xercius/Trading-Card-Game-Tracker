@@ -1,5 +1,4 @@
 using api.Data;
-using api.Tests;
 using System.Net.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
