@@ -56,11 +56,11 @@ public sealed class AdminImportController : ControllerBase
         ["FabDb"] = "fabdb",
         ["Scryfall"] = "scryfall",
         ["Swccgdb"] = "swccgdb",
-        ["SwuDb"] = "swudb",
-        ["PokemonTcg"] = "pokemontcg",
-        ["GuardiansLocal"] = "guardianslocal",
-        ["DiceMastersDb"] = "dicemastersdb",
-        ["TransformersFm"] = "transformersfm",
+        ["SwuDb"] = "swu",
+        ["PokemonTcg"] = "pokemon",
+        ["GuardiansLocal"] = "guardians",
+        ["DiceMastersDb"] = "dicemasters",
+        ["TransformersFm"] = "tftcg",
         ["Dummy"] = "dummy",
     };
 
