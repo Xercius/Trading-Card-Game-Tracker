@@ -2,13 +2,7 @@ using api.Features.Admin.Import;
 using api.Importing;
 using api.Shared.Importing;
 using Microsoft.Extensions.Logging.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace api.Tests.Features.AdminImport;
