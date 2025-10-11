@@ -21,7 +21,7 @@ public sealed class AuthControllerTests(CustomWebApplicationFactory factory)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var user = await db.Users.SingleAsync(u => u.Username == "alice");
-            user.PasswordHash = null!;
+            user.PasswordHash = null;
             await db.SaveChangesAsync();
         }
 
