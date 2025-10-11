@@ -25,7 +25,11 @@ internal static class WebApplicationExtensions
             });
         });
 
-        app.UseHttpsRedirection();
+        if (!app.Environment.IsEnvironment("Testing"))
+        {
+            app.UseHttpsRedirection();
+        }
+        
         app.UseStaticFiles();
         app.UseRouting();
         var corsOptions = app.Services.GetRequiredService<IOptions<CorsPolicyOptions>>().Value;
