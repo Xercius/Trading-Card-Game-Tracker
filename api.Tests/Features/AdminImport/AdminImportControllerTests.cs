@@ -11,7 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
@@ -334,11 +333,28 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
 internal sealed record TestLogEntry(string Category, LogLevel Level, IReadOnlyList<KeyValuePair<string, object?>> State, string Message, Exception? Exception);
 
+internal sealed class NullScopeProvider : IExternalScopeProvider
+{
+    public static NullScopeProvider Instance { get; } = new();
+
+    private NullScopeProvider() { }
+
+    public void ForEachScope<TState>(Action<object?, TState> callback, TState state) { }
+
+    public IDisposable Push(object? state) => NullScope.Instance;
+
+    private sealed class NullScope : IDisposable
+    {
+        public static NullScope Instance { get; } = new();
+        private NullScope() { }
+        public void Dispose() { }
+    }
+}
+
 internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScope
 {
     private readonly ConcurrentQueue<TestLogEntry> _entries = new();
-    // NullExternalScopeProvider lives in Microsoft.Extensions.Logging.Abstractions, so the package is required for this helper.
-    private IExternalScopeProvider _scopeProvider = NullExternalScopeProvider.Instance;
+    private IExternalScopeProvider _scopeProvider = NullScopeProvider.Instance;
 
     public IReadOnlyCollection<TestLogEntry> Entries => _entries.ToArray();
 
@@ -348,7 +364,7 @@ internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScop
 
     public void SetScopeProvider(IExternalScopeProvider scopeProvider)
     {
-        _scopeProvider = scopeProvider ?? NullExternalScopeProvider.Instance;
+        _scopeProvider = scopeProvider ?? NullScopeProvider.Instance;
     }
 
     private sealed class TestLogger(

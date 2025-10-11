@@ -1,8 +1,6 @@
 using api.Importing;
 using api.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Linq;
 using Xunit;
 
 namespace api.Tests.Importing;
