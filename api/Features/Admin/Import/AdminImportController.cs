@@ -25,9 +25,9 @@ public sealed class AdminImportController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
-    // IMPORTANT: All keys in SourceMap are lowercase because StringComparer.Ordinal is case-sensitive.
+    // IMPORTANT: All keys in SourceMap are lowercase because StringComparer.OrdinalIgnoreCase is case-insensitive.
     private static readonly Dictionary<string, string> SourceMap =
-        new(StringComparer.Ordinal)
+        new(StringComparer.OrdinalIgnoreCase)
         {
             ["lorcanajson"] = "LorcanaJSON",
             ["lorcana-json"] = "LorcanaJSON",
