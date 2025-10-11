@@ -23,21 +23,12 @@ public sealed class AdminImportController : ControllerBase
 
     private static readonly JsonSerializerOptions JsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
-    private static readonly Dictionary<string, string> SourceMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["LorcanaJSON"] = "LorcanaJSON",
-        ["FabDb"] = "FabDb",
-        ["Scryfall"] = "Scryfall",
-        ["Swccgdb"] = "Swccgdb",
-        ["SwuDb"] = "SwuDb",
-        ["PokemonTcg"] = "PokemonTcg",
-        ["GuardiansLocal"] = "GuardiansLocal",
-        ["DiceMastersDb"] = "DiceMastersDb",
-        ["TransformersFm"] = "TransformersFm",
-        ["Dummy"] = "Dummy",
-
-        ["lorcana-json"] = "LorcanaJSON",
+    // IMPORTANT: All keys in SourceMap must be lowercase.
+    // This is because StringComparer.Ordinal is case-sensitive.
+    // When adding new keys or performing lookups, always use lowercase.
+    private static readonly Dictionary<string, string> SourceMap = new(StringComparer.Ordinal)
         ["lorcanajson"] = "LorcanaJSON",
+        ["lorcana-json"] = "LorcanaJSON",
         ["lorcana"] = "LorcanaJSON",
         ["disneylorcana"] = "LorcanaJSON",
 
@@ -50,8 +41,11 @@ public sealed class AdminImportController : ControllerBase
         ["swu"] = "SwuDb",
         ["swudb"] = "SwuDb",
         ["pokemontcg"] = "PokemonTcg",
+        ["guardianslocal"] = "GuardiansLocal",
         ["guardians"] = "GuardiansLocal",
+        ["dicemastersdb"] = "DiceMastersDb",
         ["dicemasters"] = "DiceMastersDb",
+        ["transformersfm"] = "TransformersFm",
         ["transformers"] = "TransformersFm",
         ["dummy"] = "Dummy",
     };
@@ -504,7 +498,14 @@ public sealed class AdminImportController : ControllerBase
 
     private static string GetCanonicalSource(string source)
     {
-        return SourceMap.TryGetValue(source, out var canonical) ? canonical : source;
+        var normalized = source.Trim();
+        if (normalized.Length == 0)
+        {
+            return normalized;
+        }
+
+        var lookupKey = normalized.ToLowerInvariant();
+        return SourceMap.TryGetValue(lookupKey, out var canonical) ? canonical : normalized;
     }
 
     private static ImportPreviewResponse BuildPreviewResponse(ResolvedImportRequest request, ImportSummary summary)
