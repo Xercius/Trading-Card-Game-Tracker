@@ -337,6 +337,7 @@ internal sealed record TestLogEntry(string Category, LogLevel Level, IReadOnlyLi
 internal sealed class TestLoggerProvider : ILoggerProvider, ISupportExternalScope
 {
     private readonly ConcurrentQueue<TestLogEntry> _entries = new();
+    // NullExternalScopeProvider lives in Microsoft.Extensions.Logging.Abstractions, so the package is required for this helper.
     private IExternalScopeProvider _scopeProvider = NullExternalScopeProvider.Instance;
 
     public IReadOnlyCollection<TestLogEntry> Entries => _entries.ToArray();
