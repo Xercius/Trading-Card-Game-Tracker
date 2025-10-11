@@ -57,7 +57,7 @@ public sealed class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        if (string.IsNullOrEmpty(user.PasswordHash))
+        if (user.PasswordHash is null)
         {
             return Unauthorized();
         }
