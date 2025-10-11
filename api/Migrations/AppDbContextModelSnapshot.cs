@@ -15,7 +15,7 @@ namespace api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
@@ -46,6 +46,29 @@ namespace api.Migrations
                     b.HasIndex("Game", "Name");
 
                     b.ToTable("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.CardPriceHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("CapturedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CardPrintingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(14,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardPrintingId", "CapturedAt")
+                        .IsUnique();
+
+                    b.ToTable("CardPriceHistories");
                 });
 
             modelBuilder.Entity("api.Models.CardPrinting", b =>
@@ -216,29 +239,6 @@ namespace api.Migrations
                     b.ToTable("UserCards");
                 });
 
-            modelBuilder.Entity("api.Models.CardPriceHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateOnly>("CapturedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("CardPrintingId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(14,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CardPrintingId", "CapturedAt")
-                        .IsUnique();
-
-                    b.ToTable("CardPriceHistories");
-                });
-
             modelBuilder.Entity("api.Models.ValueHistory", b =>
                 {
                     b.Property<int>("Id")
@@ -268,17 +268,6 @@ namespace api.Migrations
                     b.ToTable("ValueHistories");
                 });
 
-            modelBuilder.Entity("api.Models.CardPrinting", b =>
-                {
-                    b.HasOne("api.Models.Card", "Card")
-                        .WithMany("Printings")
-                        .HasForeignKey("CardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Card");
-                });
-
             modelBuilder.Entity("api.Models.CardPriceHistory", b =>
                 {
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
@@ -288,6 +277,17 @@ namespace api.Migrations
                         .IsRequired();
 
                     b.Navigation("CardPrinting");
+                });
+
+            modelBuilder.Entity("api.Models.CardPrinting", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("Printings")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Card");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>
