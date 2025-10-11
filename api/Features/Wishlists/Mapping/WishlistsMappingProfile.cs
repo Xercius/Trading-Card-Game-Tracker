@@ -1,6 +1,6 @@
-using AutoMapper;
 using api.Features.Wishlists.Dtos;
 using api.Models;
+using AutoMapper;
 
 namespace api.Features.Wishlists.Mapping;
 

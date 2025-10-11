@@ -1,8 +1,7 @@
+using api.Tests.Fixtures;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using api.Tests.Fixtures;
-using api.Tests.Helpers;
 using Xunit;
 
 namespace api.Tests.Features.Decks;

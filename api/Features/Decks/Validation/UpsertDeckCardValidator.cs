@@ -1,5 +1,5 @@
-using FluentValidation;
 using api.Features.Decks.Dtos;
+using FluentValidation;
 
 namespace api.Features.Decks.Validation;
 

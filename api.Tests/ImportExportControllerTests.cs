@@ -1,18 +1,13 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text.Json;
 using api.Data;
 using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Xunit;
-using api.Tests.Helpers;
 
 
 namespace api.Tests;
@@ -120,7 +115,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             Assert.Equal(payload.Decks.Count, decks.Count);
             foreach (var exportedDeck in payload.Decks)
             {
-                var deck = Assert.Single(decks.Where(d => d.Game == exportedDeck.Game && d.Name == exportedDeck.Name));
+                var deck = Assert.Single(decks, d => d.Game == exportedDeck.Game && d.Name == exportedDeck.Name);
                 Assert.Equal(exportedDeck.Description, deck.Description);
 
                 var expectedDeckCards = exportedDeck.Cards.OrderBy(c => c.CardPrintingId).ToList();

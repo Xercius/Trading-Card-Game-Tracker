@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace api.Common.Errors;
 
@@ -72,7 +72,7 @@ public sealed class DefaultProblemDetailsFactory : ProblemDetailsFactory
         if (_apiBehavior.ClientErrorMapping.TryGetValue(statusCode, out var clientErrorData))
         {
             problemDetails.Title ??= clientErrorData.Title;
-            problemDetails.Type  ??= clientErrorData.Link;
+            problemDetails.Type ??= clientErrorData.Link;
         }
 
         if (ProblemTypes.TryGet(statusCode, out var problemType))

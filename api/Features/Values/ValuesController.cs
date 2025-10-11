@@ -1,17 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using AutoMapper;
-using api.Common.Errors;
-using api.Filters;
-using api.Data;
-using api.Features.Values.Dtos;
 using api.Authentication;
+using api.Common.Errors;
+using api.Data;
 using api.Features.Decks;
+using api.Features.Values.Dtos;
 using api.Models;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,23 +1,17 @@
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
 using api.Features.Collections.Dtos;
-using api.Filters;
-using api.Authentication;
 using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Linq;
 using System.Net.Mime;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using CollectionItemDto = api.Features.Collections.Dtos.UserCardItemResponse;
 
 namespace api.Features.Collections;

@@ -1,9 +1,8 @@
-using System.Net;
-using System.Net.Http.Json;
 using api.Features.Admin.Users;
 using api.Tests.Fixtures;
-using api.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace api.Tests.Features.AdminUsers;

@@ -1,6 +1,6 @@
-using AutoMapper;
 using api.Features.Users.Dtos;
 using api.Models;
+using AutoMapper;
 
 namespace api.Features.Users.Mapping;
 

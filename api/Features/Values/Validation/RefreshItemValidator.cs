@@ -1,5 +1,5 @@
-using FluentValidation;
 using api.Features.Values.Dtos;
+using FluentValidation;
 
 namespace api.Features.Values.Validation;
 

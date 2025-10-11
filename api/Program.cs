@@ -1,7 +1,6 @@
 using api.Data;
 using api.Infrastructure.Startup;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 var isSeedCommand = args.Length > 0 && string.Equals(args[0], "seed", StringComparison.OrdinalIgnoreCase);
 var filteredArgs = isSeedCommand ? args[1..] : args;

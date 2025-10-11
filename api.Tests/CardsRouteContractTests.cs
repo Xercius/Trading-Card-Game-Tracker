@@ -1,7 +1,5 @@
-using System.Net;
-using System.Threading.Tasks;
 using api.Tests.Fixtures;
-using api.Tests.Helpers;
+using System.Net;
 using Xunit;
 
 namespace api.Tests;

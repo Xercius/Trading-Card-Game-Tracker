@@ -1,4 +1,3 @@
-using System.Linq;
 using api.Shared;
 using Xunit;
 

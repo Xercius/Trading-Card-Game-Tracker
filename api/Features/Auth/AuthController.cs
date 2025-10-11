@@ -1,17 +1,11 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using api.Authentication;
 using api.Data;
-using api.Features.Auth;
 using api.Features.Users.Dtos;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 
 namespace api.Features.Auth;
 

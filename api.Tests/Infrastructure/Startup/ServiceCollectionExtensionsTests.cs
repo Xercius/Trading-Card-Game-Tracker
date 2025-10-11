@@ -1,9 +1,8 @@
-using System;
-using System.Net;
 using api.Infrastructure.Startup;
 using api.Tests.Features.AdminImport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Net;
 using Xunit;
 
 namespace api.Tests.Infrastructure.Startup;
@@ -44,7 +43,9 @@ public static class ServiceCollectionExtensionsTests
         var logger = loggerProvider.CreateLogger(typeof(ServiceCollectionExtensions).FullName!);
 
         var exception = Assert.Throws<FormatException>(() =>
-            ServiceCollectionExtensions.ParseKnownProxy("not-an-ip", "ForwardedHeaders:KnownProxies:0", logger));
+        {
+            ServiceCollectionExtensions.ParseKnownProxy("not-an-ip", "ForwardedHeaders:KnownProxies:0", logger);
+        });
 
         Assert.Contains("not-an-ip", exception.Message);
         Assert.Contains(loggerProvider.Entries, entry =>
@@ -57,7 +58,7 @@ public static class ServiceCollectionExtensionsTests
         var result = ServiceCollectionExtensions.ParseKnownProxy(
             "203.0.113.5",
             "ForwardedHeaders:KnownProxies:0",
-            NullLogger<ServiceCollectionExtensions>.Instance);
+            NullLogger.Instance);
 
         Assert.Equal(IPAddress.Parse("203.0.113.5"), result);
     }
@@ -73,11 +74,14 @@ public static class ServiceCollectionExtensionsTests
             PrefixLength = 24
         };
 
-        var exception = Assert.Throws<FormatException>(() => ServiceCollectionExtensions.ParseKnownNetwork(
-            entry,
-            "ForwardedHeaders:KnownNetworks:0:Prefix",
-            "ForwardedHeaders:KnownNetworks:0:PrefixLength",
-            logger));
+        var exception = Assert.Throws<FormatException>(() =>
+        {
+            ServiceCollectionExtensions.ParseKnownNetwork(
+                entry,
+                "ForwardedHeaders:KnownNetworks:0:Prefix",
+                "ForwardedHeaders:KnownNetworks:0:PrefixLength",
+                logger);
+        });
 
         Assert.Contains("invalid", exception.Message);
         Assert.Contains(loggerProvider.Entries, log =>
@@ -95,11 +99,14 @@ public static class ServiceCollectionExtensionsTests
             PrefixLength = 33
         };
 
-        var exception = Assert.Throws<FormatException>(() => ServiceCollectionExtensions.ParseKnownNetwork(
-            entry,
-            "ForwardedHeaders:KnownNetworks:0:Prefix",
-            "ForwardedHeaders:KnownNetworks:0:PrefixLength",
-            logger));
+        var exception = Assert.Throws<FormatException>(() =>
+        {
+            ServiceCollectionExtensions.ParseKnownNetwork(
+                entry,
+                "ForwardedHeaders:KnownNetworks:0:Prefix",
+                "ForwardedHeaders:KnownNetworks:0:PrefixLength",
+                logger);
+        });
 
         Assert.Contains("PrefixLength", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(loggerProvider.Entries, log =>
@@ -119,7 +126,7 @@ public static class ServiceCollectionExtensionsTests
             entry,
             "ForwardedHeaders:KnownNetworks:0:Prefix",
             "ForwardedHeaders:KnownNetworks:0:PrefixLength",
-            NullLogger<ServiceCollectionExtensions>.Instance);
+            NullLogger.Instance);
 
         Assert.Equal(IPAddress.Parse("2001:db8::"), result.Prefix);
         Assert.Equal(64, result.PrefixLength);

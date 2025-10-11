@@ -1,17 +1,13 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Covers /api/collection endpoints including legacy user-scoped routes.
 
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Net.Http.Headers;
-using System.Text.Json;
 using api.Features.Collections.Dtos;
 using api.Shared;
 using api.Tests.Fixtures;
-using api.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Xunit;
 
 namespace api.Tests;

@@ -1,6 +1,6 @@
-using AutoMapper;
 using api.Features.Decks.Dtos;
 using api.Models;
+using AutoMapper;
 
 namespace api.Features.Decks.Mapping;
 

@@ -1,4 +1,3 @@
-using System;
 using api.Features.Users.Dtos;
 
 namespace api.Features.Auth;

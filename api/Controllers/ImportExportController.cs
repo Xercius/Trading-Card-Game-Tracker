@@ -1,14 +1,14 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using api.Infrastructure.Startup;
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
-using api.Authentication;
+using api.Infrastructure.Startup;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace api.Controllers
 {

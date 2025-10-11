@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Options;
-using Swashbuckle.AspNetCore.Swagger;
-using Swashbuckle.AspNetCore.SwaggerUI;
 
 namespace api.Infrastructure.Startup;
 
@@ -27,7 +25,11 @@ internal static class WebApplicationExtensions
             });
         });
 
-        app.UseHttpsRedirection();
+        if (!app.Environment.IsEnvironment("Testing"))
+        {
+            app.UseHttpsRedirection();
+        }
+        
         app.UseStaticFiles();
         app.UseRouting();
         var corsOptions = app.Services.GetRequiredService<IOptions<CorsPolicyOptions>>().Value;

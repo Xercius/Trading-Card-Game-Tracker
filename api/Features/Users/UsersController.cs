@@ -1,17 +1,13 @@
-using System.Collections.Generic;
-using System.Text.Json;
-using AutoMapper;
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
-using api.Features.Users.Dtos;
-using api.Filters;
-using api.Authentication;
 using api.Features.Admin;
-using api.Models;
+using api.Features.Users.Dtos;
+using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace api.Features.Users;
 

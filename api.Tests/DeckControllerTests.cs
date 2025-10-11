@@ -1,15 +1,12 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Exercises deck CRUD, deck-card management, and availability endpoints end-to-end.
 
-using System.Linq;
-using System.Net;
-using System.Net.Http.Json;
-using System.Net.Http.Headers;
-using System.Text.Json;
 using api.Features.Decks.Dtos;
 using api.Tests.Fixtures;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Xunit;
-using api.Tests.Helpers;
 
 namespace api.Tests;
 

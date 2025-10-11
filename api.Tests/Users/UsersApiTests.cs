@@ -1,12 +1,10 @@
-using System.Net;
-using System.Net.Http.Json;
-
+using api.Tests.Infrastructure;
+using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-
-using FluentAssertions;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
-using api.Tests.Infrastructure;
 
 namespace api.Tests.Users;
 

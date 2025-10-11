@@ -1,17 +1,13 @@
 // Run these tests with `dotnet test` or from Visual Studio Test Explorer.
 // Covers /api/value endpoints including refresh and collection summary calculations.
 
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
 using api.Data;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 
@@ -144,10 +140,10 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
         var expectedLorcana = 5678L * 1; // Alice owns one Elsa printing
         Assert.Equal(expectedMagic + expectedLorcana, summary!.totalCents);
 
-        var magicSlice = Assert.Single(summary.byGame.Where(s => s.game == "Magic"));
+        var magicSlice = Assert.Single(summary.byGame, s => s.game == "Magic");
         Assert.Equal(expectedMagic, magicSlice.cents);
 
-        var lorcanaSlice = Assert.Single(summary.byGame.Where(s => s.game == "Lorcana"));
+        var lorcanaSlice = Assert.Single(summary.byGame, s => s.game == "Lorcana");
         Assert.Equal(expectedLorcana, lorcanaSlice.cents);
     }
 

@@ -1,25 +1,17 @@
+using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Decks.Dtos;
-using api.Filters;
 using api.Infrastructure.Startup;
-using api.Authentication;
 using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Mime;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using DeckDto = api.Features.Decks.Dtos.DeckResponse;
 
 namespace api.Features.Decks;

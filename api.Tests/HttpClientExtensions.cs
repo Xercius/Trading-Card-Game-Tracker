@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
+using api.Tests.Fixtures;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using api.Tests.Fixtures;
 
 namespace api.Tests;
 

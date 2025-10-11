@@ -1,5 +1,3 @@
-﻿using System.Collections.Generic;
-
 namespace api.Models
 {
     public class CardPrinting
