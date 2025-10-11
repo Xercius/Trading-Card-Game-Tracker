@@ -29,7 +29,7 @@ internal static class WebApplicationExtensions
         {
             app.UseHttpsRedirection();
         }
-        
+
         app.UseStaticFiles();
         app.UseRouting();
         var corsOptions = app.Services.GetRequiredService<IOptions<CorsPolicyOptions>>().Value;
