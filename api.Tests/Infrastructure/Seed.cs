@@ -1,12 +1,14 @@
 using api.Data;
 using api.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace api.Tests.Infrastructure;
 
 public static class Seed
 {
-    public const int AdminUserId = 1;
-    public const int SecondaryUserId = 2;
+    // Using same IDs as TestDataSeeder for consistency with HttpClientExtensions
+    public const int AdminUserId = 999;
+    public const int SecondaryUserId = 1; // Alice
 
     public const int LightningCardId = 200;
     public const int GoblinCardId = 201;
@@ -24,6 +26,8 @@ public static class Seed
 
     public static async Task SeedAsync(AppDbContext db)
     {
+        var hasher = new PasswordHasher<User>();
+        
         var admin = new User
         {
             Id = AdminUserId,
@@ -31,14 +35,16 @@ public static class Seed
             DisplayName = "Admin",
             IsAdmin = true
         };
+        admin.PasswordHash = hasher.HashPassword(admin, "Password123!");
 
         var userTwo = new User
         {
             Id = SecondaryUserId,
-            Username = "user2",
-            DisplayName = "User Two",
+            Username = "alice", // Changed from "user2" to match HttpClientExtensions
+            DisplayName = "Alice", // Changed from "User Two"
             IsAdmin = false
         };
+        userTwo.PasswordHash = hasher.HashPassword(userTwo, "Password123!");
 
         db.Users.AddRange(admin, userTwo);
 
