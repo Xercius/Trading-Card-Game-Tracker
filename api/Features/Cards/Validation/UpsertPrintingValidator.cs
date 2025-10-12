@@ -8,9 +8,9 @@ public sealed class UpsertPrintingValidator : AbstractValidator<UpsertPrintingRe
     public UpsertPrintingValidator()
     {
         RuleFor(x => x.CardId).GreaterThan(0);
-        RuleFor(x => x.Set).MaximumLength(100).When(x => x.Set is not null);
-        RuleFor(x => x.Number).MaximumLength(100).When(x => x.Number is not null);
-        RuleFor(x => x.Rarity).MaximumLength(100).When(x => x.Rarity is not null);
-        RuleFor(x => x.Style).MaximumLength(100).When(x => x.Style is not null);
+        RuleFor(x => x.Set).MaximumLength(64).When(x => x.Set is not null);
+        RuleFor(x => x.Number).MaximumLength(32).When(x => x.Number is not null);
+        RuleFor(x => x.Rarity).MaximumLength(32).When(x => x.Rarity is not null);
+        RuleFor(x => x.Style).MaximumLength(64).When(x => x.Style is not null);
     }
 }
