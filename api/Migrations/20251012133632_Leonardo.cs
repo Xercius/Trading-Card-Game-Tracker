@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace api.Migrations
 {
     /// <inheritdoc />
-    public partial class Raphael : Migration
+    public partial class Leonardo : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -14,17 +14,18 @@ namespace api.Migrations
                 name: "Cards",
                 columns: table => new
                 {
-                    CardId = table.Column<int>(type: "INTEGER", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Game = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    CardType = table.Column<string>(type: "TEXT", nullable: false),
+                    Game = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    CardType = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
                     Description = table.Column<string>(type: "TEXT", nullable: true),
-                    DetailsJson = table.Column<string>(type: "TEXT", nullable: true)
+                    DetailsJson = table.Column<string>(type: "TEXT", nullable: true),
+                    NameNormalized = table.Column<string>(type: "TEXT", nullable: true, computedColumnSql: "UPPER(LTRIM(RTRIM([Name])))", stored: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Cards", x => x.CardId);
+                    table.PrimaryKey("PK_Cards", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -68,10 +69,10 @@ namespace api.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     CardId = table.Column<int>(type: "INTEGER", nullable: false),
-                    Set = table.Column<string>(type: "TEXT", nullable: false),
-                    Number = table.Column<string>(type: "TEXT", nullable: false),
-                    Rarity = table.Column<string>(type: "TEXT", nullable: false),
-                    Style = table.Column<string>(type: "TEXT", nullable: false),
+                    Set = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    Number = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    Rarity = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    Style = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     ImageUrl = table.Column<string>(type: "TEXT", nullable: true),
                     DetailsJson = table.Column<string>(type: "TEXT", nullable: true)
                 },
@@ -82,7 +83,7 @@ namespace api.Migrations
                         name: "FK_CardPrintings_Cards_CardId",
                         column: x => x.CardId,
                         principalTable: "Cards",
-                        principalColumn: "CardId",
+                        principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -206,9 +207,19 @@ namespace api.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_CardPrintings_Set_Number",
+                table: "CardPrintings",
+                columns: new[] { "Set", "Number" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Cards_Game_Name",
                 table: "Cards",
                 columns: new[] { "Game", "Name" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cards_NameNormalized",
+                table: "Cards",
+                column: "NameNormalized");
 
             migrationBuilder.CreateIndex(
                 name: "IX_DeckCards_CardPrintingId",
