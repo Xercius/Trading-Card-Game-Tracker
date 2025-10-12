@@ -381,7 +381,7 @@ public class CardsController : ControllerBase
                 cp.Card.Name,
                 cp.Card.Game
             ))
-            .ToListAsync();
+            .ToListAsync(ct);
 
         return Ok(rows);
     }
