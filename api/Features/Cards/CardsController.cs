@@ -357,9 +357,9 @@ public class CardsController : ControllerBase
         => await GetCardCore(cardId);
 
     [HttpGet("{cardId:int}/printings")]
-    public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId)
+    public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId, CancellationToken ct)
     {
-        var exists = await _db.Cards.AnyAsync(c => c.Id == cardId);
+        var exists = await _db.Cards.AsNoTracking().AnyAsync(c => c.Id == cardId, ct);
         if (!exists)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");
@@ -376,7 +376,11 @@ public class CardsController : ControllerBase
                 null,
                 cp.Number,
                 cp.Rarity,
-                cp.ImageUrl ?? PlaceholderCardImage))
+                cp.ImageUrl ?? PlaceholderCardImage,
+                cp.CardId,
+                cp.Card.Name,
+                cp.Card.Game
+            ))
             .ToListAsync();
 
         return Ok(rows);

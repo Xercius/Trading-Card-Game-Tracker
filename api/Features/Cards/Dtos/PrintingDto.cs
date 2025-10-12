@@ -6,5 +6,8 @@ public sealed record PrintingDto(
     string? SetCode,
     string Number,
     string Rarity,
-    string ImageUrl
+    string? ImageUrl,
+    int CardId,
+    string CardName,
+    string Game
 );
