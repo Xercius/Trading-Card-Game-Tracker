@@ -58,7 +58,9 @@ public sealed class PrintingsController : ControllerBase
                 null,
                 p.Number,
                 p.Rarity,
-                p.ImageUrl,
+                string.IsNullOrWhiteSpace(p.ImageUrl)
+                    ? "/images/placeholders/card-3x4.png"
+                    : p.ImageUrl,
                 p.CardId,
                 p.Card.Name,
                 p.Card.Game
