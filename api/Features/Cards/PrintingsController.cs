@@ -58,7 +58,7 @@ public sealed class PrintingsController : ControllerBase
                 null,
                 p.Number,
                 p.Rarity,
-                string.IsNullOrWhiteSpace(p.ImageUrl)
+                (p.ImageUrl == null || p.ImageUrl.Trim() == "")
                     ? "/images/placeholders/card-3x4.png"
                     : p.ImageUrl,
                 p.CardId,
