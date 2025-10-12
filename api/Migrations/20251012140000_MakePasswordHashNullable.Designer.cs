@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241116120000_AllowNullablePasswordHash")]
-    partial class AllowNullablePasswordHash
+    [Migration("20251012140000_MakePasswordHashNullable")]
+    partial class MakePasswordHashNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
