@@ -22,12 +22,13 @@ namespace api.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Set any NULL password hashes to a placeholder value before making the column non-nullable
+            migrationBuilder.Sql("UPDATE \"Users\" SET \"PasswordHash\" = 'INVALID_HASH' WHERE \"PasswordHash\" IS NULL;");
             migrationBuilder.AlterColumn<string>(
                 name: "PasswordHash",
                 table: "Users",
                 type: "TEXT",
                 nullable: false,
-                defaultValue: "",
                 oldClrType: typeof(string),
                 oldType: "TEXT",
                 oldNullable: true);
