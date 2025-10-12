@@ -35,6 +35,8 @@ jobs:
         run: dotnet build -c Release --no-restore -warnaserror
       - name: dotnet format check
         run: dotnet format api.sln --verify-no-changes --verbosity minimal
+      - name: Set test environment
+        run: echo "ASPNETCORE_ENVIRONMENT=Testing" >> $GITHUB_ENV
       - name: Test
         run: dotnet test -c Release --no-build --logger "trx;LogFileName=tests.trx"
       - name: Upload .NET test results
