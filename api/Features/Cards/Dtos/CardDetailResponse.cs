@@ -1,7 +1,7 @@
 namespace api.Features.Cards.Dtos;
 
 public sealed record CardDetailResponse(
-    int CardId,
+    int Id,
     string Name,
     string Game,
     string CardType,

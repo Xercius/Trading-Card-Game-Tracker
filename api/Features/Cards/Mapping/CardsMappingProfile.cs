@@ -20,7 +20,7 @@ public sealed class CardsMappingProfile : Profile
             .ForMember(d => d.Primary, o => o.Ignore());
 
         CreateMap<Card, CardDetailResponse>()
-            .ForCtorParam(nameof(CardDetailResponse.CardId), o => o.MapFrom(s => s.Id))
+            .ForCtorParam(nameof(CardDetailResponse.Id), o => o.MapFrom(s => s.Id))
             .ForCtorParam(nameof(CardDetailResponse.Name), o => o.MapFrom(s => s.Name))
             .ForCtorParam(nameof(CardDetailResponse.Game), o => o.MapFrom(s => s.Game))
             .ForCtorParam(nameof(CardDetailResponse.Printings), o => o.MapFrom(s => s.Printings));
