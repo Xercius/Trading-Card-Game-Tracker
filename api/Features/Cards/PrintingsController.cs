@@ -26,6 +26,12 @@ public sealed class PrintingsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(qp.Set))
             query = query.Where(p => p.Set == qp.Set);
 
+        if (!string.IsNullOrWhiteSpace(qp.Number))
+        {
+            var number = qp.Number.Trim();
+            query = query.Where(p => p.Number == number);
+        }
+
         if (!string.IsNullOrWhiteSpace(qp.Rarity))
             query = query.Where(p => p.Rarity == qp.Rarity);
 
