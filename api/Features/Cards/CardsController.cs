@@ -58,7 +58,7 @@ public class CardsController : ControllerBase
             .ApplyCardSearchFilters(q, games, sets, rarities)
             .OrderBy(c => c.Game)
             .ThenBy(c => c.Name)
-            .ThenBy(c => c.CardId);
+            .ThenBy(c => c.Id);
 
         int? total = null;
         if (includeTotal)
@@ -113,7 +113,7 @@ public class CardsController : ControllerBase
 
         var total = await q.CountAsync(ct);
 
-        q = q.OrderBy(c => c.Name).ThenBy(c => c.CardId);
+        q = q.OrderBy(c => c.Name).ThenBy(c => c.Id);
 
         var cards = await q
             .Skip((page - 1) * pageSize)
@@ -126,7 +126,7 @@ public class CardsController : ControllerBase
             return Ok(new Paged<CardListItemResponse>(rows, total, page, pageSize));
         }
 
-        var cardIds = cards.Select(c => c.CardId).ToList();
+        var cardIds = cards.Select(c => c.Id).ToList();
 
         var printings = await _db.CardPrintings
             .AsNoTracking()
@@ -139,12 +139,12 @@ public class CardsController : ControllerBase
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var detailed = cards.Select(c => new CardDetailResponse(
-            c.CardId,
+            c.Id,
             c.Name,
             c.Game,
             c.CardType,
             c.Description,
-            map.TryGetValue(c.CardId, out var list)
+            map.TryGetValue(c.Id, out var list)
                 ? _mapper.Map<List<CardPrintingResponse>>(list)
                 : new List<CardPrintingResponse>()
         )).ToList();
@@ -154,7 +154,7 @@ public class CardsController : ControllerBase
 
     private async Task<IActionResult> GetCardCore(int cardId)
     {
-        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.CardId == cardId);
+        var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.Id == cardId);
         if (c is null)
         {
             return this.CreateProblem(
@@ -169,7 +169,7 @@ public class CardsController : ControllerBase
             .ToListAsync();
 
         var dto = new CardDetailResponse(
-            c.CardId,
+            c.Id,
             c.Name,
             c.Game,
             c.CardType,
@@ -359,7 +359,7 @@ public class CardsController : ControllerBase
     [HttpGet("{cardId:int}/printings")]
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId)
     {
-        var exists = await _db.Cards.AnyAsync(c => c.CardId == cardId);
+        var exists = await _db.Cards.AnyAsync(c => c.Id == cardId);
         if (!exists)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");

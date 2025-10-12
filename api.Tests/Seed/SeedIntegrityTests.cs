@@ -18,7 +18,7 @@ public class SeedIntegrityTests(CustomWebApplicationFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var orphanedPrintings = await db.CardPrintings
-            .Where(p => !db.Cards.Any(c => c.CardId == p.CardId))
+            .Where(p => !db.Cards.Any(c => c.Id == p.CardId))
             .ToListAsync();
         Assert.Empty(orphanedPrintings);
 

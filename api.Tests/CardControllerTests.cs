@@ -46,7 +46,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         var filtered = await ReadPagedAsync<CardDetailResponse>(filteredResponse);
 
         var detail = Assert.Single(filtered.Items);
-        Assert.Equal(TestDataSeeder.LightningBoltCardId, detail.CardId);
+        Assert.Equal(TestDataSeeder.LightningBoltCardId, detail.Id);
         Assert.Equal(3, detail.Printings.Count);
         Assert.Contains(detail.Printings, p => p.Id == TestDataSeeder.LightningBoltAlphaPrintingId);
         Assert.Contains(detail.Printings, p => p.Id == TestDataSeeder.LightningBoltBetaPrintingId);
@@ -64,7 +64,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         var detail = await response.Content.ReadFromJsonAsync<CardDetailResponse>(_jsonOptions);
 
         Assert.NotNull(detail);
-        Assert.Equal(TestDataSeeder.LightningBoltCardId, detail!.CardId);
+        Assert.Equal(TestDataSeeder.LightningBoltCardId, detail!.Id);
         Assert.Equal("Lightning Bolt", detail.Name);
         Assert.Equal(3, detail.Printings.Count);
         Assert.Contains(detail.Printings, p => p.Id == TestDataSeeder.ExtraMagicPrintingId);

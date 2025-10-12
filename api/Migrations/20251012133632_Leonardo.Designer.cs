@@ -11,8 +11,8 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251011124435_Init")]
-    partial class Init
+    [Migration("20251012133632_Leonardo")]
+    partial class Leonardo
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -22,12 +22,13 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
-                    b.Property<int>("CardId")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("CardType")
                         .IsRequired()
+                        .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -38,13 +39,22 @@ namespace api.Migrations
 
                     b.Property<string>("Game")
                         .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
-                    b.HasKey("CardId");
+                    b.Property<string>("NameNormalized")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("TEXT")
+                        .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", true);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameNormalized");
 
                     b.HasIndex("Game", "Name");
 
@@ -91,23 +101,29 @@ namespace api.Migrations
 
                     b.Property<string>("Number")
                         .IsRequired()
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Rarity")
                         .IsRequired()
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Set")
                         .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Style")
                         .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CardId");
+
+                    b.HasIndex("Set", "Number");
 
                     b.HasIndex("CardId", "Set", "Number", "Style")
                         .IsUnique();

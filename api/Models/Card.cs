@@ -5,7 +5,7 @@ namespace api.Models;
 public sealed class Card
 {
     [Key]
-    public int CardId { get; set; }
+    public int Id { get; set; }
     public required string Game { get; set; } // Magic, Lorcana, Star Wars Unlimited etc..
     public required string Name { get; set; } // Name of card
     public required string CardType { get; set; } // Unit, Instant, Sorcery, Upgrade, Enchantment etc..

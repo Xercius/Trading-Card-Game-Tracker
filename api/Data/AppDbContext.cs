@@ -23,15 +23,20 @@ namespace api.Data
             // --- Card (unique card) ---
             b.Entity<Card>(e =>
             {
-                e.HasKey(c => c.CardId);
+                e.HasKey(c => c.Id);
 
                 // required columns (don’t rely only on C# 'required' for EF)
-                e.Property(c => c.Game).IsRequired();
-                e.Property(c => c.Name).IsRequired();
-                e.Property(c => c.CardType).IsRequired();
+                e.Property(c => c.Game).IsRequired().HasMaxLength(64);
+                e.Property(c => c.Name).IsRequired().HasMaxLength(256);
+                e.Property(c => c.CardType).IsRequired().HasMaxLength(128);
 
                 // useful lookup index for list/search
                 e.HasIndex(c => new { c.Game, c.Name });
+
+                // normalized name for case-insensitive search (SQL Server shown)
+                e.Property<string>("NameNormalized")
+                 .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
+                e.HasIndex("NameNormalized");
 
                 // relationship to printings
                 e.HasMany(c => c.Printings)
@@ -45,13 +50,16 @@ namespace api.Data
             {
                 e.HasKey(p => p.Id);
 
-                e.Property(p => p.Set).IsRequired();
-                e.Property(p => p.Number).IsRequired();
-                e.Property(p => p.Rarity).IsRequired();
-                e.Property(p => p.Style).IsRequired();
+                e.Property(p => p.Set).IsRequired().HasMaxLength(64);
+                e.Property(p => p.Number).IsRequired().HasMaxLength(32);
+                e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
+                e.Property(p => p.Style).IsRequired().HasMaxLength(64);
 
                 // fast FK lookup
                 e.HasIndex(p => p.CardId);
+
+                // filter/sort by set+number is super common
+                e.HasIndex(p => new { p.Set, p.Number });
 
                 // one logical printing per (Card, Set, Number, Style)
                 e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })

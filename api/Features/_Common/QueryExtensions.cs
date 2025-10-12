@@ -95,7 +95,7 @@ internal static class QueryExtensions
         string placeholderImage)
         => query.Select(c => new CardListItemResponse
         {
-            CardId = c.CardId,
+            CardId = c.Id,
             Game = c.Game,
             Name = c.Name,
             CardType = c.CardType,

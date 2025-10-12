@@ -61,7 +61,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         Assert.Equal("Deal 2 damage to any target", createdCard.Description);
 
         var createdPrinting = await db.CardPrintings.SingleAsync(p => p.Set == "UTS" && p.Number == "007");
-        Assert.Equal(createdCard.CardId, createdPrinting.CardId);
+        Assert.Equal(createdCard.Id, createdPrinting.CardId);
         Assert.Equal("rare", createdPrinting.Rarity);
         Assert.Equal("Foil", createdPrinting.Style);
         Assert.Equal("https://img.example.com/unit-test.png", createdPrinting.ImageUrl);

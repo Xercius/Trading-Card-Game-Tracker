@@ -69,7 +69,7 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
             return this.CreateValidationProblem("cardId", "cardId must be positive.");
         }
 
-        var cardExists = await _db.Cards.AnyAsync(c => c.CardId == cardId);
+        var cardExists = await _db.Cards.AnyAsync(c => c.Id == cardId);
         if (!cardExists)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Card not found.");
