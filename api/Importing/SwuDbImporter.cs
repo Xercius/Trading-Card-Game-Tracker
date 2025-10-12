@@ -153,7 +153,7 @@ public sealed class SwuDbImporter : ISourceImporter
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.CardId, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         var printingJson = JsonSerializer.Serialize(new
@@ -186,9 +186,9 @@ public sealed class SwuDbImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (printing.CardId != card.CardId)
+            if (printing.CardId != card.Id)
             {
-                printing.CardId = card.CardId;
+                printing.CardId = card.Id;
                 changed = true;
             }
             if (printing.Rarity != rarity)

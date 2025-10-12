@@ -47,7 +47,7 @@ public static class TestDataSeeder
 
         var lightningBolt = new Card
         {
-            CardId = LightningBoltCardId,
+            Id = LightningBoltCardId,
             Game = "Magic",
             Name = "Lightning Bolt",
             CardType = "Spell",
@@ -56,7 +56,7 @@ public static class TestDataSeeder
 
         var goblinGuide = new Card
         {
-            CardId = GoblinGuideCardId,
+            Id = GoblinGuideCardId,
             Game = "Magic",
             Name = "Goblin Guide",
             CardType = "Creature",
@@ -65,7 +65,7 @@ public static class TestDataSeeder
 
         var elsa = new Card
         {
-            CardId = ElsaCardId,
+            Id = ElsaCardId,
             Game = "Lorcana",
             Name = "Elsa, Ice Sculptor",
             CardType = "Character",
@@ -74,7 +74,7 @@ public static class TestDataSeeder
 
         var mickey = new Card
         {
-            CardId = MickeyCardId,
+            Id = MickeyCardId,
             Game = "Lorcana",
             Name = "Mickey, Brave Tailor",
             CardType = "Character",

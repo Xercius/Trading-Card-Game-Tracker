@@ -50,7 +50,7 @@ public static class Seed
 
         var lightning = new Card
         {
-            CardId = LightningCardId,
+            Id = LightningCardId,
             Game = "Magic",
             Name = "Lightning Bolt",
             CardType = "Instant"
@@ -58,7 +58,7 @@ public static class Seed
 
         var goblin = new Card
         {
-            CardId = GoblinCardId,
+            Id = GoblinCardId,
             Game = "Magic",
             Name = "Goblin Guide",
             CardType = "Creature"
@@ -66,7 +66,7 @@ public static class Seed
 
         var phoenix = new Card
         {
-            CardId = PhoenixCardId,
+            Id = PhoenixCardId,
             Game = "Magic",
             Name = "Flameborn Phoenix",
             CardType = "Creature"
@@ -74,7 +74,7 @@ public static class Seed
 
         var dragon = new Card
         {
-            CardId = DragonCardId,
+            Id = DragonCardId,
             Game = "Magic",
             Name = "Shivan Dragon",
             CardType = "Creature"
