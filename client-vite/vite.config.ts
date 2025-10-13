@@ -26,7 +26,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     resolve: {
-      alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+        "use-debounce": fileURLToPath(new URL("./src/lib/use-debounce.ts", import.meta.url)),
+      },
     },
     server: {
       strictPort: true,
