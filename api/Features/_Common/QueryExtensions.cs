@@ -94,7 +94,7 @@ internal static class QueryExtensions
         {
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    rarities.Any(r => EF.Functions.Collate(p.Rarity, "NOCASE") == r)));
+                    rarities.Contains(EF.Functions.Collate(p.Rarity, "NOCASE"))));
         }
 
         return query;
