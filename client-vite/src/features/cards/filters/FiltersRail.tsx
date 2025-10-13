@@ -13,6 +13,7 @@ import { useCardFilters } from "./useCardFilters";
 
 type FiltersRailProps = {
   onClose?: () => void;
+  onClearAll?: () => void;
 };
 
 type ChecklistProps = {
@@ -85,7 +86,7 @@ function Checklist({
   );
 }
 
-export default function FiltersRail({ onClose }: FiltersRailProps) {
+export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
   const { filters, setFilters, clearAll } = useCardFilters();
   const [searchText, setSearchText] = useState(filters.q);
 
@@ -178,6 +179,7 @@ export default function FiltersRail({ onClose }: FiltersRailProps) {
 
   const clearAndClose = () => {
     clearAll();
+    onClearAll?.();
     onClose?.();
   };
 

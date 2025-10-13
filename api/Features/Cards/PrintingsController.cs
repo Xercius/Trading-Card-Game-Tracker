@@ -1,3 +1,4 @@
+using System.Linq;
 using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
@@ -21,13 +22,17 @@ public sealed class PrintingsController : ControllerBase
             .Include(p => p.Card) // need Name + Game
             .AsQueryable();
 
-        var games = CsvUtils.Parse(qp.Game);
+        var games = CsvUtils.Parse(qp.Game)
+            .Select(x => x.ToLower())
+            .ToList();
         if (games.Count > 0)
-            query = query.Where(p => games.Contains(p.Card.Game));
+            query = query.Where(p => p.Card.Game != null && games.Contains(p.Card.Game.ToLower()));
 
-        var sets = CsvUtils.Parse(qp.Set);
+        var sets = CsvUtils.Parse(qp.Set)
+            .Select(x => x.ToLower())
+            .ToList();
         if (sets.Count > 0)
-            query = query.Where(p => sets.Contains(p.Set));
+            query = query.Where(p => p.Set != null && sets.Contains(p.Set.ToLower()));
 
         if (!string.IsNullOrWhiteSpace(qp.Number))
         {
@@ -35,19 +40,25 @@ public sealed class PrintingsController : ControllerBase
             query = query.Where(p => p.Number == number);
         }
 
-        var rarities = CsvUtils.Parse(qp.Rarity);
+        var rarities = CsvUtils.Parse(qp.Rarity)
+            .Select(x => x.ToLower())
+            .ToList();
         if (rarities.Count > 0)
-            query = query.Where(p => rarities.Contains(p.Rarity));
+            query = query.Where(p => p.Rarity != null && rarities.Contains(p.Rarity.ToLower()));
 
-        if (!string.IsNullOrWhiteSpace(qp.Style))
-            query = query.Where(p => p.Style == qp.Style);
+        var styles = CsvUtils.Parse(qp.Style)
+            .Select(x => x.ToLower())
+            .ToList();
+        if (styles.Count > 0)
+            query = query.Where(p => p.Style != null && styles.Contains(p.Style.ToLower()));
 
         if (!string.IsNullOrWhiteSpace(qp.Q))
         {
-            var term = qp.Q.Trim();
+            var term = qp.Q.Trim().ToLower();
             query = query.Where(p =>
-                EF.Functions.Like(p.Card.Name, $"%{term}%") ||
-                EF.Functions.Like(p.Number, $"%{term}%"));
+                (p.Card.Name != null && p.Card.Name.ToLower().Contains(term)) ||
+                (p.Number != null && p.Number.ToLower().Contains(term)) ||
+                (p.Set != null && p.Set.ToLower().Contains(term)));
         }
 
         // simple sort (by set, then number, then name)
