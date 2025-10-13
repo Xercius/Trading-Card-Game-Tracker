@@ -195,7 +195,10 @@ export async function listPrintings(q: PrintingsQuery = {}): Promise<PrintingDto
   if (q.pageSize) params.set("pageSize", String(q.pageSize));
 
   const res = await api.get<PrintingDto[]>("cards/printings", { params });
-  return res.data ?? [];
+  if (res.data == null) {
+    throw new Error("API response for printings is null or undefined");
+  }
+  return res.data;
 }
 
 export function usePrintings(q: PrintingsQuery) {
