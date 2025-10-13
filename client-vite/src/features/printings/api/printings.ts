@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+
 export type PrintingListItem = {
   printingId: string;
   cardId: string;
@@ -20,7 +22,6 @@ export type PrintingQuery = {
 };
 
 export async function fetchPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
-  const base = import.meta.env.VITE_API_BASE ?? "/api";
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
   if (query.game?.length) params.set("game", query.game.join(","));
@@ -30,14 +31,6 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
 
   const paramString = params.toString();
-  const res = await fetch(`${base}/cards/printings${paramString ? `?${paramString}` : ""}`);
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Failed to fetch printings. Status: ${res.status} ${res.statusText}. Body: ${errorBody}`);
-  }
-  try {
-    return (await res.json()) as PrintingListItem[];
-  } catch (err) {
-    throw new Error(`Failed to parse printings response as JSON: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const res = await api.get<PrintingListItem[]>(`cards/printings${paramString ? `?${paramString}` : ""}`);
+  return res.data;
 }
