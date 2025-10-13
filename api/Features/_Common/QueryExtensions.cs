@@ -79,7 +79,7 @@ internal static class QueryExtensions
         if (games.Count > 0)
         {
             query = query.Where(c =>
-                games.Any(g => EF.Functions.Collate(c.Game, "NOCASE") == g));
+                games.Contains(EF.Functions.Collate(c.Game, "NOCASE")));
         }
 
         if (sets.Count > 0)
