@@ -1,4 +1,4 @@
-import type { PrintingListItem } from "../../api/printings";
+import type { PrintingListItem } from "@/features/printings/api/printings";
 
 type Props = { p: PrintingListItem; onClick?: (p: PrintingListItem) => void };
 
