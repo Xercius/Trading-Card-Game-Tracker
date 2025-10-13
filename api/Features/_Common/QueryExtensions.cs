@@ -21,19 +21,22 @@ internal static class QueryExtensions
         if (!string.IsNullOrWhiteSpace(game))
         {
             var trimmed = game.Trim();
-            query = query.Where(uc => uc.CardPrinting.Card.Game == trimmed);
+            query = query.Where(uc =>
+                EF.Functions.Collate(uc.CardPrinting.Card.Game, "NOCASE") == trimmed);
         }
 
         if (!string.IsNullOrWhiteSpace(set))
         {
             var trimmed = set.Trim();
-            query = query.Where(uc => uc.CardPrinting.Set == trimmed);
+            query = query.Where(uc =>
+                EF.Functions.Collate(uc.CardPrinting.Set, "NOCASE") == trimmed);
         }
 
         if (!string.IsNullOrWhiteSpace(rarity))
         {
             var trimmed = rarity.Trim();
-            query = query.Where(uc => uc.CardPrinting.Rarity == trimmed);
+            query = query.Where(uc =>
+                EF.Functions.Collate(uc.CardPrinting.Rarity, "NOCASE") == trimmed);
         }
 
         if (!string.IsNullOrWhiteSpace(name))
@@ -75,17 +78,23 @@ internal static class QueryExtensions
 
         if (games.Count > 0)
         {
-            query = query.Where(c => games.Contains(c.Game));
+            query = query.Where(c =>
+                games.Contains(EF.Functions.Collate(c.Game, "NOCASE")));
         }
 
         if (sets.Count > 0)
         {
-            query = query.Where(c => c.Printings.Any(p => sets.Contains(p.Set)));
+            var normalizedSets = sets.Select(s => s.Trim().ToLowerInvariant()).ToList();
+            query = query.Where(c =>
+                c.Printings.Any(p =>
+                    normalizedSets.Contains(p.Set.Trim().ToLowerInvariant())));
         }
 
         if (rarities.Count > 0)
         {
-            query = query.Where(c => c.Printings.Any(p => rarities.Contains(p.Rarity)));
+            query = query.Where(c =>
+                c.Printings.Any(p =>
+                    rarities.Contains(EF.Functions.Collate(p.Rarity, "NOCASE"))));
         }
 
         return query;
