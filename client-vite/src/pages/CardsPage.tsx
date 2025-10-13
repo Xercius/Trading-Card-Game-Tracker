@@ -11,6 +11,7 @@ import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import CardModal from "@/features/cards/components/CardModal";
 import { ActiveFilters } from "@/features/cards/components/ActiveFilters";
 import { useUser } from "@/state/useUser";
+import { arrayToCsvOrUndefined } from "@/features/cards/utils/csvUtils";
 
 export default function CardsPage() {
   const { userId } = useUser();
@@ -26,18 +27,15 @@ export default function CardsPage() {
   const [qtext, setQtext] = useState<string | undefined>();
 
   useEffect(() => {
-    const csv = filters.games.join(",");
-    setGame(csv.length > 0 ? csv : undefined);
+    setGame(arrayToCsvOrUndefined(filters.games));
   }, [filters.games]);
 
   useEffect(() => {
-    const csv = filters.sets.join(",");
-    setSetName(csv.length > 0 ? csv : undefined);
+    setSetName(arrayToCsvOrUndefined(filters.sets));
   }, [filters.sets]);
 
   useEffect(() => {
-    const csv = filters.rarities.join(",");
-    setRarity(csv.length > 0 ? csv : undefined);
+    setRarity(arrayToCsvOrUndefined(filters.rarities));
   }, [filters.rarities]);
 
   useEffect(() => {
