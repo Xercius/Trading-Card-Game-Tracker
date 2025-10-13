@@ -88,7 +88,7 @@ export default function CardsPage() {
               </div>
             )}
             {hasNoResults && (
-              <div className="mb-3 rounded-md border p-4 text-sm">No printings found.</div>
+              <div className="mb-3 rounded-md border p-4 text-sm">No printings found</div>
             )}
             <div className="mt-3 flex-1 overflow-y-auto rounded-lg border bg-card p-3">
               {isLoading ? (
