@@ -32,7 +32,9 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
 
   const res = await api.get<PrintingListItem[]>("cards/printings", { params });
   if (res.data == null) {
-    throw new Error("API response for printings is null or undefined");
+    throw new Error(
+      `API response for printings is null or undefined. Status: ${res.status} ${res.statusText}. Response body: ${JSON.stringify(res.data)}`
+    );
   }
   return res.data;
 }
