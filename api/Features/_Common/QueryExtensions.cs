@@ -67,9 +67,10 @@ internal static class QueryExtensions
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             var term = searchTerm.Trim();
+            var pattern = $"%{term}%";
             query = query.Where(c =>
-                EF.Functions.Like(c.Name, $"%{term}%") ||
-                EF.Functions.Like(c.CardType, $"%{term}%"));
+                EF.Functions.Like(EF.Functions.Collate(c.Name, "NOCASE"), pattern) ||
+                EF.Functions.Like(EF.Functions.Collate(c.CardType, "NOCASE"), pattern));
         }
 
         if (games.Count > 0)
