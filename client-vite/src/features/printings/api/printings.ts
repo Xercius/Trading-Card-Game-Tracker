@@ -35,5 +35,9 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
     const errorBody = await res.text();
     throw new Error(`Failed to fetch printings. Status: ${res.status} ${res.statusText}. Body: ${errorBody}`);
   }
-  return (await res.json()) as PrintingListItem[];
+  try {
+    return (await res.json()) as PrintingListItem[];
+  } catch (err) {
+    throw new Error(`Failed to parse printings response as JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
