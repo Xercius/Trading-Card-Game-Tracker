@@ -22,7 +22,7 @@ const uniqueStrings = (values: Array<string | null | undefined>): string[] => {
 };
 
 // TODO: Replace derived facets with backend-provided printings facet endpoints when available.
-export function useDerivedFacets(printings: PrintingListItem[]): PrintingFacets {
+export function deriveFacets(printings: PrintingListItem[]): PrintingFacets {
   const games = uniqueStrings(printings.map((printing) => printing.game));
   const sets = uniqueStrings(printings.map((printing) => printing.setName));
   const rarities = uniqueStrings(printings.map((printing) => printing.rarity));
