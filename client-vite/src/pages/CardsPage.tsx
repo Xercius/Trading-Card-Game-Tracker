@@ -84,7 +84,7 @@ export default function CardsPage() {
             <PillsBar />
             {isError && (
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-foreground">
-                Error loading printings.
+                Error loading printings
               </div>
             )}
             {hasNoResults && (
