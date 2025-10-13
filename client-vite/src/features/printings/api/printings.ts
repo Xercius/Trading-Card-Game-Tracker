@@ -32,7 +32,8 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   const paramString = params.toString();
   const res = await fetch(`${base}/cards/printings${paramString ? `?${paramString}` : ""}`);
   if (!res.ok) {
-    throw new Error(`Failed to fetch printings. Status: ${res.status} ${res.statusText}`);
+    const errorBody = await res.text();
+    throw new Error(`Failed to fetch printings. Status: ${res.status} ${res.statusText}. Body: ${errorBody}`);
   }
   return (await res.json()) as PrintingListItem[];
 }
