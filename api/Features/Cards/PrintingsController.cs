@@ -21,17 +21,13 @@ public sealed class PrintingsController : ControllerBase
             .Include(p => p.Card) // need Name + Game
             .AsQueryable();
 
-        var games = CsvUtils.Parse(qp.Game)
-            .Select(x => x.ToLower())
-            .ToList();
+        var games = CsvUtils.Parse(qp.Game);
         if (games.Count > 0)
-            query = query.Where(p => p.Card.Game != null && games.Contains(p.Card.Game.ToLower()));
+            query = query.Where(p => p.Card.Game != null && games.Contains(p.Card.Game));
 
-        var sets = CsvUtils.Parse(qp.Set)
-            .Select(x => x.ToLower())
-            .ToList();
+        var sets = CsvUtils.Parse(qp.Set);
         if (sets.Count > 0)
-            query = query.Where(p => p.Set != null && sets.Contains(p.Set.ToLower()));
+            query = query.Where(p => p.Set != null && sets.Contains(p.Set));
 
         if (!string.IsNullOrWhiteSpace(qp.Number))
         {
@@ -39,25 +35,22 @@ public sealed class PrintingsController : ControllerBase
             query = query.Where(p => p.Number == number);
         }
 
-        var rarities = CsvUtils.Parse(qp.Rarity)
-            .Select(x => x.ToLower())
-            .ToList();
+        var rarities = CsvUtils.Parse(qp.Rarity);
         if (rarities.Count > 0)
-            query = query.Where(p => p.Rarity != null && rarities.Contains(p.Rarity.ToLower()));
+            query = query.Where(p => p.Rarity != null && rarities.Contains(p.Rarity));
 
-        var styles = CsvUtils.Parse(qp.Style)
-            .Select(x => x.ToLower())
-            .ToList();
+        var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)
-            query = query.Where(p => p.Style != null && styles.Contains(p.Style.ToLower()));
+            query = query.Where(p => p.Style != null && styles.Contains(p.Style));
 
         if (!string.IsNullOrWhiteSpace(qp.Q))
         {
-            var term = qp.Q.Trim().ToLower();
+            var term = qp.Q.Trim();
+            var pattern = $"%{term}%";
             query = query.Where(p =>
-                (p.Card.Name != null && p.Card.Name.ToLower().Contains(term)) ||
-                (p.Number != null && p.Number.ToLower().Contains(term)) ||
-                (p.Set != null && p.Set.ToLower().Contains(term)));
+                (p.Card.Name != null && EF.Functions.Like(EF.Functions.Collate(p.Card.Name, "NOCASE"), pattern)) ||
+                (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
+                (p.Set != null && EF.Functions.Like(EF.Functions.Collate(p.Set, "NOCASE"), pattern)));
         }
 
         // simple sort (by set, then number, then name)

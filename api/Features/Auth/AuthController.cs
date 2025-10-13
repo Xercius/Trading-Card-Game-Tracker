@@ -50,7 +50,7 @@ public sealed class AuthController : ControllerBase
 
         var normalized = username.ToLowerInvariant();
 
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == normalized);
+        var user = await _db.Users.FirstOrDefaultAsync(u => EF.Functions.Collate(u.Username, "NOCASE") == normalized);
         if (user is null)
         {
             await Task.Delay(Random.Shared.Next(25, 75));
