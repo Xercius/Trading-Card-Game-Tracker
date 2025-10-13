@@ -84,9 +84,10 @@ internal static class QueryExtensions
 
         if (sets.Count > 0)
         {
+            var normalizedSets = sets.Select(s => s.Trim().ToLowerInvariant()).ToList();
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    sets.Any(s => EF.Functions.Collate(p.Set, "NOCASE") == s)));
+                    normalizedSets.Contains(p.Set.Trim().ToLowerInvariant())));
         }
 
         if (rarities.Count > 0)
