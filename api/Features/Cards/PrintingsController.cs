@@ -1,6 +1,7 @@
 using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
+using api.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 namespace api.Features.Cards;
@@ -20,11 +21,13 @@ public sealed class PrintingsController : ControllerBase
             .Include(p => p.Card) // need Name + Game
             .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(qp.Game))
-            query = query.Where(p => p.Card.Game == qp.Game);
+        var games = CsvUtils.Parse(qp.Game);
+        if (games.Count > 0)
+            query = query.Where(p => games.Contains(p.Card.Game));
 
-        if (!string.IsNullOrWhiteSpace(qp.Set))
-            query = query.Where(p => p.Set == qp.Set);
+        var sets = CsvUtils.Parse(qp.Set);
+        if (sets.Count > 0)
+            query = query.Where(p => sets.Contains(p.Set));
 
         if (!string.IsNullOrWhiteSpace(qp.Number))
         {
@@ -32,8 +35,9 @@ public sealed class PrintingsController : ControllerBase
             query = query.Where(p => p.Number == number);
         }
 
-        if (!string.IsNullOrWhiteSpace(qp.Rarity))
-            query = query.Where(p => p.Rarity == qp.Rarity);
+        var rarities = CsvUtils.Parse(qp.Rarity);
+        if (rarities.Count > 0)
+            query = query.Where(p => rarities.Contains(p.Rarity));
 
         if (!string.IsNullOrWhiteSpace(qp.Style))
             query = query.Where(p => p.Style == qp.Style);
