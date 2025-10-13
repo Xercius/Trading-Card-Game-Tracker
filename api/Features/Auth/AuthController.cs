@@ -48,9 +48,8 @@ public sealed class AuthController : ControllerBase
             return Unauthorized();
         }
 
-        var normalized = username.ToLowerInvariant();
-
-        var user = await _db.Users.FirstOrDefaultAsync(u => EF.Functions.Collate(u.Username, "NOCASE") == normalized);
+        var user = await _db.Users
+            .FirstOrDefaultAsync(u => EF.Functions.Collate(u.Username, "NOCASE") == username);
         if (user is null)
         {
             await Task.Delay(Random.Shared.Next(25, 75));

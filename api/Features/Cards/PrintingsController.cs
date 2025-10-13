@@ -23,11 +23,19 @@ public sealed class PrintingsController : ControllerBase
 
         var games = CsvUtils.Parse(qp.Game);
         if (games.Count > 0)
-            query = query.Where(p => p.Card.Game != null && games.Contains(p.Card.Game));
+        {
+            query = query.Where(p =>
+                p.Card.Game != null &&
+                games.Any(g => EF.Functions.Collate(p.Card.Game, "NOCASE") == g));
+        }
 
         var sets = CsvUtils.Parse(qp.Set);
         if (sets.Count > 0)
-            query = query.Where(p => p.Set != null && sets.Contains(p.Set));
+        {
+            query = query.Where(p =>
+                p.Set != null &&
+                sets.Any(s => EF.Functions.Collate(p.Set, "NOCASE") == s));
+        }
 
         if (!string.IsNullOrWhiteSpace(qp.Number))
         {
@@ -37,11 +45,19 @@ public sealed class PrintingsController : ControllerBase
 
         var rarities = CsvUtils.Parse(qp.Rarity);
         if (rarities.Count > 0)
-            query = query.Where(p => p.Rarity != null && rarities.Contains(p.Rarity));
+        {
+            query = query.Where(p =>
+                p.Rarity != null &&
+                rarities.Any(r => EF.Functions.Collate(p.Rarity, "NOCASE") == r));
+        }
 
         var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)
-            query = query.Where(p => p.Style != null && styles.Contains(p.Style));
+        {
+            query = query.Where(p =>
+                p.Style != null &&
+                styles.Any(st => EF.Functions.Collate(p.Style, "NOCASE") == st));
+        }
 
         if (!string.IsNullOrWhiteSpace(qp.Q))
         {

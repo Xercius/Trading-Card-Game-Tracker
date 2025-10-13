@@ -164,12 +164,13 @@ public class DecksController : ControllerBase
         if (!string.IsNullOrWhiteSpace(game))
         {
             var g = game.Trim();
-            query = query.Where(d => d.Game == g);
+            query = query.Where(d => EF.Functions.Collate(d.Game, "NOCASE") == g);
         }
         if (!string.IsNullOrWhiteSpace(name))
         {
             var pat = $"%{name.Trim()}%";
-            query = query.Where(d => EF.Functions.Like(d.Name, pat));
+            query = query.Where(d =>
+                EF.Functions.Like(EF.Functions.Collate(d.Name, "NOCASE"), pat));
         }
 
         if (hasCards == true)
