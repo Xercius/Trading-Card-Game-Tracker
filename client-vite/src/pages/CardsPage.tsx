@@ -109,32 +109,31 @@ export default function CardsPage() {
         return;
       }
 
-      if (key === "game") {
-        setGame(undefined);
-        setFilters((prev) => ({ ...prev, games: [] }));
-        return;
-      }
+      const filterHandlers: Record<string, () => void> = {
+        game: () => {
+          setGame(undefined);
+          setFilters((prev) => ({ ...prev, games: [] }));
+        },
+        set: () => {
+          setSetName(undefined);
+          setFilters((prev) => ({ ...prev, sets: [] }));
+        },
+        rarity: () => {
+          setRarity(undefined);
+          setFilters((prev) => ({ ...prev, rarities: [] }));
+        },
+        style: () => {
+          setStyle(undefined);
+        },
+        q: () => {
+          setQtext(undefined);
+          setFilters((prev) => ({ ...prev, q: "" }));
+        },
+      };
 
-      if (key === "set") {
-        setSetName(undefined);
-        setFilters((prev) => ({ ...prev, sets: [] }));
-        return;
-      }
-
-      if (key === "rarity") {
-        setRarity(undefined);
-        setFilters((prev) => ({ ...prev, rarities: [] }));
-        return;
-      }
-
-      if (key === "style") {
-        setStyle(undefined);
-        return;
-      }
-
-      if (key === "q") {
-        setQtext(undefined);
-        setFilters((prev) => ({ ...prev, q: "" }));
+      const handler = filterHandlers[key];
+      if (handler) {
+        handler();
       }
     },
     [clearAll, setFilters]
