@@ -107,8 +107,8 @@ public class CardsController : ControllerBase
         }
         if (!string.IsNullOrWhiteSpace(name))
         {
-            var n = name.Trim().ToLower();
-            q = q.Where(c => c.Name.ToLower().Contains(n));
+            var pattern = $"%{name.Trim()}%";
+            q = q.Where(c => EF.Functions.Like(EF.Functions.Collate(c.Name, "NOCASE"), pattern));
         }
 
         var total = await q.CountAsync(ct);

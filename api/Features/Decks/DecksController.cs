@@ -409,12 +409,11 @@ public class DecksController : ControllerBase
         {
             if (!string.Equals(deck.Game, requestedGame, StringComparison.OrdinalIgnoreCase))
             {
-                var normalizedName = (deck.Name ?? string.Empty).Trim().ToLower();
                 var collision = await _db.Decks.AnyAsync(d =>
                     d.UserId == ownerId &&
                     d.Id != deck.Id &&
-                    string.Equals(d.Game, requestedGame, StringComparison.OrdinalIgnoreCase) &&
-                    d.Name.ToLower() == normalizedName);
+                    EF.Functions.Collate(d.Game, "NOCASE") == requestedGame &&
+                    EF.Functions.Collate(d.Name, "NOCASE") == (deck.Name ?? string.Empty).Trim());
                 if (collision)
                 {
                     return this.CreateProblem(
