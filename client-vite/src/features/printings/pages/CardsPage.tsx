@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "use-debounce";
 import { MultiSelect } from "../components/MultiSelect";
 import { usePrintings } from "../api/usePrintings";
-import { useDerivedFacets } from "../api/usePrintingFacets";
+import { deriveFacets } from "../api/usePrintingFacets";
 import { usePrintingSearch } from "../state/usePrintingSearch";
 import { PrintingCard } from "../components/PrintingCard";
 
@@ -12,7 +12,7 @@ export default function CardsPage() {
   const [query, setQuery] = usePrintingSearch();
   const { data, isLoading, isError, error } = usePrintings(query);
   const printings = data ?? [];
-  const facets = React.useMemo(() => useDerivedFacets(printings), [printings]);
+  const facets = React.useMemo(() => deriveFacets(printings), [printings]);
 
   const [searchInput, setSearchInput] = React.useState(query.q ?? "");
 
