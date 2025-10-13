@@ -6,6 +6,6 @@ export function usePrintings(query: PrintingQuery) {
     queryKey: ["printings", query],
     queryFn: () => fetchPrintings(query),
     staleTime: 60_000,
-    placeholderData: (prev) => prev,
+    keepPreviousData: true,
   });
 }
