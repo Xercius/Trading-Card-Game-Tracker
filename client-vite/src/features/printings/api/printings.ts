@@ -1,5 +1,3 @@
-import { api } from "@/lib/api";
-
 export type PrintingListItem = {
   printingId: string;
   cardId: string;
@@ -22,6 +20,7 @@ export type PrintingQuery = {
 };
 
 export async function fetchPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
+  const base = import.meta.env.VITE_API_BASE ?? "/api";
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
   if (query.game?.length) params.set("game", query.game.join(","));
@@ -30,11 +29,15 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
 
-  const res = await api.get<PrintingListItem[]>("cards/printings", { params: Object.fromEntries(params) });
-  if (res.data == null) {
-    throw new Error(
-      `API response for printings is null or undefined. Status: ${res.status} ${res.statusText}. Response body: ${JSON.stringify(res.data)}`
-    );
+  const paramString = params.toString();
+  const res = await fetch(`${base}/cards/printings${paramString ? `?${paramString}` : ""}`);
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Failed to fetch printings. Status: ${res.status} ${res.statusText}. Body: ${errorBody}`);
   }
-  return res.data;
+  try {
+    return (await res.json()) as PrintingListItem[];
+  } catch (err) {
+    throw new Error(`Failed to parse printings response as JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
