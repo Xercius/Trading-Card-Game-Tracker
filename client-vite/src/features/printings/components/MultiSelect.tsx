@@ -15,7 +15,7 @@ type IconProps = { className?: string };
 function ChevronDownIcon({ className = "" }: IconProps) {
   return (
     <svg
-      aria-hidden
+      aria-hidden="true"
       className={`h-4 w-4 ${className}`}
       viewBox="0 0 20 20"
       fill="none"
@@ -29,7 +29,7 @@ function ChevronDownIcon({ className = "" }: IconProps) {
 function CheckIcon({ className = "" }: IconProps) {
   return (
     <svg
-      aria-hidden
+      aria-hidden="true"
       className={`h-4 w-4 ${className}`}
       viewBox="0 0 20 20"
       fill="none"

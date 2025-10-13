@@ -109,7 +109,7 @@ export function SelectTrigger({ className = "", children, ...props }: SelectTrig
     >
       {children}
       <svg
-        aria-hidden
+        aria-hidden="true"
         className="ml-2 h-4 w-4 shrink-0 opacity-70"
         viewBox="0 0 20 20"
         fill="none"
