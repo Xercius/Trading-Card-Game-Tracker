@@ -1,55 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
-import type { CardSummary } from "@/components/CardTile";
 import { Button } from "@/components/ui/button";
-import { fetchCardsPage } from "@/features/cards/api";
+import {
+  usePrintings,
+  type PrintingDto,
+  type PrintingsQuery,
+} from "@/features/cards/api/list";
 import FiltersRail from "@/features/cards/filters/FiltersRail";
 import PillsBar from "@/features/cards/filters/PillsBar";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import CardModal from "@/features/cards/components/CardModal";
 import { useUser } from "@/state/useUser";
-import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
-
-// Heuristic: smaller page on low-core devices to reduce memory pressure.
-const PAGE_SIZE = pageSizeForDevice(60, 96);
-
-const normalizeCardId = (id: CardSummary["id"]): number | null => {
-  const numericId = typeof id === "number" ? id : Number(id);
-  return Number.isFinite(numericId) ? numericId : null;
-};
 
 export default function CardsPage() {
   const { userId } = useUser();
-  const { filters, toQueryKey } = useCardFilters();
+  const { filters } = useCardFilters();
   const [isMobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(null);
 
-  const filterKey = toQueryKey();
-  const queryKey = useMemo(() => ["cards", { userId, filters: filterKey }], [userId, filterKey]);
+  const query = useMemo<PrintingsQuery>(() => {
+    const csv = (values: readonly string[]) =>
+      values.length > 0 ? values.join(",") : undefined;
+    const trimmedQ = filters.q.trim();
+    return {
+      game: csv(filters.games),
+      set: csv(filters.sets),
+      rarity: csv(filters.rarities),
+      q: trimmedQ.length > 0 ? trimmedQ : undefined,
+      page: 1,
+      pageSize: 120,
+    };
+  }, [filters]);
 
-  const query = useInfiniteQuery({
-    queryKey,
-    initialPageParam: 0,
-    queryFn: async ({ pageParam }) =>
-      fetchCardsPage({
-        q: filters.q,
-        games: filters.games,
-        sets: filters.sets,
-        rarities: filters.rarities,
-        skip: pageParam as number,
-        take: PAGE_SIZE,
-      }),
-    getNextPageParam: (lastPage) => lastPage.nextSkip ?? null,
-    staleTime: 60_000,
-    enabled: !!userId,
-  });
-
-  const items: CardSummary[] = useMemo(
-    () => query.data?.pages.flatMap((p) => p.items) ?? [],
-    [query.data]
-  );
+  const {
+    data: printings = [],
+    isLoading,
+    isError,
+    isFetching,
+  } = usePrintings(query);
 
   const handleModalOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -58,23 +46,22 @@ export default function CardsPage() {
     }
   }, []);
 
-  const handleCardClick = useCallback((card: CardSummary) => {
-    const numericId = normalizeCardId(card.id);
-    if (numericId == null) return;
-    setSelectedCardId(numericId);
-    setSelectedPrintingId(card.primaryPrintingId ?? null);
-  }, []);
+  const handlePrintingClick = useCallback((printing: PrintingDto) => {
+    if (!userId) return;
+    setSelectedCardId(printing.cardId);
+    setSelectedPrintingId(printing.printingId);
+  }, [userId]);
 
   useEffect(() => {
     if (selectedCardId == null) return;
-    const stillExists = items.some((card) => normalizeCardId(card.id) === selectedCardId);
+    const stillExists = printings.some((printing) => printing.cardId === selectedCardId);
     if (!stillExists) {
       setSelectedCardId(null);
       setSelectedPrintingId(null);
     }
-  }, [items, selectedCardId]);
+  }, [printings, selectedCardId]);
 
-  const hasNoResults = !query.isFetching && items.length === 0;
+  const hasNoResults = !isLoading && !isFetching && printings.length === 0;
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-background">
@@ -95,25 +82,47 @@ export default function CardsPage() {
         <div className="flex-1 overflow-hidden px-3 pb-3 pt-2 lg:px-4 lg:pb-4 lg:pt-4">
           <div className="flex h-full flex-col">
             <PillsBar />
-            {query.isError && (
+            {isError && (
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-foreground">
-                Error loading cards
+                Error loading printings
               </div>
             )}
             {hasNoResults && (
-              <div className="mb-3 rounded-md border p-4 text-sm">No cards found</div>
+              <div className="mb-3 rounded-md border p-4 text-sm">No printings found</div>
             )}
-            <div className="mt-3 flex-1 overflow-hidden rounded-lg border bg-card">
-              <VirtualizedCardGrid
-                items={items}
-                isFetchingNextPage={query.isFetchingNextPage}
-                hasNextPage={query.hasNextPage}
-                fetchNextPage={() => query.fetchNextPage()}
-                onCardClick={handleCardClick}
-                minTileWidth={220}
-                overscan={(navigator?.hardwareConcurrency ?? 4) <= 4 ? 6 : 8}
-                footerHeight={88}
-              />
+            <div className="mt-3 flex-1 overflow-y-auto rounded-lg border bg-card p-3">
+              {isLoading ? (
+                <div className="p-4 text-sm">Loading…</div>
+              ) : (
+                <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                  {printings.map((printing) => (
+                    <li
+                      key={printing.printingId}
+                      className="overflow-hidden rounded border bg-white/5 shadow-sm transition hover:shadow-md"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handlePrintingClick(printing)}
+                        className="w-full text-left"
+                        disabled={!userId}
+                      >
+                        <img
+                          src={printing.imageUrl}
+                          alt={`${printing.cardName} (${printing.setName} #${printing.number})`}
+                          className="aspect-[3/4] w-full object-cover"
+                          loading="lazy"
+                        />
+                        <div className="space-y-1 p-2 text-sm">
+                          <div className="font-medium">{printing.cardName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {printing.game} • {printing.setName} • #{printing.number} • {printing.rarity}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
@@ -131,7 +140,7 @@ export default function CardsPage() {
           </div>
         </div>
       )}
-      {selectedCardId != null && (
+      {selectedCardId != null && userId && (
         <CardModal
           open={true}
           cardId={selectedCardId}

@@ -1,4 +1,5 @@
 // client-vite/src/features/cards/api/list.ts
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { CardSummary } from "@/components/CardTile";
 
@@ -158,6 +159,55 @@ function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): 
 function normalizeFacetGame(raw?: string | null): string | undefined {
   const value = raw?.trim();
   return value ? value : undefined;
+}
+
+// Printing shape from /api/cards/printings
+export type PrintingDto = {
+  printingId: number;
+  setName: string;
+  setCode?: string | null;
+  number: string;
+  rarity: string;
+  imageUrl: string;
+  cardId: number;
+  cardName: string;
+  game: string;
+};
+
+export type PrintingsQuery = {
+  game?: string;
+  set?: string;
+  rarity?: string;
+  style?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listPrintings(q: PrintingsQuery = {}): Promise<PrintingDto[]> {
+  const params = new URLSearchParams();
+  if (q.game) params.set("game", q.game);
+  if (q.set) params.set("set", q.set);
+  if (q.rarity) params.set("rarity", q.rarity);
+  if (q.style) params.set("style", q.style);
+  if (q.q) params.set("q", q.q);
+  if (q.page) params.set("page", String(q.page));
+  if (q.pageSize) params.set("pageSize", String(q.pageSize));
+
+  const res = await fetch(`/api/cards/printings?${params.toString()}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch printings (${res.status})`);
+  return await res.json();
+}
+
+export function usePrintings(q: PrintingsQuery) {
+  return useQuery({
+    queryKey: ["cards", "printings", q],
+    queryFn: () => listPrintings(q),
+    staleTime: 60_000,
+    keepPreviousData: true,
+  });
 }
 
 export async function fetchCardGames(): Promise<string[]> {
