@@ -26,7 +26,7 @@ public sealed class PrintingsController : ControllerBase
         {
             query = query.Where(p =>
                 p.Card.Game != null &&
-                games.Any(g => EF.Functions.Collate(p.Card.Game, "NOCASE") == g));
+                games.Contains(EF.Functions.Collate(p.Card.Game, "NOCASE")));
         }
 
         var sets = CsvUtils.Parse(qp.Set);
