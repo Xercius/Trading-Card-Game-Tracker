@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+
 export type PrintingListItem = {
   printingId: string;
   cardId: string;
@@ -19,21 +21,20 @@ export type PrintingQuery = {
   pageSize?: number;
 };
 
-const toQueryString = (q: PrintingQuery) => {
-  const p = new URLSearchParams();
-  if (q.q) p.set("q", q.q);
-  if (q.game?.length) p.set("game", q.game.join(","));
-  if (q.set?.length) p.set("set", q.set.join(","));
-  if (q.rarity?.length) p.set("rarity", q.rarity.join(","));
-  if (q.page) p.set("page", String(q.page));
-  if (q.pageSize) p.set("pageSize", String(q.pageSize));
-  return p.toString();
-};
-
 export async function fetchPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
-  const base = import.meta.env.VITE_API_BASE ?? "/api";
-  const qs = toQueryString(query);
-  const res = await fetch(`${base}/cards/printings${qs ? `?${qs}` : ""}`);
-  if (!res.ok) throw new Error(`Failed to load printings: ${res.status}`);
-  return res.json();
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.game?.length) params.set("game", query.game.join(","));
+  if (query.set?.length) params.set("set", query.set.join(","));
+  if (query.rarity?.length) params.set("rarity", query.rarity.join(","));
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("pageSize", String(query.pageSize));
+
+  const res = await api.get<PrintingListItem[]>("cards/printings", { params: Object.fromEntries(params) });
+  if (res.data == null) {
+    throw new Error(
+      `API response for printings is null or undefined. Status: ${res.status} ${res.statusText}. Response body: ${JSON.stringify(res.data)}`
+    );
+  }
+  return res.data;
 }
