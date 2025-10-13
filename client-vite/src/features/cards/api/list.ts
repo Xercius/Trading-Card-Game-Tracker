@@ -194,11 +194,11 @@ export async function listPrintings(q: PrintingsQuery = {}): Promise<PrintingDto
   if (q.page) params.set("page", String(q.page));
   if (q.pageSize) params.set("pageSize", String(q.pageSize));
 
-  const res = await fetch(`/api/cards/printings?${params.toString()}`, {
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) throw new Error(`Failed to fetch printings (${res.status})`);
-  return await res.json();
+  const res = await api.get<PrintingDto[]>("cards/printings", { params });
+  if (res.data == null) {
+    throw new Error("API response for printings is null or undefined");
+  }
+  return res.data;
 }
 
 export function usePrintings(q: PrintingsQuery) {
