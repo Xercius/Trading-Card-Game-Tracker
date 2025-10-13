@@ -22,7 +22,7 @@ export function PrintingCard({ p, onClick }: Props) {
           </div>
         )}
       </div>
-      <div className="font-medium leading-tight line-clamp-2">{p.cardName}</div>
+      <div className="font-medium leading-tight line-clamp-2" title={p.cardName}>{p.cardName}</div>
       <div className="mt-1 text-xs text-muted-foreground">
         {p.game} • {p.setName}{p.number ? ` #${p.number}` : ""}{p.rarity ? ` • ${p.rarity}` : ""}
       </div>
