@@ -42,7 +42,7 @@ function CheckIcon({ className = "" }: IconProps) {
 
 function XIcon({ className = "" }: IconProps) {
   return (
-    <svg aria-hidden className={`h-3 w-3 ${className}`} viewBox="0 0 20 20" fill="none" stroke="currentColor">
+    <svg aria-hidden="true" className={`h-3 w-3 ${className}`} viewBox="0 0 20 20" fill="none" stroke="currentColor">
       <path d="M6 6l8 8M14 6l-8 8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
