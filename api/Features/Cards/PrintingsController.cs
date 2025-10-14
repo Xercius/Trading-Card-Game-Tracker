@@ -55,10 +55,11 @@ public sealed class PrintingsController : ControllerBase
         var games = CsvUtils.Parse(qp.Game); // Suggest: rename 'games' → 'gameNames'
         if (games.Count > 0)
         {
-            // Case-insensitive match using NOCASE collation for SQLite index efficiency
+            // Case-insensitive match using normalized lowercase for index efficiency
+            var gamesNormalized = games.Select(g => g.ToLower()).ToList();
             query = query.Where(p =>
                 p.Card.Game != null &&
-                games.Contains(EF.Functions.Collate(p.Card.Game, "NOCASE")));
+                gamesNormalized.Contains(p.Card.Game.ToLower()));
         }
 
         // Filter by set(s) - supports comma-separated list
