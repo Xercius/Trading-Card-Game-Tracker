@@ -6,9 +6,12 @@ export type CardFilters = {
   games: string[];
   sets: string[];
   rarities: string[];
+  page: number;
+  pageSize: number;
+  sort?: string;
 };
 
-const filterKeys = ["game", "set", "rarity", "q"] as const;
+const filterKeys = ["game", "set", "rarity", "q", "page", "pageSize", "sort"] as const;
 
 type SetFiltersFn = (updater: CardFilters | ((prev: CardFilters) => CardFilters)) => void;
 
@@ -16,10 +19,21 @@ type UseCardFiltersResult = {
   filters: CardFilters;
   setFilters: SetFiltersFn;
   clearAll: () => void;
-  toQueryKey: () => readonly [string, string, string, string];
+  toQueryKey: () => readonly [string, string, string, string, number, number, string];
 };
 
-const emptyFilters: CardFilters = { q: "", games: [], sets: [], rarities: [] };
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 60;
+
+const emptyFilters: CardFilters = { 
+  q: "", 
+  games: [], 
+  sets: [], 
+  rarities: [], 
+  page: DEFAULT_PAGE, 
+  pageSize: DEFAULT_PAGE_SIZE,
+  sort: undefined
+};
 
 function parseCsv(value: string | null): string[] {
   if (!value) return [];
@@ -47,6 +61,9 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     games: sanitizeList(input.games),
     sets: sanitizeList(input.sets),
     rarities: sanitizeList(input.rarities),
+    page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
+    pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
+    sort: input.sort?.trim() || undefined,
   };
 }
 
@@ -57,8 +74,16 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const games = parseCsv(params.get("game"));
   const sets = parseCsv(params.get("set"));
   const rarities = parseCsv(params.get("rarity"));
+  
+  const pageStr = params.get("page");
+  const page = pageStr ? Math.max(1, parseInt(pageStr, 10) || DEFAULT_PAGE) : DEFAULT_PAGE;
+  
+  const pageSizeStr = params.get("pageSize");
+  const pageSize = pageSizeStr ? Math.max(1, parseInt(pageSizeStr, 10) || DEFAULT_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+  
+  const sort = params.get("sort") || undefined;
 
-  return sanitizeFilters({ q, games, sets, rarities });
+  return sanitizeFilters({ q, games, sets, rarities, page, pageSize, sort });
 }
 
 function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLSearchParams {
@@ -79,6 +104,14 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   if (filters.q.length > 0) {
     next.set("q", filters.q);
   }
+  
+  // Always include page and pageSize
+  next.set("page", String(filters.page));
+  next.set("pageSize", String(filters.pageSize));
+  
+  if (filters.sort) {
+    next.set("sort", filters.sort);
+  }
 
   return next;
 }
@@ -94,8 +127,8 @@ export function useCardFilters(): UseCardFiltersResult {
   const raritiesKey = filters.rarities.join("|");
 
   const stableKey = useMemo(
-    () => [filters.q, gamesKey, setsKey, raritiesKey] as const,
-    [filters.q, gamesKey, setsKey, raritiesKey]
+    () => [filters.q, gamesKey, setsKey, raritiesKey, filters.page, filters.pageSize, filters.sort ?? ""] as const,
+    [filters.q, gamesKey, setsKey, raritiesKey, filters.page, filters.pageSize, filters.sort]
   );
 
   const setFilters = useCallback<SetFiltersFn>(
