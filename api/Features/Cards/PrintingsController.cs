@@ -42,7 +42,8 @@ public sealed class PrintingsController : ControllerBase
     /// - Search term (Q) performs LIKE match against card name, printing number, and set name
     /// </remarks>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<PrintingDto>>> Get([FromQuery] ListPrintingsQuery qp, CancellationToken ct) // Suggest: rename 'qp' → 'queryParams'
+    // Suggest: rename 'qp' → 'queryParams'
+    public async Task<ActionResult<IEnumerable<PrintingDto>>> Get([FromQuery] ListPrintingsQuery qp, CancellationToken ct)
     {
         // Build base query with eager loading of Card for name and game information
         var query = _db.Set<CardPrinting>()
