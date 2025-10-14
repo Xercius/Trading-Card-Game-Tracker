@@ -100,7 +100,7 @@ export default function Header() {
 
   return (
     <header className="w-full border-b bg-background/60 backdrop-blur">
-      <div className="mx-auto w-full max-w-7xl p-4 space-y-3">
+      <div className="w-full px-4 sm:px-6 py-4 space-y-3">
         {/* Top row: brand, nav, user */}
         <div className="flex items-center gap-3">
           <div className="text-xl font-semibold">TCG Tracker</div>
