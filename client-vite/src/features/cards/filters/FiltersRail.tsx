@@ -127,17 +127,28 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
   // Auto-clear invalid selections when facets update
   useEffect(() => {
     if (!facetsQuery.data) return;
-    
-    const allowedSets = new Set(facetsQuery.data.sets.map(f => f.value));
-    const filteredSets = filters.sets.filter((value) => allowedSets.has(value));
-    
-    const allowedRarities = new Set(facetsQuery.data.rarities.map(f => f.value));
-    const filteredRarities = filters.rarities.filter((value) => allowedRarities.has(value));
-    
-    if (filteredSets.length !== filters.sets.length || filteredRarities.length !== filters.rarities.length) {
-      setFilters((prev) => ({ ...prev, sets: filteredSets, rarities: filteredRarities }));
+
+    const allowedGames = new Set(facetsQuery.data.games.map((f) => f.value));
+    const allowedSets = new Set(facetsQuery.data.sets.map((f) => f.value));
+    const allowedRarities = new Set(facetsQuery.data.rarities.map((f) => f.value));
+
+    const hasInvalidGames = filters.games.some((value) => !allowedGames.has(value));
+    const hasInvalidSets = filters.sets.some((value) => !allowedSets.has(value));
+    const hasInvalidRarities = filters.rarities.some((value) => !allowedRarities.has(value));
+
+    if (!hasInvalidGames && !hasInvalidSets && !hasInvalidRarities) {
+      return;
     }
-  }, [filters.sets, filters.rarities, setFilters, facetsQuery.data]);
+
+    setFilters((prev) => ({
+      ...prev,
+      games: hasInvalidGames ? prev.games.filter((value) => allowedGames.has(value)) : prev.games,
+      sets: hasInvalidSets ? prev.sets.filter((value) => allowedSets.has(value)) : prev.sets,
+      rarities: hasInvalidRarities
+        ? prev.rarities.filter((value) => allowedRarities.has(value))
+        : prev.rarities,
+    }));
+  }, [filters.games, filters.sets, filters.rarities, setFilters, facetsQuery.data]);
 
   const handleGameToggle = (value: string) => {
     setFilters((prev) => {
