@@ -160,4 +160,41 @@ describe("CardsPage", () => {
       root.unmount();
     });
   });
+
+  it("reads filters from URL and applies them to the query", async () => {
+    const router = createMemoryRouter(
+      [{ path: "/", element: <CardsPage /> }],
+      { initialEntries: ["/?game=Magic,Lorcana&set=Alpha&rarity=Rare&q=dragon"] }
+    );
+
+    usePrintingsMock.mockImplementation(() => ({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    }));
+
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    // Verify usePrintings was called with filters from URL
+    expect(usePrintingsMock).toHaveBeenCalled();
+    const callArgs = usePrintingsMock.mock.calls[0]?.[0];
+    expect(callArgs.q).toBe("dragon");
+    expect(callArgs.games).toEqual(["Magic", "Lorcana"]);
+    expect(callArgs.sets).toEqual(["Alpha"]);
+    expect(callArgs.rarities).toEqual(["Rare"]);
+
+    // Verify search input displays the URL query value
+    const input = container.querySelector<HTMLInputElement>("input[type='search']");
+    expect(input?.value).toBe("dragon");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });
