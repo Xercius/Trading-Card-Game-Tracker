@@ -54,6 +54,12 @@ public sealed class CardFacetsController : ControllerBase
         var sets = CsvUtils.Parse(set);
         var rarities = CsvUtils.Parse(rarity);
 
+        // Normalize filter lists to lowercase for case-insensitive comparison
+        // This approach preserves index usage by avoiding inline collation
+        var gamesNormalized = games.Select(g => g.ToLower()).ToList();
+        var setsNormalized = sets.Select(s => s.ToLower()).ToList();
+        var raritiesNormalized = rarities.Select(r => r.ToLower()).ToList();
+
         // Build base query with filters
         var baseQuery = _db.CardPrintings.AsNoTracking().AsQueryable();
 
@@ -69,15 +75,15 @@ public sealed class CardFacetsController : ControllerBase
 
         // Compute game facets (with set, rarity filters applied)
         var gameQuery = baseQuery;
-        if (sets.Count > 0)
+        if (setsNormalized.Count > 0)
         {
             gameQuery = gameQuery.Where(cp =>
-                sets.Contains(EF.Functions.Collate(cp.Set, "NOCASE")));
+                setsNormalized.Contains(cp.Set.ToLower()));
         }
-        if (rarities.Count > 0)
+        if (raritiesNormalized.Count > 0)
         {
             gameQuery = gameQuery.Where(cp =>
-                rarities.Contains(EF.Functions.Collate(cp.Rarity, "NOCASE")));
+                raritiesNormalized.Contains(cp.Rarity.ToLower()));
         }
 
         var gameFacets = await gameQuery
@@ -88,15 +94,15 @@ public sealed class CardFacetsController : ControllerBase
 
         // Compute set facets (with game, rarity filters applied)
         var setQuery = baseQuery;
-        if (games.Count > 0)
+        if (gamesNormalized.Count > 0)
         {
             setQuery = setQuery.Where(cp =>
-                games.Contains(EF.Functions.Collate(cp.Card.Game, "NOCASE")));
+                gamesNormalized.Contains(cp.Card.Game.ToLower()));
         }
-        if (rarities.Count > 0)
+        if (raritiesNormalized.Count > 0)
         {
             setQuery = setQuery.Where(cp =>
-                rarities.Contains(EF.Functions.Collate(cp.Rarity, "NOCASE")));
+                raritiesNormalized.Contains(cp.Rarity.ToLower()));
         }
 
         var setFacets = await setQuery
@@ -108,15 +114,15 @@ public sealed class CardFacetsController : ControllerBase
 
         // Compute rarity facets (with game, set filters applied)
         var rarityQuery = baseQuery;
-        if (games.Count > 0)
+        if (gamesNormalized.Count > 0)
         {
             rarityQuery = rarityQuery.Where(cp =>
-                games.Contains(EF.Functions.Collate(cp.Card.Game, "NOCASE")));
+                gamesNormalized.Contains(cp.Card.Game.ToLower()));
         }
-        if (sets.Count > 0)
+        if (setsNormalized.Count > 0)
         {
             rarityQuery = rarityQuery.Where(cp =>
-                sets.Contains(EF.Functions.Collate(cp.Set, "NOCASE")));
+                setsNormalized.Contains(cp.Set.ToLower()));
         }
 
         var rarityFacets = await rarityQuery
