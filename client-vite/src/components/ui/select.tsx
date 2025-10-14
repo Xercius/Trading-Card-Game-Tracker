@@ -143,8 +143,8 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
   const { open } = useSelectContext();
   if (!open) return null;
   const classes = [
-    "absolute top-full z-50 mt-2 max-h-60 w-full overflow-auto rounded-md border border-input bg-popover",
-    "text-popover-foreground shadow-md",
+    "absolute top-full z-50 mt-2 max-h-60 w-full overflow-auto rounded-md border border-input bg-white dark:bg-gray-900",
+    "shadow-lg",
     className,
   ]
     .filter(Boolean)
