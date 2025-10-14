@@ -143,7 +143,10 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
   const { open } = useSelectContext();
   if (!open) return null;
   const classes = [
-    "absolute top-full z-50 mt-2 max-h-60 w-full overflow-auto rounded-md border border-input bg-white dark:bg-gray-900",
+    // NOTE: Define --dropdown-bg in your global CSS, e.g.:
+    // :root { --dropdown-bg: #fff; }
+    // .dark { --dropdown-bg: #1a202c; }
+    "absolute top-full z-50 mt-2 max-h-60 w-full overflow-auto rounded-md border border-input bg-[var(--dropdown-bg)]",
     "shadow-lg",
     className,
   ]
