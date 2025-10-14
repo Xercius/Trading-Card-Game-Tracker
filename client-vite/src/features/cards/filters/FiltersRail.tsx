@@ -3,11 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  fetchCardGames,
-  fetchCardRarities,
-  fetchCardSets,
-  type CardFacetRarities,
-  type CardFacetSets,
+  fetchCardFacets,
+  type CardsFacetResponse,
 } from "../api";
 import { useCardFilters } from "./useCardFilters";
 
@@ -103,45 +100,44 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     return () => window.clearTimeout(handler);
   }, [searchText, setFilters]);
 
-  const gamesQuery = useQuery({
-    queryKey: ["card-facets", "games"],
-    queryFn: fetchCardGames,
+  // Use unified facets endpoint with all active filters
+  const facetsQuery = useQuery<CardsFacetResponse>({
+    queryKey: [
+      "card-facets",
+      "unified",
+      filters.games.join("|"),
+      filters.sets.join("|"),
+      filters.rarities.join("|"),
+      filters.q,
+    ],
+    queryFn: () =>
+      fetchCardFacets({
+        games: filters.games,
+        sets: filters.sets,
+        rarities: filters.rarities,
+        q: filters.q,
+      }),
     staleTime: 5 * 60_000,
   });
 
-  const setsQuery = useQuery<CardFacetSets>({
-    queryKey: ["card-facets", "sets", filters.games.join("|")],
-    queryFn: () => fetchCardSets({ games: filters.games }),
-    staleTime: 5 * 60_000,
-  });
+  const gameOptions = facetsQuery.data?.games.map(f => f.value) ?? [];
+  const setOptions = facetsQuery.data?.sets.map(f => f.value) ?? [];
+  const rarityOptions = facetsQuery.data?.rarities.map(f => f.value) ?? [];
 
-  const raritiesQuery = useQuery<CardFacetRarities>({
-    queryKey: ["card-facets", "rarities", filters.games.join("|")],
-    queryFn: () => fetchCardRarities({ games: filters.games }),
-    staleTime: 5 * 60_000,
-  });
-
-  const gameOptions = gamesQuery.data ?? [];
-  const setOptions = setsQuery.data?.sets ?? [];
-  const rarityOptions = raritiesQuery.data?.rarities ?? [];
-
+  // Auto-clear invalid selections when facets update
   useEffect(() => {
-    if (!setsQuery.data) return;
-    const allowed = new Set(setsQuery.data.sets);
-    const filtered = filters.sets.filter((value) => allowed.has(value));
-    if (filtered.length !== filters.sets.length) {
-      setFilters((prev) => ({ ...prev, sets: filtered }));
+    if (!facetsQuery.data) return;
+    
+    const allowedSets = new Set(facetsQuery.data.sets.map(f => f.value));
+    const filteredSets = filters.sets.filter((value) => allowedSets.has(value));
+    
+    const allowedRarities = new Set(facetsQuery.data.rarities.map(f => f.value));
+    const filteredRarities = filters.rarities.filter((value) => allowedRarities.has(value));
+    
+    if (filteredSets.length !== filters.sets.length || filteredRarities.length !== filters.rarities.length) {
+      setFilters((prev) => ({ ...prev, sets: filteredSets, rarities: filteredRarities }));
     }
-  }, [filters.sets, setFilters, setsQuery.data]);
-
-  useEffect(() => {
-    if (!raritiesQuery.data) return;
-    const allowed = new Set(raritiesQuery.data.rarities);
-    const filtered = filters.rarities.filter((value) => allowed.has(value));
-    if (filtered.length !== filters.rarities.length) {
-      setFilters((prev) => ({ ...prev, rarities: filtered }));
-    }
-  }, [filters.rarities, raritiesQuery.data, setFilters]);
+  }, [filters.sets, filters.rarities, setFilters, facetsQuery.data]);
 
   const handleGameToggle = (value: string) => {
     setFilters((prev) => {
@@ -228,7 +224,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           options={gameOptions}
           selected={filters.games}
           onToggle={handleGameToggle}
-          loading={gamesQuery.isLoading}
+          loading={facetsQuery.isLoading}
         />
 
         <Checklist
@@ -237,7 +233,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           options={setOptions}
           selected={filters.sets}
           onToggle={handleSetToggle}
-          loading={setsQuery.isLoading}
+          loading={facetsQuery.isLoading}
         />
 
         <Checklist
@@ -246,7 +242,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           options={rarityOptions}
           selected={filters.rarities}
           onToggle={handleRarityToggle}
-          loading={raritiesQuery.isLoading}
+          loading={facetsQuery.isLoading}
         />
       </div>
 

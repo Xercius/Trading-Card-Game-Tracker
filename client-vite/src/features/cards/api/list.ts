@@ -141,6 +141,17 @@ export type CardFacetRarities = {
   rarities: string[];
 };
 
+export type FacetOption = {
+  value: string;
+  count: number;
+};
+
+export type CardsFacetResponse = {
+  games: FacetOption[];
+  sets: FacetOption[];
+  rarities: FacetOption[];
+};
+
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
   if (!values) return [];
   const seen = new Set<string>();
@@ -237,4 +248,25 @@ export async function fetchCardRarities({
   const rarities = normalizeFacetList(data.rarities ?? data.Rarities);
   const game = normalizeFacetGame(data.game ?? data.Game);
   return { game, rarities };
+}
+
+export async function fetchCardFacets({
+  games,
+  sets,
+  rarities,
+  q,
+}: {
+  games?: string[];
+  sets?: string[];
+  rarities?: string[];
+  q?: string;
+}): Promise<CardsFacetResponse> {
+  const params = new URLSearchParams();
+  if (games?.length) params.set("game", games.join(","));
+  if (sets?.length) params.set("set", sets.join(","));
+  if (rarities?.length) params.set("rarity", rarities.join(","));
+  if (q) params.set("q", q);
+  
+  const res = await api.get<CardsFacetResponse>("cards/facets", { params });
+  return res.data ?? { games: [], sets: [], rarities: [] };
 }
