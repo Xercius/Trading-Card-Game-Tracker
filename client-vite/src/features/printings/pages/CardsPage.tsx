@@ -5,29 +5,29 @@ import { useDebouncedCallback } from "use-debounce";
 import { MultiSelect } from "../components/MultiSelect";
 import { usePrintings } from "../api/usePrintings";
 import { deriveFacets } from "../api/usePrintingFacets";
-import { usePrintingSearch } from "../state/usePrintingSearch";
+import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { PrintingCard } from "../components/PrintingCard";
 
 export default function CardsPage() {
-  const [query, setQuery] = usePrintingSearch();
-  const { data, isLoading, isError, error } = usePrintings(query);
+  const { filters, setFilters } = useCardFilters();
+  const { data, isLoading, isError, error } = usePrintings(filters);
   const printings = data ?? [];
   const facets = React.useMemo(() => deriveFacets(printings), [printings]);
 
-  const [searchInput, setSearchInput] = React.useState(query.q ?? "");
-  const lastUserInputRef = React.useRef<string>(query.q ?? "");
+  const [searchInput, setSearchInput] = React.useState(filters.q ?? "");
+  const lastUserInputRef = React.useRef<string>(filters.q ?? "");
 
   React.useEffect(() => {
-    // Only sync from query.q if it's different from what the user last typed
+    // Only sync from filters.q if it's different from what the user last typed
     // This handles browser back/forward while preserving user input during typing
-    if (query.q !== lastUserInputRef.current) {
-      setSearchInput(query.q ?? "");
-      lastUserInputRef.current = query.q ?? "";
+    if (filters.q !== lastUserInputRef.current) {
+      setSearchInput(filters.q ?? "");
+      lastUserInputRef.current = filters.q ?? "";
     }
-  }, [query.q]);
+  }, [filters.q]);
 
   const setSearch = useDebouncedCallback((q: string) => {
-    setQuery(prev => ({ ...prev, q, page: 1 }));
+    setFilters((prev) => ({ ...prev, q, page: 1 }));
   }, 250);
 
   React.useEffect(() => () => setSearch.cancel(), [setSearch]);
@@ -40,27 +40,27 @@ export default function CardsPage() {
   };
 
   const clearFilters = React.useCallback(() => {
-    setQuery(prev => ({ ...prev, game: [], set: [], rarity: [], page: 1 }));
-  }, [setQuery]);
+    setFilters((prev) => ({ ...prev, games: [], sets: [], rarities: [], page: 1 }));
+  }, [setFilters]);
 
   const removeFilterValue = React.useCallback(
-    (key: "game" | "set" | "rarity", value: string) => {
-      setQuery(prev => ({
+    (key: "games" | "sets" | "rarities", value: string) => {
+      setFilters((prev) => ({
         ...prev,
-        [key]: (prev[key] ?? []).filter(item => item !== value),
+        [key]: prev[key].filter(item => item !== value),
         page: 1,
       }));
     },
-    [setQuery]
+    [setFilters]
   );
 
   const activeFilters = React.useMemo(
     () => [
-      { key: "game" as const, label: "Game", values: query.game ?? [] },
-      { key: "set" as const, label: "Set", values: query.set ?? [] },
-      { key: "rarity" as const, label: "Rarity", values: query.rarity ?? [] },
+      { key: "games" as const, label: "Game", values: filters.games ?? [] },
+      { key: "sets" as const, label: "Set", values: filters.sets ?? [] },
+      { key: "rarities" as const, label: "Rarity", values: filters.rarities ?? [] },
     ],
-    [query.game, query.set, query.rarity]
+    [filters.games, filters.sets, filters.rarities]
   );
 
   const hasActiveFilters = activeFilters.some(filter => filter.values.length > 0);
@@ -78,22 +78,22 @@ export default function CardsPage() {
         <div className="flex flex-wrap gap-3">
           <MultiSelect
             label="Game"
-            values={query.game ?? []}
+            values={filters.games ?? []}
             options={facets.games}
-            onChange={vals => setQuery(prev => ({ ...prev, game: vals, page: 1 }))}
+            onChange={vals => setFilters(prev => ({ ...prev, games: vals, page: 1 }))}
           />
           <MultiSelect
             label="Set"
-            values={query.set ?? []}
+            values={filters.sets ?? []}
             options={facets.sets}
             placeholder="Search sets…"
-            onChange={vals => setQuery(prev => ({ ...prev, set: vals, page: 1 }))}
+            onChange={vals => setFilters(prev => ({ ...prev, sets: vals, page: 1 }))}
           />
           <MultiSelect
             label="Rarity"
-            values={query.rarity ?? []}
+            values={filters.rarities ?? []}
             options={facets.rarities}
-            onChange={vals => setQuery(prev => ({ ...prev, rarity: vals, page: 1 }))}
+            onChange={vals => setFilters(prev => ({ ...prev, rarities: vals, page: 1 }))}
           />
           <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
             Clear filters

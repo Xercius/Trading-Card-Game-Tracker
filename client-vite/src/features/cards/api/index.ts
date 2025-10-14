@@ -13,3 +13,4 @@ export { useCardPrintings } from "./useCardPrintings";
 export { useSparkline } from "./useSparkline";
 export { useUpsertCollection } from "./useUpsertCollection";
 export { useUpsertWishlist } from "./useUpsertWishlist";
+export { cardsQueryKeys } from "../queryKeys";
