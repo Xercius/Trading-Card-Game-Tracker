@@ -12,6 +12,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Cards;
 
+/// <summary>
+/// Controller for managing trading card data and card printings.
+/// Handles routes under /api/cards for querying, searching, and managing card information.
+/// </summary>
+/// <remarks>
+/// This controller provides endpoints for:
+/// - Listing and searching cards across all supported games
+/// - Retrieving detailed card information including all printings
+/// - Managing card printing data (admin-only operations)
+/// - Virtualized pagination for efficient large dataset handling
+/// All endpoints require authentication via the [Authorize] attribute.
+/// </remarks>
 [ApiController]
 [Authorize]
 [Route("api/cards")] // plural route
@@ -34,6 +46,19 @@ public class CardsController : ControllerBase
         _mapper = mapper;
     }
 
+    /// <summary>
+    /// Lists cards with virtualized pagination for efficient scrolling through large datasets.
+    /// </summary>
+    /// <param name="q">Optional search query to filter cards by name.</param>
+    /// <param name="game">Optional comma-separated list of game names to filter (e.g., "Magic,Lorcana").</param>
+    /// <param name="set">Optional comma-separated list of set names to filter.</param>
+    /// <param name="rarity">Optional comma-separated list of rarities to filter.</param>
+    /// <param name="skip">Number of records to skip for pagination (default: 0).</param>
+    /// <param name="take">Number of records to take per page (default: 60, max: 200).</param>
+    /// <param name="includeTotal">Whether to include the total count of matching cards (default: false).</param>
+    /// <param name="ct">Cancellation token for async operation.</param>
+    /// <returns>A <see cref="CardListPageResponse"/> containing card summaries, optional total count, and next skip value.</returns>
+    /// <response code="200">Returns the requested page of cards.</response>
     // GET /api/cards?q=&game=Magic,Lorcana&skip=0&take=60&includeTotal=false
     [HttpGet]
     public async Task<ActionResult<CardListPageResponse>> ListCardsVirtualized(
@@ -82,6 +107,10 @@ public class CardsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Helper method to check if the current user has administrator privileges.
+    /// </summary>
+    /// <returns>True if the user is not an admin or not authenticated; false if the user is an admin.</returns>
     // CSV parsing logic moved to CsvUtils in api.Shared
     private bool NotAdmin()
     {
@@ -89,6 +118,18 @@ public class CardsController : ControllerBase
         return me is null || !me.IsAdmin;
     }
 
+    /// <summary>
+    /// Core implementation for searching and listing cards with traditional pagination.
+    /// </summary>
+    /// <param name="game">Optional game name to filter cards.</param>
+    /// <param name="name">Optional name pattern to search for (case-insensitive, partial match).</param>
+    /// <param name="includePrintings">If true, includes all printings for each card in the response.</param>
+    /// <param name="page">Page number for pagination (default: 1).</param>
+    /// <param name="pageSize">Number of results per page (default: 50, max: 200).</param>
+    /// <returns>
+    /// A paged result containing either <see cref="CardListItemResponse"/> (when includePrintings is false)
+    /// or <see cref="CardDetailResponse"/> (when includePrintings is true).
+    /// </returns>
     private async Task<IActionResult> ListCardsCore(
         string? game, string? name,
         bool includePrintings,
@@ -152,6 +193,14 @@ public class CardsController : ControllerBase
         return Ok(new Paged<CardDetailResponse>(detailed, total, page, pageSize));
     }
 
+    /// <summary>
+    /// Core implementation for retrieving a single card with all its printings.
+    /// </summary>
+    /// <param name="cardId">The unique identifier of the card to retrieve.</param>
+    /// <returns>
+    /// A <see cref="CardDetailResponse"/> containing card details and all associated printings,
+    /// or a 404 Problem Details response if the card is not found.
+    /// </returns>
     private async Task<IActionResult> GetCardCore(int cardId)
     {
         var c = await _db.Cards.AsNoTracking().FirstOrDefaultAsync(x => x.Id == cardId);
@@ -180,6 +229,23 @@ public class CardsController : ControllerBase
         return Ok(dto);
     }
 
+    /// <summary>
+    /// Core implementation for creating or updating a card printing record.
+    /// Admin-only operation that performs upsert logic based on the presence of printing ID or set/number combination.
+    /// </summary>
+    /// <param name="dto">The printing data to create or update.</param>
+    /// <returns>
+    /// NoContent (204) on success,
+    /// 403 Forbidden if user is not an admin,
+    /// 404 Not Found if the specified card or printing ID doesn't exist,
+    /// or 400 Bad Request with validation errors for invalid input.
+    /// </returns>
+    /// <remarks>
+    /// If dto.Id is provided, updates the existing printing with that ID.
+    /// If dto.Id is null, attempts to find an existing printing by CardId, Set, Number, and Style.
+    /// If no match is found, creates a new printing record.
+    /// Set and Number are required when Id is not provided.
+    /// </remarks>
     private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingRequest dto)
     {
         if (NotAdmin())
@@ -268,6 +334,22 @@ public class CardsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Core implementation for bulk importing multiple printing records for a specific card.
+    /// Admin-only operation that creates or updates printings in batch.
+    /// </summary>
+    /// <param name="cardId">The unique identifier of the card to add printings to.</param>
+    /// <param name="items">Collection of printing data to import.</param>
+    /// <returns>
+    /// NoContent (204) on success,
+    /// 403 Forbidden if user is not an admin,
+    /// 404 Not Found if the specified card doesn't exist,
+    /// or 400 Bad Request for invalid input.
+    /// </returns>
+    /// <remarks>
+    /// For each item, if a printing with matching Set, Number, and Style exists, it updates that printing.
+    /// Otherwise, creates a new printing record. Items missing Set or Number are skipped silently.
+    /// </remarks>
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
     {
         if (NotAdmin())
@@ -343,6 +425,18 @@ public class CardsController : ControllerBase
 
     // Endpoints
 
+    /// <summary>
+    /// Searches for cards with traditional page-based pagination.
+    /// </summary>
+    /// <param name="game">Optional game name to filter (case-insensitive).</param>
+    /// <param name="name">Optional card name to search for (case-insensitive, partial match).</param>
+    /// <param name="includePrintings">If true, includes all printings for each card (default: false).</param>
+    /// <param name="page">Page number, starting from 1 (default: 1).</param>
+    /// <param name="pageSize">Results per page (default: 50, max: 200).</param>
+    /// <returns>
+    /// A <see cref="Paged{T}"/> result containing card summaries or detailed cards with printings.
+    /// </returns>
+    /// <response code="200">Returns the requested page of search results.</response>
     [HttpGet("search")]
     public async Task<IActionResult> ListCards(
         [FromQuery] string? game,
@@ -352,10 +446,25 @@ public class CardsController : ControllerBase
         [FromQuery] int pageSize = 50)
         => await ListCardsCore(game, name, includePrintings, page, pageSize);
 
+    /// <summary>
+    /// Retrieves detailed information for a specific card, including all its printings.
+    /// </summary>
+    /// <param name="cardId">The unique identifier of the card.</param>
+    /// <returns>A <see cref="CardDetailResponse"/> with card details and all printings.</returns>
+    /// <response code="200">Returns the card details.</response>
+    /// <response code="404">Card with the specified ID was not found.</response>
     [HttpGet("{cardId:int}")]
     public async Task<IActionResult> GetCard(int cardId)
         => await GetCardCore(cardId);
 
+    /// <summary>
+    /// Retrieves all printing records for a specific card, ordered by set and number.
+    /// </summary>
+    /// <param name="cardId">The unique identifier of the card.</param>
+    /// <param name="ct">Cancellation token for async operation.</param>
+    /// <returns>A list of <see cref="PrintingDto"/> objects representing each printing of the card.</returns>
+    /// <response code="200">Returns the list of printings.</response>
+    /// <response code="404">Card with the specified ID was not found.</response>
     [HttpGet("{cardId:int}/printings")]
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId, CancellationToken ct)
     {
@@ -386,14 +495,49 @@ public class CardsController : ControllerBase
         return Ok(rows);
     }
 
+    /// <summary>
+    /// Creates or updates a card printing record. Admin-only endpoint.
+    /// </summary>
+    /// <param name="dto">The printing data containing card ID, set, number, rarity, style, and image URL.</param>
+    /// <returns>NoContent (204) on success.</returns>
+    /// <response code="204">Printing was successfully created or updated.</response>
+    /// <response code="400">Invalid request data or validation errors.</response>
+    /// <response code="403">User does not have admin privileges.</response>
+    /// <response code="404">Card or printing with the specified ID was not found.</response>
+    /// <remarks>
+    /// If dto.Id is provided, updates the existing printing.
+    /// If dto.Id is null, searches for existing printing by CardId, Set, Number, and Style.
+    /// Creates a new printing if no match is found. Set and Number are required when Id is null.
+    /// </remarks>
     [HttpPost("printing")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
+    /// <summary>
+    /// Bulk imports multiple printing records for a specific card. Admin-only endpoint.
+    /// </summary>
+    /// <param name="cardId">The unique identifier of the card to add printings to.</param>
+    /// <param name="items">Collection of printing data to import.</param>
+    /// <returns>NoContent (204) on success.</returns>
+    /// <response code="204">Printings were successfully imported.</response>
+    /// <response code="400">Invalid request data or validation errors.</response>
+    /// <response code="403">User does not have admin privileges.</response>
+    /// <response code="404">Card with the specified ID was not found.</response>
+    /// <remarks>
+    /// For each printing, if a match with the same Set, Number, and Style exists, it updates that record.
+    /// Otherwise, creates a new printing. Items without Set or Number are skipped.
+    /// </remarks>
     [HttpPost("{cardId:int}/printings/import")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
 
+    /// <summary>
+    /// Helper method to add a validation error for a required field if it's missing or empty.
+    /// </summary>
+    /// <param name="errors">Dictionary to accumulate validation errors.</param>
+    /// <param name="value">The field value to check.</param>
+    /// <param name="fieldName">Name of the field for the error key.</param>
+    /// <param name="message">Error message to display if the field is invalid.</param>
     private static void AddRequiredFieldError(IDictionary<string, string[]> errors, string? value, string fieldName, string message)
     {
         if (string.IsNullOrWhiteSpace(value))
