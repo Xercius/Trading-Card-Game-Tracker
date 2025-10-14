@@ -15,9 +15,15 @@ export default function CardsPage() {
   const facets = React.useMemo(() => deriveFacets(printings), [printings]);
 
   const [searchInput, setSearchInput] = React.useState(query.q ?? "");
+  const lastUserInputRef = React.useRef<string>(query.q ?? "");
 
   React.useEffect(() => {
-    setSearchInput(query.q ?? "");
+    // Only sync from query.q if it's different from what the user last typed
+    // This handles browser back/forward while preserving user input during typing
+    if (query.q !== lastUserInputRef.current) {
+      setSearchInput(query.q ?? "");
+      lastUserInputRef.current = query.q ?? "";
+    }
   }, [query.q]);
 
   const setSearch = useDebouncedCallback((q: string) => {
@@ -29,6 +35,7 @@ export default function CardsPage() {
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setSearchInput(value);
+    lastUserInputRef.current = value;
     setSearch(value);
   };
 
