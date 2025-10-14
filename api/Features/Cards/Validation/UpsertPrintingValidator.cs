@@ -20,7 +20,7 @@ public sealed class UpsertPrintingValidator : AbstractValidator<UpsertPrintingRe
     /// Configures validation rules for card printing upsert operations.
     /// 
     /// Validation rules applied:
-    /// - CardId: Must be greater than 0 to ensure it references an existing card
+    /// - CardId: Must be greater than 0; this validator does not check existence.
     /// - Set: Maximum 64 characters (when provided) - matches database column constraint
     /// - Number: Maximum 32 characters (when provided) - matches database column constraint
     /// - Rarity: Maximum 32 characters (when provided) - matches database column constraint
