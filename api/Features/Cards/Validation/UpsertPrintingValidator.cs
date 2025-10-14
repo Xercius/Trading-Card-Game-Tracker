@@ -28,9 +28,6 @@ public sealed class UpsertPrintingValidator : AbstractValidator<UpsertPrintingRe
     /// 
     /// All string fields are optional (nullable) and only validated when non-null.
     /// 
-    /// Input: UpsertPrintingRequest instance to validate
-    /// Output: ValidationResult with any rule violations
-    /// Side effects: None - purely validates data without modifying it
     /// </summary>
     public UpsertPrintingValidator()
     {
