@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import http, { setHttpAccessToken } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
