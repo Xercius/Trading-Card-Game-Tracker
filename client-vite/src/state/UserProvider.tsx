@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, useCallback, FormEvent } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import http, { setHttpAccessToken } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
 import type { AdminUserApi, ApiUser, UserLite } from "@/types/user";
 import { UserContext } from "./UserContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type LoginResponse = {
   accessToken: string;
@@ -157,21 +159,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     [userId, users, selectUser, refreshUsers]
   );
 
+  const isLoginModalOpen = !accessToken;
+
+  // Disable body scroll when login modal is open
+  useEffect(() => {
+    if (isLoginModalOpen) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [isLoginModalOpen]);
+
   return (
     <UserContext.Provider value={value}>
       {children}
-      {!accessToken ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6"
-          role="dialog"
-          aria-modal="true"
-          data-testid="user-picker"
+      <Dialog open={isLoginModalOpen} onOpenChange={() => {}}>
+        <DialogContent
+          className="max-w-md"
+          labelledBy="login-title"
+          describedBy="login-description"
         >
-          <div className="w-full max-w-md space-y-4 rounded-lg border bg-card p-6 shadow-xl">
-            <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">Sign in</h2>
-              <p className="text-sm text-muted-foreground">Enter your credentials to continue.</p>
-            </div>
+          <div className="space-y-4 p-6" data-testid="user-picker">
+            <DialogHeader className="border-0 p-0">
+              <DialogTitle id="login-title" className="text-center">
+                Sign in
+              </DialogTitle>
+              <DialogDescription id="login-description" className="text-center">
+                Enter your credentials to continue.
+              </DialogDescription>
+            </DialogHeader>
             {loginError ? (
               <div className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
                 {loginError}
@@ -218,8 +235,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
               </div>
             ) : null}
           </div>
-        </div>
-      ) : null}
+        </DialogContent>
+      </Dialog>
     </UserContext.Provider>
   );
 }
