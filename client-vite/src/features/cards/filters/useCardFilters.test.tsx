@@ -68,4 +68,61 @@ describe("useCardFilters", () => {
 
     latest = undefined;
   });
+
+  it("restores filter state from URL on reload", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    // Simulate a page load with filters in the URL
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards?game=Pokemon&q=pikachu&page=3"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    // Verify filters are correctly restored
+    expect(latest?.filters.games).toEqual(["Pokemon"]);
+    expect(latest?.filters.q).toBe("pikachu");
+    expect(latest?.filters.page).toBe(3);
+    expect(latest?.filters.pageSize).toBe(60); // default
+    expect(latest?.filters.sets).toEqual([]);
+    expect(latest?.filters.rarities).toEqual([]);
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
+
+  it("handles missing URL params with defaults", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    // No query params
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    // Verify default values
+    expect(latest?.filters.q).toBe("");
+    expect(latest?.filters.games).toEqual([]);
+    expect(latest?.filters.sets).toEqual([]);
+    expect(latest?.filters.rarities).toEqual([]);
+    expect(latest?.filters.page).toBe(1);
+    expect(latest?.filters.pageSize).toBe(60);
+    expect(latest?.filters.sort).toBeUndefined();
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
 });
