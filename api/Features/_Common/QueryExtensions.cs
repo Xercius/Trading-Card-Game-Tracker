@@ -78,25 +78,34 @@ internal static class QueryExtensions
 
         if (games.Count > 0)
         {
-            var normalizedGames = games.Select(g => g.ToLower()).ToList();
+            var normalizedGames = games
+                .Select(g => g?.Trim().ToLowerInvariant())
+                .Where(g => !string.IsNullOrEmpty(g))
+                .ToList();
             query = query.Where(c =>
-                normalizedGames.Contains(c.Game.ToLower()));
+                normalizedGames.Contains(c.Game.Trim().ToLowerInvariant()));
         }
 
         if (sets.Count > 0)
         {
-            var normalizedSets = sets.Select(s => s.ToLower()).ToList();
+            var normalizedSets = sets
+                .Select(s => s?.Trim().ToLowerInvariant())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    normalizedSets.Contains(p.Set.ToLower())));
+                    normalizedSets.Contains(p.Set.Trim().ToLowerInvariant())));
         }
 
         if (rarities.Count > 0)
         {
-            var normalizedRarities = rarities.Select(r => r.ToLower()).ToList();
+            var normalizedRarities = rarities
+                .Select(r => r?.Trim().ToLowerInvariant())
+                .Where(r => !string.IsNullOrEmpty(r))
+                .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    normalizedRarities.Contains(p.Rarity.ToLower())));
+                    normalizedRarities.Contains(p.Rarity.Trim().ToLowerInvariant())));
         }
 
         return query;
