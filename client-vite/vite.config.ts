@@ -36,6 +36,9 @@ export default defineConfig(({ mode }) => {
       ...(sharedProxy ? { proxy: sharedProxy } : {}),
     },
     preview: sharedProxy ? { proxy: sharedProxy } : undefined,
-    test: { environment: "jsdom" },
+    test: {
+      environment: "jsdom",
+      setupFiles: "./src/test-setup.ts",
+    },
   };
 });
