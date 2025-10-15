@@ -18,6 +18,9 @@ export function cssEscapeId(id: string): string {
     return (globalThis as any).CSS.escape(id);
   }
 
-  // Minimal fallback for colons and leading digits
-  return id.replace(/(^[0-9])/, '\\3$1 ').replace(/:/g, '\\:');
+  // Minimal fallback for colons, leading digits, and leading hyphen before digit
+  return id
+    .replace(/^-(?=\d)/, '\\-')
+    .replace(/^[0-9]/, '\\3$& ')
+    .replace(/:/g, '\\:');
 }
