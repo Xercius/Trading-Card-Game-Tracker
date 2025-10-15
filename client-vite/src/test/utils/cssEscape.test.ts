@@ -26,10 +26,15 @@ describe("cssEscapeId", () => {
   });
 
   it("uses native CSS.escape when available", () => {
-    // CSS.escape is available in jsdom
+    // Stub CSS.escape with a deterministic mock
+    const mockEscape = vi.fn(s => `__escaped__${s}`);
+    if (!(globalThis as any).CSS) {
+      (globalThis as any).CSS = {};
+    }
+    (globalThis as any).CSS.escape = mockEscape;
     const result = cssEscapeId("item:123");
-    // Native CSS.escape escapes colons
-    expect(result).toContain("\\:");
+    expect(result).toBe("__escaped__item:123");
+    expect(mockEscape).toHaveBeenCalledWith("item:123");
   });
 
   it("escapes colons using fallback when CSS.escape is not available", () => {
