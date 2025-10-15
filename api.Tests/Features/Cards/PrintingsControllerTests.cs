@@ -161,4 +161,61 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(emptyFilter);
         Assert.Equal(allPrintings.Select(p => p.PrintingId), emptyFilter.Select(p => p.PrintingId));
     }
+
+    [Fact]
+    public async Task Get_with_case_insensitive_game_filter()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=magic");
+        var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=MAGIC");
+        var mixedcase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic");
+
+        Assert.NotNull(lowercase);
+        Assert.NotNull(uppercase);
+        Assert.NotNull(mixedcase);
+        Assert.NotEmpty(lowercase);
+        
+        // All case variations should return the same results
+        Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
+        Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
+    }
+
+    [Fact]
+    public async Task Get_with_case_insensitive_set_filter()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=alpha");
+        var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=ALPHA");
+        var mixedcase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=Alpha");
+
+        Assert.NotNull(lowercase);
+        Assert.NotNull(uppercase);
+        Assert.NotNull(mixedcase);
+        Assert.NotEmpty(lowercase);
+        
+        // All case variations should return the same results
+        Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
+        Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
+    }
+
+    [Fact]
+    public async Task Get_with_case_insensitive_rarity_filter()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=common");
+        var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=COMMON");
+        var mixedcase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=Common");
+
+        Assert.NotNull(lowercase);
+        Assert.NotNull(uppercase);
+        Assert.NotNull(mixedcase);
+        Assert.NotEmpty(lowercase);
+        
+        // All case variations should return the same results
+        Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
+        Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
+    }
 }
