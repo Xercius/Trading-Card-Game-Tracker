@@ -198,17 +198,17 @@ export default function FilterDropdown({
 
   return (
     <>
-      <div
+      <button
         ref={triggerRef}
         id={triggerId}
-        role="button"
+        type="button"
         aria-haspopup="menu"
         aria-controls={menuId}
         aria-expanded={open}
         onClick={handleTriggerClick}
       >
         {trigger}
-      </div>
+      </button>
 
       {open &&
         position &&
