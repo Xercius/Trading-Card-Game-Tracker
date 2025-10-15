@@ -6,6 +6,9 @@ import type { ReactElement } from "react";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
 
+// Define a strongly-typed mock result for usePrintings
+type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
+
 // Helper function to wrap components with required providers
 function createTestWrapper(initialEntries: string[] = ["/"]) {
   const queryClient = new QueryClient({
@@ -34,12 +37,12 @@ describe("CardsPage filter wiring", () => {
 
   it("syncs filters from URL to query parameters", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
-    const mockPrintingsResult: ReturnType<typeof printingsApi.usePrintings> = {
+    const mockPrintingsResult = {
       data: [],
       isLoading: false,
       isError: false,
       error: null,
-    };
+    } as UsePrintingsResult;
     mockUsePrintings.mockReturnValue(mockPrintingsResult);
 
     render(<CardsPage />, {
@@ -68,7 +71,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as any);
+    } as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
@@ -91,7 +94,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as any);
+    } as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards?game=Magic&rarity=Rare"]),
@@ -109,7 +112,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: true,
       isError: false,
       error: null,
-    } as any);
+    } as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
@@ -125,7 +128,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: true,
       error: new Error("Failed to load"),
-    } as any);
+    } as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
