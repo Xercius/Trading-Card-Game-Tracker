@@ -20,21 +20,21 @@ internal static class QueryExtensions
     {
         if (!string.IsNullOrWhiteSpace(game))
         {
-            var normalized = game.Trim().ToLowerInvariant();
+            var normalized = SqliteCaseNormalizer.Normalize(game);
             query = query.Where(uc =>
                 EF.Property<string>(uc.CardPrinting.Card, "GameNorm") == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(set))
         {
-            var normalized = set.Trim().ToLowerInvariant();
+            var normalized = SqliteCaseNormalizer.Normalize(set);
             query = query.Where(uc =>
                 EF.Property<string>(uc.CardPrinting, "SetNorm") == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(rarity))
         {
-            var normalized = rarity.Trim().ToLowerInvariant();
+            var normalized = SqliteCaseNormalizer.Normalize(rarity);
             query = query.Where(uc =>
                 EF.Property<string>(uc.CardPrinting, "RarityNorm") == normalized);
         }
@@ -79,7 +79,7 @@ internal static class QueryExtensions
         if (games.Count > 0)
         {
             var normalizedGames = games
-                .Select(g => g?.Trim().ToLowerInvariant())
+                .Select(g => g is null ? null : SqliteCaseNormalizer.Normalize(g))
                 .Where(g => !string.IsNullOrEmpty(g))
                 .ToList();
             query = query.Where(c =>
@@ -89,7 +89,7 @@ internal static class QueryExtensions
         if (sets.Count > 0)
         {
             var normalizedSets = sets
-                .Select(s => s?.Trim().ToLowerInvariant())
+                .Select(s => s is null ? null : SqliteCaseNormalizer.Normalize(s))
                 .Where(s => !string.IsNullOrEmpty(s))
                 .ToList();
             query = query.Where(c =>
@@ -100,7 +100,7 @@ internal static class QueryExtensions
         if (rarities.Count > 0)
         {
             var normalizedRarities = rarities
-                .Select(r => r?.Trim().ToLowerInvariant())
+                .Select(r => r is null ? null : SqliteCaseNormalizer.Normalize(r))
                 .Where(r => !string.IsNullOrEmpty(r))
                 .ToList();
             query = query.Where(c =>
@@ -138,4 +138,5 @@ internal static class QueryExtensions
                 })
                 .FirstOrDefault()
         });
+
 }

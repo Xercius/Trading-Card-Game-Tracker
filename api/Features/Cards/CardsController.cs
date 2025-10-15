@@ -143,7 +143,7 @@ public class CardsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(game))
         {
-            var normalized = game.Trim().ToLowerInvariant();
+            var normalized = SqliteCaseNormalizer.Normalize(game);
             q = q.Where(c => EF.Property<string>(c, "GameNorm") == normalized);
         }
         if (!string.IsNullOrWhiteSpace(name))

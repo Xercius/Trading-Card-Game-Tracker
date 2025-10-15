@@ -1,4 +1,5 @@
 using api.Data;
+using api.Features._Common;
 using api.Features.Cards.Dtos;
 using api.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -71,7 +72,7 @@ public sealed class CardFacetsController : ControllerBase
         var query = _db.CardPrintings.AsNoTracking().AsQueryable();
         if (games.Count > 0)
         {
-            var normalizedGames = games.Select(g => g.Trim().ToLowerInvariant()).ToList();
+            var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(cp => normalizedGames.Contains(EF.Property<string>(cp.Card, "GameNorm")));
         }
 
@@ -113,7 +114,7 @@ public sealed class CardFacetsController : ControllerBase
         var query = _db.CardPrintings.AsNoTracking().AsQueryable();
         if (games.Count > 0)
         {
-            var normalizedGames = games.Select(g => g.Trim().ToLowerInvariant()).ToList();
+            var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(cp => normalizedGames.Contains(EF.Property<string>(cp.Card, "GameNorm")));
         }
 
