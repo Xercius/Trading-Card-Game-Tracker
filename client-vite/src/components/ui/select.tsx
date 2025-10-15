@@ -250,6 +250,7 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
         !triggerRef.current.contains(event.target as Node)
       ) {
         setOpen(false);
+        triggerRef.current?.focus();
       }
     };
 
