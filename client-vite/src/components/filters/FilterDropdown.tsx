@@ -32,7 +32,11 @@ export default function FilterDropdown({
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
-  const setOpen = isControlled ? onOpenChange! : setInternalOpen;
+
+  const handleSetOpen = (value: boolean) => {
+    if (isControlled && onOpenChange) onOpenChange(value);
+    else if (!isControlled) setInternalOpen(value);
+  };
 
   const triggerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -89,7 +93,7 @@ export default function FilterDropdown({
 
       if (event.key === "Escape") {
         event.preventDefault();
-        setOpen(false);
+        handleSetOpen(false);
         triggerRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus();
         return;
       }
@@ -142,7 +146,7 @@ export default function FilterDropdown({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, setOpen]);
+  }, [open, handleSetOpen]);
 
   // Click outside to close
   useEffect(() => {
@@ -155,13 +159,13 @@ export default function FilterDropdown({
         triggerRef.current &&
         !triggerRef.current.contains(event.target as Node)
       ) {
-        setOpen(false);
+        handleSetOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open, setOpen]);
+  }, [open, handleSetOpen]);
 
   // Focus management
   useEffect(() => {
@@ -178,7 +182,7 @@ export default function FilterDropdown({
   }, [open]);
 
   const handleTriggerClick = () => {
-    setOpen(!open);
+    handleSetOpen(!open);
   };
 
   const positionStyle = position
