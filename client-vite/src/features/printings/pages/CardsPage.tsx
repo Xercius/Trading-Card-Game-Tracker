@@ -7,12 +7,25 @@ import { usePrintings } from "../api/usePrintings";
 import { deriveFacets } from "../api/usePrintingFacets";
 import { usePrintingSearch } from "../state/usePrintingSearch";
 import { PrintingCard } from "../components/PrintingCard";
+import CardModal from "@/features/cards/components/CardModal";
+import type { PrintingListItem } from "../api/printings";
 
 export default function CardsPage() {
   const [query, setQuery] = usePrintingSearch();
   const { data, isLoading, isError, error } = usePrintings(query);
   const printings = data ?? [];
   const facets = React.useMemo(() => deriveFacets(printings), [printings]);
+
+  const [selectedPrinting, setSelectedPrinting] = React.useState<{
+    cardId: number;
+    printingId: number;
+  } | null>(null);
+
+  const handlePrintingClick = React.useCallback((p: PrintingListItem) => {
+    const cardId = typeof p.cardId === "string" ? parseInt(p.cardId, 10) : p.cardId;
+    const printingId = typeof p.printingId === "string" ? parseInt(p.printingId, 10) : p.printingId;
+    setSelectedPrinting({ cardId, printingId });
+  }, []);
 
   const [searchInput, setSearchInput] = React.useState(query.q ?? "");
   const lastUserInputRef = React.useRef<string>(query.q ?? "");
@@ -136,11 +149,22 @@ export default function CardsPage() {
           <ul className="grid gap-1 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
             {printings.map(p => (
               <li key={p.printingId}>
-                <PrintingCard p={p} />
+                <PrintingCard p={p} onClick={handlePrintingClick} />
               </li>
             ))}
           </ul>
         </>
+      )}
+
+      {selectedPrinting && (
+        <CardModal
+          cardId={selectedPrinting.cardId}
+          initialPrintingId={selectedPrinting.printingId}
+          open={!!selectedPrinting}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPrinting(null);
+          }}
+        />
       )}
     </div>
   );
