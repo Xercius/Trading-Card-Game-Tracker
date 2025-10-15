@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type FilterDropdownProps = {
@@ -11,7 +11,7 @@ type FilterDropdownProps = {
 
 /**
  * FilterDropdown - A dropdown menu for filters with proper layering and accessibility
- * 
+ *
  * Features:
  * - Portal rendering to avoid stacking context issues
  * - Proper z-index above content
@@ -28,6 +28,7 @@ export default function FilterDropdown({
   onOpenChange,
   align = "left",
 }: FilterDropdownProps) {
+  const id = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -101,7 +102,10 @@ export default function FilterDropdown({
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        const prevIndex = currentIndex < 0 ? focusableArray.length - 1 : (currentIndex - 1 + focusableArray.length) % focusableArray.length;
+        const prevIndex =
+          currentIndex < 0
+            ? focusableArray.length - 1
+            : (currentIndex - 1 + focusableArray.length) % focusableArray.length;
         focusableArray[prevIndex].focus();
         return;
       }
@@ -179,29 +183,39 @@ export default function FilterDropdown({
         position: "absolute" as const,
         top: `${position.top + 8}px`,
         left: align === "left" && position.left ? `${position.left}px` : undefined,
-        right: align === "right" && position.right !== undefined ? `${position.right}px` : undefined,
+        right:
+          align === "right" && position.right !== undefined ? `${position.right}px` : undefined,
         minWidth: "200px",
       }
     : undefined;
 
   return (
     <>
-      <div ref={triggerRef} onClick={handleTriggerClick}>
+      <div
+        ref={triggerRef}
+        role="button"
+        aria-haspopup="menu"
+        aria-controls={`${id}-menu`}
+        aria-expanded={open}
+        onClick={handleTriggerClick}
+      >
         {trigger}
       </div>
 
-      {open && position && createPortal(
-        <div
-          ref={contentRef}
-          role="menu"
-          aria-expanded={open}
-          className="rounded-md border border-input bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 z-50 max-h-[400px] overflow-auto"
-          style={positionStyle}
-        >
-          {children}
-        </div>,
-        document.body
-      )}
+      {open &&
+        position &&
+        createPortal(
+          <div
+            ref={contentRef}
+            id={`${id}-menu`}
+            role="menu"
+            className="rounded-md border border-input bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 z-50 max-h-[400px] overflow-auto"
+            style={positionStyle}
+          >
+            {children}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

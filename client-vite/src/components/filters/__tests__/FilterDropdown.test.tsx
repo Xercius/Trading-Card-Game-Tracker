@@ -123,11 +123,7 @@ describe("FilterDropdown", () => {
     };
 
     const { rerender } = render(
-      <FilterDropdown
-        trigger={<button>Open Filters</button>}
-        open={open}
-        onOpenChange={setOpen}
-      >
+      <FilterDropdown trigger={<button>Open Filters</button>} open={open} onOpenChange={setOpen}>
         <div>Filter content</div>
       </FilterDropdown>
     );
@@ -137,11 +133,7 @@ describe("FilterDropdown", () => {
     // Programmatically open
     open = true;
     rerender(
-      <FilterDropdown
-        trigger={<button>Open Filters</button>}
-        open={open}
-        onOpenChange={setOpen}
-      >
+      <FilterDropdown trigger={<button>Open Filters</button>} open={open} onOpenChange={setOpen}>
         <div>Filter content</div>
       </FilterDropdown>
     );
@@ -185,6 +177,63 @@ describe("FilterDropdown", () => {
       const dropdown = screen.getByRole("menu");
       const style = dropdown.style;
       expect(style.right).toBeDefined();
+    });
+  });
+
+  it("has proper ARIA attributes on trigger", () => {
+    render(
+      <FilterDropdown trigger={<button>Open Filters</button>}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const triggerWrapper = buttons.find((btn) => btn.hasAttribute("aria-haspopup"));
+    expect(triggerWrapper).toBeDefined();
+    expect(triggerWrapper).toHaveAttribute("aria-haspopup", "menu");
+    expect(triggerWrapper).toHaveAttribute("aria-expanded", "false");
+    expect(triggerWrapper).toHaveAttribute("aria-controls");
+  });
+
+  it("updates aria-expanded when dropdown opens", async () => {
+    const user = userEvent.setup();
+    render(
+      <FilterDropdown trigger={<button>Open Filters</button>}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const triggerWrapper = buttons.find((btn) => btn.hasAttribute("aria-haspopup"));
+    expect(triggerWrapper).toHaveAttribute("aria-expanded", "false");
+
+    const trigger = screen.getByText("Open Filters");
+    await user.click(trigger);
+
+    await waitFor(() => {
+      expect(triggerWrapper).toHaveAttribute("aria-expanded", "true");
+    });
+  });
+
+  it("has matching aria-controls and menu id", async () => {
+    const user = userEvent.setup();
+    render(
+      <FilterDropdown trigger={<button>Open Filters</button>}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const triggerWrapper = buttons.find((btn) => btn.hasAttribute("aria-haspopup"));
+    const controlsId = triggerWrapper?.getAttribute("aria-controls");
+    expect(controlsId).toBeTruthy();
+
+    const trigger = screen.getByText("Open Filters");
+    await user.click(trigger);
+
+    await waitFor(() => {
+      const menu = screen.getByRole("menu");
+      expect(menu).toHaveAttribute("id", controlsId);
     });
   });
 });
