@@ -8,10 +8,10 @@ export function PrintingCard({ p, onClick }: Props) {
   return (
     <button
       onClick={() => onClick?.(p)}
-      className="group w-full rounded-md border bg-card text-card-foreground shadow-sm hover:shadow transition p-0 text-left"
+      className="group w-full bg-transparent text-left p-0 transition focus:ring-2 focus:ring-primary focus:ring-offset-2"
       aria-label={ariaLabel}
     >
-      <div className="aspect-[3/4] w-full overflow-hidden rounded-md bg-muted">
+      <div className="aspect-[3/4] w-full overflow-hidden">
         {p.imageUrl ? (
           <img
             src={p.imageUrl}
@@ -20,7 +20,7 @@ export function PrintingCard({ p, onClick }: Props) {
             loading="lazy"
           />
         ) : (
-          <div className="h-full w-full grid place-items-center text-xs text-muted-foreground">
+          <div className="h-full w-full grid place-items-center text-xs text-muted-foreground bg-muted">
             No image
           </div>
         )}
