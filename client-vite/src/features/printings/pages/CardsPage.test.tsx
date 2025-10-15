@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 const usePrintingsMock = vi.fn();
+const CardModalMock = vi.fn(() => null);
 
 vi.mock("../api/usePrintings", () => ({
   usePrintings: (query: unknown) => usePrintingsMock(query),
+}));
+
+vi.mock("@/features/cards/components/CardModal", () => ({
+  default: (props: unknown) => CardModalMock(props),
 }));
 
 import CardsPage from "./CardsPage";
@@ -15,6 +20,7 @@ describe("CardsPage", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     usePrintingsMock.mockReset();
+    CardModalMock.mockReset();
     usePrintingsMock.mockImplementation(() => ({
       data: [],
       isLoading: false,
@@ -154,6 +160,58 @@ describe("CardsPage", () => {
 
     const lastCall = usePrintingsMock.mock.calls.at(-1)?.[0];
     expect(lastCall).toMatchObject({ q: "Pikachu" });
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("opens CardModal when a printing is clicked", async () => {
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
+
+    usePrintingsMock.mockImplementation(() => ({
+      data: [
+        {
+          printingId: "123",
+          cardId: "456",
+          cardName: "Test Card",
+          game: "Magic",
+          setName: "Alpha",
+          setCode: "ALP",
+          number: "001",
+          rarity: "Rare",
+          imageUrl: "/test.png",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    }));
+
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    // Find and click the printing card button
+    const printingButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    expect(printingButton).not.toBeNull();
+    expect(printingButton?.getAttribute("aria-label")).toBe("Test Card — Alpha #001");
+
+    await act(async () => {
+      printingButton?.click();
+    });
+
+    // CardModal should be called with the correct props
+    expect(CardModalMock).toHaveBeenCalled();
+    const lastCall = CardModalMock.mock.calls.at(-1)?.[0];
+    expect(lastCall).toMatchObject({
+      cardId: 456,
+      initialPrintingId: 123,
+      open: true,
+    });
 
     await act(async () => {
       root.unmount();
