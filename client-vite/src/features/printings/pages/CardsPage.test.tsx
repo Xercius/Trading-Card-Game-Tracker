@@ -24,7 +24,7 @@ describe("CardsPage", () => {
   afterEach(async () => {
     if (root) {
       await act(async () => {
-        root!.unmount();
+        root.unmount();
       });
       root = null;
     }
