@@ -109,7 +109,7 @@ public sealed class PrintingsController : ControllerBase
             // Use normalized columns where available for index-friendly case-insensitive wildcard search
             query = query.Where(p =>
                 (p.Card.Name != null && EF.Functions.Like(EF.Functions.Collate(p.Card.Name, "NOCASE"), pattern)) ||
-                (EF.Property<string>(p, "NumberNorm") != null && EF.Functions.Like(EF.Property<string>(p, "NumberNorm"), normalizedPattern)) ||
+                (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
                 (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)));
         }
 
