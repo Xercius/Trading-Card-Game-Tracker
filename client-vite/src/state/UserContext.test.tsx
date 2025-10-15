@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import * as httpMod from "@/lib/http";
 import { UserProvider } from "./UserProvider";
 import { useUser } from "./useUser";
-import { cssEscapeId } from "@/test/utils/cssEscape";
+import { cssEscapeId } from "@/test/utils";
 
 type AxiosGet = (typeof httpMod.default)["get"];
 type AxiosPost = (typeof httpMod.default)["post"];
