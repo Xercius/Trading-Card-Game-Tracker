@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import * as httpMod from "@/lib/http";
 import { UserProvider } from "./UserProvider";
 import { useUser } from "./useUser";
+import { cssEscapeId } from "@/test/utils";
 
 type AxiosGet = (typeof httpMod.default)["get"];
 type AxiosPost = (typeof httpMod.default)["post"];
@@ -21,6 +22,25 @@ function Consumer() {
       <div data-testid="user-names">{users.map((u) => u.name).join(",") || ""}</div>
     </div>
   );
+}
+
+/**
+ * Wait for a condition to be true, checking periodically.
+ * This replaces arbitrary timeouts and flush() chains with deterministic waits.
+ */
+async function waitFor(
+  condition: () => boolean,
+  options: { timeout?: number; interval?: number } = {}
+): Promise<void> {
+  const { timeout = 5000, interval = 50 } = options;
+  const startTime = Date.now();
+
+  while (!condition()) {
+    if (Date.now() - startTime > timeout) {
+      throw new Error("waitFor timeout: condition not met");
+    }
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
 }
 
 function renderWithProvider(children: ReactNode) {
@@ -80,8 +100,9 @@ describe("UserProvider", () => {
     const setSpy = vi.spyOn(httpMod, "setHttpAccessToken").mockImplementation(() => {});
     const view = renderWithProvider(<Consumer />);
     await view.render();
-    await view.flush();
 
+    // Wait for the refresh failure to complete and user state to be cleared
+    await waitFor(() => setSpy.mock.calls.length > 0);
     expect(setSpy).toHaveBeenLastCalledWith(null);
     expect(window.localStorage.getItem("authToken")).toBeNull();
 
@@ -97,11 +118,14 @@ describe("UserProvider", () => {
 
     const view = renderWithProvider(<Consumer />);
     await view.render();
-    await view.flush();
 
-    const username = view.container.querySelector<HTMLInputElement>("#login-username");
-    const password = view.container.querySelector<HTMLInputElement>("#login-password");
-    const button = view.container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    // Wait for login form to be rendered in the DOM
+    await waitFor(() => document.querySelector(`#${cssEscapeId("login-username")}`) !== null);
+
+    // Dialog component uses a portal, so query from document.body
+    const username = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-username")}`);
+    const password = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-password")}`);
+    const button = document.querySelector<HTMLButtonElement>('button[type="submit"]');
 
     expect(username).not.toBeNull();
     expect(password).not.toBeNull();
@@ -149,37 +173,58 @@ describe("UserProvider", () => {
 
     const view = renderWithProvider(<Consumer />);
     await view.render();
-    await view.flush();
 
-    const username = view.container.querySelector<HTMLInputElement>("#login-username");
-    const password = view.container.querySelector<HTMLInputElement>("#login-password");
-    const form = view.container.querySelector<HTMLFormElement>("form");
+    // Wait for login form to be rendered
+    await waitFor(() => document.querySelector(`#${cssEscapeId("login-username")}`) !== null);
+
+    // Dialog component uses a portal, so query from document.body
+    const username = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-username")}`);
+    const password = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-password")}`);
+    const form = document.querySelector<HTMLFormElement>("form");
+    const submitButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
     expect(username).not.toBeNull();
     expect(password).not.toBeNull();
     expect(form).not.toBeNull();
 
     await act(async () => {
       if (username) {
-        username.value = "alice";
+        // Use React's internal setter to properly update controlled input
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          "value"
+        )?.set;
+        nativeInputValueSetter?.call(username, "alice");
         username.dispatchEvent(new Event("input", { bubbles: true }));
       }
       if (password) {
-        password.value = "Password123!";
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          "value"
+        )?.set;
+        nativeInputValueSetter?.call(password, "Password123!");
         password.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
 
     await act(async () => {
-      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      submitButton?.click();
     });
 
-    await view.flush();
-    await view.flush();
-
+    // Wait for login to complete and check HTTP calls
+    await waitFor(() => postMock.mock.calls.length > 0);
     expect(postMock).toHaveBeenCalledWith("auth/login", { username: "alice", password: "Password123!" });
     expect(setSpy).toHaveBeenCalledWith("token-1");
     expect(window.localStorage.getItem("authToken")).toBe("token-1");
-    expect(httpMod.__debugGetCurrentAccessToken()).toBe("token-1");
+
+    // Wait for user data to be populated in the DOM
+    await waitFor(() => {
+      const count = view.container.querySelector('[data-testid="user-count"]');
+      return count?.textContent === "2";
+    });
+
+    // Check that setHttpAccessToken was called and not cleared
+    const lastCall = setSpy.mock.calls[setSpy.mock.calls.length - 1];
+    expect(lastCall?.[0]).toBe("token-1");
 
     const count = view.container.querySelector('[data-testid="user-count"]');
     expect(count?.textContent).toBe("2");

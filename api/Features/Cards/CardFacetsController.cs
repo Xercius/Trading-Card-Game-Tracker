@@ -30,6 +30,120 @@ public sealed class CardFacetsController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves facets (games, sets, rarities) with counts based on active filters.
+    /// Only returns facet values that produce results with the current filter combination.
+    /// </summary>
+    /// <param name="game">Optional comma-separated list of game names to filter by.</param>
+    /// <param name="set">Optional comma-separated list of set names to filter by.</param>
+    /// <param name="rarity">Optional comma-separated list of rarity values to filter by.</param>
+    /// <param name="q">Optional search term to filter cards by name or type.</param>
+    /// <param name="ct">Cancellation token to stop the operation if needed.</param>
+    /// <returns>
+    /// An HTTP 200 OK response with a <see cref="CardsFacetResponse"/> containing
+    /// lists of games, sets, and rarities with their respective counts.
+    /// Each facet list reflects the current filter state and only includes values that yield results.
+    /// </returns>
+    [HttpGet]
+    public async Task<ActionResult<CardsFacetResponse>> GetFacets(
+        [FromQuery] string? game,
+        [FromQuery] string? set,
+        [FromQuery] string? rarity,
+        [FromQuery] string? q,
+        CancellationToken ct = default)
+    {
+        var games = CsvUtils.Parse(game);
+        var sets = CsvUtils.Parse(set);
+        var rarities = CsvUtils.Parse(rarity);
+
+        // Normalize filter lists to lowercase for case-insensitive comparison
+        // This approach preserves index usage by avoiding inline collation
+        var gamesNormalized = games.Select(g => g.ToLower()).ToList();
+        var setsNormalized = sets.Select(s => s.ToLower()).ToList();
+        var raritiesNormalized = rarities.Select(r => r.ToLower()).ToList();
+
+        // Build base query with filters
+        var baseQuery = _db.CardPrintings.AsNoTracking().AsQueryable();
+
+        // Apply search term filter (case-insensitive)
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            var pattern = $"%{term}%";
+            baseQuery = baseQuery.Where(cp =>
+                EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
+                EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern));
+        }
+
+        // Compute game facets (with set, rarity filters applied)
+        var gameQuery = baseQuery;
+        if (setsNormalized.Count > 0)
+        {
+            gameQuery = gameQuery.Where(cp =>
+                setsNormalized.Contains(cp.Set.ToLower()));
+        }
+        if (raritiesNormalized.Count > 0)
+        {
+            gameQuery = gameQuery.Where(cp =>
+                raritiesNormalized.Contains(cp.Rarity.ToLower()));
+        }
+
+        var gameFacets = await gameQuery
+            .GroupBy(cp => cp.Card.Game)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .OrderBy(f => f.Value)
+            .ToListAsync(ct);
+
+        // Compute set facets (with game, rarity filters applied)
+        var setQuery = baseQuery;
+        if (gamesNormalized.Count > 0)
+        {
+            setQuery = setQuery.Where(cp =>
+                gamesNormalized.Contains(cp.Card.Game.ToLower()));
+        }
+        if (raritiesNormalized.Count > 0)
+        {
+            setQuery = setQuery.Where(cp =>
+                raritiesNormalized.Contains(cp.Rarity.ToLower()));
+        }
+
+        var setFacets = await setQuery
+            .Where(cp => !string.IsNullOrWhiteSpace(cp.Set))
+            .GroupBy(cp => cp.Set)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .OrderBy(f => f.Value)
+            .ToListAsync(ct);
+
+        // Compute rarity facets (with game, set filters applied)
+        var rarityQuery = baseQuery;
+        if (gamesNormalized.Count > 0)
+        {
+            rarityQuery = rarityQuery.Where(cp =>
+                gamesNormalized.Contains(cp.Card.Game.ToLower()));
+        }
+        if (setsNormalized.Count > 0)
+        {
+            rarityQuery = rarityQuery.Where(cp =>
+                setsNormalized.Contains(cp.Set.ToLower()));
+        }
+
+        var rarityFacets = await rarityQuery
+            .Where(cp => !string.IsNullOrWhiteSpace(cp.Rarity))
+            .GroupBy(cp => cp.Rarity)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .OrderBy(f => f.Value)
+            .ToListAsync(ct);
+
+        var response = new CardsFacetResponse
+        {
+            Games = gameFacets,
+            Sets = setFacets,
+            Rarities = rarityFacets,
+        };
+
+        return Ok(response);
+    }
+
+    /// <summary>
     /// Retrieves a distinct, sorted list of all games available in the card database.
     /// </summary>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>

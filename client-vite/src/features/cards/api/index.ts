@@ -1,5 +1,5 @@
-export { fetchCardsPage, fetchCardGames, fetchCardSets, fetchCardRarities } from "./list";
-export type { CardsPage, CardsPageParams, CardFacetSets, CardFacetRarities } from "./list";
+export { fetchCardsPage, fetchCardGames, fetchCardSets, fetchCardRarities, fetchCardFacets } from "./list";
+export type { CardsPage, CardsPageParams, CardFacetSets, CardFacetRarities, CardsFacetResponse, FacetOption } from "./list";
 export type {
   CardDetail,
   CardPrintingDetail,
@@ -13,3 +13,4 @@ export { useCardPrintings } from "./useCardPrintings";
 export { useSparkline } from "./useSparkline";
 export { useUpsertCollection } from "./useUpsertCollection";
 export { useUpsertWishlist } from "./useUpsertWishlist";
+export { cardsQueryKeys } from "../queryKeys";
