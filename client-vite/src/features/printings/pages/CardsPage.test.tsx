@@ -2,29 +2,26 @@ import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-
-const usePrintingsMock = vi.fn();
-
-vi.mock("../api/usePrintings", () => ({
-  usePrintings: (query: unknown) => usePrintingsMock(query),
-}));
-
 import CardsPage from "./CardsPage";
+import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
+  let usePrintingsMock: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.useFakeTimers();
-    usePrintingsMock.mockReset();
-    usePrintingsMock.mockImplementation(() => ({
+    usePrintingsMock = vi.spyOn(printingsApi, "usePrintings");
+    usePrintingsMock.mockReturnValue({
       data: [],
       isLoading: false,
       isError: false,
       error: null,
-    }));
+    } as ReturnType<typeof printingsApi.usePrintings>);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("calls usePrintings with the default query", async () => {
@@ -56,12 +53,12 @@ describe("CardsPage", () => {
   it("preserves search input value while typing", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
-    usePrintingsMock.mockImplementation(() => ({
+    usePrintingsMock.mockReturnValue({
       data: [],
       isLoading: false,
       isError: false,
       error: null,
-    }));
+    } as ReturnType<typeof printingsApi.usePrintings>);
 
     const container = document.createElement("div");
     const root = createRoot(container);
@@ -108,7 +105,7 @@ describe("CardsPage", () => {
   it("renders printing tiles and updates the query when searching", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
-    usePrintingsMock.mockImplementation(() => ({
+    usePrintingsMock.mockReturnValue({
       data: [
         {
           printingId: "p1",
@@ -125,7 +122,7 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    }));
+    } as ReturnType<typeof printingsApi.usePrintings>);
 
     const container = document.createElement("div");
     const root = createRoot(container);
