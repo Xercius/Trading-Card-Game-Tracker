@@ -27,12 +27,13 @@ describe("CardsPage filter wiring", () => {
 
   it("syncs filters from URL to query parameters", async () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
-    mockUsePrintings.mockReturnValue({
+    const mockPrintingsResult: ReturnType<typeof printingsApi.usePrintings> = {
       data: [],
       isLoading: false,
       isError: false,
       error: null,
-    } as any);
+    };
+    mockUsePrintings.mockReturnValue(mockPrintingsResult);
 
     const root = createRoot(container);
     
