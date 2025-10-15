@@ -1,8 +1,7 @@
-import { NavLink, useLocation, useSearchParams } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectTrigger,
@@ -15,8 +14,6 @@ import { useUser } from "@/state/useUser";
 import { useQueryState } from "@/hooks/useQueryState";
 import { useDebounce } from "@/hooks/useDebounce";
 import { paths } from "@/routes/paths";
-
-const GAME_OPTIONS = ["SWU", "Lorcana", "MTG", "Pokemon", "SWCCG", "FaB", "Guardians"];
 
 type NavLinkItem = {
   to: string;
@@ -42,7 +39,6 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
 export default function Header() {
   const { users, userId, setUserId } = useUser();
   const [q, setQ] = useQueryState("q", "");
-  const [params, setParams] = useSearchParams();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -72,22 +68,6 @@ export default function Header() {
   useEffect(() => {
     setMobileOpen(false);
   }, [location]);
-
-  const selectedGames = useMemo(
-    () => (params.get("game") ?? "").split(",").filter(Boolean),
-    [params]
-  );
-
-  function toggleGame(g: string) {
-    const set = new Set(selectedGames);
-    if (set.has(g)) set.delete(g);
-    else set.add(g);
-    const next = new URLSearchParams(params);
-    const val = Array.from(set).join(",");
-    if (val) next.set("game", val);
-    else next.delete("game");
-    setParams(next, { replace: true });
-  }
 
   function onMobileMenuKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") setMobileOpen(false);
@@ -166,24 +146,6 @@ export default function Header() {
           <Button variant="secondary" onClick={() => setSearch("")}>
             Clear
           </Button>
-        </div>
-
-        {/* Third row: filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Games:</span>
-          {GAME_OPTIONS.map((g) => {
-            const active = selectedGames.includes(g);
-            return (
-              <Badge
-                key={g}
-                variant={active ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => toggleGame(g)}
-              >
-                {g}
-              </Badge>
-            );
-          })}
         </div>
 
         {mobileOpen && (

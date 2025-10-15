@@ -130,7 +130,7 @@ export function MultiSelect({
           <ChevronDownIcon className={open ? "-rotate-180 transition-transform" : "transition-transform"} />
         </Button>
         {open && (
-          <div className="absolute left-0 z-50 mt-2 w-72 rounded-md border border-input bg-popover text-popover-foreground shadow-md">
+          <div className="absolute left-0 z-50 mt-2 w-72 rounded-md border border-input bg-white dark:bg-gray-900 shadow-lg">
             <div className="border-b border-input px-3 py-2">
               <input
                 ref={inputRef}
