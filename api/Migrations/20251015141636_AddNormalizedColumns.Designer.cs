@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using api.Data;
 
@@ -10,9 +11,11 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251015141636_AddNormalizedColumns")]
+    partial class AddNormalizedColumns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -133,11 +136,6 @@ namespace api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("StyleNorm")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("TEXT")
-                        .HasComputedColumnSql("LOWER(TRIM([Style]))", true);
-
                     b.HasKey("Id");
 
                     b.HasIndex("CardId");
@@ -145,8 +143,6 @@ namespace api.Migrations
                     b.HasIndex("RarityNorm");
 
                     b.HasIndex("SetNorm");
-
-                    b.HasIndex("StyleNorm");
 
                     b.HasIndex("Set", "Number");
 

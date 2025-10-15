@@ -1,6 +1,7 @@
 using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
+using api.Features._Common;
 using api.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -55,22 +56,20 @@ public sealed class PrintingsController : ControllerBase
         var games = CsvUtils.Parse(qp.Game); // Suggest: rename 'games' → 'gameNames'
         if (games.Count > 0)
         {
-            // Case-insensitive match: Note that applying ToLower to the column typically prevents index usage.
-            // For best performance, use NOCASE collation (see set filter below) or store normalized values in a separate indexed column.
-            var gamesNormalized = games.Select(g => g.ToLower()).ToList();
+            // Case-insensitive match using normalized column for index efficiency
+            var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                p.Card.Game != null &&
-                gamesNormalized.Contains(p.Card.Game.ToLower()));
+                normalizedGames.Contains(EF.Property<string>(p.Card, "GameNorm")));
         }
 
         // Filter by set(s) - supports comma-separated list
         var sets = CsvUtils.Parse(qp.Set); // Suggest: rename 'sets' → 'setNames'
         if (sets.Count > 0)
         {
-            // Case-insensitive match using NOCASE collation
+            // Case-insensitive match using normalized column for index efficiency
+            var normalizedSets = sets.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                p.Set != null &&
-                sets.Any(s => EF.Functions.Collate(p.Set, "NOCASE") == s));
+                normalizedSets.Contains(EF.Property<string>(p, "SetNorm")));
         }
 
         // Filter by exact printing number (case-sensitive)
@@ -84,33 +83,34 @@ public sealed class PrintingsController : ControllerBase
         var rarities = CsvUtils.Parse(qp.Rarity);
         if (rarities.Count > 0)
         {
-            // Case-insensitive match using NOCASE collation
+            // Case-insensitive match using normalized column for index efficiency
+            var normalizedRarities = rarities.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                p.Rarity != null &&
-                rarities.Any(r => EF.Functions.Collate(p.Rarity, "NOCASE") == r));
+                normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm")));
         }
 
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)
         {
-            // Case-insensitive match using NOCASE collation
+            // Case-insensitive match using normalized column for index efficiency
+            var normalizedStyles = styles.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                p.Style != null &&
-                styles.Any(st => EF.Functions.Collate(p.Style, "NOCASE") == st));
+                normalizedStyles.Contains(EF.Property<string>(p, "StyleNorm")));
         }
 
         // Free-text search across card name, printing number, and set name
         if (!string.IsNullOrWhiteSpace(qp.Q))
         {
             var term = qp.Q.Trim(); // Suggest: rename 'term' → 'searchTerm'
+            var normalizedTerm = SqliteCaseNormalizer.Normalize(term);
+            var normalizedPattern = $"%{normalizedTerm}%";
             var pattern = $"%{term}%";
-            // EF.Functions.Like with NOCASE collation performs case-insensitive wildcard search
-            // that remains index-friendly on SQLite via NOCASE collation
+            // Use normalized columns where available for index-friendly case-insensitive wildcard search
             query = query.Where(p =>
                 (p.Card.Name != null && EF.Functions.Like(EF.Functions.Collate(p.Card.Name, "NOCASE"), pattern)) ||
                 (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
-                (p.Set != null && EF.Functions.Like(EF.Functions.Collate(p.Set, "NOCASE"), pattern)));
+                (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)));
         }
 
         // Apply default ordering: set, then number, then card name

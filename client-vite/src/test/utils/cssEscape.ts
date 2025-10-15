@@ -1,26 +1,20 @@
 /**
- * Escape an ID string for use in CSS selectors.
- * Uses native CSS.escape when available, otherwise provides a minimal fallback
- * for common special characters like colons and leading digits.
- *
- * @param id - The ID string to escape
- * @returns The escaped ID string safe for use in CSS selectors
- *
- * @example
- * ```ts
- * const el = document.querySelector(`#${cssEscapeId('login-username')}`);
- * const el2 = document.querySelector(`#${cssEscapeId('item:123')}`);
- * ```
+ * Escapes a CSS selector ID to handle special characters like colons.
+ * Uses native CSS.escape if available, otherwise falls back to manual escaping.
  */
 export function cssEscapeId(id: string): string {
-  // Use native CSS.escape when available
-  if ((globalThis as any).CSS?.escape) {
-    return (globalThis as any).CSS.escape(id);
+  // Use native CSS.escape if available
+  if (typeof CSS !== "undefined" && CSS.escape) {
+    return CSS.escape(id);
   }
 
-  // Minimal fallback for colons, leading digits, and leading hyphen before digit
-  return id
-    .replace(/^-(?=\d)/, '\\-')
-    .replace(/^[0-9]/, '\\3$& ')
-    .replace(/:/g, '\\:');
+  // Fallback: escape special characters manually
+  // Escape leading digits with \3X (hex code)
+  if (/^\d/.test(id)) {
+    const firstChar = id.charCodeAt(0).toString(16);
+    id = `\\3${firstChar.slice(-1)} ${id.slice(1)}`;
+  }
+
+  // Escape colons
+  return id.replace(/:/g, "\\:");
 }

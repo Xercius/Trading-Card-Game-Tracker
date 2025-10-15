@@ -17,7 +17,9 @@ describe("cssEscapeId", () => {
       }
       (globalThis as any).CSS.escape = originalCSSEscape;
     } else {
-      delete (globalThis as any).CSS?.escape;
+      if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
+        delete (globalThis as any).CSS.escape;
+      }
     }
   });
 
@@ -39,14 +41,18 @@ describe("cssEscapeId", () => {
 
   it("escapes colons using fallback when CSS.escape is not available", () => {
     // Remove CSS.escape to test fallback
-    delete (globalThis as any).CSS?.escape;
+    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
+      delete (globalThis as any).CSS.escape;
+    }
     const result = cssEscapeId("item:123");
     expect(result).toBe("item\\:123");
   });
 
   it("escapes leading digits using fallback when CSS.escape is not available", () => {
     // Remove CSS.escape to test fallback
-    delete (globalThis as any).CSS?.escape;
+    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
+      delete (globalThis as any).CSS.escape;
+    }
     const result = cssEscapeId("123abc");
     // Fallback escapes the first digit: \31 23abc
     expect(result).toMatch(/^\\3[0-9]/);
@@ -54,7 +60,9 @@ describe("cssEscapeId", () => {
 
   it("handles IDs with both leading digits and colons using fallback", () => {
     // Remove CSS.escape to test fallback
-    delete (globalThis as any).CSS?.escape;
+    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
+      delete (globalThis as any).CSS.escape;
+    }
     const result = cssEscapeId("5item:123");
     // Fallback escapes leading digit and colons
     expect(result).toMatch(/^\\3[0-9]/);

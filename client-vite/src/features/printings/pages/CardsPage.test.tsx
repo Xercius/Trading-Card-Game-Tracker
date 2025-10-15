@@ -2,6 +2,18 @@ import { act } from "react-dom/test-utils";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
+
+const usePrintingsMock = vi.fn();
+const CardModalMock = vi.fn(() => null);
+
+vi.mock("../api/usePrintings", () => ({
+  usePrintings: (query: unknown) => usePrintingsMock(query),
+}));
+
+vi.mock("@/features/cards/components/CardModal", () => ({
+  default: (props: unknown) => CardModalMock(props),
+}));
+
 import CardsPage from "./CardsPage";
 import * as printingsApi from "../api/usePrintings";
 
@@ -12,8 +24,9 @@ describe("CardsPage", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    usePrintingsMock = vi.spyOn(printingsApi, "usePrintings");
-    usePrintingsMock.mockReturnValue({
+    usePrintingsMock.mockReset();
+    CardModalMock.mockReset();
+    usePrintingsMock.mockImplementation(() => ({
       data: [],
       isLoading: false,
       isError: false,
@@ -138,8 +151,10 @@ describe("CardsPage", () => {
       root!.render(<RouterProvider router={router} />);
     });
 
-    expect(container.textContent).toContain("Sample Card");
-    expect(container.textContent).toContain("Game A • Set A #001 • Common");
+    // Card tiles no longer show visible text - verify aria-label for accessibility
+    const cardButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    expect(cardButton).not.toBeNull();
+    expect(cardButton?.getAttribute("aria-label")).toBe("Sample Card — Set A #001");
 
     const input = container.querySelector<HTMLInputElement>("input[type='search']");
     expect(input).not.toBeNull();
@@ -200,5 +215,57 @@ describe("CardsPage", () => {
 
     // We should only have added one container, not accumulated multiple
     expect(document.body.childNodes.length).toBe(childCountBefore + 1);
+  });
+
+  it("opens CardModal when a printing is clicked", async () => {
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
+
+    usePrintingsMock.mockImplementation(() => ({
+      data: [
+        {
+          printingId: "123",
+          cardId: "456",
+          cardName: "Test Card",
+          game: "Magic",
+          setName: "Alpha",
+          setCode: "ALP",
+          number: "001",
+          rarity: "Rare",
+          imageUrl: "/test.png",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    }));
+
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    // Find and click the printing card button
+    const printingButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    expect(printingButton).not.toBeNull();
+    expect(printingButton?.getAttribute("aria-label")).toBe("Test Card — Alpha #001");
+
+    await act(async () => {
+      printingButton?.click();
+    });
+
+    // CardModal should be called with the correct props
+    expect(CardModalMock).toHaveBeenCalled();
+    const lastCall = CardModalMock.mock.calls.at(-1)?.[0];
+    expect(lastCall).toMatchObject({
+      cardId: 456,
+      initialPrintingId: 123,
+      open: true,
+    });
+
+    await act(async () => {
+      root.unmount();
+    });
   });
 });

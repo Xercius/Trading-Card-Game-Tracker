@@ -70,6 +70,8 @@ export function DialogContent({
     return () => {};
   }, [open]);
 
+  // Removed duplicated scroll-locking useEffect per CodeQL recommendation.
+
   useEffect(() => {
     if (!open) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {

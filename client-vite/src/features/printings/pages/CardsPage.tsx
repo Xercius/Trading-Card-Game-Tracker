@@ -7,6 +7,8 @@ import { usePrintings } from "../api/usePrintings";
 import { deriveFacets } from "../api/usePrintingFacets";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { PrintingCard } from "../components/PrintingCard";
+import CardModal from "@/features/cards/components/CardModal";
+import type { PrintingListItem } from "../api/printings";
 
 export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
@@ -14,8 +16,19 @@ export default function CardsPage() {
   const printings = data ?? [];
   const facets = React.useMemo(() => deriveFacets(printings), [printings]);
 
-  const [searchInput, setSearchInput] = React.useState(filters.q ?? "");
-  const lastUserInputRef = React.useRef<string>(filters.q ?? "");
+  const [selectedPrinting, setSelectedPrinting] = React.useState<{
+    cardId: number;
+    printingId: number;
+  } | null>(null);
+
+  const handlePrintingClick = React.useCallback((p: PrintingListItem) => {
+    const cardId = typeof p.cardId === "string" ? parseInt(p.cardId, 10) : p.cardId;
+    const printingId = typeof p.printingId === "string" ? parseInt(p.printingId, 10) : p.printingId;
+    setSelectedPrinting({ cardId, printingId });
+  }, []);
+
+  const [searchInput, setSearchInput] = React.useState(query.q ?? "");
+  const lastUserInputRef = React.useRef<string>(query.q ?? "");
 
   React.useEffect(() => {
     // Only sync from filters.q if it's different from what the user last typed
@@ -133,14 +146,25 @@ export default function CardsPage() {
       {!isLoading && !isError && (
         <>
           <div className="text-sm text-muted-foreground">{printings.length} printings</div>
-          <ul className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+          <ul className="grid gap-1 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
             {printings.map(p => (
               <li key={p.printingId}>
-                <PrintingCard p={p} />
+                <PrintingCard p={p} onClick={handlePrintingClick} />
               </li>
             ))}
           </ul>
         </>
+      )}
+
+      {selectedPrinting && (
+        <CardModal
+          cardId={selectedPrinting.cardId}
+          initialPrintingId={selectedPrinting.printingId}
+          open={!!selectedPrinting}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPrinting(null);
+          }}
+        />
       )}
     </div>
   );
