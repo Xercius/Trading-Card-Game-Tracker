@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactElement } from "react";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
@@ -26,6 +26,10 @@ function createTestWrapper(initialEntries: string[] = ["/"]) {
 describe("CardsPage filter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("syncs filters from URL to query parameters", () => {
@@ -89,14 +93,13 @@ describe("CardsPage filter wiring", () => {
       error: null,
     } as any);
 
-    const { container } = render(<CardsPage />, {
+    render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards?game=Magic&rarity=Rare"]),
     });
 
-    const text = container.textContent;
-    expect(text).toContain("Active filters:");
-    expect(text).toContain("Game: Magic");
-    expect(text).toContain("Rarity: Rare");
+    expect(screen.queryByText("Active filters:")).toBeInTheDocument();
+    expect(screen.queryByText("Game: Magic")).toBeInTheDocument();
+    expect(screen.queryByText("Rarity: Rare")).toBeInTheDocument();
   });
 
   it("displays loading state", () => {
