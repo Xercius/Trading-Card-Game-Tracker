@@ -143,8 +143,8 @@ public class CardsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(game))
         {
-            var g = game.Trim();
-            q = q.Where(c => EF.Functions.Collate(c.Game, "NOCASE") == g);
+            var normalized = game.Trim().ToLowerInvariant();
+            q = q.Where(c => EF.Property<string>(c, "GameNorm") == normalized);
         }
         if (!string.IsNullOrWhiteSpace(name))
         {
