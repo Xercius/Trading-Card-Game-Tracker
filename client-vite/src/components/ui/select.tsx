@@ -203,13 +203,24 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
   }, [open, triggerRef]);
 
   // Handle keyboard navigation
+  const hasBoundNavigation = useRef(false);
+
   useEffect(() => {
-    if (!open || !contentRef.current) return;
+    if (!open) {
+      hasBoundNavigation.current = false;
+      return;
+    }
+
+    if (!contentRef.current || !position || hasBoundNavigation.current) {
+      return;
+    }
+
+    const content = contentRef.current;
+    if (!content) return;
+
+    hasBoundNavigation.current = true;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const content = contentRef.current;
-      if (!content) return;
-
       const options = Array.from(content.querySelectorAll<HTMLButtonElement>('[role="option"]'));
       if (options.length === 0) return;
 
@@ -232,16 +243,17 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
       }
     };
 
-    contentRef.current.addEventListener("keydown", handleKeyDown);
-    const content = contentRef.current;
+    content.addEventListener("keydown", handleKeyDown);
 
     // Focus first option when opening
-    setTimeout(() => {
+    const focusTimeout = window.setTimeout(() => {
       const firstOption = content.querySelector<HTMLButtonElement>('[role="option"]');
       firstOption?.focus();
     }, 0);
 
     return () => {
+      hasBoundNavigation.current = false;
+      window.clearTimeout(focusTimeout);
       content.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, position]);
