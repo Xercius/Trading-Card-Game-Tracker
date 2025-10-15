@@ -132,6 +132,66 @@ describe("Select", () => {
     expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 
+  it("keyboard navigation works immediately after opening dropdown", async () => {
+    const user = userEvent.setup({ delay: null });
+    render(
+      <Select>
+        <SelectTrigger>
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="option1">Option 1</SelectItem>
+          <SelectItem value="option2">Option 2</SelectItem>
+          <SelectItem value="option3">Option 3</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+
+    const trigger = screen.getByRole("combobox");
+    await user.click(trigger);
+
+    await waitFor(() => {
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+    });
+
+    const options = screen.getAllByRole("option");
+    
+    // Wait for first option to be focused automatically
+    await waitFor(() => {
+      expect(options[0]).toHaveFocus();
+    });
+    
+    // ArrowDown should move to second option
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => {
+      expect(options[1]).toHaveFocus();
+    });
+    
+    // ArrowDown should move to third option
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => {
+      expect(options[2]).toHaveFocus();
+    });
+    
+    // Home should move to first option
+    await user.keyboard("{Home}");
+    await waitFor(() => {
+      expect(options[0]).toHaveFocus();
+    });
+    
+    // End should move to last option
+    await user.keyboard("{End}");
+    await waitFor(() => {
+      expect(options[2]).toHaveFocus();
+    });
+    
+    // ArrowUp should move to second option (wrapping from last)
+    await user.keyboard("{ArrowUp}");
+    await waitFor(() => {
+      expect(options[1]).toHaveFocus();
+    });
+  });
+
   it("renders with proper accessibility attributes", async () => {
     const user = userEvent.setup();
     render(

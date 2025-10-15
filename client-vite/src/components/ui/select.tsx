@@ -244,7 +244,7 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
     return () => {
       content.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [open, position]);
 
   // Click outside to close
   useEffect(() => {
