@@ -11,7 +11,7 @@ The `cssEscape` module provides a `cssEscapeId` function for safely escaping ID 
 Use `cssEscapeId` whenever you need to construct a CSS selector with a dynamic ID:
 
 ```typescript
-import { cssEscapeId } from "@/test/utils/cssEscape";
+import { cssEscapeId } from "@/test/utils";
 
 // ✓ Good - escaped
 const element = document.querySelector(`#${cssEscapeId(dynamicId)}`);
