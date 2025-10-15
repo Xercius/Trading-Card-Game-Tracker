@@ -280,4 +280,55 @@ describe("FilterDropdown", () => {
       expect(menu).toHaveAttribute("aria-labelledby", trigger1Id);
     });
   });
+
+  it("works in controlled mode without onOpenChange (edge case)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <FilterDropdown trigger={<button>Open Filters</button>} open={false}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    expect(screen.queryByText("Filter content")).not.toBeInTheDocument();
+
+    // Programmatically open without onOpenChange - should not throw error
+    rerender(
+      <FilterDropdown trigger={<button>Open Filters</button>} open={true}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Filter content")).toBeInTheDocument();
+    });
+
+    // Try clicking trigger - should not crash even without onOpenChange
+    const trigger = screen.getByText("Open Filters");
+    await user.click(trigger);
+
+    // Since onOpenChange is not provided, the click should be a no-op or handled gracefully
+    // The component should remain open since we're in controlled mode
+    expect(screen.getByText("Filter content")).toBeInTheDocument();
+  });
+
+  it("handles Escape key gracefully in controlled mode without onOpenChange", async () => {
+    const user = userEvent.setup();
+    render(
+      <FilterDropdown trigger={<button>Open Filters</button>} open={true}>
+        <div>Filter content</div>
+      </FilterDropdown>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Filter content")).toBeInTheDocument();
+    });
+
+    // Press Escape - should not throw error even without onOpenChange
+    await user.keyboard("{Escape}");
+
+    // Since we're in controlled mode without onOpenChange, state won't actually change
+    // but it should not throw an error
+    // The component should remain open since parent controls it
+    expect(screen.getByText("Filter content")).toBeInTheDocument();
+  });
 });
