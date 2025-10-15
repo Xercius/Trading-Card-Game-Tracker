@@ -1,31 +1,34 @@
-import { act } from "react-dom/test-utils";
-import { createRoot } from "react-dom/client";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactElement } from "react";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
 
-describe("CardsPage filter wiring", () => {
-  let queryClient: QueryClient;
-  let container: HTMLDivElement;
+// Helper function to wrap components with required providers
+function createTestWrapper(initialEntries: string[] = ["/"]) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity },
+    },
+  });
 
+  return function Wrapper({ children }: { children: ReactElement }) {
+    return (
+      <MemoryRouter initialEntries={initialEntries}>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </MemoryRouter>
+    );
+  };
+}
+
+describe("CardsPage filter wiring", () => {
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, staleTime: Infinity },
-      },
-    });
-    container = document.createElement("div");
-    document.body.appendChild(container);
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    document.body.removeChild(container);
-  });
-
-  it("syncs filters from URL to query parameters", async () => {
+  it("syncs filters from URL to query parameters", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     const mockPrintingsResult: ReturnType<typeof printingsApi.usePrintings> = {
       data: [],
@@ -35,16 +38,8 @@ describe("CardsPage filter wiring", () => {
     };
     mockUsePrintings.mockReturnValue(mockPrintingsResult);
 
-    const root = createRoot(container);
-    
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&q=bolt"]}>
-          <QueryClientProvider client={queryClient}>
-            <CardsPage />
-          </QueryClientProvider>
-        </MemoryRouter>
-      );
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&q=bolt"]),
     });
 
     // Verify usePrintings was called with correct filters from URL
@@ -58,15 +53,11 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.pageSize).toBe(60);
 
     // Verify search input is populated
-    const searchInput = container.querySelector('input[type="search"]') as HTMLInputElement;
-    expect(searchInput?.value).toBe("bolt");
-
-    await act(async () => {
-      root.unmount();
-    });
+    const searchInput = screen.getByRole("searchbox") as HTMLInputElement;
+    expect(searchInput.value).toBe("bolt");
   });
 
-  it("uses default values when no URL parameters are present", async () => {
+  it("uses default values when no URL parameters are present", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
       data: [],
@@ -75,16 +66,8 @@ describe("CardsPage filter wiring", () => {
       error: null,
     } as any);
 
-    const root = createRoot(container);
-    
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/cards"]}>
-          <QueryClientProvider client={queryClient}>
-            <CardsPage />
-          </QueryClientProvider>
-        </MemoryRouter>
-      );
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards"]),
     });
 
     expect(mockUsePrintings).toHaveBeenCalled();
@@ -95,13 +78,9 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.q).toBe("");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
-
-    await act(async () => {
-      root.unmount();
-    });
   });
 
-  it("displays active filters badges when filters are present", async () => {
+  it("displays active filters badges when filters are present", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
       data: [],
@@ -110,29 +89,17 @@ describe("CardsPage filter wiring", () => {
       error: null,
     } as any);
 
-    const root = createRoot(container);
-    
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/cards?game=Magic&rarity=Rare"]}>
-          <QueryClientProvider client={queryClient}>
-            <CardsPage />
-          </QueryClientProvider>
-        </MemoryRouter>
-      );
+    const { container } = render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards?game=Magic&rarity=Rare"]),
     });
 
-    const activeFiltersText = container.textContent;
-    expect(activeFiltersText).toContain("Active filters:");
-    expect(activeFiltersText).toContain("Game: Magic");
-    expect(activeFiltersText).toContain("Rarity: Rare");
-
-    await act(async () => {
-      root.unmount();
-    });
+    const text = container.textContent;
+    expect(text).toContain("Active filters:");
+    expect(text).toContain("Game: Magic");
+    expect(text).toContain("Rarity: Rare");
   });
 
-  it("displays loading state", async () => {
+  it("displays loading state", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
       data: undefined,
@@ -141,26 +108,14 @@ describe("CardsPage filter wiring", () => {
       error: null,
     } as any);
 
-    const root = createRoot(container);
-    
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/cards"]}>
-          <QueryClientProvider client={queryClient}>
-            <CardsPage />
-          </QueryClientProvider>
-        </MemoryRouter>
-      );
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards"]),
     });
 
-    expect(container.textContent).toContain("Loading printings");
-
-    await act(async () => {
-      root.unmount();
-    });
+    expect(screen.getByText("Loading printings…")).toBeInTheDocument();
   });
 
-  it("displays error state", async () => {
+  it("displays error state", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
       data: undefined,
@@ -169,22 +124,10 @@ describe("CardsPage filter wiring", () => {
       error: new Error("Failed to load"),
     } as any);
 
-    const root = createRoot(container);
-    
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={["/cards"]}>
-          <QueryClientProvider client={queryClient}>
-            <CardsPage />
-          </QueryClientProvider>
-        </MemoryRouter>
-      );
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards"]),
     });
 
-    expect(container.textContent).toContain("Error: Failed to load");
-
-    await act(async () => {
-      root.unmount();
-    });
+    expect(screen.getByText("Error: Failed to load")).toBeInTheDocument();
   });
 });
