@@ -169,7 +169,7 @@ export default function CardModal({
         <div className="grid gap-6 p-6 lg:grid-cols-[1fr,1fr]">
           <section className="space-y-4">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-full max-w-sm overflow-hidden rounded-xl border bg-muted">
+              <div className="w-full max-w-sm rounded-xl border bg-muted">
                 {resolvedImageUrl ? (
                   <img
                     key={resolvedImageUrl}
@@ -177,10 +177,10 @@ export default function CardModal({
                     decoding="async"
                     src={resolvedImageUrl}
                     alt={details?.name ?? "Selected printing"}
-                    className="aspect-[3/4] h-full w-full object-cover"
+                    className="aspect-[63/88] h-full w-full object-contain"
                   />
                 ) : (
-                  <div className="flex aspect-[3/4] items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex aspect-[63/88] items-center justify-center text-sm text-muted-foreground">
                     No image available
                   </div>
                 )}
@@ -273,13 +273,13 @@ export default function CardModal({
                             }`}
                             onClick={() => setSelectedPrintingId(printing.printingId)}
                           >
-                            <div className="aspect-[3/4] w-full overflow-hidden rounded-lg bg-muted">
+                            <div className="aspect-[63/88] w-full rounded-lg bg-muted">
                               {printing.imageUrl ? (
                                 <img
                                   src={resolveImageUrl(printing.imageUrl)}
                                   alt={printing.setName}
                                   loading="lazy"
-                                  className="h-full w-full object-cover"
+                                  className="h-full w-full object-contain"
                                 />
                               ) : (
                                 <span className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
@@ -321,7 +321,7 @@ export default function CardModal({
                         className="h-24"
                       />
                       <div className="text-sm text-muted-foreground">
-                        Last recorded value: {formatPrice(latestPrice)}
+                        Last recorded value: {formatValue(latestPrice)}
                       </div>
                     </div>
                   )}

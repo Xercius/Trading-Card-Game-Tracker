@@ -206,14 +206,14 @@ export default function StickyDeckSidebar({
                 onDragStart={(event) => handleRowDragStart(event, row)}
                 data-testid={`deck-row-${row.printingId}`}
               >
-                <div className="h-16 w-12 overflow-hidden rounded border bg-muted">
+                <div className="h-16 w-12 rounded border bg-muted">
                   {row.imageUrl ? (
                     <img
                       loading="lazy"
                       decoding="async"
                       src={resolveImageUrl(row.imageUrl)}
                       alt={row.cardName}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
