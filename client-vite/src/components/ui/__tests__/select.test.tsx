@@ -4,6 +4,19 @@ import userEvent from "@testing-library/user-event";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../select";
 import { cssEscapeId } from "@/test/utils/cssEscape";
 
+/**
+ * Verifies that a listbox element can be retrieved by its ID using both
+ * getElementById and querySelector methods, ensuring compatibility with
+ * React-generated IDs that may contain special characters.
+ */
+function verifyListboxSelector(triggerId: string, listbox: HTMLElement) {
+  const byId = document.getElementById(triggerId);
+  expect(byId).toBe(listbox);
+
+  const bySelector = document.querySelector(`#${cssEscapeId(triggerId)}`);
+  expect(bySelector).toBe(listbox);
+}
+
 describe("Select", () => {
   afterEach(() => {
     cleanup();
@@ -275,13 +288,7 @@ describe("Select", () => {
       expect(listbox).toHaveAttribute("aria-labelledby", trigger1Id);
 
       // Verify querySelector works with React-generated IDs (which may contain colons)
-      // Must escape IDs for querySelector, or use getElementById
-      const listboxById = document.getElementById(trigger1Controls!);
-      expect(listboxById).toBe(listbox);
-
-      // Alternatively, using querySelector with escaped ID
-      const listboxBySelector = document.querySelector(`#${cssEscapeId(trigger1Controls!)}`);
-      expect(listboxBySelector).toBe(listbox);
+      verifyListboxSelector(trigger1Controls!, listbox);
     });
 
     // Close first and open second
@@ -306,13 +313,7 @@ describe("Select", () => {
       expect(listbox).toHaveAttribute("aria-labelledby", trigger2Id);
 
       // Verify querySelector works with React-generated IDs (which may contain colons)
-      // Must escape IDs for querySelector, or use getElementById
-      const listboxById = document.getElementById(trigger2Controls!);
-      expect(listboxById).toBe(listbox);
-
-      // Alternatively, using querySelector with escaped ID
-      const listboxBySelector = document.querySelector(`#${cssEscapeId(trigger2Controls!)}`);
-      expect(listboxBySelector).toBe(listbox);
+      verifyListboxSelector(trigger2Controls!, listbox);
     });
   });
 
