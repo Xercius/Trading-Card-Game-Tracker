@@ -55,7 +55,8 @@ public sealed class PrintingsController : ControllerBase
         var games = CsvUtils.Parse(qp.Game); // Suggest: rename 'games' → 'gameNames'
         if (games.Count > 0)
         {
-            // Case-insensitive match using normalized lowercase for index efficiency
+            // Case-insensitive match: Note that applying ToLower to the column typically prevents index usage.
+            // For best performance, use NOCASE collation (see set filter below) or store normalized values in a separate indexed column.
             var gamesNormalized = games.Select(g => g.ToLower()).ToList();
             query = query.Where(p =>
                 p.Card.Game != null &&
