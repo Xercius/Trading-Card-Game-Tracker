@@ -160,7 +160,7 @@ export default function UsersAdminPage() {
     <div className="space-y-4 p-4">
       <div>
         <h1 className="text-xl font-semibold">User management</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-400">
           Manage access to the tracker. Changes apply immediately for signed-in users.
         </p>
       </div>
@@ -171,7 +171,7 @@ export default function UsersAdminPage() {
           value={newName}
           onChange={(event) => setNewName(event.target.value)}
           placeholder="New user name"
-          className="flex-1 min-w-[200px] rounded border border-gray-300 px-3 py-2"
+          className="flex-1 min-w-[200px] rounded border border-gray-600 bg-gray-800 text-gray-100 px-3 py-2"
           disabled={createUser.isPending}
         />
         <button
@@ -186,8 +186,8 @@ export default function UsersAdminPage() {
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+        <table className="min-w-full divide-y divide-gray-700 text-left text-sm">
+          <thead className="bg-gray-800 text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Admin</th>
@@ -195,14 +195,14 @@ export default function UsersAdminPage() {
               <th className="px-4 py-2">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-700">
             {usersList.map((user) => {
               const disableToggle = pendingId === user.id || pendingDeleteId === user.id;
               const disableDelete =
                 (user.isAdmin && adminCount <= 1) || pendingDeleteId === user.id;
 
               return (
-                <tr key={user.id} className="bg-white">
+                <tr key={user.id} className="bg-gray-900">
                   <td className="px-4 py-2">
                     {editingId === user.id ? (
                       <form onSubmit={handleRename} className="flex items-center gap-2">
@@ -210,7 +210,7 @@ export default function UsersAdminPage() {
                           type="text"
                           value={draftName}
                           onChange={(event) => setDraftName(event.target.value)}
-                          className="flex-1 rounded border border-gray-300 px-2 py-1"
+                          className="flex-1 rounded border border-gray-600 bg-gray-800 text-gray-100 px-2 py-1"
                           disabled={pendingId === user.id}
                         />
                         <button
@@ -223,7 +223,7 @@ export default function UsersAdminPage() {
                         <button
                           type="button"
                           onClick={cancelEdit}
-                          className="rounded border border-gray-300 px-2 py-1"
+                          className="rounded border border-gray-600 bg-gray-800 text-gray-100 px-2 py-1"
                           disabled={pendingId === user.id}
                         >
                           Cancel
@@ -232,7 +232,7 @@ export default function UsersAdminPage() {
                     ) : (
                       <div className="flex flex-col">
                         <span className="font-medium">{user.name}</span>
-                        <span className="text-xs text-gray-500">{user.username}</span>
+                        <span className="text-xs text-gray-400">{user.username}</span>
                       </div>
                     )}
                   </td>
@@ -244,7 +244,7 @@ export default function UsersAdminPage() {
                       disabled={disableToggle}
                     />
                   </td>
-                  <td className="px-4 py-2 text-gray-600">
+                  <td className="px-4 py-2 text-gray-300">
                     {new Date(user.createdUtc).toLocaleString()}
                   </td>
                   <td className="px-4 py-2">
@@ -252,7 +252,7 @@ export default function UsersAdminPage() {
                       <button
                         type="button"
                         onClick={() => startEdit(user)}
-                        className="mr-2 rounded border border-gray-300 px-2 py-1 text-sm"
+                        className="mr-2 rounded border border-gray-600 bg-gray-800 text-gray-100 px-2 py-1 text-sm"
                         disabled={pendingId === user.id || pendingDeleteId === user.id}
                       >
                         Rename
@@ -262,7 +262,7 @@ export default function UsersAdminPage() {
                       type="button"
                       data-user-id={user.id}
                       onClick={() => handleDelete(user)}
-                      className="rounded border border-red-500 px-2 py-1 text-sm text-red-600 disabled:opacity-60"
+                      className="rounded border border-red-500 px-2 py-1 text-sm text-red-400 disabled:opacity-60"
                       disabled={disableDelete}
                     >
                       Delete
@@ -278,7 +278,7 @@ export default function UsersAdminPage() {
         </table>
       </div>
 
-      {isAnyMutationPending ? <div className="text-xs text-gray-500">Updating users…</div> : null}
+      {isAnyMutationPending ? <div className="text-xs text-gray-400">Updating users…</div> : null}
     </div>
   );
 }
