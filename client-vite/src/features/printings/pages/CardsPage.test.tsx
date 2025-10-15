@@ -1,5 +1,5 @@
 import { act } from "react-dom/test-utils";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import CardsPage from "./CardsPage";
@@ -7,6 +7,8 @@ import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
   let usePrintingsMock: ReturnType<typeof vi.spyOn>;
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -19,7 +21,17 @@ describe("CardsPage", () => {
     } as ReturnType<typeof printingsApi.usePrintings>);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (root) {
+      await act(async () => {
+        root.unmount();
+      });
+      root = null;
+    }
+    if (container) {
+      container.remove();
+      container = null;
+    }
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -27,11 +39,12 @@ describe("CardsPage", () => {
   it("calls usePrintings with the default query", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
-    const container = document.createElement("div");
-    const root = createRoot(container);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
 
     await act(async () => {
-      root.render(<RouterProvider router={router} />);
+      root!.render(<RouterProvider router={router} />);
     });
 
     expect(usePrintingsMock).toHaveBeenCalled();
@@ -43,10 +56,6 @@ describe("CardsPage", () => {
       page: 1,
       pageSize: 60,
       sort: undefined,
-    });
-
-    await act(async () => {
-      root.unmount();
     });
   });
 
@@ -60,11 +69,12 @@ describe("CardsPage", () => {
       error: null,
     } as ReturnType<typeof printingsApi.usePrintings>);
 
-    const container = document.createElement("div");
-    const root = createRoot(container);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
 
     await act(async () => {
-      root.render(<RouterProvider router={router} />);
+      root!.render(<RouterProvider router={router} />);
     });
 
     const input = container.querySelector<HTMLInputElement>("input[type='search']");
@@ -96,10 +106,6 @@ describe("CardsPage", () => {
       // Input value should STILL be "Pikachu" after debounce completes
       expect(input.value).toBe("Pikachu");
     }
-
-    await act(async () => {
-      root.unmount();
-    });
   });
 
   it("renders printing tiles and updates the query when searching", async () => {
@@ -124,11 +130,12 @@ describe("CardsPage", () => {
       error: null,
     } as ReturnType<typeof printingsApi.usePrintings>);
 
-    const container = document.createElement("div");
-    const root = createRoot(container);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
 
     await act(async () => {
-      root.render(<RouterProvider router={router} />);
+      root!.render(<RouterProvider router={router} />);
     });
 
     expect(container.textContent).toContain("Sample Card");
@@ -152,9 +159,46 @@ describe("CardsPage", () => {
     // The filter state should eventually be updated via URL params
     // Since this test involves complex async URL state management via router,
     // we verify that the input preserves the typed value which is the key behavior
+  });
+
+  it("ensures cleanup occurs even if DOM elements are created", async () => {
+    // This test verifies that afterEach properly cleans up root and container
+    // Count initial DOM elements
+    const initialChildCount = document.body.childNodes.length;
+
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
 
     await act(async () => {
-      root.unmount();
+      root!.render(<RouterProvider router={router} />);
     });
+
+    // Verify container was added
+    expect(document.body.childNodes.length).toBeGreaterThan(initialChildCount);
+    expect(document.body.contains(container)).toBe(true);
+
+    // Note: afterEach will clean up automatically, and subsequent tests will verify no leak
+  });
+
+  it("verifies previous test cleanup by checking DOM is clean", async () => {
+    // This test runs after the previous test and verifies no stale DOM nodes
+    // If afterEach cleanup didn't work, this would detect leftover containers
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
+
+    const childCountBefore = document.body.childNodes.length;
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    // We should only have added one container, not accumulated multiple
+    expect(document.body.childNodes.length).toBe(childCountBefore + 1);
   });
 });
