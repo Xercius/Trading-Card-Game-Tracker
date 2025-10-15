@@ -267,10 +267,10 @@ describe("Select", () => {
       expect(trigger1Id).toBeTruthy();
       expect(trigger1Controls).toBeTruthy();
       
-      // listbox is portaled to document.body
-      const listbox = document.body.querySelector(`#${trigger1Controls}`);
+      // listbox is portaled to document.body - use role query
+      const listbox = screen.getByRole("listbox");
       expect(listbox).toBeInTheDocument();
-      expect(listbox).toHaveAttribute("role", "listbox");
+      expect(listbox).toHaveAttribute("id", trigger1Controls);
       expect(listbox).toHaveAttribute("aria-labelledby", trigger1Id);
     });
 
@@ -289,10 +289,10 @@ describe("Select", () => {
       expect(trigger2Id).not.toBe(triggers[0].getAttribute("id"));
       expect(trigger2Controls).not.toBe(triggers[0].getAttribute("aria-controls"));
       
-      // listbox is portaled to document.body
-      const listbox = document.body.querySelector(`#${trigger2Controls}`);
+      // listbox is portaled to document.body - use role query
+      const listbox = screen.getByRole("listbox");
       expect(listbox).toBeInTheDocument();
-      expect(listbox).toHaveAttribute("role", "listbox");
+      expect(listbox).toHaveAttribute("id", trigger2Controls);
       expect(listbox).toHaveAttribute("aria-labelledby", trigger2Id);
     });
   });
