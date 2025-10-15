@@ -27,8 +27,8 @@ export default function CardsPage() {
     setSelectedPrinting({ cardId, printingId });
   }, []);
 
-  const [searchInput, setSearchInput] = React.useState(query.q ?? "");
-  const lastUserInputRef = React.useRef<string>(query.q ?? "");
+  const [searchInput, setSearchInput] = React.useState(filters.q ?? "");
+  const lastUserInputRef = React.useRef<string>(filters.q ?? "");
 
   React.useEffect(() => {
     // Only sync from filters.q if it's different from what the user last typed
