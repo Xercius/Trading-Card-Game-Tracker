@@ -177,8 +177,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       <Dialog open={isLoginModalOpen} onOpenChange={() => {}}>
         <DialogContent
           className="max-w-md"
-          labelledBy="login-title"
-          describedBy="login-description"
+          aria-labelledby="login-title"
+          aria-describedby="login-description"
         >
           <div className="space-y-4 p-6" data-testid="user-picker">
             <DialogHeader className="border-0 p-0">
