@@ -6,8 +6,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
 
-vi.mock("../../api/usePrintings");
-
 describe("CardsPage filter wiring", () => {
   let queryClient: QueryClient;
   let container: HTMLDivElement;
