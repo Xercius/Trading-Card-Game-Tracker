@@ -14,7 +14,7 @@ type Props = {
   rowGap?: number; // px; default 12
   colGap?: number; // px; default 12
   overscan?: number; // rows; default 6
-  footerHeight?: number; // px; default 88
+  footerHeight?: number; // px; default 0 (changed from 88 after removing text from card tiles)
 };
 
 export default function VirtualizedCardGrid({
@@ -28,7 +28,7 @@ export default function VirtualizedCardGrid({
   rowGap = 12,
   colGap = 12,
   overscan = 6,
-  footerHeight = 88,
+  footerHeight = 0,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);

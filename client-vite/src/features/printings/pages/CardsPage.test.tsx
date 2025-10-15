@@ -133,8 +133,10 @@ describe("CardsPage", () => {
       root.render(<RouterProvider router={router} />);
     });
 
-    expect(container.textContent).toContain("Sample Card");
-    expect(container.textContent).toContain("Game A • Set A #001 • Common");
+    // Card tiles no longer show visible text - verify aria-label for accessibility
+    const cardButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    expect(cardButton).not.toBeNull();
+    expect(cardButton?.getAttribute("aria-label")).toBe("Sample Card — Set A #001");
 
     const input = container.querySelector<HTMLInputElement>("input[type='search']");
     expect(input).not.toBeNull();

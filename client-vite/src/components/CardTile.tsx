@@ -23,6 +23,8 @@ type Props = {
 };
 
 export default function CardTile({ card, onClick, className }: Props) {
+  const ariaLabel = `${card.name}${card.setName ? ` — ${card.setName}` : ""}${card.number ? ` #${card.number}` : ""}`;
+  
   return (
     <div
       className={`group rounded-2xl border bg-card shadow-sm transition hover:shadow ${className ?? ""}`}
@@ -32,14 +34,15 @@ export default function CardTile({ card, onClick, className }: Props) {
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onClick?.(card);
       }}
+      aria-label={ariaLabel}
     >
-      <div className="aspect-[3/4] w-full overflow-hidden rounded-t-2xl bg-muted">
+      <div className="aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted">
         {card.imageUrl ? (
           <img
             loading="lazy"
             decoding="async"
             src={resolveImageUrl(card.imageUrl)} // ← normalize image path here
-            alt={card.name}
+            alt=""
             className="h-full w-full object-cover"
           />
         ) : (
@@ -47,14 +50,6 @@ export default function CardTile({ card, onClick, className }: Props) {
             No image
           </div>
         )}
-      </div>
-      <div className="space-y-0.5 p-3">
-        <div className="line-clamp-1 text-sm font-medium">{card.name}</div>
-        <div className="line-clamp-1 text-xs text-muted-foreground">
-          {card.game}
-          {card.setName ? ` • ${card.setName}` : ""}
-          {card.number ? ` • #${card.number}` : ""}
-        </div>
       </div>
     </div>
   );
