@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import * as httpMod from "@/lib/http";
 import { UserProvider } from "./UserProvider";
 import { useUser } from "./useUser";
+import { cssEscapeId } from "@/test/utils";
 
 type AxiosGet = (typeof httpMod.default)["get"];
 type AxiosPost = (typeof httpMod.default)["post"];
@@ -119,11 +120,11 @@ describe("UserProvider", () => {
     await view.render();
 
     // Wait for login form to be rendered in the DOM
-    await waitFor(() => document.querySelector("#login-username") !== null);
+    await waitFor(() => document.querySelector(`#${cssEscapeId("login-username")}`) !== null);
 
     // Dialog component uses a portal, so query from document.body
-    const username = document.querySelector<HTMLInputElement>("#login-username");
-    const password = document.querySelector<HTMLInputElement>("#login-password");
+    const username = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-username")}`);
+    const password = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-password")}`);
     const button = document.querySelector<HTMLButtonElement>('button[type="submit"]');
 
     expect(username).not.toBeNull();
@@ -174,11 +175,11 @@ describe("UserProvider", () => {
     await view.render();
 
     // Wait for login form to be rendered
-    await waitFor(() => document.querySelector("#login-username") !== null);
+    await waitFor(() => document.querySelector(`#${cssEscapeId("login-username")}`) !== null);
 
     // Dialog component uses a portal, so query from document.body
-    const username = document.querySelector<HTMLInputElement>("#login-username");
-    const password = document.querySelector<HTMLInputElement>("#login-password");
+    const username = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-username")}`);
+    const password = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-password")}`);
     const form = document.querySelector<HTMLFormElement>("form");
     const submitButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
     expect(username).not.toBeNull();
