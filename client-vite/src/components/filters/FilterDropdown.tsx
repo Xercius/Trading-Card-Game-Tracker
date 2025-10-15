@@ -40,6 +40,9 @@ export default function FilterDropdown({
     null
   );
 
+  const triggerId = `${id}-trigger`;
+  const menuId = `${id}-menu`;
+
   // Calculate position relative to trigger
   useEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -193,9 +196,10 @@ export default function FilterDropdown({
     <>
       <div
         ref={triggerRef}
+        id={triggerId}
         role="button"
         aria-haspopup="menu"
-        aria-controls={`${id}-menu`}
+        aria-controls={menuId}
         aria-expanded={open}
         onClick={handleTriggerClick}
       >
@@ -207,8 +211,9 @@ export default function FilterDropdown({
         createPortal(
           <div
             ref={contentRef}
-            id={`${id}-menu`}
+            id={menuId}
             role="menu"
+            aria-labelledby={triggerId}
             className="rounded-md border border-input bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 z-50 max-h-[400px] overflow-auto"
             style={positionStyle}
           >

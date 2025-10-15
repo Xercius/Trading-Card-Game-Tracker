@@ -236,4 +236,48 @@ describe("FilterDropdown", () => {
       expect(menu).toHaveAttribute("id", controlsId);
     });
   });
+
+  it("uses unique IDs for ARIA relationships between trigger and menu", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <>
+        <FilterDropdown trigger={<button>Filters 1</button>}>
+          <div>Content 1</div>
+        </FilterDropdown>
+        <FilterDropdown trigger={<button>Filters 2</button>}>
+          <div>Content 2</div>
+        </FilterDropdown>
+      </>
+    );
+
+    const triggers = container.querySelectorAll('[role="button"][aria-haspopup="menu"]');
+    expect(triggers).toHaveLength(2);
+
+    const trigger1 = triggers[0];
+    const trigger2 = triggers[1];
+
+    const trigger1Id = trigger1.getAttribute("id");
+    const trigger1Controls = trigger1.getAttribute("aria-controls");
+    const trigger2Id = trigger2.getAttribute("id");
+    const trigger2Controls = trigger2.getAttribute("aria-controls");
+
+    // Verify all IDs are unique
+    expect(trigger1Id).toBeTruthy();
+    expect(trigger1Controls).toBeTruthy();
+    expect(trigger2Id).toBeTruthy();
+    expect(trigger2Controls).toBeTruthy();
+    expect(trigger1Id).not.toBe(trigger2Id);
+    expect(trigger1Controls).not.toBe(trigger2Controls);
+
+    // Open first dropdown
+    const button1 = screen.getByText("Filters 1");
+    await user.click(button1);
+
+    await waitFor(() => {
+      const menu = screen.getByText("Content 1").parentElement;
+      expect(menu).toHaveAttribute("role", "menu");
+      expect(menu).toHaveAttribute("id", trigger1Controls);
+      expect(menu).toHaveAttribute("aria-labelledby", trigger1Id);
+    });
+  });
 });

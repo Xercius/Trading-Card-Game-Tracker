@@ -155,11 +155,86 @@ describe("Select", () => {
       const listbox = screen.getByRole("listbox");
       expect(listbox).toBeInTheDocument();
       expect(trigger).toHaveAttribute("aria-expanded", "true");
-      expect(trigger).toHaveAttribute("aria-controls", "select-content");
+      
+      // Verify ARIA relationship: trigger controls the listbox
+      const ariaControls = trigger.getAttribute("aria-controls");
+      expect(ariaControls).toBeTruthy();
+      expect(listbox).toHaveAttribute("id", ariaControls);
+      
+      // Verify ARIA relationship: listbox is labeled by the trigger
+      const triggerId = trigger.getAttribute("id");
+      expect(triggerId).toBeTruthy();
+      expect(listbox).toHaveAttribute("aria-labelledby", triggerId);
     });
 
     const option = screen.getByRole("option", { name: "Option 1" });
     expect(option).toHaveAttribute("aria-selected");
+  });
+
+  it("uses unique IDs for ARIA relationships between trigger and listbox", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Select>
+          <SelectTrigger>
+            <SelectValue placeholder="Select 1" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a">A</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select>
+          <SelectTrigger>
+            <SelectValue placeholder="Select 2" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="b">B</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    );
+
+    const triggers = screen.getAllByRole("combobox");
+    expect(triggers).toHaveLength(2);
+
+    // Open first select
+    await user.click(triggers[0]);
+
+    await waitFor(() => {
+      const trigger1Id = triggers[0].getAttribute("id");
+      const trigger1Controls = triggers[0].getAttribute("aria-controls");
+      
+      expect(trigger1Id).toBeTruthy();
+      expect(trigger1Controls).toBeTruthy();
+      
+      // listbox is portaled to document.body
+      const listbox = document.body.querySelector(`#${trigger1Controls}`);
+      expect(listbox).toBeInTheDocument();
+      expect(listbox).toHaveAttribute("role", "listbox");
+      expect(listbox).toHaveAttribute("aria-labelledby", trigger1Id);
+    });
+
+    // Close first and open second
+    await user.keyboard("{Escape}");
+    await user.click(triggers[1]);
+
+    await waitFor(() => {
+      const trigger2Id = triggers[1].getAttribute("id");
+      const trigger2Controls = triggers[1].getAttribute("aria-controls");
+      
+      expect(trigger2Id).toBeTruthy();
+      expect(trigger2Controls).toBeTruthy();
+      
+      // IDs should be different
+      expect(trigger2Id).not.toBe(triggers[0].getAttribute("id"));
+      expect(trigger2Controls).not.toBe(triggers[0].getAttribute("aria-controls"));
+      
+      // listbox is portaled to document.body
+      const listbox = document.body.querySelector(`#${trigger2Controls}`);
+      expect(listbox).toBeInTheDocument();
+      expect(listbox).toHaveAttribute("role", "listbox");
+      expect(listbox).toHaveAttribute("aria-labelledby", trigger2Id);
+    });
   });
 
   it("has proper z-index for dropdown", async () => {

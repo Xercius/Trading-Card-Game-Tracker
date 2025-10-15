@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type SelectContextValue = {
@@ -11,6 +11,8 @@ type SelectContextValue = {
   selectedLabel: ReactNode | null;
   setSelectedLabel: (label: ReactNode | null) => void;
   triggerRef: React.RefObject<HTMLButtonElement>;
+  triggerId: string;
+  listboxId: string;
 };
 
 const SelectContext = createContext<SelectContextValue | null>(null);
@@ -36,12 +38,15 @@ export function Select({
   disabled = false,
   children,
 }: SelectProps) {
+  const id = useId();
   const [open, setOpen] = useState(false);
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [selectedLabel, setSelectedLabel] = useState<ReactNode | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const currentValue = value ?? internalValue;
+  const triggerId = `${id}-trigger`;
+  const listboxId = `${id}-listbox`;
 
   useEffect(() => {
     if (value !== undefined) {
@@ -91,8 +96,10 @@ export function Select({
       selectedLabel,
       setSelectedLabel,
       triggerRef,
+      triggerId,
+      listboxId,
     }),
-    [currentValue, open, disabled, onSelect, selectedLabel]
+    [currentValue, open, disabled, onSelect, selectedLabel, triggerId, listboxId]
   );
 
   return (
@@ -105,7 +112,7 @@ export function Select({
 type SelectTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function SelectTrigger({ className = "", children, ...props }: SelectTriggerProps) {
-  const { open, setOpen, disabled, triggerRef } = useSelectContext();
+  const { open, setOpen, disabled, triggerRef, triggerId, listboxId } = useSelectContext();
   const classes = [
     "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -118,11 +125,12 @@ export function SelectTrigger({ className = "", children, ...props }: SelectTrig
   return (
     <button
       ref={triggerRef}
+      id={triggerId}
       type="button"
       role="combobox"
       aria-expanded={open}
       aria-haspopup="listbox"
-      aria-controls={open ? "select-content" : undefined}
+      aria-controls={open ? listboxId : undefined}
       data-state={open ? "open" : "closed"}
       className={classes}
       disabled={disabled}
@@ -162,7 +170,7 @@ export function SelectValue({ placeholder, className = "" }: SelectValueProps) {
 type SelectContentProps = React.HTMLAttributes<HTMLDivElement>;
 
 export function SelectContent({ className = "", children, ...props }: SelectContentProps) {
-  const { open, setOpen, triggerRef } = useSelectContext();
+  const { open, setOpen, triggerRef, triggerId, listboxId } = useSelectContext();
   const contentRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(
     null
@@ -273,8 +281,9 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
   return createPortal(
     <div
       ref={contentRef}
-      id="select-content"
+      id={listboxId}
       role="listbox"
+      aria-labelledby={triggerId}
       className={classes}
       style={{
         position: "absolute",
