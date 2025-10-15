@@ -78,7 +78,7 @@ export default function FilterDropdown({
       if (event.key === "Escape") {
         event.preventDefault();
         setOpen(false);
-        triggerRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus();
+        triggerRef.current?.querySelector<HTMLElement>('button, [role="button"], [tabindex]:not([tabindex="-1"])')?.focus();
       }
     };
 
