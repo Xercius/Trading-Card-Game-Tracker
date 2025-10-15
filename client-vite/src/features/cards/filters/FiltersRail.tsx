@@ -120,21 +120,37 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     staleTime: 5 * 60_000,
   });
 
-  const gameOptions = facetsQuery.data?.games.map(f => f.value) ?? [];
-  const setOptions = facetsQuery.data?.sets.map(f => f.value) ?? [];
-  const rarityOptions = facetsQuery.data?.rarities.map(f => f.value) ?? [];
+  const gameOptions = useMemo(
+    () => facetsQuery.data?.games.map((f) => f.value) ?? [],
+    [facetsQuery.data?.games]
+  );
+  const setOptions = useMemo(
+    () => facetsQuery.data?.sets.map((f) => f.value) ?? [],
+    [facetsQuery.data?.sets]
+  );
+  const rarityOptions = useMemo(
+    () => facetsQuery.data?.rarities.map((f) => f.value) ?? [],
+    [facetsQuery.data?.rarities]
+  );
 
   // Auto-clear invalid selections when facets update
   useEffect(() => {
     if (!facetsQuery.data) return;
 
-    const allowedGames = new Set(facetsQuery.data.games.map((f) => f.value));
-    const allowedSets = new Set(facetsQuery.data.sets.map((f) => f.value));
-    const allowedRarities = new Set(facetsQuery.data.rarities.map((f) => f.value));
+    const allowedGames = new Set(gameOptions);
+    const allowedSets = new Set(setOptions);
+    const allowedRarities = new Set(rarityOptions);
 
-    const hasInvalidGames = filters.games.some((value) => !allowedGames.has(value));
-    const hasInvalidSets = filters.sets.some((value) => !allowedSets.has(value));
-    const hasInvalidRarities = filters.rarities.some((value) => !allowedRarities.has(value));
+    const shouldValidateGames = allowedGames.size > 0;
+    const shouldValidateSets = allowedSets.size > 0;
+    const shouldValidateRarities = allowedRarities.size > 0;
+
+    const hasInvalidGames =
+      shouldValidateGames && filters.games.some((value) => !allowedGames.has(value));
+    const hasInvalidSets = shouldValidateSets && filters.sets.some((value) => !allowedSets.has(value));
+    const hasInvalidRarities =
+      shouldValidateRarities &&
+      filters.rarities.some((value) => !allowedRarities.has(value));
 
     if (!hasInvalidGames && !hasInvalidSets && !hasInvalidRarities) {
       return;
@@ -142,13 +158,29 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
 
     setFilters((prev) => ({
       ...prev,
-      games: hasInvalidGames ? prev.games.filter((value) => allowedGames.has(value)) : prev.games,
-      sets: hasInvalidSets ? prev.sets.filter((value) => allowedSets.has(value)) : prev.sets,
-      rarities: hasInvalidRarities
-        ? prev.rarities.filter((value) => allowedRarities.has(value))
-        : prev.rarities,
+      games:
+        hasInvalidGames && shouldValidateGames
+          ? prev.games.filter((value) => allowedGames.has(value))
+          : prev.games,
+      sets:
+        hasInvalidSets && shouldValidateSets
+          ? prev.sets.filter((value) => allowedSets.has(value))
+          : prev.sets,
+      rarities:
+        hasInvalidRarities && shouldValidateRarities
+          ? prev.rarities.filter((value) => allowedRarities.has(value))
+          : prev.rarities,
     }));
-  }, [filters.games, filters.sets, filters.rarities, setFilters, facetsQuery.data]);
+  }, [
+    filters.games,
+    filters.sets,
+    filters.rarities,
+    setFilters,
+    facetsQuery.data,
+    gameOptions,
+    setOptions,
+    rarityOptions,
+  ]);
 
   const handleGameToggle = (value: string) => {
     setFilters((prev) => {
