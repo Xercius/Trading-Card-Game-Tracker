@@ -75,10 +75,61 @@ export default function FilterDropdown({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!contentRef.current) return;
+      const focusables = contentRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      const focusableArray = Array.from(focusables);
+      const activeElement = document.activeElement as HTMLElement;
+      const currentIndex = focusableArray.indexOf(activeElement);
+
       if (event.key === "Escape") {
         event.preventDefault();
         setOpen(false);
-        triggerRef.current?.querySelector<HTMLElement>('button, [role="button"], [tabindex]:not([tabindex="-1"])')?.focus();
+        triggerRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus();
+        return;
+      }
+
+      if (focusableArray.length === 0) return;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % focusableArray.length;
+        focusableArray[nextIndex].focus();
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prevIndex = currentIndex < 0 ? focusableArray.length - 1 : (currentIndex - 1 + focusableArray.length) % focusableArray.length;
+        focusableArray[prevIndex].focus();
+        return;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        focusableArray[0].focus();
+        return;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        focusableArray[focusableArray.length - 1].focus();
+        return;
+      }
+
+      // Trap Tab/Shift+Tab within the menu
+      if (event.key === "Tab") {
+        if (focusableArray.length === 0) return;
+        event.preventDefault();
+        let nextIndex;
+        if (event.shiftKey) {
+          nextIndex = currentIndex <= 0 ? focusableArray.length - 1 : currentIndex - 1;
+        } else {
+          nextIndex = currentIndex === focusableArray.length - 1 ? 0 : currentIndex + 1;
+        }
+        focusableArray[nextIndex].focus();
+        return;
       }
     };
 
