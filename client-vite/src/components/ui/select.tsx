@@ -282,7 +282,7 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
 
   const classes = [
     "absolute max-h-60 overflow-auto rounded-md border border-input",
-    "bg-white dark:bg-gray-900",
+    "bg-gray-900",
     "text-popover-foreground shadow-lg ring-1 ring-black/5",
     "z-50",
     className,

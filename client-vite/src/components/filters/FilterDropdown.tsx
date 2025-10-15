@@ -218,7 +218,7 @@ export default function FilterDropdown({
             id={menuId}
             role="menu"
             aria-labelledby={triggerId}
-            className="rounded-md border border-input bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black/5 z-50 max-h-[400px] overflow-auto"
+            className="rounded-md border border-input bg-gray-900 shadow-lg ring-1 ring-black/5 z-50 max-h-[400px] overflow-auto"
             style={positionStyle}
           >
             {children}

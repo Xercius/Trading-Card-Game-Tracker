@@ -110,8 +110,7 @@ describe("FilterDropdown", () => {
 
     await waitFor(() => {
       const dropdown = screen.getByRole("menu");
-      expect(dropdown).toHaveClass("bg-white");
-      expect(dropdown).toHaveClass("dark:bg-gray-900");
+      expect(dropdown).toHaveClass("bg-gray-900");
     });
   });
 
