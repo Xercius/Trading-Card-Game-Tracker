@@ -76,6 +76,11 @@ namespace api.Data
                  .HasComputedColumnSql("LOWER(TRIM([Rarity]))", stored: true);
                 e.HasIndex("RarityNorm");
 
+                // normalized style for case-insensitive search
+                e.Property<string>("StyleNorm")
+                 .HasComputedColumnSql("LOWER(TRIM([Style]))", stored: true);
+                e.HasIndex("StyleNorm");
+
                 // one logical printing per (Card, Set, Number, Style)
                 e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })
                  .IsUnique();
