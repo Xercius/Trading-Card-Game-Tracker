@@ -20,23 +20,23 @@ internal static class QueryExtensions
     {
         if (!string.IsNullOrWhiteSpace(game))
         {
-            var trimmed = game.Trim();
+            var normalized = game.Trim().ToLowerInvariant();
             query = query.Where(uc =>
-                EF.Functions.Collate(uc.CardPrinting.Card.Game, "NOCASE") == trimmed);
+                EF.Property<string>(uc.CardPrinting.Card, "GameNorm") == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(set))
         {
-            var trimmed = set.Trim();
+            var normalized = set.Trim().ToLowerInvariant();
             query = query.Where(uc =>
-                EF.Functions.Collate(uc.CardPrinting.Set, "NOCASE") == trimmed);
+                EF.Property<string>(uc.CardPrinting, "SetNorm") == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(rarity))
         {
-            var trimmed = rarity.Trim();
+            var normalized = rarity.Trim().ToLowerInvariant();
             query = query.Where(uc =>
-                EF.Functions.Collate(uc.CardPrinting.Rarity, "NOCASE") == trimmed);
+                EF.Property<string>(uc.CardPrinting, "RarityNorm") == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(name))
@@ -78,23 +78,34 @@ internal static class QueryExtensions
 
         if (games.Count > 0)
         {
+            var normalizedGames = games
+                .Select(g => g?.Trim().ToLowerInvariant())
+                .Where(g => !string.IsNullOrEmpty(g))
+                .ToList();
             query = query.Where(c =>
-                games.Contains(EF.Functions.Collate(c.Game, "NOCASE")));
+                normalizedGames.Contains(EF.Property<string>(c, "GameNorm")));
         }
 
         if (sets.Count > 0)
         {
-            var normalizedSets = sets.Select(s => s.Trim().ToLowerInvariant()).ToList();
+            var normalizedSets = sets
+                .Select(s => s?.Trim().ToLowerInvariant())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    normalizedSets.Contains(p.Set.Trim().ToLowerInvariant())));
+                    normalizedSets.Contains(EF.Property<string>(p, "SetNorm"))));
         }
 
         if (rarities.Count > 0)
         {
+            var normalizedRarities = rarities
+                .Select(r => r?.Trim().ToLowerInvariant())
+                .Where(r => !string.IsNullOrEmpty(r))
+                .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p =>
-                    rarities.Contains(EF.Functions.Collate(p.Rarity, "NOCASE"))));
+                    normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm"))));
         }
 
         return query;

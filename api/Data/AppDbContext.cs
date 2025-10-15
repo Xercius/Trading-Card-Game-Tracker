@@ -38,6 +38,11 @@ namespace api.Data
                  .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
                 e.HasIndex("NameNormalized");
 
+                // normalized game for case-insensitive search
+                e.Property<string>("GameNorm")
+                 .HasComputedColumnSql("LOWER(TRIM([Game]))", stored: true);
+                e.HasIndex("GameNorm");
+
                 // relationship to printings
                 e.HasMany(c => c.Printings)
                  .WithOne(p => p.Card)
@@ -60,6 +65,16 @@ namespace api.Data
 
                 // filter/sort by set+number is super common
                 e.HasIndex(p => new { p.Set, p.Number });
+
+                // normalized set for case-insensitive search
+                e.Property<string>("SetNorm")
+                 .HasComputedColumnSql("LOWER(TRIM([Set]))", stored: true);
+                e.HasIndex("SetNorm");
+
+                // normalized rarity for case-insensitive search
+                e.Property<string>("RarityNorm")
+                 .HasComputedColumnSql("LOWER(TRIM([Rarity]))", stored: true);
+                e.HasIndex("RarityNorm");
 
                 // one logical printing per (Card, Set, Number, Style)
                 e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })
