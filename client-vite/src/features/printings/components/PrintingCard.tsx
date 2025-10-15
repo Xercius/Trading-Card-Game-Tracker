@@ -8,7 +8,7 @@ export function PrintingCard({ p, onClick }: Props) {
   return (
     <button
       onClick={() => onClick?.(p)}
-      className="group w-full bg-transparent text-left p-0 transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      className="group w-full bg-transparent text-left p-0 transition focus:ring-2 focus:ring-primary focus:ring-offset-2"
       aria-label={ariaLabel}
     >
       <div className="aspect-[3/4] w-full overflow-hidden">
