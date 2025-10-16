@@ -13,21 +13,10 @@ import {
 import {
   useCardDetails,
   useCardPrintings,
-  useSparkline,
   useUpsertCollection,
   useUpsertWishlist,
   type PrintingSummary,
 } from "../api";
-import LineSparkline from "@/components/charts/LineSparkline";
-import { latestValue } from "@/lib/valueHistory";
-
-const TABS = [
-  { id: "details", label: "Details" },
-  { id: "printings", label: "Printings" },
-  { id: "price", label: "Price" },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
 
 type ToastState = {
   type: "success" | "error";
@@ -46,11 +35,6 @@ function clampQuantity(value: number): number {
   return Math.min(999, Math.floor(value));
 }
 
-function formatValue(value: number | undefined | null): string {
-  if (value == null || Number.isNaN(value)) return "—";
-  return `$${value.toFixed(2)}`;
-}
-
 export default function CardModal({
   cardId,
   open,
@@ -64,7 +48,6 @@ export default function CardModal({
     initialPrintingId ?? null
   );
   const [quantity, setQuantity] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<TabId>("details");
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const collectionMutation = useUpsertCollection();
@@ -88,7 +71,6 @@ export default function CardModal({
   useEffect(() => {
     if (!open) {
       setQuantity(1);
-      setActiveTab("details");
       setToast(null);
     }
   }, [open]);
@@ -98,8 +80,6 @@ export default function CardModal({
     const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  const sparklineQuery = useSparkline(open ? cardId : null);
 
   const selectedPrinting: PrintingSummary | null = useMemo(() => {
     if (selectedPrintingId == null) return null;
@@ -132,9 +112,6 @@ export default function CardModal({
     },
     [printings, selectedPrintingId]
   );
-
-  const pricePoints = sparklineQuery.data ?? [];
-  const latestPrice = useMemo(() => latestValue(pricePoints), [pricePoints]);
 
   const onAdd = useCallback(
     async (target: "collection" | "wishlist") => {
@@ -202,131 +179,89 @@ export default function CardModal({
             </div>
           </section>
 
-          <section className="space-y-4">
-            <nav className="flex gap-2">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    activeTab === tab.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/70"
-                  }`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+          <section className="space-y-6">
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Details</h3>
+              <div className="space-y-3 text-sm" aria-live="polite">
+                {detailsQuery.isLoading && <p>Loading details…</p>}
+                {detailsQuery.isError && (
+                  <p className="text-destructive">Failed to load card details.</p>
+                )}
+                {details && (
+                  <>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                      <span className="font-medium">Game:</span>
+                      <span>{details.game}</span>
+                      <span className="font-medium">Type:</span>
+                      <span>{details.cardType}</span>
+                    </div>
+                    <p className="whitespace-pre-line text-sm leading-relaxed">
+                      {details.description?.trim() || "No rules text available."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
 
-            <div className="min-h-[220px] space-y-3 text-sm">
-              {activeTab === "details" && (
-                <div className="space-y-3" aria-live="polite">
-                  {detailsQuery.isLoading && <p>Loading details…</p>}
-                  {detailsQuery.isError && (
-                    <p className="text-destructive">Failed to load card details.</p>
-                  )}
-                  {details && (
-                    <>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                        <span className="font-medium">Game:</span>
-                        <span>{details.game}</span>
-                        <span className="font-medium">Type:</span>
-                        <span>{details.cardType}</span>
-                      </div>
-                      <p className="whitespace-pre-line text-sm leading-relaxed">
-                        {details.description?.trim() || "No rules text available."}
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "printings" && (
-                <div className="space-y-3" aria-live="polite">
-                  {printingsQuery.isLoading && <p>Loading printings…</p>}
-                  {printingsQuery.isError && (
-                    <p className="text-destructive">Failed to load printings.</p>
-                  )}
-                  {printings.length > 0 ? (
-                    <div
-                      role="listbox"
-                      tabIndex={0}
-                      onKeyDown={handleCarouselKeyDown}
-                      className="flex gap-3 overflow-x-auto pb-1"
-                      aria-label="Card printings"
-                    >
-                      {printings.map((printing) => {
-                        const isActive = printing.printingId === selectedPrintingId;
-                        return (
-                          <button
-                            key={printing.printingId}
-                            type="button"
-                            role="option"
-                            aria-selected={isActive}
-                            aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
-                            className={`flex w-28 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary ${
-                              isActive
-                                ? "border-primary bg-primary/10"
-                                : "border-border hover:border-primary"
-                            }`}
-                            onClick={() => setSelectedPrintingId(printing.printingId)}
-                          >
-                            <div className="aspect-[63/88] w-full rounded-lg bg-muted">
-                              {printing.imageUrl ? (
-                                <img
-                                  src={resolveImageUrl(printing.imageUrl)}
-                                  alt={printing.setName}
-                                  loading="lazy"
-                                  className="h-full w-full object-contain"
-                                />
-                              ) : (
-                                <span className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                                  No image
-                                </span>
-                              )}
-                            </div>
-                            <span className="line-clamp-2 text-center font-medium">
-                              {printing.setName}
-                            </span>
-                            {printing.number && (
-                              <span className="text-muted-foreground">#{printing.number}</span>
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Printings</h3>
+              <div className="space-y-3" aria-live="polite">
+                {printingsQuery.isLoading && <p>Loading printings…</p>}
+                {printingsQuery.isError && (
+                  <p className="text-destructive">Failed to load printings.</p>
+                )}
+                {printings.length > 0 ? (
+                  <div
+                    role="listbox"
+                    tabIndex={0}
+                    onKeyDown={handleCarouselKeyDown}
+                    className="flex gap-3 overflow-x-auto pb-1"
+                    aria-label="Card printings"
+                  >
+                    {printings.map((printing) => {
+                      const isActive = printing.printingId === selectedPrintingId;
+                      return (
+                        <button
+                          key={printing.printingId}
+                          type="button"
+                          role="option"
+                          aria-selected={isActive}
+                          aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
+                          className={`flex w-28 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary ${
+                            isActive
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:border-primary"
+                          }`}
+                          onClick={() => setSelectedPrintingId(printing.printingId)}
+                        >
+                          <div className="aspect-[63/88] w-full rounded-lg bg-muted">
+                            {printing.imageUrl ? (
+                              <img
+                                src={resolveImageUrl(printing.imageUrl)}
+                                alt={printing.setName}
+                                loading="lazy"
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                                No image
+                              </span>
                             )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p>No alternate printings found.</p>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "price" && (
-                <div className="space-y-4" aria-live="polite">
-                  {sparklineQuery.isLoading && <p>Loading value history…</p>}
-                  {sparklineQuery.isError && (
-                    <p className="text-destructive">Failed to load value history.</p>
-                  )}
-                  {!sparklineQuery.isLoading &&
-                    !sparklineQuery.isError &&
-                    pricePoints.length === 0 && <p>No value data.</p>}
-                  {pricePoints.length > 0 && (
-                    <div className="space-y-2">
-                      <LineSparkline
-                        points={pricePoints}
-                        ariaLabel="Card value sparkline"
-                        height={96}
-                        className="h-24"
-                      />
-                      <div className="text-sm text-muted-foreground">
-                        Last recorded value: {formatValue(latestPrice)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                          </div>
+                          <span className="line-clamp-2 text-center font-medium">
+                            {printing.setName}
+                          </span>
+                          {printing.number && (
+                            <span className="text-muted-foreground">#{printing.number}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>No alternate printings found.</p>
+                )}
+              </div>
             </div>
           </section>
         </div>
