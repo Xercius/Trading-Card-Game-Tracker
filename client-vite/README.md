@@ -65,7 +65,7 @@ cp .env.example .env.local
 - `VITE_API_BASE_URL` (**deprecated**) – legacy name still recognized for compatibility.
 - `VITE_DEV_SERVER_PROXY_TARGET` (optional) – HTTPS target for the Vite proxy when `VITE_API_BASE` is relative. Defaults to `https://localhost:7226`.
 
-**Precedence:** When both `VITE_API_BASE` and the legacy `VITE_API_BASE_URL` are defined, `VITE_API_BASE` takes precedence. Prefer defining only `VITE_API_BASE`.
+**Precedence:** When both `VITE_API_BASE` and the legacy `VITE_API_BASE_URL` are set, `VITE_API_BASE` (if non-empty) takes precedence. Prefer defining only `VITE_API_BASE` to avoid ambiguity.
 
 During development, the client logs warnings when:
 
