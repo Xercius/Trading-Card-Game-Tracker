@@ -33,3 +33,18 @@ npm run dev
 ```
 
 The app expects the API to be available at the configured base URL. Requests are issued through a shared Axios instance that automatically attaches a bearer token obtained when the user is selected.
+
+### Verifying API connectivity
+
+Before starting the client, ensure the API server is running and reachable. Test the health endpoint:
+
+```bash
+curl -k https://localhost:7226/api/health
+```
+
+Expected response: `{"status":"healthy","timestamp":"..."}`
+
+If you see ECONNREFUSED errors, ensure:
+1. The API server is running on the correct port (default: https://localhost:7226)
+2. `VITE_API_BASE` in `.env.local` matches the API server URL
+3. If using a self-signed certificate, the `-k` flag bypasses certificate validation
