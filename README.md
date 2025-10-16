@@ -9,8 +9,42 @@ The goal is to eventually incorporate cards from the following games:
 --Dicemasters
 
 ## Development Environment
-- **.NET SDK**: 8.0 (pinned via `global.json`)
+- **.NET SDK**: 9.0 (pinned via `global.json`)
+- **Node.js**: 20+ (for Vite client)
 - **Entity Framework Core**: 9.0.9 (Sqlite provider, design, and tools packages)
+
+### Running the Development Servers
+
+#### API Server
+From the repository root:
+```bash
+dotnet restore ./api/api.csproj
+dotnet build ./api/api.csproj
+dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"
+```
+The API will run on `https://localhost:7226` and `http://localhost:5229`.
+
+To verify the API is running, access the health endpoint:
+```bash
+curl -k https://localhost:7226/api/health
+```
+
+#### Vite Development Server
+From the `client-vite` directory:
+```bash
+npm install  # or pnpm install
+npm run dev  # or pnpm dev
+```
+The Vite dev server will run on `http://localhost:5173`.
+
+#### Client Configuration
+Create a `.env.local` file in the `client-vite` directory (already gitignored):
+```bash
+# Use relative path to leverage Vite dev server proxy
+VITE_API_BASE=/api
+```
+
+The Vite dev server is configured to proxy `/api/*` requests to the API server at `https://localhost:7226`. You can verify this by accessing `http://localhost:5173/api/health` in your browser or via curl.
 
 ### JWT configuration
 - In production (or any deployed environment), provide a 256-bit or longer signing key via the `JWT__KEY` environment variable. The API refuses to start if the key is missing or too short.
@@ -24,6 +58,7 @@ The goal is to eventually incorporate cards from the following games:
 - Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
 
 ## Recent API additions
+- `GET /api/health` – returns a simple health check status to verify API connectivity.
 - `GET /api/cards/{id}/printings` – returns the available printings for a card, ordered by set and collector number.
 - `GET /api/cards/{id}/sparkline?days=30` – returns aggregated value points for the card across its non-proxy printings.
 - `GET /api/collection/value/history?days=90` – produces daily totals for the authenticated user's collection with proxies excluded.
