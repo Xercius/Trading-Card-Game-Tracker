@@ -11,6 +11,6 @@ public sealed class HealthController : ControllerBase
     [AllowAnonymous]
     public IActionResult Get()
     {
-        return Ok(new { status = "healthy", timestamp = DateTime.UtcNow });
+        return Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow });
     }
 }
