@@ -43,13 +43,19 @@ Create `.env.local` in the `client-vite` directory:
 
 ```bash
 # client-vite/.env.local
+
+# HTTPS
 VITE_API_BASE=/api
 VITE_DEV_SERVER_PROXY_TARGET=https://localhost:7226
+
+# HTTP
+# VITE_API_BASE=/api
+# VITE_DEV_SERVER_PROXY_TARGET=http://localhost:5229
 ```
 
 When `VITE_API_BASE` is relative (starts with `/`), the Vite proxy remains active and forwards requests to `VITE_DEV_SERVER_PROXY_TARGET`. If not specified, the proxy target defaults to `https://localhost:7226`.
 
-**Note:** When using HTTPS targets (like `https://localhost:7226`), you may need to trust the self-signed certificate. The Vite proxy is configured with `secure: false` to bypass certificate validation during development.
+**Note:** The proxy supports both HTTP and HTTPS target origins. When using HTTPS targets (like `https://localhost:7226`), you may need to trust the self-signed certificate. The Vite proxy is configured with `secure: false` to bypass certificate validation during development.
 
 ### Quick start
 
@@ -63,7 +69,7 @@ cp .env.example .env.local
 
 - `VITE_API_BASE` (**preferred**) – API base URL. Can be absolute (`https://localhost:7226/api`) or relative (`/api`).
 - `VITE_API_BASE_URL` (**deprecated**) – legacy name still recognized for compatibility.
-- `VITE_DEV_SERVER_PROXY_TARGET` (optional) – HTTPS target for the Vite proxy when `VITE_API_BASE` is relative. Defaults to `https://localhost:7226`.
+- `VITE_DEV_SERVER_PROXY_TARGET` (optional) – Proxy target origin for the Vite proxy when `VITE_API_BASE` is relative. Defaults to `https://localhost:7226`.
 
 **Precedence:** When both `VITE_API_BASE` and the legacy `VITE_API_BASE_URL` are set, `VITE_API_BASE` (if non-empty) takes precedence. Prefer defining only `VITE_API_BASE` to avoid ambiguity.
 
