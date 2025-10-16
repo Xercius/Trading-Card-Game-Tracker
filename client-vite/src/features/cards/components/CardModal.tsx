@@ -181,7 +181,7 @@ export default function CardModal({
 
           <section className="space-y-6">
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold">Details</h3>
+              <h2 className="text-lg font-semibold">Details</h2>
               <div className="space-y-3 text-sm" aria-live="polite">
                 {detailsQuery.isLoading && <p>Loading details…</p>}
                 {detailsQuery.isError && (
