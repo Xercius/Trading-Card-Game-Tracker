@@ -40,11 +40,20 @@ The Vite dev server will run on `http://localhost:5173`.
 #### Client Configuration
 Create a `.env.local` file in the `client-vite` directory (already gitignored):
 ```bash
-# Use relative path to leverage Vite dev server proxy
-VITE_API_BASE=/api
+# Point directly to the API server (recommended - no proxy)
+VITE_API_BASE=https://localhost:7226/api
 ```
 
-The Vite dev server is configured to proxy `/api/*` requests to the API server at `https://localhost:7226`. You can verify this by accessing `http://localhost:5173/api/health` in your browser or via curl.
+This configures the client to make requests directly to the API server. Alternatively, you can copy the provided `.env.example` file:
+```bash
+cd client-vite
+cp .env.example .env.local
+```
+
+To verify the API is reachable, access the health endpoint:
+```bash
+curl -k https://localhost:7226/api/health
+```
 
 ### JWT configuration
 - In production (or any deployed environment), provide a 256-bit or longer signing key via the `JWT__KEY` environment variable. The API refuses to start if the key is missing or too short.
