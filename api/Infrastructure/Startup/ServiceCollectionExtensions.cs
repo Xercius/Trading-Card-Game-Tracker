@@ -54,8 +54,6 @@ internal static class ServiceCollectionExtensions
         services.AddControllers()
             .AddJsonOptions(JsonOptionsConfigurator.Configure);
 
-        services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen();
 
         services.Configure<ApiBehaviorOptions>(options =>
         {
