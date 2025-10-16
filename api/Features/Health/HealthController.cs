@@ -9,7 +9,7 @@ public sealed class HealthController : ControllerBase
 {
     [HttpGet]
     [AllowAnonymous]
-    public IActionResult Get()
+    public ActionResult<object> Get()
     {
         return Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow });
     }
