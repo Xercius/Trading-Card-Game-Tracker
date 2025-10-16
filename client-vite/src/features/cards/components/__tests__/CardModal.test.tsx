@@ -76,7 +76,7 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
 }
 
 describe("CardModal", () => {
-  it("loads details, printings, and sparkline", async () => {
+  it("loads details, printings, and shows them inline", async () => {
     getSpy.mockImplementation((url: string) => {
       if (url === "cards/100") {
         return Promise.resolve({
@@ -112,14 +112,6 @@ describe("CardModal", () => {
           ],
         });
       }
-      if (url === "cards/100/sparkline") {
-        return Promise.resolve({
-          data: [
-            { d: "2024-01-01", v: 10 },
-            { d: "2024-01-02", v: 12 },
-          ],
-        });
-      }
       throw new Error(`Unexpected GET ${url}`);
     });
 
@@ -137,8 +129,6 @@ describe("CardModal", () => {
     });
 
     expect(label?.textContent).toContain("Beta");
-    const sparklineCalls = getSpy.mock.calls.filter((call) => call[0] === "cards/100/sparkline");
-    expect(sparklineCalls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("posts wishlist quick add with provided quantity", async () => {
@@ -168,9 +158,6 @@ describe("CardModal", () => {
             },
           ],
         });
-      }
-      if (url === "cards/200/sparkline") {
-        return Promise.resolve({ data: [] });
       }
       throw new Error(`Unexpected GET ${url}`);
     });
@@ -213,54 +200,5 @@ describe("CardModal", () => {
     const call = postSpy.mock.calls.find((entry) => entry[0] === "wishlist/items");
     expect(call).toBeDefined();
     expect(call?.[1]).toEqual({ printingId: 2001, quantity: 2 });
-  });
-
-  it("shows empty state when no price data", async () => {
-    getSpy.mockImplementation((url: string) => {
-      if (url === "cards/300") {
-        return Promise.resolve({
-          data: {
-            cardId: 300,
-            name: "Price Card",
-            game: "Magic",
-            cardType: "Spell",
-            description: "Price test",
-            printings: [],
-          },
-        });
-      }
-      if (url === "cards/300/printings") {
-        return Promise.resolve({
-          data: [
-            {
-              printingId: 3001,
-              setName: "Delta",
-              setCode: null,
-              number: "D1",
-              rarity: "Mythic",
-              imageUrl: "/delta.png",
-            },
-          ],
-        });
-      }
-      if (url === "cards/300/sparkline") {
-        return Promise.resolve({ data: [] });
-      }
-      throw new Error(`Unexpected GET ${url}`);
-    });
-
-    await renderModal({ cardId: 300, initialPrintingId: 3001 });
-
-    const priceTab = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent === "Price"
-    );
-    expect(priceTab).not.toBeUndefined();
-
-    await act(async () => {
-      priceTab?.click();
-      await flushPromises();
-    });
-
-    expect(container.textContent).toContain("No value data.");
   });
 });
