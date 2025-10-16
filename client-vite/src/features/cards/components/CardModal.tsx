@@ -204,7 +204,7 @@ export default function CardModal({
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold">Printings</h3>
+              <h2 className="text-lg font-semibold">Printings</h2>
               <div className="space-y-3" aria-live="polite">
                 {printingsQuery.isLoading && <p>Loading printings…</p>}
                 {printingsQuery.isError && (
