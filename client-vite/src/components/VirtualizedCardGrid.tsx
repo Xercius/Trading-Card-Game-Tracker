@@ -11,6 +11,7 @@ type Props = {
   onCardClick?: (c: CardSummary) => void;
   renderItem?: (card: CardSummary) => ReactNode;
   minTileWidth?: number; // px; default 220
+  maxTileWidth?: number; // px; default 320
   rowGap?: number; // px; default 12
   colGap?: number; // px; default 12
   overscan?: number; // rows; default 6
@@ -25,6 +26,7 @@ export default function VirtualizedCardGrid({
   onCardClick,
   renderItem,
   minTileWidth = 220,
+  maxTileWidth = 320,
   rowGap = 12,
   colGap = 12,
   overscan = 6,
@@ -50,14 +52,14 @@ export default function VirtualizedCardGrid({
   }, [containerWidth, minTileWidth, colGap]);
 
   const tileWidth = useMemo(() => {
-    // In single-column mode, we allow the card to expand and fill the entire container width
-    // for better aesthetics and use of space, rather than clamping it to minTileWidth.
-    // If this is not desired, replace 'containerWidth' with 'minTileWidth' below.
-    if (columns <= 1) return Math.max(1, Math.floor(containerWidth));
+    if (columns <= 1) {
+      // In single-column mode, cap at maxTileWidth to prevent oversized tiles
+      return Math.min(maxTileWidth, Math.max(minTileWidth, Math.floor(containerWidth)));
+    }
     const totalGap = colGap * (columns - 1);
     const w = Math.floor((containerWidth - totalGap) / columns);
     return w > 0 ? w : minTileWidth;
-  }, [columns, containerWidth, colGap, minTileWidth]);
+  }, [columns, containerWidth, colGap, minTileWidth, maxTileWidth]);
 
   // 3:4 image + footer
   const tileHeight = Math.floor((tileWidth * 4) / 3) + footerHeight;
