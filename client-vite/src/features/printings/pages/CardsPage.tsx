@@ -146,7 +146,7 @@ export default function CardsPage() {
       {!isLoading && !isError && (
         <>
           <div className="text-sm text-muted-foreground">{printings.length} printings</div>
-          <ul className="grid gap-1 grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
+          <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">
             {printings.map(p => (
               <li key={p.printingId}>
                 <PrintingCard p={p} onClick={handlePrintingClick} />
