@@ -48,5 +48,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# ---- Source data imports (not tracked) ----
+Imports/
+
 # ---- Static assets (local images, not source-controlled) ----
 api/wwwroot/images/*
