@@ -135,4 +135,55 @@ describe("PrintingTableView", () => {
     });
     container.remove();
   });
+
+  it("is keyboard accessible: rows have tabIndex and role when onRowClick is provided", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <PrintingTableView printings={mockPrintings} onRowClick={vi.fn()} />
+      );
+    });
+
+    const rows = container.querySelectorAll<HTMLTableRowElement>("tbody tr");
+    rows.forEach((row) => {
+      expect(row.getAttribute("tabindex")).toBe("0");
+      expect(row.getAttribute("role")).toBe("button");
+    });
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("calls onRowClick when Enter key is pressed on a row", async () => {
+    const handleClick = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <PrintingTableView printings={mockPrintings} onRowClick={handleClick} />
+      );
+    });
+
+    const firstRow = container.querySelector<HTMLTableRowElement>("tbody tr");
+    await act(async () => {
+      firstRow?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      );
+    });
+
+    expect(handleClick).toHaveBeenCalledTimes(1);
+    expect(handleClick).toHaveBeenCalledWith(mockPrintings[0]);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

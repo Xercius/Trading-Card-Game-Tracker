@@ -25,10 +25,22 @@ export function PrintingTableView({ printings, onRowClick }: Props) {
               key={p.printingId}
               className={
                 onRowClick
-                  ? "border-t cursor-pointer hover:bg-muted/50 transition-colors"
+                  ? "border-t cursor-pointer hover:bg-muted/50 transition-colors focus:outline-none focus:bg-muted/70"
                   : "border-t"
               }
               onClick={() => onRowClick?.(p)}
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? "button" : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onRowClick(p);
+                      }
+                    }
+                  : undefined
+              }
             >
               <td className="px-3 py-2">{p.cardName}</td>
               <td className="px-3 py-2">{p.game}</td>
