@@ -1,0 +1,52 @@
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'client-vite/**'
+
+backend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'api/**'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**'
+      - '.github/dependabot.yml'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'client-vite/package.json'
+      - 'client-vite/package-lock.json'
+      - 'client-vite/pnpm-lock.yaml'
+      - 'api/**/*.csproj'
+      - 'api/**/*.sln'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'client-vite/src/**/*.test.{ts,tsx}'
+      - 'client-vite/src/**/__tests__/**'
+      - 'api/**Tests*/**'
+      - 'api/**/*Tests.cs'
+      - 'api/**/*Test.cs'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**'
+
+configuration:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.json'
+      - '*.yml'
+      - '*.yaml'
+      - '*.toml'
+      - '.github/CODEOWNERS'
+      - 'client-vite/vite.config.ts'
+      - 'client-vite/tsconfig*.json'
+      - 'client-vite/.eslintrc*'
+      - 'client-vite/eslint.config*'
