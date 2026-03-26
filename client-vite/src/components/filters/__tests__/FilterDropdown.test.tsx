@@ -97,7 +97,7 @@ describe("FilterDropdown", () => {
     });
   });
 
-  it("supports dark mode styling", async () => {
+  it("supports theme-aware background styling", async () => {
     const user = userEvent.setup();
     render(
       <FilterDropdown trigger={<button>Open Filters</button>}>
@@ -110,7 +110,7 @@ describe("FilterDropdown", () => {
 
     await waitFor(() => {
       const dropdown = screen.getByRole("menu");
-      expect(dropdown).toHaveClass("bg-gray-900");
+      expect(dropdown).toHaveClass("bg-background");
     });
   });
 

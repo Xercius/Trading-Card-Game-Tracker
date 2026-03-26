@@ -124,7 +124,7 @@ export function DialogContent({
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       tabIndex={-1}
-      className={`relative z-10 max-h-[90vh] w-full max-w-4xl overflow-auto rounded-md border border-input bg-gray-900 shadow-lg ring-1 ring-black/5 focus:outline-none ${className}`}
+      className={`relative z-10 max-h-[90vh] w-full max-w-4xl overflow-auto rounded-md border border-input bg-background shadow-lg ring-1 ring-black/5 focus:outline-none ${className}`}
     >
       {children}
     </div>
