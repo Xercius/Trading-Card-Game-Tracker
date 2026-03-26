@@ -32,7 +32,7 @@ jobs:
       - name: Restore
         run: dotnet restore
       - name: .NET vulnerability scan
-        run: dotnet list package --vulnerable --include-transitive
+        run: dotnet list api.sln package --vulnerable --include-transitive
       - name: Build
         run: dotnet build -c Release --no-restore -warnaserror
       - name: dotnet format check
