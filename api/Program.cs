@@ -8,14 +8,9 @@ var filteredArgs = isSeedCommand ? args[1..] : args;
 var builder = WebApplication.CreateBuilder(filteredArgs);
 
 builder.Services.AddApiBasics(builder.Configuration);
-var usingDevFallbackKey = builder.Services.AddAppServices(builder.Configuration, builder.Environment);
+builder.Services.AddAppServices();
 
 var app = builder.Build();
-
-if (usingDevFallbackKey)
-{
-    app.Logger.LogWarning("Using built-in development JWT signing key. Provide JWT__KEY before deploying to Production.");
-}
 
 if (isSeedCommand)
 {
@@ -43,7 +38,6 @@ if (app.Environment.IsDevelopment())
 app.UseApiPipeline();
 
 app.MapApiEndpoints();
-
 
 app.Run();
 

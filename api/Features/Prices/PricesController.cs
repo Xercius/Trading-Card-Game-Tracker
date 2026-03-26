@@ -1,9 +1,6 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
-using api.Features.Decks;
 using api.Features.Prices.Dtos;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -12,11 +9,11 @@ namespace api.Features.Prices;
 
 [ApiController]
 [Route("api/prices")]
-[Authorize]
 public sealed class PricesController(AppDbContext db) : ControllerBase
 {
     private const int DefaultHistoryDays = 30;
     private const int DefaultValueHistoryDays = 90;
+    private const int UserId = DbSeeder.DefaultUserId;
     private readonly AppDbContext _db = db;
 
     [HttpGet("{printingId:int}/history")]
@@ -108,19 +105,13 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<DailyValuePointDto>>> GetCollectionValueHistory(
         [FromQuery] int days = DefaultValueHistoryDays)
     {
-        var user = HttpContext.GetCurrentUser();
-        if (user is null)
-        {
-            return Unauthorized();
-        }
-
         if (days <= 0) days = DefaultValueHistoryDays;
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var rangeStart = today.AddDays(-(days - 1));
 
         var ownedPrintings = await _db.UserCards
-            .Where(uc => uc.UserId == user.Id && uc.QuantityOwned > 0)
+            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
             .Where(uc => !EF.Functions.Like(uc.CardPrinting.Style, "%proxy%"))
             .Select(uc => new { uc.CardPrintingId, uc.QuantityOwned })
             .ToListAsync();
@@ -163,21 +154,10 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
             return this.CreateValidationProblem("deckId", "deckId must be positive.");
         }
 
-        var user = HttpContext.GetCurrentUser();
-        if (user is null)
-        {
-            return Forbid();
-        }
-
         var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
         if (deck is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Deck not found.");
-        }
-
-        if (!DeckAuthorization.OwnsDeckOrAdmin(user, deck.UserId))
-        {
-            return Forbid();
         }
 
         if (days <= 0) days = DefaultValueHistoryDays;

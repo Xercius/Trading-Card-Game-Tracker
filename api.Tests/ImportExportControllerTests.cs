@@ -277,14 +277,14 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
     }
 
     [Fact]
-    public async Task ExportJson_WithoutUserHeader_ReturnsValidationProblem()
+    public async Task ExportJson_ReturnsOk()
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/export/json");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);

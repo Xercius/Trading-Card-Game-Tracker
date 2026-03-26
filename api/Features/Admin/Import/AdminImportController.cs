@@ -1,21 +1,16 @@
 // File: api/Features/Admin/Import/AdminImportController.cs
 
-using api.Authentication;
 using api.Common.Errors;
-using api.Filters;
 using api.Importing;
 using api.Infrastructure.Startup;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
 namespace api.Features.Admin.Import;
 
 [ApiController]
-[Authorize]
-[AdminGuard]
 [Route("api/admin/import")]
 public sealed class AdminImportController : ControllerBase
 {
@@ -66,8 +61,8 @@ public sealed class AdminImportController : ControllerBase
             ["Swccgdb"] = "swccgdb",
             ["SwuDb"] = "swu",
             ["PokemonTcg"] = "pokemontcg",
-            ["GuardiansLocal"] = "guardianslocal",
-            ["DiceMastersDb"] = "dicemastersdb",
+            ["GuardiansLocal"] = "guardians",
+            ["DiceMastersDb"] = "dicemasters",
             ["TransformersFm"] = "transformersfm",
             ["Dummy"] = "dummy",
         };
@@ -174,12 +169,12 @@ public sealed class AdminImportController : ControllerBase
         }
 
         var importer = request.Importer;
-        var user = HttpContext.GetCurrentUser();
+        
         var options = new ImportOptions(
             DryRun: true,
             Upsert: true,
             Limit: effectiveLimit,
-            UserId: user?.Id,
+            UserId: null,
             SetCode: request.Set);
 
         ImportSummary? summary = null;
@@ -292,12 +287,12 @@ public sealed class AdminImportController : ControllerBase
         }
 
         var importer = request.Importer;
-        var user = HttpContext.GetCurrentUser();
+        
         var options = new ImportOptions(
             DryRun: false,
             Upsert: true,
             Limit: effectiveLimit,
-            UserId: user?.Id,
+            UserId: null,
             SetCode: request.Set);
 
         ImportSummary? summary = null;

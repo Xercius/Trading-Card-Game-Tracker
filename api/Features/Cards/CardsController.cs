@@ -1,4 +1,3 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
@@ -6,7 +5,6 @@ using api.Features.Cards.Dtos;
 using api.Models;
 using api.Shared;
 using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,12 +18,10 @@ namespace api.Features.Cards;
 /// This controller provides endpoints for:
 /// - Listing and searching cards across all supported games
 /// - Retrieving detailed card information including all printings
-/// - Managing card printing data (admin-only operations)
+/// - Managing card printing data
 /// - Virtualized pagination for efficient large dataset handling
-/// All endpoints require authentication via the [Authorize] attribute.
 /// </remarks>
 [ApiController]
-[Authorize]
 [Route("api/cards")] // plural route
 public class CardsController : ControllerBase
 {
@@ -107,16 +103,6 @@ public class CardsController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Helper method to check if the current user has administrator privileges.
-    /// </summary>
-    /// <returns>True if the user is not an admin or not authenticated; false if the user is an admin.</returns>
-    // CSV parsing logic moved to CsvUtils in api.Shared
-    private bool NotAdmin()
-    {
-        var me = HttpContext.GetCurrentUser();
-        return me is null || !me.IsAdmin;
-    }
 
     /// <summary>
     /// Core implementation for searching and listing cards with traditional pagination.
@@ -231,12 +217,11 @@ public class CardsController : ControllerBase
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.
-    /// Admin-only operation that performs upsert logic based on the presence of printing ID or set/number combination.
+    /// Operation that performs upsert logic based on the presence of printing ID or set/number combination.
     /// </summary>
     /// <param name="dto">The printing data to create or update.</param>
     /// <returns>
     /// NoContent (204) on success,
-    /// 403 Forbidden if user is not an admin,
     /// 404 Not Found if the specified card or printing ID doesn't exist,
     /// or 400 Bad Request with validation errors for invalid input.
     /// </returns>
@@ -248,11 +233,6 @@ public class CardsController : ControllerBase
     /// </remarks>
     private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingRequest dto)
     {
-        if (NotAdmin())
-        {
-            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to modify printings.");
-        }
-
         if (dto is null)
         {
             return this.CreateValidationProblem(
@@ -336,13 +316,12 @@ public class CardsController : ControllerBase
 
     /// <summary>
     /// Core implementation for bulk importing multiple printing records for a specific card.
-    /// Admin-only operation that creates or updates printings in batch.
+    /// Creates or updates printings in batch.
     /// </summary>
     /// <param name="cardId">The unique identifier of the card to add printings to.</param>
     /// <param name="items">Collection of printing data to import.</param>
     /// <returns>
     /// NoContent (204) on success,
-    /// 403 Forbidden if user is not an admin,
     /// 404 Not Found if the specified card doesn't exist,
     /// or 400 Bad Request for invalid input.
     /// </returns>
@@ -352,11 +331,6 @@ public class CardsController : ControllerBase
     /// </remarks>
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
     {
-        if (NotAdmin())
-        {
-            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to bulk import printings.");
-        }
-
         if (cardId <= 0)
         {
             return this.CreateValidationProblem(nameof(cardId), "cardId must be provided.");
@@ -502,7 +476,6 @@ public class CardsController : ControllerBase
     /// <returns>NoContent (204) on success.</returns>
     /// <response code="204">Printing was successfully created or updated.</response>
     /// <response code="400">Invalid request data or validation errors.</response>
-    /// <response code="403">User does not have admin privileges.</response>
     /// <response code="404">Card or printing with the specified ID was not found.</response>
     /// <remarks>
     /// If dto.Id is provided, updates the existing printing.
@@ -514,14 +487,13 @@ public class CardsController : ControllerBase
         => await UpsertPrintingCore(dto);
 
     /// <summary>
-    /// Bulk imports multiple printing records for a specific card. Admin-only endpoint.
+    /// Bulk imports multiple printing records for a specific card.
     /// </summary>
     /// <param name="cardId">The unique identifier of the card to add printings to.</param>
     /// <param name="items">Collection of printing data to import.</param>
     /// <returns>NoContent (204) on success.</returns>
     /// <response code="204">Printings were successfully imported.</response>
     /// <response code="400">Invalid request data or validation errors.</response>
-    /// <response code="403">User does not have admin privileges.</response>
     /// <response code="404">Card with the specified ID was not found.</response>
     /// <remarks>
     /// For each printing, if a match with the same Set, Number, and Style exists, it updates that record.

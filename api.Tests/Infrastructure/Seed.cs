@@ -1,14 +1,11 @@
 using api.Data;
 using api.Models;
-using Microsoft.AspNetCore.Identity;
 
 namespace api.Tests.Infrastructure;
 
 public static class Seed
 {
-    // Using same IDs as TestDataSeeder for consistency with HttpClientExtensions
-    public const int AdminUserId = 999;
-    public const int SecondaryUserId = 1; // Alice
+    public const int UserId = DbSeeder.DefaultUserId;
 
     public const int LightningCardId = 200;
     public const int GoblinCardId = 201;
@@ -21,32 +18,23 @@ public static class Seed
     public const int PhoenixPrintingId = 3004;
     public const int DragonPrintingId = 3005;
 
-    public const int AdminDeckId = 4001;
-    public const int SecondaryDeckId = 5001;
+    public const int DeckId = 4001;
+
+    // Keep these aliases for tests that use them
+    public const int AdminUserId = UserId;
+    public const int SecondaryUserId = UserId;
+    public const int AdminDeckId = DeckId;
+    public const int SecondaryDeckId = DeckId;
 
     public static async Task SeedAsync(AppDbContext db)
     {
-        var hasher = new PasswordHasher<User>();
-        
-        var admin = new User
+        var user = new User
         {
-            Id = AdminUserId,
-            Username = "admin",
-            DisplayName = "Admin",
-            IsAdmin = true
+            Id = UserId,
+            Username = "owner",
+            DisplayName = "Owner"
         };
-        admin.PasswordHash = hasher.HashPassword(admin, "Password123!");
-
-        var userTwo = new User
-        {
-            Id = SecondaryUserId,
-            Username = "alice", // Changed from "user2" to match HttpClientExtensions
-            DisplayName = "Alice", // Changed from "User Two"
-            IsAdmin = false
-        };
-        userTwo.PasswordHash = hasher.HashPassword(userTwo, "Password123!");
-
-        db.Users.AddRange(admin, userTwo);
+        db.Users.Add(user);
 
         var lightning = new Card
         {
@@ -137,7 +125,7 @@ public static class Seed
         db.UserCards.AddRange(
             new UserCard
             {
-                UserId = AdminUserId,
+                UserId = UserId,
                 CardPrintingId = LightningAlphaPrintingId,
                 QuantityOwned = 2,
                 QuantityWanted = 0,
@@ -145,7 +133,7 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = AdminUserId,
+                UserId = UserId,
                 CardPrintingId = LightningBetaPrintingId,
                 QuantityOwned = 3,
                 QuantityWanted = 1,
@@ -153,7 +141,7 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = AdminUserId,
+                UserId = UserId,
                 CardPrintingId = PhoenixPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 2,
@@ -161,72 +149,30 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = AdminUserId,
+                UserId = UserId,
                 CardPrintingId = GoblinPrintingId,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
                 QuantityProxyOwned = 0
-            },
-            new UserCard
-            {
-                UserId = SecondaryUserId,
-                CardPrintingId = LightningAlphaPrintingId,
-                QuantityOwned = 1,
-                QuantityWanted = 1,
-                QuantityProxyOwned = 0
-            },
-            new UserCard
-            {
-                UserId = SecondaryUserId,
-                CardPrintingId = LightningBetaPrintingId,
-                QuantityOwned = 4,
-                QuantityWanted = 0,
-                QuantityProxyOwned = 0
-            },
-            new UserCard
-            {
-                UserId = SecondaryUserId,
-                CardPrintingId = DragonPrintingId,
-                QuantityOwned = 2,
-                QuantityWanted = 1,
-                QuantityProxyOwned = 0
             });
 
-        var adminDeck = new Deck
+        var deck = new Deck
         {
-            Id = AdminDeckId,
-            UserId = AdminUserId,
+            Id = DeckId,
+            UserId = UserId,
             Game = "Magic",
-            Name = "Admin Main",
+            Name = "My Deck",
             Description = "Primary testing deck"
         };
 
-        var userTwoDeck = new Deck
-        {
-            Id = SecondaryDeckId,
-            UserId = SecondaryUserId,
-            Game = "Magic",
-            Name = "User Two Deck",
-            Description = "Secondary deck"
-        };
-
-        db.Decks.AddRange(adminDeck, userTwoDeck);
+        db.Decks.Add(deck);
 
         db.DeckCards.AddRange(
             new DeckCard
             {
-                DeckId = AdminDeckId,
+                DeckId = DeckId,
                 CardPrintingId = LightningBetaPrintingId,
                 QuantityInDeck = 2,
-                QuantityIdea = 0,
-                QuantityAcquire = 0,
-                QuantityProxy = 0
-            },
-            new DeckCard
-            {
-                DeckId = SecondaryDeckId,
-                CardPrintingId = DragonPrintingId,
-                QuantityInDeck = 1,
                 QuantityIdea = 0,
                 QuantityAcquire = 0,
                 QuantityProxy = 0

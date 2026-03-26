@@ -1,4 +1,3 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Decks.Dtos;
@@ -7,7 +6,6 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mime;
@@ -17,14 +15,14 @@ using DeckDto = api.Features.Decks.Dtos.DeckResponse;
 namespace api.Features.Decks;
 
 [ApiController]
-[Authorize]
-// Legacy, user-scoped routes for compatibility:
-[Route("api/user/{userId:int}/deck")]
+
+[Route("api/decks")]
 public class DecksController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
     private readonly ILogger<DecksController> _logger;
+    private const int UserId = DbSeeder.DefaultUserId;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(AppDbContext db, IMapper mapper, ILogger<DecksController> logger)
@@ -38,24 +36,7 @@ public class DecksController : ControllerBase
     // Helpers
     // -----------------------------
 
-    private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
-    {
-        var me = HttpContext.GetCurrentUser();
-        if (me is null) { error = Forbid(); userId = 0; return false; }
-        error = null; userId = me.Id; return true;
-    }
 
-    private bool UserMismatch(int userId)
-    {
-        var me = HttpContext.GetCurrentUser();
-        return me is null || (!me.IsAdmin && me.Id != userId);
-    }
-
-    private bool NotOwnerAndNotAdmin(Deck d)
-    {
-        var me = HttpContext.GetCurrentUser();
-        return me is null || (!me.IsAdmin && me.Id != d.UserId);
-    }
 
     private async Task<(Deck? deck, IActionResult? error)> GetDeckForCaller(int deckId)
     {
@@ -66,7 +47,6 @@ public class DecksController : ControllerBase
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found."));
         }
-        if (NotOwnerAndNotAdmin(d)) return (null, Forbid());
         return (d, null);
     }
 
@@ -140,26 +120,18 @@ public class DecksController : ControllerBase
     // -----------------------------
 
     private async Task<(Paged<DeckDto>? Page, ActionResult? Error)> ListUserDecksCore(
-        int userId,
         string? game,
         string? name,
         bool? hasCards,
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId))
-        {
-            return (null, this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found."));
-        }
-
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 50;
 
         var ct = HttpContext.RequestAborted;
 
-        var query = _db.Decks.Where(d => d.UserId == userId).AsNoTracking();
+        var query = _db.Decks.Where(d => d.UserId == UserId).AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(game))
         {
@@ -192,7 +164,7 @@ public class DecksController : ControllerBase
         return (paged, null);
     }
 
-    private async Task<IActionResult> CreateDeckCore(int userId, CreateDeckRequest dto)
+    private async Task<IActionResult> CreateDeckCore(CreateDeckRequest dto)
     {
         if (dto is null)
         {
@@ -218,18 +190,11 @@ public class DecksController : ControllerBase
             return this.CreateValidationProblem(errors);
         }
 
-        if (!await _db.Users.AnyAsync(u => u.Id == userId))
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found.");
-        }
-
         var name = dto.Name.Trim();
         var game = dto.Game.Trim();
 
         var duplicate = await _db.Decks.AnyAsync(x =>
-            x.UserId == userId &&
+            x.UserId == UserId &&
             EF.Functions.Collate(x.Game, "NOCASE") == game &&
             EF.Functions.Collate(x.Name, "NOCASE") == name);
         if (duplicate)
@@ -240,7 +205,7 @@ public class DecksController : ControllerBase
         }
 
         var deck = _mapper.Map<Deck>(dto);
-        deck.UserId = userId;
+        deck.UserId = UserId;
         deck.Game = game;
         deck.Name = name;
 
@@ -260,7 +225,6 @@ public class DecksController : ControllerBase
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
         return Ok(_mapper.Map<DeckResponse>(d));
     }
 
@@ -273,7 +237,6 @@ public class DecksController : ControllerBase
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Game) || string.IsNullOrWhiteSpace(dto.Name))
         {
             var errors = new Dictionary<string, string[]>();
@@ -310,27 +273,6 @@ public class DecksController : ControllerBase
 
         await _db.SaveChangesAsync();
         return NoContent();
-    }
-
-    private async Task<IActionResult> PatchDeckForUserAsync(int userId, int deckId, JsonElement patch)
-    {
-        if (patch.ValueKind != JsonValueKind.Object)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "JSON object required.");
-        }
-
-        var deck = await _db.Decks.FirstOrDefaultAsync(d => d.Id == deckId && d.UserId == userId);
-        if (deck is null)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"Deck {deckId} for user {userId} was not found.");
-        }
-
-        return await ApplyDeckPatchAsync(deck, patch);
     }
 
     private async Task<IActionResult> ApplyDeckPatchAsync(Deck deck, JsonElement patch)
@@ -445,7 +387,6 @@ public class DecksController : ControllerBase
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
-        if (NotOwnerAndNotAdmin(d)) return Forbid();
         _db.Decks.Remove(d);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -955,47 +896,11 @@ public class DecksController : ControllerBase
     }
 
     // -----------------------------------------
-    // Legacy (userId in URL)
-    // -----------------------------------------
-
-    // GET /api/user/{userId}/deck
-    [HttpGet]
-    public async Task<ActionResult<Paged<DeckDto>>> GetUserDecks(
-        int userId,
-        [FromQuery] string? game = null,
-        [FromQuery] string? name = null,
-        [FromQuery] bool? hasCards = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
-    {
-        if (UserMismatch(userId)) return Forbid();
-        var (pagedResult, error) = await ListUserDecksCore(userId, game, name, hasCards, page, pageSize);
-        if (error != null) return error;
-        return Ok(pagedResult);
-    }
-
-    // POST /api/user/{userId}/deck
-    [HttpPost]
-    [Consumes("application/json")]
-    public async Task<IActionResult> CreateDeck(int userId, [FromBody] CreateDeckRequest dto)
-    {
-        if (UserMismatch(userId)) return Forbid();
-        return await CreateDeckCore(userId, dto);
-    }
-
-    [HttpPatch("{id:int}")]
-    public async Task<IActionResult> Patch(int userId, int id, [FromBody] JsonElement patch)
-    {
-        if (UserMismatch(userId)) return Forbid();
-        return await PatchDeckForUserAsync(userId, id, patch);
-    }
-
-    // -----------------------------------------
     // Auth-derived aliases (preferred)
     // -----------------------------------------
 
     // GET /api/decks  (list current user's decks)
-    [HttpGet("/api/decks")] // alias, optional
+    [HttpGet("/api/decks")]
     public async Task<ActionResult<Paged<DeckDto>>> GetMyDecks(
         [FromQuery] string? game = null,
         [FromQuery] string? name = null,
@@ -1003,8 +908,7 @@ public class DecksController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        var (pageResult, error) = await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
+        var (pageResult, error) = await ListUserDecksCore(game, name, hasCards, page, pageSize);
         if (error != null) return error;
         return Ok(pageResult);
     }
@@ -1018,8 +922,7 @@ public class DecksController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        var (pageResult, error) = await ListUserDecksCore(uid, game, name, hasCards, page, pageSize);
+        var (pageResult, error) = await ListUserDecksCore(game, name, hasCards, page, pageSize);
         if (error != null) return error;
         return Ok(pageResult!.Items.ToList());
     }
@@ -1029,8 +932,7 @@ public class DecksController : ControllerBase
     [Consumes("application/json")]
     public async Task<IActionResult> CreateMyDeck([FromBody] CreateDeckRequest dto)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await CreateDeckCore(uid, dto);
+        return await CreateDeckCore(dto);
     }
 
     // ----- Deck metadata (ownership enforced) -----

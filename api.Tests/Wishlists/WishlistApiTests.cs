@@ -89,9 +89,9 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<MoveToCollectionResponseContract>();
         result.Should().NotBeNull();
-        result!.CardPrintingId.Should().Be(Seed.PhoenixPrintingId);
-        result.QuantityWanted.Should().Be(1);
-        result.QuantityOwned.Should().Be(1);
+        result!.PrintingId.Should().Be(Seed.PhoenixPrintingId);
+        result.WantedAfter.Should().Be(1);
+        result.OwnedAfter.Should().Be(1);
         result.Availability.Should().Be(1);
 
         await _factory.ExecuteDbContextAsync(async db =>
@@ -107,5 +107,5 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
 
     private sealed record QuickAddResponseContract(int PrintingId, int QuantityWanted);
 
-    private sealed record MoveToCollectionResponseContract(int CardPrintingId, int QuantityWanted, int QuantityOwned, int QuantityProxyOwned, int Availability, int AvailabilityWithProxies);
+    private sealed record MoveToCollectionResponseContract(int PrintingId, int WantedAfter, int OwnedAfter, int ProxyAfter, int Availability, int AvailabilityWithProxies);
 }

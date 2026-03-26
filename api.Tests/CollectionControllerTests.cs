@@ -27,11 +27,11 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var all = await GetCollectionAsync(client, string.Empty);
-        Assert.Equal(3, all.Count);
-        Assert.DoesNotContain(all, c => c.CardPrintingId == TestDataSeeder.GoblinGuidePrintingId);
+        Assert.Equal(5, all.Count); // All items belong to the single user
+        Assert.Contains(all, c => c.CardPrintingId == TestDataSeeder.GoblinGuidePrintingId);
 
         var magicOnly = await GetCollectionAsync(client, "?game=Magic");
-        Assert.Equal(2, magicOnly.Count);
+        Assert.Equal(3, magicOnly.Count); // Alpha, Beta, Goblin
         Assert.All(magicOnly, item => Assert.Equal("Magic", item.Game));
 
         var filtered = await GetCollectionAsync(client, "?set=Beta&name=bolt");
@@ -146,7 +146,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var updateResponse = await client.PutAsJsonAsync(
-            $"/api/user/{TestDataSeeder.AliceUserId}/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
+            $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
             new
             {
                 quantityOwned = 1,
@@ -162,7 +162,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, row.QuantityProxyOwned);
 
         var missingResponse = await client.PutAsJsonAsync(
-            $"/api/user/{TestDataSeeder.AliceUserId}/collection/{TestDataSeeder.ExtraMagicPrintingId}",
+            $"/api/collection/{TestDataSeeder.ExtraMagicPrintingId}",
             new
             {
                 quantityOwned = 1,
@@ -292,7 +292,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
 
         var response = await client.SendAsync(new HttpRequestMessage(
             HttpMethod.Patch,
-            $"/api/user/{TestDataSeeder.AliceUserId}/collection/bulk")
+            $"/api/collection/bulk")
         {
             Content = JsonContent.Create(new
             {
@@ -485,25 +485,9 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Collection_LegacyRoute_UserMismatch_Returns403()
-    {
-        await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var response = await client.GetAsync($"/api/user/{TestDataSeeder.BobUserId}/collection");
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
 
-    [Fact]
-    public async Task Collection_Endpoints_RequireUserHeader()
-    {
-        await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/collection");
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
 
     private static async Task<List<UserCardItemResponse>> GetCollectionAsync(HttpClient client, string query)
     {

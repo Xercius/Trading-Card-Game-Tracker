@@ -1,31 +1,26 @@
 using api.Models;
-using Microsoft.AspNetCore.Identity;
 using System.Diagnostics;
 
-namespace api.Data // Update to match your folder/namespace
+namespace api.Data
 {
     public static class DbSeeder
     {
+        /// <summary>
+        /// The single application owner. All collection, deck, and wishlist data belongs to this user.
+        /// </summary>
+        public const int DefaultUserId = 1;
+
         public static void Seed(AppDbContext context)
         {
-            // Skip if already seeded
+            // Ensure the single default user exists
+            if (!context.Users.Any(u => u.Id == DefaultUserId))
+            {
+                context.Users.Add(new User { Id = DefaultUserId, Username = "owner", DisplayName = "Owner" });
+                context.SaveChanges();
+            }
+
+            // Skip card seeding if already seeded
             if (context.Cards.Any()) return;
-
-            // Seed Users
-            var hasher = new PasswordHasher<User>();
-            const string defaultPassword = "Password123!";
-
-            var user1 = new User { Username = "Jason", DisplayName = "Xercius", IsAdmin = true };
-            user1.PasswordHash = hasher.HashPassword(user1, defaultPassword);
-
-            var user2 = new User { Username = "Grayson", DisplayName = "Astroracer", IsAdmin = true };
-            user2.PasswordHash = hasher.HashPassword(user2, defaultPassword);
-
-            var user3 = new User { Username = "Perrin", DisplayName = "DinoRoar", IsAdmin = true };
-            user3.PasswordHash = hasher.HashPassword(user3, defaultPassword);
-
-            context.Users.AddRange(user1, user2, user3);
-            context.SaveChanges();
 
             // Seed Cards
             var card1 = new Card { Name = "Disabling Fang Fighter", Game = "Star Wars Unlimited", CardType = "Unit" };
@@ -145,7 +140,7 @@ namespace api.Data // Update to match your folder/namespace
             // Seed UserCards (collection data)
             var userCard1a = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1a.Id,
                 QuantityOwned = 8,
                 QuantityWanted = 0,
@@ -153,7 +148,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1b = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1b.Id,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -161,7 +156,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1c = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1c.Id,
                 QuantityOwned = 0,
                 QuantityWanted = 1,
@@ -169,7 +164,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1d = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1d.Id,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -177,7 +172,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1e = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1e.Id,
                 QuantityOwned = 9,
                 QuantityWanted = 0,
@@ -185,7 +180,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1f = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1f.Id,
                 QuantityOwned = 2,
                 QuantityWanted = 0,
@@ -193,7 +188,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1g = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1g.Id,
                 QuantityOwned = 2,
                 QuantityWanted = 0,
@@ -201,7 +196,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard1h = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing1h.Id,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -209,7 +204,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2a = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2a.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -217,7 +212,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2b = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2b.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -225,7 +220,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2c = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2c.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -233,7 +228,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2d = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2d.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -241,7 +236,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2e = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2e.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -249,7 +244,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2f = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2f.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -257,7 +252,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2g = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2g.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -265,7 +260,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2h = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2h.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -273,7 +268,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2i = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2i.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -281,7 +276,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard2j = new UserCard
             {
-                UserId = user2.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing2j.Id,
                 QuantityOwned = 4,
                 QuantityWanted = 0,
@@ -289,7 +284,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard3a = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing3a.Id,
                 QuantityOwned = 2,
                 QuantityWanted = 0,
@@ -297,7 +292,7 @@ namespace api.Data // Update to match your folder/namespace
             };
             var userCard4a = new UserCard
             {
-                UserId = user1.Id,
+                UserId = DefaultUserId,
                 CardPrintingId = printing4a.Id,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -308,8 +303,8 @@ namespace api.Data // Update to match your folder/namespace
             context.SaveChanges();
 
             // Seed Decks
-            var deck1 = new Deck { UserId = user2.Id, Name = "Grayson's Deck", Description = "A sample deck for Grayson.", Game = "Star Wars Unlimited" };
-            var deck2 = new Deck { UserId = user3.Id, Name = "Perrin's Deck", Description = "A sample deck for Perrin.", Game = "Star Wars Unlimited" };
+            var deck1 = new Deck { UserId = DefaultUserId, Name = "My Deck", Description = "A sample deck.", Game = "Star Wars Unlimited" };
+            var deck2 = new Deck { UserId = DefaultUserId, Name = "My Second Deck", Description = "Another sample deck.", Game = "Star Wars Unlimited" };
             context.Decks.AddRange(deck1, deck2);
             context.SaveChanges(); // Save to get IDs for relationships
 

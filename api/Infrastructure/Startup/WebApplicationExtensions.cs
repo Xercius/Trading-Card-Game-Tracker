@@ -34,8 +34,6 @@ internal static class WebApplicationExtensions
         app.UseRouting();
         var corsOptions = app.Services.GetRequiredService<IOptions<CorsPolicyOptions>>().Value;
         app.UseCors(string.IsNullOrWhiteSpace(corsOptions.PolicyName) ? "AllowReact" : corsOptions.PolicyName);
-        app.UseAuthentication();
-        app.UseAuthorization();
 
         return app;
     }

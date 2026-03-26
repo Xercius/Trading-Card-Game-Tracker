@@ -1,15 +1,17 @@
 using api.Data;
 using api.Models;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Tests.Fixtures;
 
 public static class TestDataSeeder
 {
-    public const int AdminUserId = 999;
-    public const int AliceUserId = 1;
-    public const int BobUserId = 2;
+    public const int UserId = DbSeeder.DefaultUserId;
+
+    // Keep aliases for backward compatibility with tests
+    public const int AdminUserId = UserId;
+    public const int AliceUserId = UserId;
+    public const int BobUserId = UserId;
 
     public const int LightningBoltCardId = 100;
     public const int GoblinGuideCardId = 101;
@@ -32,18 +34,7 @@ public static class TestDataSeeder
     {
         await ClearDatabaseAsync(db);
 
-        var hasher = new PasswordHasher<User>();
-
-        var adminUser = new User { Id = AdminUserId, Username = "admin", DisplayName = "Admin", IsAdmin = true };
-        adminUser.PasswordHash = hasher.HashPassword(adminUser, "Password123!");
-
-        var aliceUser = new User { Id = AliceUserId, Username = "alice", DisplayName = "Alice" };
-        aliceUser.PasswordHash = hasher.HashPassword(aliceUser, "Password123!");
-
-        var bobUser = new User { Id = BobUserId, Username = "bob", DisplayName = "Bob" };
-        bobUser.PasswordHash = hasher.HashPassword(bobUser, "Password123!");
-
-        db.Users.AddRange(adminUser, aliceUser, bobUser);
+        db.Users.Add(new User { Id = UserId, Username = "owner", DisplayName = "Owner" });
 
         var lightningBolt = new Card
         {
@@ -149,7 +140,7 @@ public static class TestDataSeeder
         db.UserCards.AddRange(
             new UserCard
             {
-                UserId = AliceUserId,
+                UserId = UserId,
                 CardPrintingId = LightningBoltAlphaPrintingId,
                 QuantityOwned = 5,
                 QuantityWanted = 1,
@@ -157,7 +148,7 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = AliceUserId,
+                UserId = UserId,
                 CardPrintingId = LightningBoltBetaPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 2,
@@ -165,7 +156,7 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = AliceUserId,
+                UserId = UserId,
                 CardPrintingId = ElsaPrintingId,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -173,7 +164,7 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = BobUserId,
+                UserId = UserId,
                 CardPrintingId = GoblinGuidePrintingId,
                 QuantityOwned = 2,
                 QuantityWanted = 1,
@@ -181,7 +172,7 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = BobUserId,
+                UserId = UserId,
                 CardPrintingId = MickeyPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 3,
@@ -189,40 +180,40 @@ public static class TestDataSeeder
             }
         );
 
-        var aliceMagicDeck = new Deck
+        var magicDeck = new Deck
         {
             Id = AliceMagicDeckId,
-            UserId = AliceUserId,
+            UserId = UserId,
             Game = "Magic",
             Name = "Alice Aggro",
             Description = "Fast red spells"
         };
-        var aliceLorcanaDeck = new Deck
+        var lorcanaDeck = new Deck
         {
             Id = AliceLorcanaDeckId,
-            UserId = AliceUserId,
+            UserId = UserId,
             Game = "Lorcana",
             Name = "Alice Control",
             Description = "Frosty defenses"
         };
-        var aliceEmptyDeck = new Deck
+        var emptyDeck = new Deck
         {
             Id = AliceEmptyDeckId,
-            UserId = AliceUserId,
+            UserId = UserId,
             Game = "Magic",
             Name = "Alice Empty",
             Description = "Testing deck with no cards"
         };
-        var bobDeck = new Deck
+        var burnDeck = new Deck
         {
             Id = BobMagicDeckId,
-            UserId = BobUserId,
+            UserId = UserId,
             Game = "Magic",
             Name = "Bob Burn",
             Description = "Lots of fire"
         };
 
-        db.Decks.AddRange(aliceMagicDeck, aliceLorcanaDeck, aliceEmptyDeck, bobDeck);
+        db.Decks.AddRange(magicDeck, lorcanaDeck, emptyDeck, burnDeck);
 
         db.DeckCards.AddRange(
             new DeckCard
@@ -268,26 +259,21 @@ public static class TestDataSeeder
 
     private static async Task ClearDatabaseAsync(AppDbContext db)
     {
-        // Turn off foreign key checks (SQLite-specific)
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
 
         foreach (var et in db.Model.GetEntityTypes())
         {
-            if (et.IsOwned() || et.GetTableName() is null) continue; // skip owned/unmapped
+            if (et.IsOwned() || et.GetTableName() is null) continue;
 
-            // Get DbSet<TEntity> for this entity type
             var set = db.GetType()
                 .GetMethod(nameof(DbContext.Set), Type.EmptyTypes)!
                 .MakeGenericMethod(et.ClrType)
                 .Invoke(db, null)!;
 
-            // Cast to IQueryable<TEntity> and execute delete
             var queryable = (IQueryable<object>)set;
             await queryable.ExecuteDeleteAsync();
         }
 
-        // Turn foreign key checks back on
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
     }
-
 }
