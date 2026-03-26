@@ -7,14 +7,19 @@ import { usePrintings } from "../api/usePrintings";
 import { deriveFacets } from "../api/usePrintingFacets";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { PrintingCard } from "../components/PrintingCard";
+import { PrintingTableView } from "../components/PrintingTableView";
 import CardModal from "@/features/cards/components/CardModal";
 import type { PrintingListItem } from "../api/printings";
+
+type ViewMode = "grid" | "table";
 
 export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
   const { data, isLoading, isError, error } = usePrintings(filters);
   const printings = data ?? [];
   const facets = React.useMemo(() => deriveFacets(printings), [printings]);
+
+  const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
 
   const [selectedPrinting, setSelectedPrinting] = React.useState<{
     cardId: number;
@@ -114,6 +119,25 @@ export default function CardsPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-1" role="group" aria-label="View mode">
+        <Button
+          variant={viewMode === "grid" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode("grid")}
+          aria-pressed={viewMode === "grid"}
+        >
+          Grid
+        </Button>
+        <Button
+          variant={viewMode === "table" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode("table")}
+          aria-pressed={viewMode === "table"}
+        >
+          Table
+        </Button>
+      </div>
+
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Active filters:</span>
@@ -146,13 +170,17 @@ export default function CardsPage() {
       {!isLoading && !isError && (
         <>
           <div className="text-sm text-muted-foreground">{printings.length} printings</div>
-          <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">
-            {printings.map(p => (
-              <li key={p.printingId}>
-                <PrintingCard p={p} onClick={handlePrintingClick} />
-              </li>
-            ))}
-          </ul>
+          {viewMode === "grid" ? (
+            <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">
+              {printings.map(p => (
+                <li key={p.printingId}>
+                  <PrintingCard p={p} onClick={handlePrintingClick} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <PrintingTableView printings={printings} onRowClick={handlePrintingClick} />
+          )}
         </>
       )}
 
