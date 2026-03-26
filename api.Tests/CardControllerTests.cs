@@ -178,34 +178,6 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Card_Admin_Endpoints_RequireAdmin()
-    {
-        await factory.ResetDatabaseAsync();
-
-        using var userClient = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
-        var userResponse = await userClient.PostAsJsonAsync(
-            "/api/cards/printing",
-            new
-            {
-                cardId = TestDataSeeder.LightningBoltCardId,
-                set = "Test",
-                number = "T1"
-            });
-        Assert.Equal(HttpStatusCode.Forbidden, userResponse.StatusCode);
-
-        using var anonymousClient = factory.CreateClient();
-        var anonResponse = await anonymousClient.PostAsJsonAsync(
-            "/api/cards/printing",
-            new
-            {
-                cardId = TestDataSeeder.LightningBoltCardId,
-                set = "Test",
-                number = "T1"
-            });
-        Assert.Equal(HttpStatusCode.BadRequest, anonResponse.StatusCode);
-    }
-
-    [Fact]
     public async Task Card_Printings_ByCard_ReturnsOrderedList()
     {
         await factory.ResetDatabaseAsync();
@@ -229,9 +201,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         var missing = await client.GetAsync("/api/cards/9999/printings");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
 
-        using var anonymous = factory.CreateClient();
-        var unauthorized = await anonymous.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}/printings");
-        Assert.Equal(HttpStatusCode.BadRequest, unauthorized.StatusCode);
+
     }
 
     private static async Task<Paged<T>> ReadPagedAsync<T>(HttpResponseMessage response)

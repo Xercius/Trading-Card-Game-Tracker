@@ -1,21 +1,15 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Importing;
-using api.Models;
 using api.Shared.Importing;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.IdentityModel.Tokens;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using HttpIPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
 
 namespace api.Infrastructure.Startup;
@@ -181,93 +175,11 @@ internal static class ServiceCollectionExtensions
         return services;
     }
 
-    public static bool AddAppServices(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        IHostEnvironment environment)
+    public static void AddAppServices(
+        this IServiceCollection services)
     {
         services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=app.db"));
         services.AddHttpClient();
-
-        var jwtSection = configuration.GetSection("Jwt");
-        var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
-
-        var configuredKey = jwtOptions.Key;
-        if (string.IsNullOrWhiteSpace(configuredKey))
-        {
-            var envKey = Environment.GetEnvironmentVariable("JWT__KEY");
-            if (!string.IsNullOrWhiteSpace(envKey))
-            {
-                jwtOptions.Key = envKey;
-            }
-        }
-
-        const string DevFallbackKey = "DevOnly_Minimum_32_Chars_Key_For_Local_Use_1234";
-        var usingDevFallbackKey = false;
-
-        if (string.IsNullOrWhiteSpace(jwtOptions.Key) && (environment.IsDevelopment() || environment.IsEnvironment("Testing")))
-        {
-            jwtOptions.Key = DevFallbackKey;
-            usingDevFallbackKey = true;
-        }
-
-        var requiresStrongKey = environment.IsProduction() || environment.IsStaging();
-
-        if (requiresStrongKey)
-        {
-            if (string.IsNullOrWhiteSpace(jwtOptions.Key))
-            {
-                throw new InvalidOperationException(
-                    "JWT signing key is not configured. Set Jwt:Key or JWT__KEY for Production/Staging environments.");
-            }
-
-            if (Encoding.UTF8.GetByteCount(jwtOptions.Key) < 32)
-            {
-                throw new InvalidOperationException(
-                    "JWT signing key must be at least 256 bits (32 bytes) when running in Production or Staging.");
-            }
-        }
-        else if (string.IsNullOrWhiteSpace(jwtOptions.Key))
-        {
-            throw new InvalidOperationException(
-                "JWT signing key is not configured. Set Jwt:Key in configuration or provide JWT__KEY.");
-        }
-
-        var signingKeyBytes = Encoding.UTF8.GetBytes(jwtOptions.Key);
-
-        services.Configure<JwtOptions>(options =>
-        {
-            options.Issuer = jwtOptions.Issuer;
-            options.Audience = jwtOptions.Audience;
-            options.Key = jwtOptions.Key;
-            options.AccessTokenLifetimeMinutes = jwtOptions.AccessTokenLifetimeMinutes;
-        });
-
-        services.AddSingleton<IJwtTokenService, JwtTokenService>();
-        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-
-        services
-            .AddAuthentication(options =>
-            {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultForbidScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtOptions.Issuer,
-                    ValidAudience = jwtOptions.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(signingKeyBytes)
-                };
-            });
-
-        services.AddAuthorization();
 
         services.AddScoped<ISourceImporter, ScryfallImporter>();
         services.AddScoped<ISourceImporter, SwccgdbImporter>();
@@ -280,8 +192,6 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<ISourceImporter, TransformersFmImporter>();
         services.AddScoped<ImporterRegistry>();
         services.AddScoped<FileParser>();
-
-        return usingDevFallbackKey;
     }
 
     /// <summary>

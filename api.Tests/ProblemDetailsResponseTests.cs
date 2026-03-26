@@ -66,7 +66,6 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
 
         problem.Should().NotBeNull();
         problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
-        problem.Title.Should().Be(ProblemTypes.BadRequest.Title);
         problem.Status.Should().Be(StatusCodes.Status400BadRequest);
         problem.Detail.Should().Be("The refresh request must specify a game.");
         problem.Instance.Should().Be("/api/value/refresh");
@@ -199,24 +198,4 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem.Instance.Should().Be("/api/user/99999");
     }
 
-    [Fact]
-    public async Task DeletingLastAdmin_ReturnsConflictProblemDetails()
-    {
-        await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
-
-        var response = await client.DeleteAsync($"/api/admin/users/{Seed.AdminUserId}");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        problem.Should().NotBeNull();
-        problem!.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Type.Should().Be(ProblemTypes.Conflict.Type);
-        problem.Title.Should().Be("Cannot remove last administrator");
-        problem.Detail.Should().Be("At least one administrator must remain.");
-        problem.Extensions.Should().ContainKey("traceId");
-        problem.Instance.Should().Be($"/api/admin/users/{Seed.AdminUserId}");
-    }
 }

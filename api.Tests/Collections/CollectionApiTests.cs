@@ -94,17 +94,6 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     }
 
     [Fact]
-    public async Task GetCollection_WithoutUserHeader_ReturnsMissingHeaderProblem()
-    {
-        await SeedDataAsync();
-        using var client = _factory.CreateClient();
-
-        var response = await client.GetAsync("/api/collection");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task DeleteCollectionItem_RemovesRow()
     {
         await SeedDataAsync();

@@ -2,7 +2,6 @@ using api.Data;
 using api.Features._Common;
 using api.Features.Cards.Dtos;
 using api.Shared;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +13,6 @@ namespace api.Features.Cards;
 /// that can be used to populate dropdown filters and refine search results.
 /// </summary>
 [ApiController]
-[Authorize]
 [Route("api/cards/facets")]
 public sealed class CardFacetsController : ControllerBase
 {

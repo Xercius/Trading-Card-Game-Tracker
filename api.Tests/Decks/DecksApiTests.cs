@@ -91,13 +91,13 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     }
 
     [Fact]
-    public async Task GetDeckById_WithDifferentUser_ReturnsForbidden()
+    public async Task GetDeckById_ReturnsOkForAnyClient()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.SecondaryUserId);
+        using var client = _factory.CreateClient();
 
-        var response = await client.GetAsync($"/api/deck/{Seed.AdminDeckId}");
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var response = await client.GetAsync($"/api/deck/{Seed.DeckId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

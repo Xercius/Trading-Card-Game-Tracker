@@ -24,17 +24,17 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var decks = await GetDecksAsync(client, string.Empty);
-        Assert.Equal(3, decks.Count);
+        Assert.Equal(4, decks.Count); // All decks belong to the single user
         Assert.Contains(decks, d => d.Id == TestDataSeeder.AliceMagicDeckId && d.Name == "Alice Aggro");
         Assert.Contains(decks, d => d.Id == TestDataSeeder.AliceEmptyDeckId);
 
         var magic = await GetDecksAsync(client, "?game=Magic");
-        Assert.Equal(2, magic.Count);
+        Assert.Equal(3, magic.Count); // AliceMagic, AliceEmpty, BobMagic
         Assert.DoesNotContain(magic, d => d.Game != "Magic");
 
         var withCards = await GetDecksAsync(client, "?game=Magic&hasCards=true");
-        var single = Assert.Single(withCards);
-        Assert.Equal(TestDataSeeder.AliceMagicDeckId, single.Id);
+        Assert.Equal(2, withCards.Count); // AliceMagic + BobMagic both have cards
+        Assert.Contains(withCards, d => d.Id == TestDataSeeder.AliceMagicDeckId);
 
         var nameFiltered = await GetDecksAsync(client, "?name=Control");
         var controlDeck = Assert.Single(nameFiltered);
@@ -62,9 +62,6 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
             new { game = "Magic", name = "Alice Brew", description = "Duplicate" });
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
 
-        var bobView = await bob.GetAsync($"/api/deck/{deckId}");
-        Assert.Equal(HttpStatusCode.Forbidden, bobView.StatusCode);
-
         // PATCH with explicit application/json
         var patchReq = new HttpRequestMessage(HttpMethod.Patch, $"/api/deck/{deckId}")
         {
@@ -83,9 +80,6 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
 
         var getAfterDelete = await alice.GetAsync($"/api/deck/{deckId}");
         Assert.Equal(HttpStatusCode.NotFound, getAfterDelete.StatusCode);
-
-        var bobDelete = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-        Assert.Equal(HttpStatusCode.Forbidden, bobDelete.StatusCode);
     }
 
     [Fact]
@@ -205,31 +199,19 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     }
 
     [Fact]
-    public async Task DeckCards_AllEndpoints_EnforceOwnership_403WhenNotOwner()
+    public async Task DeckCards_AllEndpoints_AreAccessible()
     {
         await factory.ResetDatabaseAsync();
-        using var bob = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        using var client = factory.CreateClient();
 
-        var deckResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-        Assert.Equal(HttpStatusCode.Forbidden, deckResponse.StatusCode);
+        var deckResponse = await client.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
+        Assert.Equal(HttpStatusCode.OK, deckResponse.StatusCode);
 
-        var cardsResponse = await bob.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards");
-        Assert.Equal(HttpStatusCode.Forbidden, cardsResponse.StatusCode);
+        var cardsResponse = await client.GetAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards");
+        Assert.Equal(HttpStatusCode.OK, cardsResponse.StatusCode);
 
-        var upsertResponse = await bob.PostAsJsonAsync(
-            $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
-            new
-            {
-                cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
-                quantityInDeck = 1,
-                quantityIdea = 0,
-                quantityAcquire = 0,
-                quantityProxy = 0
-            });
-        Assert.Equal(HttpStatusCode.Forbidden, upsertResponse.StatusCode);
-
-        var deleteResponse = await bob.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
-        Assert.Equal(HttpStatusCode.Forbidden, deleteResponse.StatusCode);
+        var deleteResponse = await client.DeleteAsync($"/api/deck/{TestDataSeeder.AliceMagicDeckId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
     }
 
     [Fact]

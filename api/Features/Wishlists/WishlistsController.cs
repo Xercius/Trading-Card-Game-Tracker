@@ -1,4 +1,3 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
@@ -7,7 +6,6 @@ using api.Models;
 using api.Shared;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mime;
@@ -16,13 +14,12 @@ using WishlistItemDto = api.Features.Wishlists.Dtos.WishlistItemResponse;
 namespace api.Features.Wishlists;
 
 [ApiController]
-[Authorize]
-[Route("api/user/{userId:int}/wishlist")]
-// NOTE: Keep legacy {userId}-based routes for now; prefer /api/wishlist aliases below.
+[Route("api/wishlist")]
 public class WishlistsController : ControllerBase
 {
     private const int DefaultPageNumber = 1;
     private const int DefaultPageSize = 50;
+    private const int UserId = DbSeeder.DefaultUserId;
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
@@ -34,37 +31,10 @@ public class WishlistsController : ControllerBase
     }
 
     // -----------------------------
-    // Helpers
-    // -----------------------------
-
-    private bool UserMismatch(int userId)
-    {
-        var me = HttpContext.GetCurrentUser();
-        return me is null || (!me.IsAdmin && me.Id != userId);
-    }
-
-    private bool TryResolveCurrentUserId(out int userId, out ActionResult? error)
-    {
-        var me = HttpContext.GetCurrentUser();
-        if (me is null)
-        {
-            error = Forbid();
-            userId = 0;
-            return false;
-        }
-        error = null;
-        userId = me.Id;
-        return true;
-    }
-
-
-    // -----------------------------
     // Core (single source of logic)
     // -----------------------------
 
-    // GET list (filters applied in DB)
     private async Task<(Paged<WishlistItemDto>? Page, ActionResult? Error)> GetAllCore(
-        int userId,
         string? game,
         string? set,
         string? rarity,
@@ -73,20 +43,13 @@ public class WishlistsController : ControllerBase
         int page,
         int pageSize)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId))
-        {
-            return (null, this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found."));
-        }
-
         if (page <= 0) page = DefaultPageNumber;
         if (pageSize <= 0) pageSize = DefaultPageSize;
 
         var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
-            .Where(uc => uc.UserId == userId && uc.QuantityWanted > 0)
+            .Where(uc => uc.UserId == UserId && uc.QuantityWanted > 0)
             .AsNoTracking()
             .FilterByPrintingMetadata(game, set, rarity, name, cardPrintingId, useCaseInsensitiveName: true);
 
@@ -103,8 +66,7 @@ public class WishlistsController : ControllerBase
         return (new Paged<WishlistItemDto>(items, total, page, pageSize), null);
     }
 
-    // POST upsert one (wanted)
-    private async Task<IActionResult> UpsertCore(int userId, UpsertWishlistRequest dto)
+    private async Task<IActionResult> UpsertCore(UpsertWishlistRequest dto)
     {
         if (dto is null)
         {
@@ -119,13 +81,6 @@ public class WishlistsController : ControllerBase
             return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
         }
 
-        if (await _db.Users.FindAsync(userId) is null)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found.");
-        }
-
         if (await _db.CardPrintings.FindAsync(dto.CardPrintingId) is null)
         {
             return this.CreateProblem(
@@ -134,13 +89,13 @@ public class WishlistsController : ControllerBase
         }
 
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.CardPrintingId);
 
         if (uc is null)
         {
             uc = new UserCard
             {
-                UserId = userId,
+                UserId = UserId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,
@@ -157,8 +112,7 @@ public class WishlistsController : ControllerBase
         return NoContent();
     }
 
-    // PUT bulk set (wanted)
-    private async Task<IActionResult> BulkSetCore(int userId, IEnumerable<BulkSetWishlistRequest> items)
+    private async Task<IActionResult> BulkSetCore(IEnumerable<BulkSetWishlistRequest> items)
     {
         if (items is null)
         {
@@ -166,13 +120,6 @@ public class WishlistsController : ControllerBase
                 StatusCodes.Status400BadRequest,
                 title: "Invalid payload",
                 detail: "Payload required.");
-        }
-
-        if (!await _db.Users.AnyAsync(u => u.Id == userId))
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found.");
         }
 
         var list = items.ToList();
@@ -193,7 +140,7 @@ public class WishlistsController : ControllerBase
         }
 
         var map = await _db.UserCards
-            .Where(uc => uc.UserId == userId && ids.Contains(uc.CardPrintingId))
+            .Where(uc => uc.UserId == UserId && ids.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
         foreach (var i in list)
@@ -202,7 +149,7 @@ public class WishlistsController : ControllerBase
             {
                 uc = new UserCard
                 {
-                    UserId = userId,
+                    UserId = UserId,
                     CardPrintingId = i.CardPrintingId,
                     QuantityOwned = 0,
                     QuantityProxyOwned = 0,
@@ -219,8 +166,7 @@ public class WishlistsController : ControllerBase
         return NoContent();
     }
 
-    // POST move-to-collection (decrement wanted, increment owned/proxy)
-    private async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionCore(int userId, MoveToCollectionRequest dto)
+    private async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionCore(MoveToCollectionRequest dto)
     {
         if (dto is null)
         {
@@ -246,22 +192,15 @@ public class WishlistsController : ControllerBase
             return this.CreateValidationProblem(errors);
         }
 
-        if (!await _db.Users.AnyAsync(u => u.Id == userId))
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"User {userId} was not found.");
-        }
-
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.CardPrintingId);
 
         if (uc is null)
         {
             var initialMoveQuantity = dto.Quantity;
             var newUserCard = new UserCard
             {
-                UserId = userId,
+                UserId = UserId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityWanted = 0,
                 QuantityOwned = dto.UseProxy ? 0 : initialMoveQuantity,
@@ -315,21 +254,19 @@ public class WishlistsController : ControllerBase
             availabilityWithProxies));
     }
 
-    // DELETE (set wanted to 0; remove row if all counts are 0 after)
-    private async Task<IActionResult> RemoveCore(int userId, int cardPrintingId)
+    private async Task<IActionResult> RemoveCore(int cardPrintingId)
     {
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
         if (uc is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
-                detail: $"Wishlist entry for user {userId} and card printing {cardPrintingId} was not found.");
+                detail: $"Card printing {cardPrintingId} was not found in your wishlist.");
         }
 
         uc.QuantityWanted = 0;
 
-        // Optional clean-up: if fully zero, remove the row
         if (uc.QuantityOwned == 0 && uc.QuantityProxyOwned == 0 && uc.QuantityWanted == 0)
             _db.UserCards.Remove(uc);
 
@@ -338,12 +275,11 @@ public class WishlistsController : ControllerBase
     }
 
     // -----------------------------------------
-    // Legacy routes (userId in the URL)
+    // Routes
     // -----------------------------------------
 
     [HttpGet]
-    public async Task<ActionResult<Paged<WishlistItemDto>>> GetAll(
-        int userId,
+    public async Task<ActionResult<List<WishlistItemDto>>> GetAll(
         [FromQuery] string? game,
         [FromQuery] string? set,
         [FromQuery] string? rarity,
@@ -352,49 +288,15 @@ public class WishlistsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        var (pageResult, error) = await GetAllCore(userId, game, set, rarity, name, cardPrintingId, page, pageSize);
+        var (pageResult, error) = await GetAllCore(game, set, rarity, name, cardPrintingId, page, pageSize);
         if (error is not null) return error;
-        return pageResult!;
+        return Ok(pageResult!.Items.ToList());
     }
 
-    [HttpPost]
-    public async Task<IActionResult> Upsert(int userId, [FromBody] UpsertWishlistRequest dto)
-    {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        return await UpsertCore(userId, dto);
-    }
-
-    [HttpPut]
-    public async Task<IActionResult> BulkSet(int userId, [FromBody] IEnumerable<BulkSetWishlistRequest> items)
-    {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        return await BulkSetCore(userId, items);
-    }
-
-    [HttpPost("move-to-collection")]
-    public async Task<ActionResult<MoveToCollectionResponse>> MoveToCollection(int userId, [FromBody] MoveToCollectionRequest dto)
-    {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        return await MoveToCollectionCore(userId, dto);
-    }
-
-    [HttpDelete("{cardPrintingId:int}")]
-    public async Task<IActionResult> Remove(int userId, int cardPrintingId)
-    {
-        if (UserMismatch(userId)) return StatusCode(403, "User mismatch.");
-        return await RemoveCore(userId, cardPrintingId);
-    }
-
-    // -----------------------------------------
-    // Auth-derived alias routes (/api/wishlist)
-    // -----------------------------------------
-
-    [HttpPost("/api/wishlist/items")]
+    [HttpPost("items")]
     [Consumes(MediaTypeNames.Application.Json)]
-    public async Task<ActionResult<QuickAddResponse>> QuickAddForCurrent([FromBody] QuickAddRequest dto)
+    public async Task<ActionResult<QuickAddResponse>> QuickAdd([FromBody] QuickAddRequest dto)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
         if (dto is null)
         {
             return this.CreateProblem(
@@ -427,13 +329,13 @@ public class WishlistsController : ControllerBase
         }
 
         var card = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == uid && x.CardPrintingId == dto.PrintingId);
+            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.PrintingId);
 
         if (card is null)
         {
             card = new UserCard
             {
-                UserId = uid,
+                UserId = UserId,
                 CardPrintingId = dto.PrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,
@@ -450,47 +352,27 @@ public class WishlistsController : ControllerBase
         return Ok(new QuickAddResponse(dto.PrintingId, card.QuantityWanted));
     }
 
-    [HttpGet("/api/wishlist")]
-    public async Task<ActionResult<List<WishlistItemDto>>> GetAllForCurrent(
-        [FromQuery] string? game,
-        [FromQuery] string? set,
-        [FromQuery] string? rarity,
-        [FromQuery] string? name,
-        [FromQuery] int? cardPrintingId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+    [HttpPost]
+    public async Task<IActionResult> Upsert([FromBody] UpsertWishlistRequest dto)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        var (pageResult, error) = await GetAllCore(uid, game, set, rarity, name, cardPrintingId, page, pageSize);
-        if (error is not null) return error;
-        return Ok(pageResult!.Items.ToList());
+        return await UpsertCore(dto);
     }
 
-    [HttpPost("/api/wishlist")]
-    public async Task<IActionResult> UpsertForCurrent([FromBody] UpsertWishlistRequest dto)
+    [HttpPut]
+    public async Task<IActionResult> BulkSet([FromBody] IEnumerable<BulkSetWishlistRequest> items)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await UpsertCore(uid, dto);
+        return await BulkSetCore(items);
     }
 
-    [HttpPut("/api/wishlist")]
-    public async Task<IActionResult> BulkSetForCurrent([FromBody] IEnumerable<BulkSetWishlistRequest> items)
+    [HttpPost("move-to-collection")]
+    public async Task<ActionResult<MoveToCollectionResponse>> MoveToCollection([FromBody] MoveToCollectionRequest dto)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await BulkSetCore(uid, items);
+        return await MoveToCollectionCore(dto);
     }
 
-    [HttpPost("/api/wishlist/move-to-collection")]
-    public async Task<ActionResult<MoveToCollectionResponse>> MoveToCollectionForCurrent([FromBody] MoveToCollectionRequest dto)
+    [HttpDelete("{cardPrintingId:int}")]
+    public async Task<IActionResult> Remove(int cardPrintingId)
     {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await MoveToCollectionCore(uid, dto);
-    }
-
-    [HttpDelete("/api/wishlist/{cardPrintingId:int}")]
-    public async Task<IActionResult> RemoveForCurrent(int cardPrintingId)
-    {
-        if (!TryResolveCurrentUserId(out var uid, out var err)) return err!;
-        return await RemoveCore(uid, cardPrintingId);
+        return await RemoveCore(cardPrintingId);
     }
 }

@@ -80,32 +80,12 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task History_RequiresUserHeader()
-    {
-        await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient();
-
-        var response = await client.GetAsync($"/api/prices/{TestDataSeeder.LightningBoltAlphaPrintingId}/history");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task DeckValueHistory_ReturnsNotFound_ForMissingDeck()
     {
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var response = await client.GetAsync("/api/prices/deck/999999/value/history");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task DeckValueHistory_Forbids_WhenNotOwner()
-    {
-        await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
-        var response = await client.GetAsync($"/api/prices/deck/{TestDataSeeder.AliceMagicDeckId}/value/history");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

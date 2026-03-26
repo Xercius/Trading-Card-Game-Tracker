@@ -1,5 +1,4 @@
 using api.Models;
-using Microsoft.AspNetCore.Identity;
 
 namespace api.Data;
 
@@ -11,17 +10,9 @@ public static class MinimalDbSeeder
 {
     public static void Seed(AppDbContext context)
     {
-        if (!context.Users.Any())
+        if (!context.Users.Any(u => u.Id == DbSeeder.DefaultUserId))
         {
-            var hasher = new PasswordHasher<User>();
-            var admin = new User
-            {
-                Username = "demo",
-                DisplayName = "Demo Admin",
-                IsAdmin = true
-            };
-            admin.PasswordHash = hasher.HashPassword(admin, "Password123!");
-            context.Users.Add(admin);
+            context.Users.Add(new User { Id = DbSeeder.DefaultUserId, Username = "owner", DisplayName = "Owner" });
             context.SaveChanges();
         }
 

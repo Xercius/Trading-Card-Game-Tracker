@@ -1,4 +1,3 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
@@ -6,7 +5,6 @@ using api.Features.Cards.Dtos;
 using api.Models;
 using api.Shared;
 using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,10 +20,8 @@ namespace api.Features.Cards;
 /// - Retrieving detailed card information including all printings
 /// - Managing card printing data (admin-only operations)
 /// - Virtualized pagination for efficient large dataset handling
-/// All endpoints require authentication via the [Authorize] attribute.
 /// </remarks>
 [ApiController]
-[Authorize]
 [Route("api/cards")] // plural route
 public class CardsController : ControllerBase
 {
@@ -111,12 +107,7 @@ public class CardsController : ControllerBase
     /// Helper method to check if the current user has administrator privileges.
     /// </summary>
     /// <returns>True if the user is not an admin or not authenticated; false if the user is an admin.</returns>
-    // CSV parsing logic moved to CsvUtils in api.Shared
-    private bool NotAdmin()
-    {
-        var me = HttpContext.GetCurrentUser();
-        return me is null || !me.IsAdmin;
-    }
+
 
     /// <summary>
     /// Core implementation for searching and listing cards with traditional pagination.
@@ -248,11 +239,6 @@ public class CardsController : ControllerBase
     /// </remarks>
     private async Task<IActionResult> UpsertPrintingCore(UpsertPrintingRequest dto)
     {
-        if (NotAdmin())
-        {
-            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to modify printings.");
-        }
-
         if (dto is null)
         {
             return this.CreateValidationProblem(
@@ -352,11 +338,6 @@ public class CardsController : ControllerBase
     /// </remarks>
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
     {
-        if (NotAdmin())
-        {
-            return this.CreateProblem(StatusCodes.Status403Forbidden, detail: "Admin privileges are required to bulk import printings.");
-        }
-
         if (cardId <= 0)
         {
             return this.CreateValidationProblem(nameof(cardId), "cardId must be provided.");

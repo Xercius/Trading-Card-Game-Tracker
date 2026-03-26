@@ -16,32 +16,10 @@ namespace api.Tests;
 public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
-    public async Task Refresh_WithoutUserHeader_ReturnsUnauthorized()
+    public async Task Refresh_IsNoContent()
     {
-        var client = factory.CreateClient();
-        var res = await client.PostAsync("/api/value/refresh?game=Magic", content: null);
-        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
-    }
-
-    [Fact]
-    public async Task Refresh_WithNonAdminUser_IsForbidden()
-    {
-        var client = factory.CreateClientForUser(TestDataSeeder.BobUserId);
-
-        var payload = new[]
-        {
-            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
-        };
-
-        var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
-
-        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
-    }
-
-    [Fact]
-    public async Task Refresh_WithAdminUser_IsNoContent()
-    {
-        var client = factory.CreateClientForUser(TestDataSeeder.AdminUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
 
         var payload = new[]
         {
@@ -51,22 +29,6 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
         var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
 
         Assert.Equal(HttpStatusCode.NoContent, res.StatusCode);
-    }
-
-    [Fact]
-    public async Task Refresh_WithUnknownToken_IsUnauthorized()
-    {
-        var client = factory.CreateClient();
-
-        var payload = new[]
-        {
-            new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1000L, source = (string?)"test" }
-        };
-
-        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "invalid-token");
-        var res = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
     private sealed record CollectionSummaryResponse(long totalCents, GameSliceResponse[] byGame);
@@ -79,7 +41,7 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task Value_Refresh_CountsDuplicateValidRowsAndInvalidOnesSeparately()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        using var client = factory.CreateClient();
 
         var payload = new[]
         {
@@ -88,7 +50,6 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
             new { cardPrintingId = 999999, priceCents = 9999L, source = (string?)"invalid" },
             new { cardPrintingId = TestDataSeeder.ElsaPrintingId, priceCents = 2000L, source = (string?)"wrong-game" }
         };
-
 
         var response = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", payload);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -114,14 +75,14 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task Value_CollectionSummary_UsesLatestPricesPerGame()
     {
         await factory.ResetDatabaseAsync();
-        using var adminClient = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        using var client = factory.CreateClient();
 
         var magicPrices = new[]
         {
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 1234L, source = "initial" },
             new { cardPrintingId = TestDataSeeder.GoblinGuidePrintingId, priceCents = 4321L, source = "initial" }
         };
-        var magicResponse = await adminClient.PostAsJsonAsync("/api/value/refresh?game=Magic", magicPrices);
+        var magicResponse = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", magicPrices);
         Assert.Equal(HttpStatusCode.NoContent, magicResponse.StatusCode);
 
         var lorcanaPrices = new[]
@@ -129,15 +90,15 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
             new { cardPrintingId = TestDataSeeder.ElsaPrintingId, priceCents = 5678L, source = "initial" },
             new { cardPrintingId = TestDataSeeder.MickeyPrintingId, priceCents = 8765L, source = "initial" }
         };
-        var lorcanaResponse = await adminClient.PostAsJsonAsync("/api/value/refresh?game=Lorcana", lorcanaPrices);
+        var lorcanaResponse = await client.PostAsJsonAsync("/api/value/refresh?game=Lorcana", lorcanaPrices);
         Assert.Equal(HttpStatusCode.NoContent, lorcanaResponse.StatusCode);
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var summary = await client.GetFromJsonAsync<CollectionSummaryResponse>("/api/value/collection/summary");
 
         Assert.NotNull(summary);
-        var expectedMagic = 1234L * 5; // Alice owns five Lightning Bolt Alpha copies
-        var expectedLorcana = 5678L * 1; // Alice owns one Elsa printing
+        // Owned cards: 5 Lightning Bolt Alpha, 1 Elsa, 2 Goblin Guide (from TestDataSeeder)
+        var expectedMagic = 1234L * 5 + 4321L * 2; // 5 Alpha + 2 Goblin Guide
+        var expectedLorcana = 5678L * 1; // 1 Elsa
         Assert.Equal(expectedMagic + expectedLorcana, summary!.totalCents);
 
         var magicSlice = Assert.Single(summary.byGame, s => s.game == "Magic");
@@ -151,24 +112,23 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task Value_DeckValue_UsesLatestPricesForCardsInDeck()
     {
         await factory.ResetDatabaseAsync();
-        using var adminClient = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        using var client = factory.CreateClient();
 
         var initialMagicPrices = new[]
         {
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 200L, source = "initial" },
             new { cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId, priceCents = 300L, source = "initial" }
         };
-        var initResponse = await adminClient.PostAsJsonAsync("/api/value/refresh?game=Magic", initialMagicPrices);
+        var initResponse = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", initialMagicPrices);
         Assert.Equal(HttpStatusCode.NoContent, initResponse.StatusCode);
 
         var updatedAlphaPrice = new[]
         {
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, priceCents = 250L, source = "update" }
         };
-        var updateResponse = await adminClient.PostAsJsonAsync("/api/value/refresh?game=Magic", updatedAlphaPrice);
+        var updateResponse = await client.PostAsJsonAsync("/api/value/refresh?game=Magic", updatedAlphaPrice);
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var deckValue = await client.GetFromJsonAsync<DeckSummaryResponse>(
             $"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
 
@@ -180,25 +140,17 @@ public class ValueControllerTests(CustomWebApplicationFactory factory) : IClassF
     [Fact]
     public async Task Value_DeckValue_ReturnsNotFound_ForMissingDeck()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/value/deck/999999");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Value_DeckValue_Forbids_WhenNotOwner()
+    public async Task Value_DeckValue_ReturnsOkForAnyDeck()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
-        var response = await client.GetAsync($"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Value_DeckValue_AllowsAdminForAnyDeck()
-    {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
         var response = await client.GetAsync($"/api/value/deck/{TestDataSeeder.AliceMagicDeckId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

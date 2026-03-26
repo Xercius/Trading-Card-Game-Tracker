@@ -1,9 +1,7 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
 using api.Infrastructure.Startup;
 using api.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
@@ -13,7 +11,6 @@ using System.Text.Json.Serialization;
 namespace api.Controllers
 {
     [ApiController]
-    [Authorize]
     [Route("api")]
     public class ImportExportController : ControllerBase
     {
@@ -41,7 +38,7 @@ namespace api.Controllers
             public List<ExportDeck> Decks { get; set; } = new();
         }
 
-        private int? CurrentUserId() => HttpContext.GetCurrentUser()?.Id;
+        private const int UserId = DbSeeder.DefaultUserId;
 
         // =========================
         // Issue 26: Export JSON
@@ -49,26 +46,20 @@ namespace api.Controllers
         [HttpGet("export/json")]
         public async Task<IActionResult> ExportJson()
         {
-            var userId = CurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
             var collection = await _db.UserCards
-                .Where(x => x.UserId == userId)
+                .Where(x => x.UserId == UserId)
                 .OrderBy(x => x.CardPrintingId)
                 .Select(x => new ExportCollectionItem(x.CardPrintingId, x.QuantityOwned, x.QuantityProxyOwned))
                 .ToListAsync();
 
             var wishlist = await _db.UserCards
-                .Where(x => x.UserId == userId && x.QuantityWanted > 0)
+                .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
                 .OrderBy(x => x.CardPrintingId)
                 .Select(x => new ExportWishlistItem(x.CardPrintingId, x.QuantityWanted))
                 .ToListAsync();
 
             var deckEntities = await _db.Decks
-                .Where(d => d.UserId == userId)
+                .Where(d => d.UserId == UserId)
                 .Include(d => d.Cards)
                 .OrderBy(d => d.Game)
                 .ThenBy(d => d.Name)
@@ -92,7 +83,7 @@ namespace api.Controllers
 
             var payload = new ExportPayload(
                 Version: 1,
-                User: new { id = userId },
+                User: new { id = UserId },
                 Collection: collection,
                 Wishlist: wishlist,
                 Decks: decks
@@ -105,7 +96,7 @@ namespace api.Controllers
             var json = JsonSerializer.Serialize(payload, jsonOptions);
 
             var bytes = Encoding.UTF8.GetBytes(json);
-            return File(bytes, "application/json", $"tcgtracker_export_user_{userId}_utc_{DateTime.UtcNow:yyyyMMddHHmmss}.json");
+            return File(bytes, "application/json", $"tcgtracker_export_utc_{DateTime.UtcNow:yyyyMMddHHmmss}.json");
         }
 
         // =========================
@@ -114,15 +105,9 @@ namespace api.Controllers
         [HttpGet("export/collection.csv")]
         public async Task<IActionResult> ExportCollectionCsv()
         {
-            var userId = CurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
-                .Where(x => x.UserId == userId)
+                .Where(x => x.UserId == UserId)
                 .OrderBy(r => r.CardPrinting.Card.Game)
                 .ThenBy(r => r.CardPrinting.Card.Name)
                 .ThenBy(r => r.CardPrinting.Set)
@@ -154,16 +139,10 @@ namespace api.Controllers
         [HttpGet("export/wishlist.csv")]
         public async Task<IActionResult> ExportWishlistCsv()
         {
-            var userId = CurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
                 .Where(x => x.CardPrinting != null && x.CardPrinting.Card != null)
-                .Where(x => x.UserId == userId && x.QuantityWanted > 0)
+                .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
                 .OrderBy(r => r.CardPrinting.Card.Game)
                 .ThenBy(r => r.CardPrinting.Card.Name)
                 .ThenBy(r => r.CardPrinting.Set)
@@ -194,12 +173,6 @@ namespace api.Controllers
         [HttpGet("export/decks.csv")]
         public async Task<IActionResult> ExportDecksCsv()
         {
-            var userId = CurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
             var rows = await _db.DeckCards
                 .AsNoTracking()
                 .Include(dc => dc.Deck)
@@ -208,7 +181,7 @@ namespace api.Controllers
                     dc.Deck != null &&
                     dc.CardPrinting != null &&
                     dc.CardPrinting.Card != null &&
-                    dc.Deck.UserId == userId)
+                    dc.Deck.UserId == UserId)
                 .OrderBy(r => r.Deck!.Game)
                 .ThenBy(r => r.Deck!.Name)
                 .ThenBy(r => r.CardPrinting!.Card!.Name)
@@ -255,12 +228,6 @@ namespace api.Controllers
         [HttpPost("import/json")]
         public async Task<IActionResult> ImportJson([FromQuery] string mode, [FromBody] ImportPayload payload)
         {
-            var userId = CurrentUserId();
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
             mode = string.IsNullOrWhiteSpace(mode) ? "merge" : mode.ToLowerInvariant();
 
             if (payload is null)
@@ -309,10 +276,10 @@ namespace api.Controllers
             var replaceMode = mode == "replace";
             if (replaceMode)
             {
-                var decks = await _db.Decks.Where(d => d.UserId == userId).ToListAsync();
+                var decks = await _db.Decks.Where(d => d.UserId == UserId).ToListAsync();
                 if (decks.Count > 0) _db.Decks.RemoveRange(decks);
 
-                var userCards = await _db.UserCards.Where(uc => uc.UserId == userId).ToListAsync();
+                var userCards = await _db.UserCards.Where(uc => uc.UserId == UserId).ToListAsync();
                 if (userCards.Count > 0) _db.UserCards.RemoveRange(userCards);
 
                 await _db.SaveChangesAsync();
@@ -323,7 +290,7 @@ namespace api.Controllers
             }
 
             var userCardMap = await _db.UserCards
-                .Where(uc => uc.UserId == userId)
+                .Where(uc => uc.UserId == UserId)
                 .ToDictionaryAsync(uc => uc.CardPrintingId);
 
             foreach (var c in payload.Collection)
@@ -332,7 +299,7 @@ namespace api.Controllers
                 {
                     row = new UserCard
                     {
-                        UserId = userId.Value,
+                        UserId = UserId,
                         CardPrintingId = c.CardPrintingId
                     };
                     userCardMap[c.CardPrintingId] = row;
@@ -360,7 +327,7 @@ namespace api.Controllers
                 {
                     row = new UserCard
                     {
-                        UserId = userId.Value,
+                        UserId = UserId,
                         CardPrintingId = w.CardPrintingId
                     };
                     userCardMap[w.CardPrintingId] = row;
@@ -379,7 +346,7 @@ namespace api.Controllers
             }
 
             var decksByKey = await _db.Decks
-                .Where(d => d.UserId == userId)
+                .Where(d => d.UserId == UserId)
                 .Include(d => d.Cards)
                 .ToDictionaryAsync(d => (d.Game, d.Name));
 
@@ -389,7 +356,7 @@ namespace api.Controllers
                 {
                     deck = new Deck
                     {
-                        UserId = userId.Value,
+                        UserId = UserId,
                         Game = d.Game,
                         Name = d.Name,
                         Description = d.Description

@@ -1,11 +1,8 @@
-using api.Authentication;
 using api.Common.Errors;
 using api.Data;
-using api.Features.Decks;
 using api.Features.Values.Dtos;
 using api.Models;
 using AutoMapper;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,9 +10,9 @@ namespace api.Features.Values;
 
 [ApiController]
 [Route("api/value")]
-[Authorize]
 public class ValuesController : ControllerBase
 {
+    private const int UserId = DbSeeder.DefaultUserId;
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
 
@@ -26,14 +23,8 @@ public class ValuesController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    // caller must identify as a user
     public async Task<IActionResult> Refresh([FromQuery] string game, [FromBody] List<RefreshItemRequest> items)
     {
-        // Admin gate
-        var me = HttpContext.GetCurrentUser();
-        if (me is null || !me.IsAdmin)
-            return Forbid();
-
         // ---- START existing refresh logic ----
         if (string.IsNullOrWhiteSpace(game))
         {
@@ -119,17 +110,11 @@ public class ValuesController : ControllerBase
     [HttpGet("collection/summary")]
     public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary()
     {
-        var user = HttpContext.GetCurrentUser();
-        if (user == null)
-        {
-            return Unauthorized();
-        }
-
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
 
         var data = await _db.UserCards
             .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
-            .Where(uc => uc.UserId == user.Id && uc.QuantityOwned > 0)
+            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
             .Select(uc => new
             {
                 Game = uc.CardPrinting.Card.Game,
@@ -156,19 +141,12 @@ public class ValuesController : ControllerBase
     [HttpGet("deck/{deckId:int}")]
     public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
     {
-        var currentUser = HttpContext.GetCurrentUser();
-
         var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
         if (deck is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"Deck with id {deckId} was not found.");
-        }
-
-        if (currentUser is null || !DeckAuthorization.OwnsDeckOrAdmin(currentUser, deck.UserId))
-        {
-            return Forbid();
         }
 
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
