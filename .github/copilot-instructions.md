@@ -85,7 +85,7 @@ A local web application for tracking trading card collections, deck building, wi
 
 ### Validation & Errors
 - **FluentValidation:** Per-request validators in `/Features/*/Validation`.
-- **Problem factory:** Central `ProblemDetailsFactory` maps known exceptions â 400/404/409 with consistent type/instance/title.
+- **Problem factory:** Central `ProblemDetailsFactory` maps known exceptions → 400/404/409 with consistent type/instance/title.
 - **Model errors:** Return validation summary in `errors` extension per RFC 7807.
 
 ### Security Patterns
