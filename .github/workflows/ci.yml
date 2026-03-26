@@ -31,6 +31,8 @@ jobs:
           global-json-file: ./global.json
       - name: Restore
         run: dotnet restore
+      - name: .NET vulnerability scan
+        run: dotnet list api.sln package --vulnerable --include-transitive
       - name: Build
         run: dotnet build -c Release --no-restore -warnaserror
       - name: dotnet format check
@@ -61,6 +63,8 @@ jobs:
           cache-dependency-path: client-vite/package-lock.json
       - name: Install
         run: npm ci
+      - name: npm audit
+        run: npm audit --audit-level=high
       - name: Lint (strict)
         run: npm run lint:strict
       - name: Type check
