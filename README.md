@@ -11,7 +11,7 @@ The goal is to eventually incorporate cards from the following games:
 ## Development Environment
 - **.NET SDK**: 9.0 (pinned via `global.json`)
 - **Node.js**: 20+ (for Vite client)
-- **Entity Framework Core**: 9.0.9 (Sqlite provider, design, and tools packages)
+- **Entity Framework Core**: 9.0.14 (Sqlite provider, design, and tools packages)
 
 ### Running the Development Servers
 
