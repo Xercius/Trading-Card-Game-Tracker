@@ -14,7 +14,7 @@ jobs:
         run: echo "ASPNETCORE_ENVIRONMENT=Testing" >> $GITHUB_ENV
       - run: dotnet test    ./api/api.sln -c Release --no-build --logger "trx;LogFileName=test.trx" --results-directory TestResults
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TestResults
           path: TestResults
