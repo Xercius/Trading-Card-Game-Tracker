@@ -8,7 +8,7 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Chicago
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       react-ecosystem:
         patterns:
@@ -33,6 +33,9 @@ updates:
           - "@eslint/*"
           - "eslint-*"
           - "@typescript-eslint/*"
+      npm-misc:
+        patterns:
+          - "*"
     ignore:
       # Skip major version bumps — review manually
       - dependency-name: "*"
@@ -46,7 +49,7 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Chicago
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       entity-framework:
         patterns:
@@ -59,6 +62,15 @@ updates:
           - "xunit*"
           - "Microsoft.AspNetCore.Mvc.Testing*"
           - "FluentAssertions*"
+      swashbuckle:
+        patterns:
+          - "Swashbuckle*"
+      serilog:
+        patterns:
+          - "Serilog*"
+      nuget-misc:
+        patterns:
+          - "*"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
@@ -71,4 +83,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Chicago
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"
