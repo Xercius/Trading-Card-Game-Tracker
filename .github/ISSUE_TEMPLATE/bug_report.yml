@@ -1,0 +1,104 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in the Trading Card Game Tracker.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below so we can reproduce and fix the issue quickly.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the application is affected?
+      options:
+        - API / Backend
+        - Client / Frontend
+        - Card Import
+        - Collections
+        - Decks
+        - Wishlist
+        - Admin
+        - Authentication
+        - Pricing / Values
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game
+    attributes:
+      label: Affected Game (if applicable)
+      description: Is the bug specific to a trading card game?
+      options:
+        - N/A – not game-specific
+        - Magic the Gathering (MTG)
+        - Star Wars Unlimited (SWU)
+        - Disney Lorcana
+        - Flesh and Blood (FAB)
+        - Star Wars CCG (SWCCG)
+        - Guardians
+        - Dicemasters
+        - Pokémon TCG
+        - Transformers
+        - Other
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: "When I do X, Y happens instead of Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reliably reproduce the bug.
+      placeholder: |
+        1. Navigate to '...'
+        2. Click on '...'
+        3. Observe '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include error messages, stack traces, or screenshots.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Please provide relevant environment details.
+      value: |
+        - OS:
+        - Browser (if frontend):
+        - .NET SDK version (from global.json): 9.0.x
+        - Node.js version:
+        - API URL:
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, logs, or screenshots that might help.

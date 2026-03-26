@@ -1,0 +1,32 @@
+# Code Owners
+# Each line is a pattern followed by one or more GitHub usernames.
+# The owner(s) will be automatically requested for review on PRs
+# that touch the matching files.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything not matched below
+* @Xercius
+
+# Core API infrastructure
+/api/Program.cs @Xercius
+/api/Data/ @Xercius
+/api/Migrations/ @Xercius
+/api/Models/ @Xercius
+
+# Authentication / Security
+/api/Authentication/ @Xercius
+/api/Features/Auth/ @Xercius
+
+# Game importers — high-risk data-loading code
+/api/Importing/ @Xercius
+
+# CI / workflows
+/.github/ @Xercius
+
+# Client entry point and routing
+/client-vite/src/main.tsx @Xercius
+/client-vite/src/routes/ @Xercius
+
+# Global state
+/client-vite/src/state/ @Xercius

@@ -63,6 +63,8 @@ jobs:
         run: npm ci
       - name: Lint (strict)
         run: npm run lint:strict
+      - name: Type check
+        run: npm run typecheck
       - name: Format check
         run: npm run format
       - name: Test (Vitest)

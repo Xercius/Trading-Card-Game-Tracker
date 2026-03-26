@@ -1,0 +1,74 @@
+version: 2
+updates:
+  # Maintain frontend npm dependencies
+  - package-ecosystem: npm
+    directory: /client-vite
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    groups:
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      tailwind:
+        patterns:
+          - "tailwindcss*"
+          - "tailwind-*"
+          - "@tailwindcss/*"
+      testing:
+        patterns:
+          - "vitest*"
+          - "@vitest/*"
+          - "@testing-library/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "eslint-*"
+          - "@typescript-eslint/*"
+    ignore:
+      # Skip major version bumps — review manually
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Maintain .NET / NuGet dependencies
+  - package-ecosystem: nuget
+    directory: /api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 5
+    groups:
+      entity-framework:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+      aspnetcore:
+        patterns:
+          - "Microsoft.AspNetCore*"
+      testing:
+        patterns:
+          - "xunit*"
+          - "Microsoft.AspNetCore.Mvc.Testing*"
+          - "FluentAssertions*"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Maintain GitHub Actions versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3

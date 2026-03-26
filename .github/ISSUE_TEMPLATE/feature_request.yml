@@ -1,0 +1,89 @@
+name: Feature Request
+description: Suggest a new feature or improvement for the Trading Card Game Tracker.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please fill out the details below so we can evaluate and plan the work.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the application would this feature affect?
+      options:
+        - API / Backend
+        - Client / Frontend
+        - Card Import
+        - Collections
+        - Decks
+        - Wishlist
+        - Admin
+        - Authentication
+        - Pricing / Values
+        - New Game Support
+        - Developer Experience / Tooling
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this feature solve? Why is it needed?
+      placeholder: "As a user, I want to ... so that I can ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see implemented.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How will we know this feature is complete? List testable conditions.
+      placeholder: |
+        - [ ] Users can ...
+        - [ ] The API returns ...
+        - [ ] The UI shows ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative approaches you've considered.
+
+  - type: dropdown
+    id: game
+    attributes:
+      label: Related Game (if applicable)
+      description: Is this feature specific to a trading card game?
+      options:
+        - N/A – not game-specific
+        - Magic the Gathering (MTG)
+        - Star Wars Unlimited (SWU)
+        - Disney Lorcana
+        - Flesh and Blood (FAB)
+        - Star Wars CCG (SWCCG)
+        - Guardians
+        - Dicemasters
+        - Pokémon TCG
+        - Transformers
+        - Other / New Game
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, mockups, or screenshots about the feature request.
