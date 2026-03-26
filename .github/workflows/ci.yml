@@ -73,5 +73,7 @@ jobs:
         run: npm run format
       - name: Test (Vitest)
         run: npm test -- --run
+      - name: Build
+        run: npm run build
       - name: Build Storybook
         run: npm run build-storybook
