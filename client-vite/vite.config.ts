@@ -45,7 +45,10 @@ export default defineConfig(({ mode }) => {
         include: ["src/**/*.{ts,tsx}"],
         exclude: [
           "src/**/*.test.{ts,tsx}",
+          "src/**/*.spec.{ts,tsx}",
           "src/**/*.stories.{ts,tsx}",
+          "src/**/__tests__/**",
+          "src/test/**",
           "src/test-setup.ts",
         ],
       },

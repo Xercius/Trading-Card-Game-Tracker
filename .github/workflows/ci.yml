@@ -72,8 +72,6 @@ jobs:
       - name: Format check
         run: npm run format
       - name: Test (Vitest)
-        run: npm test -- --run
-      - name: Test coverage
         run: npm run test:coverage
       - name: Upload frontend coverage
         if: always()
@@ -81,5 +79,7 @@ jobs:
         with:
           name: frontend-coverage
           path: client-vite/coverage/
+      - name: Build
+        run: npm run build
       - name: Build Storybook
         run: npm run build-storybook
