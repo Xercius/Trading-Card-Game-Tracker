@@ -22,7 +22,7 @@ public class DecksController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
     private readonly ILogger<DecksController> _logger;
-    private const int UserId = Data.DbSeeder.DefaultUserId;
+    private const int UserId = DbSeeder.DefaultUserId;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(AppDbContext db, IMapper mapper, ILogger<DecksController> logger)
