@@ -3,10 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
-  addons: [
-    "@storybook/addon-essentials",
-    "@storybook/addon-interactions",
-  ],
+  addons: [],
   framework: {
     name: "@storybook/react-vite",
     options: {},
