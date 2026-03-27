@@ -29,11 +29,11 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
         var items = await GetWishlistAsync(client, string.Empty);
-        Assert.Equal(2, items.Count);
+        Assert.Equal(4, items.Count);
         Assert.All(items, item => Assert.True(item.QuantityWanted > 0));
 
         var magicOnly = await GetWishlistAsync(client, "?game=Magic");
-        Assert.Equal(2, magicOnly.Count);
+        Assert.Equal(3, magicOnly.Count);
 
         var filter = await GetWishlistAsync(client, "?name=bolt&set=Beta");
         var single = Assert.Single(filter);

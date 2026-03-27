@@ -31,7 +31,7 @@ public class DecksControllerTests_QuantityDelta(CustomWebApplicationFactory fact
         var printingId = TestDataSeeder.LightningBoltBetaPrintingId;
 
         var increase = await client.PostAsJsonAsync(
-            $"/api/decks/{deckId}/cards/quantity-delta",
+            $"/api/decks/{deckId}/cards/quantity-delta?includeProxies=true",
             new { printingId, qtyDelta = 1 }
         );
         Assert.Equal(HttpStatusCode.OK, increase.StatusCode);

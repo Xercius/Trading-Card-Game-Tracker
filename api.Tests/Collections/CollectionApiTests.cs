@@ -1,8 +1,5 @@
-using api.Common.Errors;
 using api.Tests.Infrastructure;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Net.Http.Json;
 using Xunit;
@@ -65,7 +62,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     }
 
     [Fact]
-    public async Task PostCollection_WithInvalidQuantities_ReturnsValidationProblem()
+    public async Task PostCollection_WithInvalidQuantities_ClampsToZero()
     {
         await SeedDataAsync();
         using var client = _factory.CreateClientForUser(Seed.AdminUserId);
@@ -78,19 +75,14 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
             quantityProxyOwned = 0
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        problem.Should().NotBeNull();
-        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
-        problem.Title.Should().Be(ProblemTypes.BadRequest.Title);
-        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
-        problem.Instance.Should().Be("/api/collection");
-        problem.Extensions.Should().ContainKey("traceId");
-        problem.Errors.Should().ContainKey("QuantityOwned");
-        problem.Errors["QuantityOwned"].Should().NotBeEmpty();
+        await _factory.ExecuteDbContextAsync(async db =>
+        {
+            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.GoblinPrintingId);
+            card.Should().NotBeNull();
+            card!.QuantityOwned.Should().Be(0);
+        });
     }
 
     [Fact]

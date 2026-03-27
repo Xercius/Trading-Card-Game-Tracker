@@ -128,7 +128,7 @@ public static class ServiceCollectionExtensionsTests
             "ForwardedHeaders:KnownNetworks:0:PrefixLength",
             NullLogger.Instance);
 
-        Assert.Equal(IPAddress.Parse("2001:db8::"), result.Prefix);
+        Assert.Equal(IPAddress.Parse("2001:db8::"), result.BaseAddress);
         Assert.Equal(64, result.PrefixLength);
     }
 }

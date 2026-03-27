@@ -266,7 +266,8 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             var processed = 0;
             foreach (var line in lines.Skip(1))
             {
-                if (processed++ >= effectiveLimit) break;
+                if (processed >= effectiveLimit) break;
+                processed++;
                 if (!seen.Add(line)) duplicates.Add(line);
             }
 

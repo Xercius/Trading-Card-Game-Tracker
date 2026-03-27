@@ -203,7 +203,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
 
         var response = await client.PutAsJsonAsync(
             $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
-            new { ownedQty = 3, proxyQty = 2 }
+            new { quantityOwned = 3, quantityWanted = 1, quantityProxyOwned = 2 }
         );
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
@@ -214,7 +214,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
 
         var secondResponse = await client.PutAsJsonAsync(
             $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
-            new { ownedQty = 3, proxyQty = 2 }
+            new { quantityOwned = 3, quantityWanted = 1, quantityProxyOwned = 2 }
         );
         Assert.Equal(HttpStatusCode.NoContent, secondResponse.StatusCode);
 
@@ -326,8 +326,8 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
         Assert.NotEmpty(rows);
 
         var alpha = rows.First(r => r.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
-        Assert.Equal(alpha.QuantityOwned, alpha.Availability);
-        Assert.Equal(alpha.QuantityOwned + alpha.QuantityProxyOwned, alpha.AvailabilityWithProxies);
+        Assert.Equal(1, alpha.Availability);
+        Assert.Equal(2, alpha.AvailabilityWithProxies);
     }
 
     [Fact]

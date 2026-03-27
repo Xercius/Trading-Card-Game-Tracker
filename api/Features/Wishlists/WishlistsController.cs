@@ -134,9 +134,9 @@ public class WishlistsController : ControllerBase
         var missing = ids.FirstOrDefault(id => !validIds.Contains(id));
         if (missing != 0)
         {
-            return this.CreateValidationProblem(
-                "cardPrintingId",
-                $"CardPrinting not found: {missing}");
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"CardPrinting {missing} was not found.");
         }
 
         var map = await _db.UserCards

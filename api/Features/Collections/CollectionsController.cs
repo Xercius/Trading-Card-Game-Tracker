@@ -150,54 +150,6 @@ public class CollectionsController : ControllerBase
         return NoContent();
     }
 
-    private async Task<IActionResult> SetOwnedProxyCore(int cardPrintingId, SetOwnedProxyRequest dto)
-    {
-        if (dto is null)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status400BadRequest,
-                title: "Invalid payload",
-                detail: "A request body is required.");
-        }
-
-        if (dto.OwnedQty < 0 || dto.ProxyQty < 0)
-        {
-            var errors = new Dictionary<string, string[]>();
-            if (dto.OwnedQty < 0)
-            {
-                errors["ownedQty"] = new[] { "Quantity must be non-negative." };
-            }
-
-            if (dto.ProxyQty < 0)
-            {
-                errors["proxyQty"] = new[] { "Quantity must be non-negative." };
-            }
-
-            return this.CreateValidationProblem(errors);
-        }
-
-        var existing = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
-
-        if (existing is null)
-        {
-            var newUserCard = new UserCard
-            {
-                UserId = UserId,
-                CardPrintingId = cardPrintingId,
-                QuantityOwned = QuantityGuards.Clamp(dto.OwnedQty),
-                QuantityWanted = 0,
-                QuantityProxyOwned = QuantityGuards.Clamp(dto.ProxyQty)
-            };
-            _db.UserCards.Add(newUserCard);
-            await _db.SaveChangesAsync();
-            return NoContent();
-        }
-
-        var request = new SetUserCardQuantitiesRequest(dto.OwnedQty, existing.QuantityWanted, dto.ProxyQty);
-        return await SetQuantitiesCore(cardPrintingId, request);
-    }
-
     private async Task<IActionResult> PatchQuantitiesCore(int cardPrintingId, JsonElement updates)
     {
         if (updates.ValueKind != JsonValueKind.Object)
@@ -438,9 +390,9 @@ public class CollectionsController : ControllerBase
     [HttpPut("{cardPrintingId:int}")]
     [HttpPut("/api/collections/{cardPrintingId:int}")]
     [Consumes(MediaTypeNames.Application.Json)]
-    public async Task<IActionResult> SetOwnedProxy(int cardPrintingId, [FromBody] SetOwnedProxyRequest dto)
+    public async Task<IActionResult> SetQuantities(int cardPrintingId, [FromBody] SetUserCardQuantitiesRequest dto)
     {
-        return await SetOwnedProxyCore(cardPrintingId, dto);
+        return await SetQuantitiesCore(cardPrintingId, dto);
     }
 
     [HttpPatch("{cardPrintingId:int}")]

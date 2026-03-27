@@ -133,7 +133,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
         problem!.Type.Should().Be(ProblemTypes.NotFound.Type);
         problem.Title.Should().Be(ProblemTypes.NotFound.Title);
         problem.Status.Should().Be(StatusCodes.Status404NotFound);
-        problem.Detail.Should().Be(ProblemTypes.NotFound.DefaultDetail);
+        problem.Detail.Should().Be("Deck 9999 was not found.");
         problem.Instance.Should().Be("/api/deck/9999");
         problem.Extensions.Should().ContainKey("traceId");
     }
