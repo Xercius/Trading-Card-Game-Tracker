@@ -10,7 +10,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using HttpIPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
 
 namespace api.Infrastructure.Startup;
 
@@ -81,7 +80,7 @@ internal static class ServiceCollectionExtensions
             };
         });
 
-        services.AddAutoMapper(typeof(Program).Assembly);
+        services.AddAutoMapper(cfg => cfg.AddMaps(typeof(Program).Assembly));
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
         var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
@@ -242,11 +241,11 @@ internal static class ServiceCollectionExtensions
     /// <summary>
     /// Parses a known network entry, validating both the IP prefix and the prefix length.
     /// </summary>
-    /// <returns>The parsed <see cref="HttpIPNetwork"/>.</returns>
+    /// <returns>The parsed <see cref="IPNetwork"/>.</returns>
     /// <exception cref="FormatException">
     /// Thrown when the prefix is missing/invalid or the prefix length is outside the valid range for the address family.
     /// </exception>
-    internal static HttpIPNetwork ParseKnownNetwork(
+    internal static IPNetwork ParseKnownNetwork(
         ForwardedHeadersSettings.NetworkEntry? networkEntry,
         string prefixConfigKey,
         string prefixLengthConfigKey,
@@ -293,7 +292,7 @@ internal static class ServiceCollectionExtensions
                 $"Forwarded headers known network prefix length '{prefixLength}' at '{prefixLengthConfigKey}' is not valid for address family {prefixAddress.AddressFamily}.");
         }
 
-        return new HttpIPNetwork(prefixAddress, prefixLength);
+        return new IPNetwork(prefixAddress, prefixLength);
     }
 
     /// <summary>
@@ -323,7 +322,7 @@ internal static class ServiceCollectionExtensions
             options.KnownProxies.Add(ParseKnownProxy(proxies[i], proxyConfigKey, logger));
         }
 
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         var networks = settings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>();
         for (var i = 0; i < networks.Length; i++)
         {
@@ -338,7 +337,7 @@ internal static class ServiceCollectionExtensions
                 i.ToString(),
                 nameof(ForwardedHeadersSettings.NetworkEntry.PrefixLength));
 
-            options.KnownNetworks.Add(ParseKnownNetwork(networks[i], prefixKey, prefixLengthKey, logger));
+            options.KnownIPNetworks.Add(ParseKnownNetwork(networks[i], prefixKey, prefixLengthKey, logger));
         }
     }
 }
