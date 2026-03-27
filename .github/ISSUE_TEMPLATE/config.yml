@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/Xercius/Trading-Card-Game-Tracker/blob/main/README.md
+    url: https://github.com/Xercius/Trading-Card-Game-Tracker/blob/master/README.md
     about: Read the README for setup and configuration instructions.
   - name: Admin Import Guide
-    url: https://github.com/Xercius/Trading-Card-Game-Tracker/blob/main/ADMIN.md
+    url: https://github.com/Xercius/Trading-Card-Game-Tracker/blob/master/ADMIN.md
     about: Learn how to import card data via the admin tools.

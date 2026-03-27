@@ -23,7 +23,7 @@ npm test -- --run
 ## Checklist
 
 ### General
-- [ ] PR targets the correct branch (`dev` for features/fixes, `main` for releases)
+- [ ] PR targets the correct branch (`dev` for features/fixes, `master` for releases)
 - [ ] One concern per PR — unrelated changes are split into separate PRs
 - [ ] Commit messages are clear and descriptive
 
