@@ -220,7 +220,7 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
    cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run
    ```
 
-4. **Open a PR** against `dev` (not `main`). Use the PR template and fill out every section.
+4. **Open a PR** against `dev` (not `master`). Use the PR template and fill out every section.
 
 5. **Link any related issues** with `Closes #N` in the PR description.
 
@@ -230,13 +230,13 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Stable, production-ready code |
+| `master` | Stable, production-ready code |
 | `dev` | Integration branch for features/fixes |
 | `feature/<name>` | New feature development |
 | `fix/<name>` | Bug fixes |
 | `chore/<name>` | Maintenance, dependency updates, tooling |
 
-PRs from feature/fix/chore branches → `dev` → eventually merged to `main` for releases.
+PRs from feature/fix/chore branches → `dev` → eventually merged to `master` for releases.
 
 ---
 
