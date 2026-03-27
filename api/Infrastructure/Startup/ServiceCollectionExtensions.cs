@@ -19,6 +19,8 @@ internal static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddSingleton<Microsoft.AspNetCore.Mvc.Infrastructure.ProblemDetailsFactory, api.Common.Errors.DefaultProblemDetailsFactory>();
+
         services.AddProblemDetails(options =>
         {
             options.CustomizeProblemDetails = context =>

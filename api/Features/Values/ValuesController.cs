@@ -23,7 +23,7 @@ public class ValuesController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromQuery] string game, [FromBody] List<RefreshItemRequest> items)
+    public async Task<IActionResult> Refresh([FromQuery] string? game, [FromBody] List<RefreshItemRequest>? items)
     {
         // ---- START existing refresh logic ----
         if (string.IsNullOrWhiteSpace(game))

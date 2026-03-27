@@ -606,6 +606,10 @@ public class DecksController : ControllerBase
 
         if (!returnUpdatedRow) return result;
 
+        // When the target quantity reaches 0 the card is removed from the deck view,
+        // even if the underlying row persists for proxy tracking purposes.
+        if (targetQty == 0) return Ok((DeckCardWithAvailabilityResponse?)null);
+
         var row = await LoadDeckCardAvailabilityAsync(deckEntity, cardPrintingId, includeProxies, ct);
         return Ok(row);
     }
@@ -836,6 +840,7 @@ public class DecksController : ControllerBase
             var printing = dc.CardPrinting;
             var card = printing?.Card;
             if (printing is null || card is null) continue;
+            if (dc.QuantityInDeck == 0) continue;
 
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;

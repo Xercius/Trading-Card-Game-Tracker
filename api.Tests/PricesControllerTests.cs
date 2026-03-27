@@ -33,27 +33,18 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        db.ValueHistories.AddRange(
-            new ValueHistory
+        db.CardPriceHistories.AddRange(
+            new CardPriceHistory
             {
-                ScopeType = ValueScopeType.CardPrinting,
-                ScopeId = TestDataSeeder.LightningBoltAlphaPrintingId,
-                PriceCents = 1500,
-                AsOfUtc = DateTime.UtcNow.AddDays(-3)
+                CardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                CapturedAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-3)),
+                Price = 15.00m
             },
-            new ValueHistory
+            new CardPriceHistory
             {
-                ScopeType = ValueScopeType.CardPrinting,
-                ScopeId = TestDataSeeder.LightningBoltAlphaPrintingId,
-                PriceCents = 2000,
-                AsOfUtc = DateTime.UtcNow.AddDays(-1).AddHours(-1)
-            },
-            new ValueHistory
-            {
-                ScopeType = ValueScopeType.CardPrinting,
-                ScopeId = TestDataSeeder.LightningBoltAlphaPrintingId,
-                PriceCents = 2500,
-                AsOfUtc = DateTime.UtcNow.AddDays(-1).AddHours(2)
+                CardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                CapturedAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                Price = 25.00m
             });
 
         await db.SaveChangesAsync();
@@ -83,7 +74,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     public async Task DeckValueHistory_ReturnsNotFound_ForMissingDeck()
     {
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
-        var response = await client.GetAsync("/api/prices/deck/999999/value/history");
+        var response = await client.GetAsync("/api/decks/999999/value/history");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -94,7 +85,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var response = await client.GetAsync($"/api/prices/deck/{TestDataSeeder.AliceMagicDeckId}/value/history");
+        var response = await client.GetAsync($"/api/decks/{TestDataSeeder.AliceMagicDeckId}/value/history");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -104,7 +95,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
-        var response = await client.GetAsync($"/api/prices/deck/{TestDataSeeder.AliceMagicDeckId}/value/history");
+        var response = await client.GetAsync($"/api/decks/{TestDataSeeder.AliceMagicDeckId}/value/history");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

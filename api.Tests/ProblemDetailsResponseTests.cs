@@ -100,7 +100,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem.Status.Should().Be(StatusCodes.Status400BadRequest);
         problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
         problem.Instance.Should().Be("/api/cards/printing");
-        problem.Errors.Should().ContainKey("CardId")
+        problem.Errors.Should().ContainKey("cardId")
             .WhoseValue.Should().Contain("CardId must be provided.");
         problem.Extensions.Should().ContainKey("traceId");
     }
