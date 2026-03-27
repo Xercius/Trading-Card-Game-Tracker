@@ -60,7 +60,7 @@ const noUnusedImportsRule = {
           return;
         }
 
-        const declaredVariables = context.getDeclaredVariables(node);
+        const declaredVariables = sourceCode.getDeclaredVariables(node);
         const unusedVariables = declaredVariables.filter(
           (variable) => variable.references.length === 0
         );
