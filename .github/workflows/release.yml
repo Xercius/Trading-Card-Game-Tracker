@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: write # needed to push tags and create releases
@@ -22,7 +22,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch # auto-bumps patch by default
-          release_branches: main # only tag on main
+          release_branches: master # only tag on master
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
