@@ -154,7 +154,8 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 Name = name,
                 CardType = type,
                 Description = text,
-                DetailsJson = detailsCard
+                DetailsJson = detailsCard,
+                Arena = ""
             };
             _db.Cards.Add(card);
             summary.CardsCreated++;

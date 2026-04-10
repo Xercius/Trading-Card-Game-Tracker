@@ -140,7 +140,7 @@ public sealed class FabDbImporter : ISourceImporter
             ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson };
+            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson, Arena = "" };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }

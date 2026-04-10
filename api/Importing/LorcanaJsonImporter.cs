@@ -119,7 +119,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
 
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = detailsCardJson };
+            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = detailsCardJson, Arena = "" };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }

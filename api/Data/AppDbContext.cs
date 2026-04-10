@@ -30,6 +30,27 @@ namespace api.Data
                 e.Property(c => c.Name).IsRequired().HasMaxLength(256);
                 e.Property(c => c.CardType).IsRequired().HasMaxLength(128);
 
+                // --- Collection Tracker spreadsheet fields ---
+                // JasonsCardId is nullable (null for externally-imported cards that lack a tracker ID).
+                // SQLite unique indexes permit multiple NULL values, so uniqueness is enforced only for non-null entries.
+                e.Property(c => c.JasonsCardId);
+                e.HasIndex(c => c.JasonsCardId).IsUnique();
+
+                e.Property(c => c.Subtitle).HasMaxLength(256);
+
+                // Unique (bool) — EF maps bool → INTEGER 0/1 in SQLite
+                e.Property(c => c.Unique).IsRequired();
+
+                e.Property(c => c.Cost).IsRequired();
+                e.Property(c => c.Hp).IsRequired();
+                e.Property(c => c.Power).IsRequired();
+                // UpgradeHp / UpgradePower are nullable ints — no extra config required
+
+                e.Property(c => c.Type2).HasMaxLength(128);
+                e.Property(c => c.Arena).IsRequired().HasMaxLength(64);
+
+                // Multi-value JSON text columns — stored as JSON arrays; no extra EF config required
+
                 // useful lookup index for list/search
                 e.HasIndex(c => new { c.Game, c.Name });
 

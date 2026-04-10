@@ -42,7 +42,8 @@ public static class TestDataSeeder
             Game = "Magic",
             Name = "Lightning Bolt",
             CardType = "Spell",
-            Description = "Deal 3 damage to any target"
+            Description = "Deal 3 damage to any target",
+            Arena = ""
         };
 
         var goblinGuide = new Card
@@ -51,7 +52,8 @@ public static class TestDataSeeder
             Game = "Magic",
             Name = "Goblin Guide",
             CardType = "Creature",
-            Description = "Fast and furious"
+            Description = "Fast and furious",
+            Arena = ""
         };
 
         var elsa = new Card
@@ -60,7 +62,8 @@ public static class TestDataSeeder
             Game = "Lorcana",
             Name = "Elsa, Ice Sculptor",
             CardType = "Character",
-            Description = "Freezes opponents"
+            Description = "Freezes opponents",
+            Arena = ""
         };
 
         var mickey = new Card
@@ -69,7 +72,8 @@ public static class TestDataSeeder
             Game = "Lorcana",
             Name = "Mickey, Brave Tailor",
             CardType = "Character",
-            Description = "Sews victory"
+            Description = "Sews victory",
+            Arena = ""
         };
 
         db.Cards.AddRange(lightningBolt, goblinGuide, elsa, mickey);

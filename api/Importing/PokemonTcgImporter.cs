@@ -122,7 +122,7 @@ public sealed class PokemonTcgImporter : ISourceImporter
 
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson };
+            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson, Arena = "" };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }

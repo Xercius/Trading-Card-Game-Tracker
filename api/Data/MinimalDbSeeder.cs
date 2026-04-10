@@ -35,6 +35,12 @@ public static class MinimalDbSeeder
             Game = "Magic: The Gathering",
             Name = "Lightning Bolt",
             CardType = "Instant",
+            JasonsCardId = 101,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 1,
+            Hp = 0,
+            Power = 0,
             Printings =
             {
                 new CardPrinting
@@ -51,6 +57,12 @@ public static class MinimalDbSeeder
             Game = "Pokemon TCG",
             Name = "Pikachu",
             CardType = "Pokemon",
+            JasonsCardId = 102,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 0,
+            Hp = 40,
+            Power = 0,
             Printings =
             {
                 new CardPrinting
@@ -67,6 +79,14 @@ public static class MinimalDbSeeder
             Game = "Star Wars Unlimited",
             Name = "Luke Skywalker, Hope of the Rebellion",
             CardType = "Unit",
+            JasonsCardId = 103,
+            Arena = "Ground",
+            Unique = true,
+            Cost = 7,
+            Hp = 8,
+            Power = 5,
+            AspectsJson = "[\"Heroism\"]",
+            TraitsJson = "[\"Rebel\",\"Force Sensitive\"]",
             Printings =
             {
                 new CardPrinting

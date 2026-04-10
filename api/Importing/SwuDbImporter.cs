@@ -114,6 +114,16 @@ public sealed class SwuDbImporter : ISourceImporter
             artist = source.Artist
         }, JsonOptions);
 
+        string arena = source.Arena ?? "";
+        string? subtitle = source.Subtitle?.Trim();
+        bool unique = source.Leader == true || (source.Traits?.Contains("Unique", StringComparer.OrdinalIgnoreCase) == true);
+        int cost = source.Cost ?? 0;
+        int power = source.Power ?? 0;
+        int hp = source.Health ?? 0;
+        string? aspectsJson = source.Aspects is { Length: > 0 } ? JsonSerializer.Serialize(source.Aspects, JsonOptions) : null;
+        string? traitsJson = source.Traits is { Length: > 0 } ? JsonSerializer.Serialize(source.Traits, JsonOptions) : null;
+        string? keywordsJson = source.Keywords is { Length: > 0 } ? JsonSerializer.Serialize(source.Keywords, JsonOptions) : null;
+
         if (card is null)
         {
             card = new Card
@@ -122,7 +132,16 @@ public sealed class SwuDbImporter : ISourceImporter
                 Name = name,
                 CardType = type,
                 Description = text,
-                DetailsJson = cardJson
+                DetailsJson = cardJson,
+                Arena = arena,
+                Subtitle = subtitle,
+                Unique = unique,
+                Cost = cost,
+                Power = power,
+                Hp = hp,
+                AspectsJson = aspectsJson,
+                TraitsJson = traitsJson,
+                KeywordsJson = keywordsJson
             };
             _db.Cards.Add(card);
             summary.CardsCreated++;
@@ -130,21 +149,18 @@ public sealed class SwuDbImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (card.CardType != type)
-            {
-                card.CardType = type;
-                changed = true;
-            }
-            if (card.Description != text)
-            {
-                card.Description = text;
-                changed = true;
-            }
-            if (card.DetailsJson != cardJson)
-            {
-                card.DetailsJson = cardJson;
-                changed = true;
-            }
+            if (card.CardType != type) { card.CardType = type; changed = true; }
+            if (card.Description != text) { card.Description = text; changed = true; }
+            if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
+            if (card.Arena != arena) { card.Arena = arena; changed = true; }
+            if (card.Subtitle != subtitle) { card.Subtitle = subtitle; changed = true; }
+            if (card.Unique != unique) { card.Unique = unique; changed = true; }
+            if (card.Cost != cost) { card.Cost = cost; changed = true; }
+            if (card.Power != power) { card.Power = power; changed = true; }
+            if (card.Hp != hp) { card.Hp = hp; changed = true; }
+            if (card.AspectsJson != aspectsJson) { card.AspectsJson = aspectsJson; changed = true; }
+            if (card.TraitsJson != traitsJson) { card.TraitsJson = traitsJson; changed = true; }
+            if (card.KeywordsJson != keywordsJson) { card.KeywordsJson = keywordsJson; changed = true; }
             if (changed)
             {
                 summary.CardsUpdated++;

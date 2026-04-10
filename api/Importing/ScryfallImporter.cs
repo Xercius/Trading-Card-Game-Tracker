@@ -91,7 +91,7 @@ public sealed class ScryfallImporter : ISourceImporter
             ?? await _db.Cards.Where(x => x.Game == game && x.Name == name).FirstOrDefaultAsync(ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = cardType, Description = desc };
+            card = new Card { Game = game, Name = name, CardType = cardType, Description = desc, Arena = "" };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }

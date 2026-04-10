@@ -41,7 +41,13 @@ public static class Seed
             Id = LightningCardId,
             Game = "Magic",
             Name = "Lightning Bolt",
-            CardType = "Instant"
+            CardType = "Instant",
+            JasonsCardId = 200,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 1,
+            Hp = 0,
+            Power = 0
         };
 
         var goblin = new Card
@@ -49,7 +55,13 @@ public static class Seed
             Id = GoblinCardId,
             Game = "Magic",
             Name = "Goblin Guide",
-            CardType = "Creature"
+            CardType = "Creature",
+            JasonsCardId = 201,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 1,
+            Hp = 2,
+            Power = 2
         };
 
         var phoenix = new Card
@@ -57,7 +69,13 @@ public static class Seed
             Id = PhoenixCardId,
             Game = "Magic",
             Name = "Flameborn Phoenix",
-            CardType = "Creature"
+            CardType = "Creature",
+            JasonsCardId = 202,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 4,
+            Hp = 2,
+            Power = 2
         };
 
         var dragon = new Card
@@ -65,7 +83,13 @@ public static class Seed
             Id = DragonCardId,
             Game = "Magic",
             Name = "Shivan Dragon",
-            CardType = "Creature"
+            CardType = "Creature",
+            JasonsCardId = 203,
+            Arena = "N/A",
+            Unique = false,
+            Cost = 6,
+            Hp = 5,
+            Power = 5
         };
 
         db.Cards.AddRange(lightning, goblin, phoenix, dragon);

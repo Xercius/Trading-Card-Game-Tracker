@@ -421,7 +421,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
 
         if (card is null)
         {
-            card = new Card { Game = GameName, Name = name, CardType = cardType, Description = desc, DetailsJson = cardJson };
+            card = new Card { Game = GameName, Name = name, CardType = cardType, Description = desc, DetailsJson = cardJson, Arena = "" };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }

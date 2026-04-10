@@ -302,6 +302,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
                         CardType = "Test",
                         Description = null,
                         DetailsJson = "{}",
+                        Arena = ""
                     };
                     db.Cards.Add(card);
                     summary.CardsCreated++;

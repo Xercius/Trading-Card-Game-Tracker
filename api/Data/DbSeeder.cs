@@ -23,22 +23,22 @@ namespace api.Data
             if (context.Cards.Any()) return;
 
             // Seed Cards
-            var card1 = new Card { Name = "Disabling Fang Fighter", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card2 = new Card { Name = "Shin Hati, Overeager Apprentice", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card3 = new Card { Name = "Mega Manectric ex", Game = "Pokemon TCG", CardType = "Pokemon" };
-            var card4 = new Card { Name = "Parallel Lives", Game = "Magic: The Gathering", CardType = "Enchantment" };
-            var card5 = new Card { Name = "Darth Maul, Revenge At Last", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card6 = new Card { Name = "Maul, Shadow Collective Visionary", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card7 = new Card { Name = "Darth Maul's Lightsaber", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card8 = new Card { Name = "Battle Fury", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card9 = new Card { Name = "Shadowed Intentions", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card10 = new Card { Name = "Ataru Onslaught", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card11 = new Card { Name = "Calm in the Storm", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card12 = new Card { Name = "In the Shadows", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card13 = new Card { Name = "Unleash Rage", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card14 = new Card { Name = "Face Off", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card15 = new Card { Name = "Unnatural Life", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card16 = new Card { Name = "Baylan Skoll, Enigmatic Master", Game = "Star Wars Unlimited", CardType = "Unit" };
+            var card1 = new Card { Name = "Disabling Fang Fighter", Game = "Star Wars Unlimited", CardType = "Unit", JasonsCardId = 1, Arena = "Space", Unique = false, Cost = 2, Hp = 3, Power = 2, AspectsJson = "[\"Villainy\"]", TraitsJson = "[\"Fighter\"]" };
+            var card2 = new Card { Name = "Shin Hati, Overeager Apprentice", Game = "Star Wars Unlimited", CardType = "Unit", JasonsCardId = 2, Arena = "Ground", Unique = true, Cost = 3, Hp = 3, Power = 3, AspectsJson = "[\"Villainy\"]", TraitsJson = "[\"Inquisitor\"]" };
+            var card3 = new Card { Name = "Mega Manectric ex", Game = "Pokemon TCG", CardType = "Pokemon", JasonsCardId = 3, Arena = "N/A", Unique = false, Cost = 0, Hp = 210, Power = 0 };
+            var card4 = new Card { Name = "Parallel Lives", Game = "Magic: The Gathering", CardType = "Enchantment", JasonsCardId = 4, Arena = "N/A", Unique = false, Cost = 4, Hp = 0, Power = 0 };
+            var card5 = new Card { Name = "Darth Maul, Revenge At Last", Game = "Star Wars Unlimited", CardType = "Unit", JasonsCardId = 5, Arena = "Ground", Unique = true, Cost = 7, Hp = 7, Power = 7, AspectsJson = "[\"Villainy\",\"Aggression\"]", TraitsJson = "[\"Sith\",\"Lord\"]" };
+            var card6 = new Card { Name = "Maul, Shadow Collective Visionary", Game = "Star Wars Unlimited", CardType = "Unit", JasonsCardId = 6, Arena = "Ground", Unique = true, Cost = 6, Hp = 6, Power = 5, AspectsJson = "[\"Villainy\",\"Cunning\"]", TraitsJson = "[\"Underworld\",\"Mandalorian\"]" };
+            var card7 = new Card { Name = "Darth Maul's Lightsaber", Game = "Star Wars Unlimited", CardType = "Upgrade", JasonsCardId = 7, Arena = "Ground", Unique = true, Cost = 2, Hp = 0, Power = 0, UpgradeHp = 2, UpgradePower = 2, AspectsJson = "[\"Villainy\"]", TraitsJson = "[\"Item\",\"Weapon\"]" };
+            var card8 = new Card { Name = "Battle Fury", Game = "Star Wars Unlimited", CardType = "Upgrade", JasonsCardId = 8, Arena = "Ground", Unique = false, Cost = 1, Hp = 0, Power = 0, UpgradeHp = 0, UpgradePower = 2, AspectsJson = "[\"Aggression\"]" };
+            var card9 = new Card { Name = "Shadowed Intentions", Game = "Star Wars Unlimited", CardType = "Upgrade", JasonsCardId = 9, Arena = "Ground", Unique = false, Cost = 2, Hp = 0, Power = 0, UpgradeHp = 2, UpgradePower = 0, AspectsJson = "[\"Villainy\",\"Cunning\"]" };
+            var card10 = new Card { Name = "Ataru Onslaught", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 10, Arena = "Ground", Unique = false, Cost = 4, Hp = 0, Power = 0, AspectsJson = "[\"Aggression\"]" };
+            var card11 = new Card { Name = "Calm in the Storm", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 11, Arena = "Ground", Unique = false, Cost = 2, Hp = 0, Power = 0, AspectsJson = "[\"Heroism\"]" };
+            var card12 = new Card { Name = "In the Shadows", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 12, Arena = "Ground", Unique = false, Cost = 2, Hp = 0, Power = 0, AspectsJson = "[\"Villainy\",\"Cunning\"]" };
+            var card13 = new Card { Name = "Unleash Rage", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 13, Arena = "Ground", Unique = false, Cost = 1, Hp = 0, Power = 0, AspectsJson = "[\"Villainy\",\"Aggression\"]" };
+            var card14 = new Card { Name = "Face Off", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 14, Arena = "Ground", Unique = false, Cost = 3, Hp = 0, Power = 0, AspectsJson = "[\"Aggression\"]" };
+            var card15 = new Card { Name = "Unnatural Life", Game = "Star Wars Unlimited", CardType = "Event", JasonsCardId = 15, Arena = "Ground", Unique = false, Cost = 4, Hp = 0, Power = 0, AspectsJson = "[\"Villainy\"]" };
+            var card16 = new Card { Name = "Baylan Skoll, Enigmatic Master", Game = "Star Wars Unlimited", CardType = "Unit", JasonsCardId = 16, Arena = "Ground", Unique = true, Cost = 6, Hp = 7, Power = 5, AspectsJson = "[\"Villainy\"]", TraitsJson = "[\"Inquisitor\"]" };
             context.Cards.AddRange(card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11, card12, card13, card14, card15, card16);
 
             context.SaveChanges(); // Save to get IDs for relationships

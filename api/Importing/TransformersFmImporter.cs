@@ -127,7 +127,8 @@ public sealed class TransformersFmImporter : ISourceImporter
                 Name = name,
                 CardType = type,
                 Description = text,
-                DetailsJson = cardJson
+                DetailsJson = cardJson,
+                Arena = ""
             };
             _db.Cards.Add(card);
             summary.CardsCreated++;
