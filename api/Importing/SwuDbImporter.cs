@@ -63,9 +63,11 @@ public sealed class SwuDbImporter : ISourceImporter
             var qs = HttpUtility.ParseQueryString(string.Empty);
             qs["locale"] = "en";
             qs["filters[expansion][code][$eq]"] = expansionCode;
+            if (options.UpdatedSince is { } since)
+                qs["filters[updatedAt][$gt]"] = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             qs["pagination[page]"] = page.ToString();
             qs["pagination[pageSize]"] = PageSize.ToString();
-            qs["sort[0]"] = "expansion.sortValue:asc";
+            qs["sort[0]"] = "updatedAt:asc";
             qs["sort[1]"] = "cardNumber:asc";
 
             using var response = await _http.GetAsync($"card-list?{qs}", ct);
@@ -257,6 +259,7 @@ public sealed class SwuDbImporter : ISourceImporter
             style,
             aspects = attrs.Aspects,
             cost = attrs.Cost,
+            createdAt = attrs.CreatedAt,
             updatedAt = attrs.UpdatedAt
         }, JsonOptions);
 
@@ -327,7 +330,9 @@ public sealed class SwuDbImporter : ISourceImporter
         [property: JsonPropertyName("aspects")] string[]? Aspects,
         [property: JsonPropertyName("traits")] string[]? Traits,
         [property: JsonPropertyName("keywords")] string[]? Keywords,
+        [property: JsonPropertyName("createdAt")] DateTimeOffset? CreatedAt,
         [property: JsonPropertyName("updatedAt")] DateTimeOffset? UpdatedAt,
+        [property: JsonPropertyName("publishedAt")] DateTimeOffset? PublishedAt,
         [property: JsonPropertyName("type")] StrapiRelation<SwuTypeAttributes>? Type,
         [property: JsonPropertyName("expansion")] StrapiRelation<SwuExpansionAttributes>? Expansion,
         [property: JsonPropertyName("variantTypes")] StrapiRelationList<SwuVariantTypeAttributes>? VariantTypes,

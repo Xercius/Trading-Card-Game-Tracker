@@ -78,6 +78,16 @@ if not isinstance(attributes, dict):
 if "title" not in attributes and "serialCode" not in attributes:
     raise SystemExit("attributes must contain card fields such as title or serialCode.")
 
+# Task 2.4: verify that timestamp metadata fields are present in the response.
+for ts_field in ("createdAt", "updatedAt", "publishedAt"):
+    if ts_field not in attributes:
+        raise SystemExit(f"attributes is missing timestamp field '{ts_field}' required for update detection.")
+    val = attributes[ts_field]
+    if not isinstance(val, str) or len(val) < 20 or not val.endswith("Z"):
+        raise SystemExit(
+            f"attributes.{ts_field} must be an ISO-8601 UTC string ending in 'Z', got: {val!r}"
+        )
+
 pagination = payload.get("meta", {}).get("pagination", {})
 required = ("page", "pageSize", "pageCount", "total")
 missing = [name for name in required if name not in pagination]
