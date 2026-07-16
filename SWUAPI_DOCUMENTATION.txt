@@ -1,0 +1,110 @@
+===============================================================
+  Star Wars Unlimited TCG — API Documentation & Reference Guide
+===============================================================
+Created: 2026-07-16
+Purpose: Reference guide for integrating the Star Wars Unlimited API
+         into the Trading Card Game Tracker for card synchronization.
+
+This document tracks the API base URL, authentication, endpoints,
+response schemas, rate limits, and any quirks discovered during
+testing. Update this file as you learn more during Phase 2 testing.
+
+---------------------------------------------------------------
+  SECTION 1: API Overview
+---------------------------------------------------------------
+API Base URL:
+  (document here — e.g. https://api.swu-db.com)
+
+Authentication:
+  Method: (e.g. API Key, ****** None)
+  Header: (e.g. Authorization: ******
+  Notes: (any authentication quirks or requirements)
+
+Rate Limits:
+  Requests per minute: (document here)
+  Requests per day: (document here)
+  Throttling behavior: (document here)
+
+---------------------------------------------------------------
+  SECTION 2: Available Endpoints
+---------------------------------------------------------------
+List all discovered endpoints here with their HTTP method and
+a short description. Example format:
+
+  GET /cards           — Returns a paginated list of all cards
+  GET /cards/{id}      — Returns a single card by ID
+  GET /sets            — Returns all sets/expansions
+  GET /sets/{code}     — Returns a single set by code
+
+(Add endpoints as you discover them in Task 2.1)
+
+---------------------------------------------------------------
+  SECTION 3: Card Object Schema
+---------------------------------------------------------------
+Document the full JSON structure returned for a card object.
+Include all fields, their types, and descriptions.
+
+Example:
+  {
+    "id": "string",
+    "name": "string",
+    "set": "string",
+    "number": "string",
+    "rarity": "string",
+    "aspects": ["string"],
+    "updatedAt": "datetime (ISO 8601)",
+    ...
+  }
+
+(Populate this in Task 2.3 after testing the card endpoint)
+
+---------------------------------------------------------------
+  SECTION 4: Update Detection
+---------------------------------------------------------------
+Does the API support filtering by date? (Yes/No)
+Date field name: (e.g. updatedAt, lastModified)
+Date format: (e.g. ISO 8601, Unix timestamp)
+Filter parameter: (e.g. ?updatedAfter=2024-01-01)
+
+Notes on detecting new/modified cards:
+  (Document findings from Task 2.4)
+
+---------------------------------------------------------------
+  SECTION 5: Set/Expansion Schema
+---------------------------------------------------------------
+Document the full JSON structure returned for a set object.
+
+  {
+    "code": "string",
+    "name": "string",
+    "releaseDate": "string",
+    ...
+  }
+
+(Populate this in Task 2.5)
+
+---------------------------------------------------------------
+  SECTION 6: Pagination
+---------------------------------------------------------------
+Pagination method: (cursor-based, page-number, offset, etc.)
+Page size parameter: (e.g. limit=100)
+Page parameter: (e.g. page=1)
+Response envelope: (e.g. { data: [], total: N, nextCursor: "..." })
+
+---------------------------------------------------------------
+  SECTION 7: Known Limitations & Gotchas
+---------------------------------------------------------------
+(Populate this throughout testing — especially Task 6.4 and 8.1)
+
+Example entries:
+  - Rate limit is per-IP, not per-key
+  - updatedAt field may be missing on older cards
+  - Images require a separate CDN base URL
+
+---------------------------------------------------------------
+  SECTION 8: Change Log
+---------------------------------------------------------------
+  2026-07-16 - File created (Task 1.1)
+  (Add entries as you update this document)
+
+===============================================================
