@@ -1,0 +1,812 @@
+Below is a practical guide based on the JSON structure you retrieved and the Strapi-style filtering used by the official card-list service.
+
+Guide to the Star Wars: Unlimited Card-List API
+
+1. Important disclaimer
+
+The Star Wars: Unlimited website exposes card data through an internal endpoint used by its public card database:
+
+https://admin.starwarsunlimited.com/api/card-list
+
+This is not a formally documented public API. It may change without notice, and undocumented filters may behave differently from standard Strapi behavior.
+
+The official card database itself is available through the Star Wars: Unlimited website. (STAR WARS™: Unlimited⁠￼)
+
+The API appears to use Strapi-style query parameters. Strapi supports field filters, relational filters, logical operators, sorting, pagination, localization, and date comparisons. (Strapi Docs⁠￼)
+
+⸻
+
+2. Basic request
+
+Use an HTTP GET request.
+
+https://admin.starwarsunlimited.com/api/card-list
+
+A useful starting request is:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&pagination[page]=1&pagination[pageSize]=50
+
+This requests:
+
+* English as the top-level locale
+* Page 1
+* 50 card records
+
+The response normally contains:
+
+{
+  "data": [
+    {
+      "id": 39380,
+      "attributes": {
+        "title": "Chancellor Palpatine",
+        "subtitle": "How Liberty Dies",
+        "cardUid": "1020365882",
+        "serialCode": "06010001",
+        "locale": "en"
+      }
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "pageSize": 50,
+      "pageCount": 6,
+      "total": 264
+    }
+  }
+}
+
+The exact fields and relationships included may vary.
+
+⸻
+
+3. Pagination
+
+Use:
+
+pagination[page]
+pagination[pageSize]
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&pagination[page]=2&pagination[pageSize]=100
+
+The pagination information is generally found under:
+
+meta.pagination
+
+Typical fields include:
+
+{
+  "page": 1,
+  "pageSize": 100,
+  "pageCount": 3,
+  "total": 264
+}
+
+Continue requesting pages until:
+
+page >= pageCount
+
+Strapi supports page-based pagination with these bracketed parameters. (Strapi Docs⁠￼)
+
+⸻
+
+4. English-language results
+
+Use:
+
+locale=en
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&pagination[page]=1&pagination[pageSize]=50
+
+You can also add a direct field filter:
+
+filters[locale][$eq]=en
+
+Full example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[locale][$eq]=en&pagination[page]=1&pagination[pageSize]=50
+
+Why other languages may still appear
+
+An English card can contain a relationship called:
+
+"localizations": {
+  "data": [
+    {
+      "attributes": {
+        "locale": "it"
+      }
+    }
+  ]
+}
+
+That does not mean the top-level result is Italian. It means the English record includes its related translations.
+
+Check this field:
+
+data[].attributes.locale
+
+Do not determine the card’s language by examining:
+
+data[].attributes.localizations.data
+
+The locale=en parameter selects the English version of each record, while populated localization relationships may still be included in the JSON. Strapi treats locale selection separately from populated relationships. (Strapi Docs⁠￼)
+
+⸻
+
+5. Filtering by expansion
+
+Cards contain an expansion relationship resembling:
+
+"expansion": {
+  "data": {
+    "id": 2,
+    "attributes": {
+      "name": "Spark of Rebellion",
+      "code": "SOR"
+    }
+  }
+}
+
+Filter using the internal numeric expansion ID:
+
+filters[expansion][id][$eq]=2
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[expansion][id][$eq]=2&pagination[page]=1&pagination[pageSize]=100
+
+Expansion code versus expansion ID
+
+The API response may show:
+
+{
+  "id": 2,
+  "attributes": {
+    "code": "SOR"
+  }
+}
+
+The ID and code are different identifiers:
+
+* Internal relationship ID: 2
+* Printed set code: SOR
+
+You may be able to deep-filter by code:
+
+filters[expansion][code][$eq]=SOR
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[expansion][code][$eq]=SOR&pagination[page]=1&pagination[pageSize]=100
+
+However, because this is a customized internal endpoint, the numeric relationship ID is usually the safer choice.
+
+⸻
+
+6. Filtering by card type
+
+A card type relationship can look like:
+
+"type": {
+  "data": {
+    "id": 4,
+    "attributes": {
+      "name": "Leader",
+      "value": "Leader"
+    }
+  }
+}
+
+To retrieve Leaders:
+
+filters[type][id][$eq]=4
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[type][id][$eq]=4&pagination[page]=1&pagination[pageSize]=100
+
+Leaders from Spark of Rebellion:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[expansion][id][$eq]=2&filters[type][id][$eq]=4&pagination[page]=1&pagination[pageSize]=100
+
+Multiple filters placed at the top level are normally treated as an implicit AND.
+
+⸻
+
+7. Variant types
+
+A card may contain:
+
+"variantTypes": {
+  "data": [
+    {
+      "id": 46,
+      "attributes": {
+        "name": "Standard",
+        "variantId": "01",
+        "foil": false
+      }
+    }
+  ]
+}
+
+There are two distinct identifiers here:
+
+* Relationship ID: 46
+* Variant code: "01"
+
+The most reliable filter is the relationship ID:
+
+filters[variantTypes][id][$eq]=46
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantTypes][id][$eq]=46&pagination[page]=1&pagination[pageSize]=100
+
+Filtering multiple variant type IDs
+
+The clearest method is an $or group:
+
+filters[$or][0][variantTypes][id][$eq]=46
+filters[$or][1][variantTypes][id][$eq]=51
+filters[$or][2][variantTypes][id][$eq]=56
+
+Full example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[$or][0][variantTypes][id][$eq]=46&filters[$or][1][variantTypes][id][$eq]=51&filters[$or][2][variantTypes][id][$eq]=56&pagination[page]=1&pagination[pageSize]=100
+
+Strapi supports $or, $and, and $not logical operators. (Strapi Docs⁠￼)
+
+Using $in
+
+Standard Strapi also supports $in, although this customized endpoint may not accept every normal encoding.
+
+Possible format:
+
+filters[variantTypes][id][$in][0]=46
+filters[variantTypes][id][$in][1]=51
+filters[variantTypes][id][$in][2]=56
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantTypes][id][$in][0]=46&filters[variantTypes][id][$in][1]=51&filters[variantTypes][id][$in][2]=56
+
+Use the $or version when $in does not behave as expected.
+
+⸻
+
+8. Combining an expansion with multiple variant types
+
+Goal:
+
+expansion.id = 1
+AND
+variantTypes.id is 46, 51, 56, 61, 66, 81, 86, or 91
+
+Use:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[$and][0][expansion][id][$eq]=1&filters[$and][1][$or][0][variantTypes][id][$eq]=46&filters[$and][1][$or][1][variantTypes][id][$eq]=51&filters[$and][1][$or][2][variantTypes][id][$eq]=56&filters[$and][1][$or][3][variantTypes][id][$eq]=61&filters[$and][1][$or][4][variantTypes][id][$eq]=66&filters[$and][1][$or][5][variantTypes][id][$eq]=81&filters[$and][1][$or][6][variantTypes][id][$eq]=86&filters[$and][1][$or][7][variantTypes][id][$eq]=91&pagination[page]=1&pagination[pageSize]=100
+
+⸻
+
+9. Base cards versus variants
+
+Variant cards can contain a relationship such as:
+
+"variantOf": {
+  "data": {
+    "id": 5,
+    "attributes": {
+      "title": "Luke Skywalker",
+      "cardUid": "2579145458"
+    }
+  }
+}
+
+Only base cards
+
+Request records where variantOf is null:
+
+filters[variantOf][id][$null]=true
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantOf][id][$null]=true&pagination[page]=1&pagination[pageSize]=100
+
+Only variant cards
+
+Request records where variantOf is not null:
+
+filters[variantOf][id][$notNull]=true
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantOf][id][$notNull]=true&pagination[page]=1&pagination[pageSize]=100
+
+Variants of a specific internal card ID
+
+When the related base card has:
+
+"variantOf": {
+  "data": {
+    "id": 5
+  }
+}
+
+Use:
+
+filters[variantOf][id][$eq]=5
+
+Example:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantOf][id][$eq]=5&pagination[page]=1&pagination[pageSize]=100
+
+⸻
+
+10. Understanding the different card identifiers
+
+The response contains several identifiers that should not be treated as interchangeable.
+
+API record ID
+
+Located here:
+
+{
+  "id": 39380
+}
+
+This is the internal database record ID.
+
+Use it for relationships such as:
+
+variantOf.id
+reprintOf.id
+expansion.id
+type.id
+variantTypes.id
+
+Card UID or CID
+
+Located here:
+
+"cardUid": "1020365882"
+
+It may also appear in a website link:
+
+/cards?cid=1020365882
+
+This is the public card identifier used by the website.
+
+Serial code
+
+Located here:
+
+"serialCode": "06010001"
+
+This appears to identify a specific set/card/variant combination.
+
+A serial code may be more useful than the API record ID when storing imported printings.
+
+Printed card number
+
+Located here:
+
+"cardNumber": 1
+
+This is only the card’s number within its product or set. It is not globally unique.
+
+⸻
+
+11. Finding a card by CID or cardUid
+
+To locate the API record whose cardUid is 6797297267:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[cardUid][$eq]=6797297267&pagination[page]=1&pagination[pageSize]=10
+
+The result should contain something like:
+
+{
+  "id": 12345,
+  "attributes": {
+    "cardUid": "6797297267"
+  }
+}
+
+Record the top-level internal ID:
+
+12345
+
+You generally need that internal ID when filtering relationships.
+
+⸻
+
+12. Finding reprints
+
+A reprint relationship may resemble:
+
+"reprintOf": {
+  "data": {
+    "id": 12345,
+    "attributes": {
+      "cardUid": "6797297267"
+    }
+  }
+}
+
+Reliable two-step method
+
+Step 1: Resolve the CID to the internal ID
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[cardUid][$eq]=6797297267&pagination[page]=1&pagination[pageSize]=10
+
+Suppose the returned top-level record ID is:
+
+12345
+
+Step 2: Find cards whose reprintOf relation points to that ID
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[reprintOf][id][$eq]=12345&pagination[page]=1&pagination[pageSize]=100
+
+Do not insert the CID directly into:
+
+filters[reprintOf][id][$eq]
+
+unless the CID happens to be identical to the internal record ID.
+
+Possible one-step deep filter
+
+The following may work if the custom endpoint permits deep filtering on the related card’s attributes:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[reprintOf][cardUid][$eq]=6797297267&pagination[page]=1&pagination[pageSize]=100
+
+The two-step method is safer.
+
+⸻
+
+13. Find the original card, its variants, and its reprints
+
+After resolving the original card’s internal ID, such as 12345, use an $or query:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[$or][0][id][$eq]=12345&filters[$or][1][variantOf][id][$eq]=12345&filters[$or][2][reprintOf][id][$eq]=12345&pagination[page]=1&pagination[pageSize]=100
+
+This requests:
+
+record ID = 12345
+OR variantOf.id = 12345
+OR reprintOf.id = 12345
+
+⸻
+
+14. Filtering by creation or update date
+
+The date fields use ISO 8601 timestamps:
+
+"createdAt": "2025-08-15T18:29:41.633Z",
+"updatedAt": "2025-11-10T16:07:21.320Z",
+"publishedAt": "2025-03-05T06:00:00.000Z"
+
+Supported comparison operators normally include:
+
+$gt   greater than
+$gte  greater than or equal
+$lt   less than
+$lte  less than or equal
+
+Strapi supports these comparison operators for fields including timestamps. (Strapi Docs⁠￼)
+
+Created after July 31, 2025
+
+To mean strictly after the entire date of July 31, use midnight at the beginning of August 1:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[createdAt][$gte]=2025-08-01T00:00:00.000Z&pagination[page]=1&pagination[pageSize]=100
+
+Using:
+
+2025-07-31T00:00:00.000Z
+
+would also include cards created during July 31.
+
+Updated after a date
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[updatedAt][$gt]=2026-06-01T00:00:00.000Z&pagination[page]=1&pagination[pageSize]=100
+
+For synchronization, updatedAt is usually more useful than createdAt, because it catches both newly added cards and corrections to existing cards.
+
+⸻
+
+15. Sorting
+
+Standard Strapi syntax uses:
+
+sort=field:asc
+sort=field:desc
+
+Example, newest records first:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&sort=createdAt:desc&pagination[page]=1&pagination[pageSize]=100
+
+Multiple sorts:
+
+sort[0]=expansion.sortValue:asc
+sort[1]=cardNumber:asc
+
+Sorting and pagination are standard Strapi REST features. (Strapi Docs⁠￼)
+
+Because card-list is a customized endpoint, verify that each relational sort is honored.
+
+⸻
+
+16. Common operators
+
+Operator	Meaning
+$eq	Equal
+$ne	Not equal
+$eqi	Equal, case-insensitive
+$in	Included in a collection
+$notIn	Not included in a collection
+$gt	Greater than
+$gte	Greater than or equal
+$lt	Less than
+$lte	Less than or equal
+$contains	Contains text
+$containsi	Contains text, case-insensitive
+$null	Is null
+$notNull	Is not null
+$and	All conditions must match
+$or	At least one condition must match
+$not	Negates a condition
+
+These are standard Strapi filter operators, but not every operator is guaranteed to function identically on this customized endpoint. (Strapi Docs⁠￼)
+
+⸻
+
+17. Why excluding variant IDs is difficult
+
+The following might look correct:
+
+filters[variantTypes][id][$notIn]=46,51,56
+
+However, problems can occur for two reasons:
+
+1. $notIn may require an indexed array rather than comma-separated text.
+2. variantTypes is a many-to-many relationship.
+
+A card with several variant type relationships can satisfy a “not equal” condition through one related record even when another related record is excluded.
+
+For example:
+
+variantTypes = [46, 51]
+
+A query resembling:
+
+variantTypes.id != 46
+
+may still match because the card also relates to ID 51.
+
+Therefore, relation exclusions often cannot be expressed reliably with a simple $ne or $notIn URL.
+
+The safest approach is:
+
+1. Retrieve all cards for the expansion.
+2. Inspect variantTypes.data.
+3. Remove cards locally when any related ID appears in the exclusion set.
+
+Example exclusion logic:
+
+const excludedIds = new Set([46, 51, 56, 61, 66, 81, 86, 91]);
+const includedCards = cards.filter(card => {
+  const variantIds =
+    card.attributes.variantTypes?.data?.map(item => item.id) ?? [];
+  return !variantIds.some(id => excludedIds.has(id));
+});
+
+This avoids ambiguous relational negation.
+
+⸻
+
+18. Images
+
+Image data can appear under fields such as:
+
+artFront
+artBack
+artThumbnail
+
+The original image URL is generally:
+
+attributes.artFront.data.attributes.url
+
+Example:
+
+{
+  "url": "https://cdn.starwarsunlimited.com//06010001_EN_Chancellor_Palpatine_Leader_0e56401e65.png"
+}
+
+Resized images may appear under:
+
+formats.card.url
+formats.thumbnail.url
+formats.xsmall.url
+formats.xxsmall.url
+formats.xxxsmall.url
+
+Recommended priority:
+
+1. Original url for archival-quality images
+2. formats.card.url for application display
+3. formats.thumbnail.url for compact lists
+
+Do not assume every card has all image sizes or both front and back art.
+
+⸻
+
+19. Recommended import keys
+
+For a card database, do not use only the card title or printed number.
+
+Recommended source identifiers:
+
+API record ID
+cardUid
+serialCode
+locale
+
+A practical database design could store:
+
+SourceRecordId = top-level id
+SourceCardUid = attributes.cardUid
+SerialCode = attributes.serialCode
+Locale = attributes.locale
+
+For printings, serialCode is likely the strongest available source key when present.
+
+For logical card grouping, use relationships such as:
+
+variantOf
+reprintOf
+
+Do not assume cardUid is unique across every variant or language until you verify the data.
+
+⸻
+
+20. Recommended monthly synchronization process
+
+For a recurring importer:
+
+1. Store the last successful synchronization time.
+2. Fetch English records updated after that timestamp.
+3. Page through every result.
+4. Match existing records using serialCode, cardUid, or the official record ID.
+5. Insert new records.
+6. Update existing records whose metadata changed.
+7. Download or cache new image URLs.
+8. Save the latest successful synchronization timestamp only after the import completes.
+
+Example incremental request:
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[updatedAt][$gt]=2026-06-01T00:00:00.000Z&pagination[page]=1&pagination[pageSize]=100&sort=updatedAt:asc
+
+Always retain a small overlap, such as one day, to avoid missing records because of timestamp precision or interrupted runs.
+
+⸻
+
+21. Troubleshooting
+
+The URL works in a browser but not Postman
+
+Possible causes include:
+
+* TLS or proxy settings
+* Postman’s automatically generated headers
+* redirects
+* cached browser access
+* API security rules treating Postman differently
+* malformed bracket parameters
+
+Because the browser URL works, browser testing is sufficient for discovering queries. For application imports, test the endpoint from your actual .NET application rather than relying exclusively on Postman.
+
+The response contains Italian or other languages
+
+Check:
+
+data[].attributes.locale
+
+The foreign-language records are likely nested under:
+
+attributes.localizations.data
+
+They are related translations, not top-level search results.
+
+Filtering reprintOf by CID returns nothing
+
+reprintOf.id expects the related record’s internal numeric ID, not its cardUid or website CID.
+
+Resolve the CID first:
+
+filters[cardUid][$eq]=6797297267
+
+Then use the returned top-level ID in:
+
+filters[reprintOf][id][$eq]=INTERNAL_ID
+
+$notIn does not exclude relational IDs
+
+Retrieve the broader dataset and exclude those relationship IDs in your importer. Negative filters on many-to-many relations can produce unexpected results.
+
+The response is empty
+
+Remove filters one at a time:
+
+1. Test only locale and pagination.
+2. Add the expansion filter.
+3. Add the type filter.
+4. Add variant/reprint filters last.
+
+This reveals which field or relationship is rejecting the query.
+
+⸻
+
+22. Useful URL templates
+
+All English card records
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&pagination[page]=1&pagination[pageSize]=100
+
+One expansion
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[expansion][id][$eq]=EXPANSION_ID&pagination[page]=1&pagination[pageSize]=100
+
+Leaders in one expansion
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[expansion][id][$eq]=EXPANSION_ID&filters[type][id][$eq]=4&pagination[page]=1&pagination[pageSize]=100
+
+One variant type
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantTypes][id][$eq]=VARIANT_TYPE_ID&pagination[page]=1&pagination[pageSize]=100
+
+Base cards only
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantOf][id][$null]=true&pagination[page]=1&pagination[pageSize]=100
+
+Variants of one internal card record
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[variantOf][id][$eq]=INTERNAL_CARD_ID&pagination[page]=1&pagination[pageSize]=100
+
+Resolve a CID
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[cardUid][$eq]=CARD_UID&pagination[page]=1&pagination[pageSize]=10
+
+Reprints of one internal card record
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[reprintOf][id][$eq]=INTERNAL_CARD_ID&pagination[page]=1&pagination[pageSize]=100
+
+Recently updated cards
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[updatedAt][$gt]=TIMESTAMP&sort=updatedAt:asc&pagination[page]=1&pagination[pageSize]=100
+
+Recently created cards
+
+https://admin.starwarsunlimited.com/api/card-list?locale=en&filters[createdAt][$gt]=TIMESTAMP&sort=createdAt:asc&pagination[page]=1&pagination[pageSize]=100
+
+⸻
+
+23. Final recommendations
+
+For your Trading Card Game Tracker:
+
+* Treat the endpoint as an undocumented import source, not a guaranteed public API.
+* Save cardUid, serialCode, and the top-level API record ID.
+* Use updatedAt, not only createdAt, for recurring synchronization.
+* Retrieve English top-level records but ignore nested localization records unless you need translations.
+* Resolve CIDs to internal IDs before querying variantOf or reprintOf.
+* Handle negative many-to-many filters in your own code.
+* Cache API results and avoid making unnecessary repeated requests.
+* Log the raw source record when mapping fails so API changes are easier to diagnose.
+
+The most important correction from the earlier attempts is that an English result can legitimately include Italian and other translations inside its localizations relationship; the top-level attributes.locale determines the result’s language.
