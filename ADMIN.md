@@ -31,6 +31,68 @@ The UI preview is capped to **250 rows** to keep rendering responsive.
 
 The UI automatically clears stale previews after an apply operation so the next import starts with a clean slate.
 
+## Star Wars Unlimited set endpoint
+
+After importing SWU cards, the available expansion codes (sets) are accessible through the standard card facets API.
+
+### Retrieve all SWU sets
+
+```
+GET /api/cards/facets/sets?game=Star+Wars+Unlimited
+```
+
+**Response schema:**
+
+```json
+{
+  "game": "Star Wars Unlimited",
+  "sets": ["SHD", "SOR", "TWI"]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `game` | `string` | The game filter applied. Present when a `game` query parameter is supplied. |
+| `sets` | `string[]` | Distinct expansion codes stored during import, sorted alphabetically. Each code matches the `attributes.expansion.data.attributes.code` field from the SWU Strapi API, normalised to uppercase (e.g. `"SOR"`, `"SHD"`, `"TWI"`). |
+
+The sets list reflects only expansions that have at least one imported card printing.
+
+### Retrieve SWU sets with counts
+
+The combined facets endpoint returns set counts alongside game and rarity breakdowns:
+
+```
+GET /api/cards/facets?game=Star+Wars+Unlimited
+```
+
+**Response schema (sets portion):**
+
+```json
+{
+  "sets": [
+    { "value": "SHD", "count": 252 },
+    { "value": "SOR", "count": 252 },
+    { "value": "TWI", "count": 252 }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sets[].value` | `string` | Expansion code (e.g. `"SOR"`). |
+| `sets[].count` | `integer` | Number of card printings in that expansion. |
+
+### Known SWU expansion codes
+
+| Code | Name |
+|------|------|
+| `SOR` | Spark of Rebellion |
+| `SHD` | Shadows of the Galaxy |
+| `TWI` | Twilight of the Republic |
+| `JTL` | Jump to Lightspeed |
+
+Expansion codes are sourced from the SWU API during import and stored verbatim (uppercase) in the `CardPrinting.Set` column. New expansions appear automatically after a fresh import.
+
 ## Star Wars Unlimited API connectivity check
 
 Use the smoke-test script at `/api/scripts/test-swu-api-connectivity.sh` to verify that the SWU API is reachable, authentication works (when credentials are provided), and the response shape matches the Strapi card-list format expected by the importer.
@@ -49,3 +111,5 @@ The script validates:
 - `data` is a non-empty array
 - each record includes `id` and `attributes`
 - `meta.pagination` includes `page`, `pageSize`, `pageCount`, and `total`
+
+The expansion code for each card is embedded in the card-list response under `attributes.expansion.data.attributes.code`. A dedicated expansion-list endpoint is not required; all set metadata needed for filtering is derived from the card data during import.

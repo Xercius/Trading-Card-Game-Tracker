@@ -249,6 +249,141 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.False(await db.Cards.AnyAsync(c => c.Name == "Dry Run Card"));
     }
 
+    [Fact]
+    public async Task ImportFromFileAsync_UsesExpansionCode_AsSet()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 55001,
+            title: "Han Solo",
+            serialCode: "07010001",
+            cardUid: "1234567890",
+            cardNumber: 1,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/07010001_EN.png");
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SHD");
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "07010001");
+        Assert.Equal("SHD", printing.Set);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_MultipleCards_DifferentExpansions_StoredWithCorrectSetCodes()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // First card from SOR
+        var sorJson = BuildStrapiJson(
+            id: 60001,
+            title: "Darth Vader",
+            serialCode: "06030001",
+            cardUid: "1111111111",
+            cardNumber: 3,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/06030001_EN.png");
+
+        await importer.ImportFromFileAsync(ToStream(sorJson), new ImportOptions(DryRun: false, SetCode: "SOR"));
+
+        // Second card from SHD
+        var shdJson = BuildStrapiJson(
+            id: 60002,
+            title: "Princess Leia",
+            serialCode: "07020002",
+            cardUid: "2222222222",
+            cardNumber: 2,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Rare",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/07020002_EN.png");
+
+        await importer.ImportFromFileAsync(ToStream(shdJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
+
+        var sorPrinting = await db.CardPrintings.SingleAsync(p => p.Number == "06030001");
+        Assert.Equal("SOR", sorPrinting.Set);
+
+        var shdPrinting = await db.CardPrintings.SingleAsync(p => p.Number == "07020002");
+        Assert.Equal("SHD", shdPrinting.Set);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_MissingExpansion_FallsBackToUnknownSet()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // Manually build a record with no expansion data.
+        var record = new
+        {
+            data = new[]
+            {
+                new
+                {
+                    id = 99001,
+                    attributes = new
+                    {
+                        title = "Mystery Card",
+                        subtitle = (string?)null,
+                        cardUid = (string?)null,
+                        serialCode = (string?)null,
+                        locale = "en",
+                        cardNumber = 99,
+                        rarity = "Common",
+                        text = (string?)null,
+                        artist = "Unknown",
+                        cost = (int?)1,
+                        power = (int?)1,
+                        health = (int?)1,
+                        arena = (string?)null,
+                        aspects = (string[]?)null,
+                        traits = (string[]?)null,
+                        keywords = (string[]?)null,
+                        updatedAt = "2025-01-01T00:00:00.000Z",
+                        type = new { data = new { id = 1, attributes = new { name = "Unit", value = "Unit" } } },
+                        expansion = new { data = (object?)null },
+                        variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
+                        variantOf = new { data = (object?)null },
+                        reprintOf = new { data = (object?)null },
+                        artFront = new { data = (object?)null },
+                        artBack = new { data = (object?)null }
+                    }
+                }
+            },
+            meta = new { pagination = new { page = 1, pageSize = 100, pageCount = 1, total = 1 } }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(record);
+        var options = new ImportOptions(DryRun: false, SetCode: null);
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        // When expansion is missing, set falls back to "UNK" and number is used as key.
+        var printing = await db.CardPrintings.SingleAsync(p => p.Card.Name == "Mystery Card" && p.Card.Game == Game);
+        Assert.Equal("UNK", printing.Set);
+    }
+
     // ─── stub helpers ────────────────────────────────────────────────────────
 
     private sealed class StubHttpClientFactory : IHttpClientFactory, IDisposable
