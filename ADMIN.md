@@ -30,3 +30,22 @@ The UI preview is capped to **250 rows** to keep rendering responsive.
 4. Click **Apply** to commit changes. A success toast confirms the counts and resets the form.
 
 The UI automatically clears stale previews after an apply operation so the next import starts with a clean slate.
+
+## Star Wars Unlimited API connectivity check
+
+Use the smoke-test script at `/api/scripts/test-swu-api-connectivity.sh` to verify that the SWU API is reachable, authentication works (when credentials are provided), and the response shape matches the Strapi card-list format expected by the importer.
+
+```bash
+# Anonymous request (documents whether the endpoint is publicly readable)
+./api/scripts/test-swu-api-connectivity.sh
+
+# Auth flow (optional, if SWU credentials are required in your environment)
+SWU_API_IDENTIFIER="your-login" \
+SWU_API_PASSWORD="your-password" \
+./api/scripts/test-swu-api-connectivity.sh
+```
+
+The script validates:
+- `data` is a non-empty array
+- each record includes `id` and `attributes`
+- `meta.pagination` includes `page`, `pageSize`, `pageCount`, and `total`
