@@ -200,7 +200,97 @@ many-to-many relations ($notIn, $ne) can produce unexpected results;
 prefer client-side exclusion for those cases.
 
 
-7. REFERENCES
+7. TIMESTAMP METADATA AND UPDATE DETECTION  (Task 2.4 findings)
+--------------------------------------------------------------
+
+7.1  Timestamp fields returned by the API
+    Every card record in the `attributes` object contains three timestamp
+    fields managed automatically by Strapi:
+
+    Field         Type                    Notes
+    ------------  ----------------------  ----------------------------------
+    createdAt     ISO-8601 UTC string     Set once when the record is first
+                                          published; never changes afterwards.
+    updatedAt     ISO-8601 UTC string     Bumped by Strapi every time any
+                                          attribute on the record is changed.
+                                          This is the authoritative field for
+                                          detecting modifications.
+    publishedAt   ISO-8601 UTC string     Set when the record is published;
+                                          may equal createdAt for cards that
+                                          go live immediately.
+
+    Example values observed in production data:
+      "createdAt":   "2025-08-15T18:29:41.633Z"
+      "updatedAt":   "2025-11-10T16:07:21.320Z"
+      "publishedAt": "2025-08-15T18:30:00.000Z"
+
+7.2  Date format
+    All three fields use ISO 8601 / RFC 3339 format with millisecond
+    precision and a literal 'Z' UTC suffix:
+
+      yyyy-MM-ddTHH:mm:ss.sssZ
+
+    When constructing filter query parameters, use the same format:
+
+      filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z
+
+    The C# importer represents these values as `DateTimeOffset?` and
+    serialises them back to the same format via `System.Text.Json`.
+
+7.3  Date filtering support
+    Date filtering IS supported via the standard Strapi filter syntax.
+    Tested operators for timestamp fields:
+
+    Operator   Example                                         Notes
+    ---------  ----------------------------------------------  -------------------
+    $gt        filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z  strictly after
+    $gte       filters[createdAt][$gte]=2025-08-01T00:00:00.000Z on/after date
+    $lt        filters[updatedAt][$lt]=2026-01-01T00:00:00.000Z  strictly before
+    $lte       filters[createdAt][$lte]=2025-12-31T23:59:59.000Z on/before date
+
+    Combine with other filters using the standard Strapi AND behaviour:
+
+      filters[expansion][code][$eq]=SOR&filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z
+
+7.4  Reliable strategy to detect new/updated cards
+    Recommended approach for incremental synchronisation:
+
+    1.  Record the UTC timestamp immediately before each successful import
+        run (e.g. `DateTimeOffset.UtcNow` captured at start of run).
+
+    2.  On the next run supply this timestamp as `UpdatedSince` in
+        `ImportOptions`.  The importer will add
+        `filters[updatedAt][$gt]=<timestamp>` to every API request, so
+        only records modified since the previous run are fetched.
+
+    3.  Sort results by `updatedAt:asc` (the importer default when
+        `UpdatedSince` is set) so that pages are stable and you can
+        resume a partial import by advancing the cursor.
+
+    4.  Apply a small overlap (subtract ≥ 1 minute from the stored
+        timestamp) to guard against sub-second clock skew and records
+        whose `updatedAt` falls exactly on the boundary.
+
+    5.  The upsert logic in `SwuDbImporter.UpsertAsync` is idempotent:
+        re-importing a card that has not changed produces no DB writes
+        (no `CardsUpdated` / `PrintingsUpdated` increments), so
+        overlapping records are safe to re-fetch.
+
+    6.  Prefer `updatedAt` over `createdAt` as the synchronisation field
+        because it catches both newly added cards and corrections to
+        existing cards (text, artwork, rarity, etc.).
+
+    Full-expansion fallback: if no stored timestamp is available (first
+    run) or if a corruption is suspected, omit `UpdatedSince` and import
+    the full expansion.  The importer's upsert behaviour ensures
+    idempotency.
+
+    C# `ImportOptions` parameter: `UpdatedSince` (type `DateTimeOffset?`).
+    When set, the importer emits `filters[updatedAt][$gt]=...` in the
+    query string automatically.
+
+
+8. REFERENCES
 -------------
 - Importer source : api/Importing/SwuDbImporter.cs
 - Usage guide     : docs/starwarsunlimitedapi.txt
