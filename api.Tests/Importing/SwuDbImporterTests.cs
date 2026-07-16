@@ -260,10 +260,36 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-<<<<<<< HEAD
     public async Task ImportFromFileAsync_UsesExpansionCode_AsSet()
     {
-=======
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 55001,
+            title: "Han Solo",
+            serialCode: "07010001",
+            cardUid: "1234567890",
+            cardNumber: 1,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/07010001_EN.png");
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SHD");
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "07010001");
+        Assert.Equal("SHD", printing.Set);
+    }
+
+    [Fact]
     public async Task ImportFromFileAsync_Bare_Array_Format_Is_Accepted()
     {
         // The importer accepts a plain JSON array (not wrapped in a Strapi page envelope)
@@ -322,39 +348,12 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         // When serialCode is absent, the printing is keyed on set+cardNumber.
         // A re-import of the same data should update the existing printing rather
         // than creating a duplicate.
->>>>>>> origin/master
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var importer = CreateImporter(db);
 
         var json = BuildStrapiJson(
-<<<<<<< HEAD
-            id: 55001,
-            title: "Han Solo",
-            serialCode: "07010001",
-            cardUid: "1234567890",
-            cardNumber: 1,
-            expansionCode: "SHD",
-            typeName: "Unit",
-            rarity: "Legendary",
-            foil: false,
-            imageUrl: "https://cdn.starwarsunlimited.com/07010001_EN.png");
-
-        var options = new ImportOptions(DryRun: false, SetCode: "SHD");
-        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
-
-        Assert.Equal(0, summary.Errors);
-        Assert.Equal(1, summary.PrintingsCreated);
-
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "07010001");
-        Assert.Equal("SHD", printing.Set);
-    }
-
-    [Fact]
-    public async Task ImportFromFileAsync_MultipleCards_DifferentExpansions_StoredWithCorrectSetCodes()
-    {
-=======
             id: 55000,
             title: "No Serial Card",
             serialCode: null,
@@ -387,18 +386,13 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task ImportFromFileAsync_Stores_Rich_Attributes_In_DetailsJson()
+    public async Task ImportFromFileAsync_MultipleCards_DifferentExpansions_StoredWithCorrectSetCodes()
     {
-        // The importer stores optional game-specific fields (aspects, traits, keywords,
-        // subtitle, arena, cost, power, health, artist) in the Card's DetailsJson blob
-        // so they are available to the front-end without requiring dedicated columns.
->>>>>>> origin/master
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var importer = CreateImporter(db);
 
-<<<<<<< HEAD
         // First card from SOR
         var sorJson = BuildStrapiJson(
             id: 60001,
@@ -496,8 +490,17 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("UNK", printing.Set);
     }
 
-    // ─── stub helpers ────────────────────────────────────────────────────────
-=======
+    [Fact]
+    public async Task ImportFromFileAsync_Stores_Rich_Attributes_In_DetailsJson()
+    {
+        // The importer stores optional game-specific fields (aspects, traits, keywords,
+        // subtitle, arena, cost, power, health, artist) in the Card's DetailsJson blob
+        // so they are available to the front-end without requiring dedicated columns.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
         var record = new
         {
             id = 66000,
@@ -759,7 +762,6 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             meta = new { pagination = new { page, pageSize = 1, pageCount, total = pageCount } }
         });
     }
->>>>>>> origin/master
 
     private sealed class StubHttpClientFactory : IHttpClientFactory, IDisposable
     {
