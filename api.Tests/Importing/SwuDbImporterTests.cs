@@ -789,36 +789,16 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-<<<<<<< HEAD
-    public async Task ImportFromFileAsync_Card_Without_CardNumber_Falls_Back_To_RecordId()
-    {
-        // When cardNumber is absent (null) the importer must fall back to record.Id.ToString()
-        // as the number, and the card+printing should be upserted successfully (no errors).
-=======
     public async Task ImportFromFileAsync_Stores_VariantOf_And_ReprintOf_In_DetailsJson()
     {
         // The importer must persist variantOfSourceId/variantOfCardUid and
         // reprintOfSourceId/reprintOfCardUid in the Card's DetailsJson so the
         // relationship data is available without a schema change.
->>>>>>> origin/master
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var importer = CreateImporter(db);
 
-<<<<<<< HEAD
-        var json = BuildStrapiJson(
-            id: 77777,
-            title: "No Number Card",
-            serialCode: null,
-            cardUid: "7777700001",
-            cardNumber: null,
-            expansionCode: "SOR",
-            typeName: "Event",
-            rarity: "Common",
-            foil: false,
-            imageUrl: null);
-=======
         var variantOfData = new { data = new { id = 12345, attributes = new { title = "Luke Skywalker", cardUid = "9000000001" } } };
         var reprintOfData = new { data = new { id = 99999, attributes = new { title = "Old Luke", cardUid = "8000000001" } } };
 
@@ -835,21 +815,12 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             imageUrl: null,
             variantOf: variantOfData,
             reprintOf: reprintOfData);
->>>>>>> origin/master
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR");
         var summary = await importer.ImportFromFileAsync(ToStream(json), options);
 
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
-<<<<<<< HEAD
-        Assert.Equal(1, summary.PrintingsCreated);
-
-        // Number should be the record id string when both serialCode and cardNumber are null.
-        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "SOR" && p.Number == "77777");
-        Assert.Equal("SOR", printing.Set);
-        Assert.Equal("77777", printing.Number);
-=======
 
         var card = await db.Cards.SingleAsync(c => c.Name == "Luke Skywalker (Variant)" && c.Game == Game);
         Assert.NotNull(card.DetailsJson);
@@ -1021,7 +992,41 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId));
         Assert.Equal(JsonValueKind.Null, reprintOfSourceId.ValueKind);
->>>>>>> origin/master
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_Card_Without_CardNumber_Falls_Back_To_RecordId()
+    {
+        // When cardNumber is absent (null) the importer must fall back to record.Id.ToString()
+        // as the number, and the card+printing should be upserted successfully (no errors).
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 77777,
+            title: "No Number Card",
+            serialCode: null,
+            cardUid: "7777700001",
+            cardNumber: null,
+            expansionCode: "SOR",
+            typeName: "Event",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        // Number should be the record id string when both serialCode and cardNumber are null.
+        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "SOR" && p.Number == "77777");
+        Assert.Equal("SOR", printing.Set);
+        Assert.Equal("77777", printing.Number);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
