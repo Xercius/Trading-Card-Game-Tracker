@@ -37,6 +37,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         bool foil,
         string? imageUrl,
         string? text = null,
+        string? subtitle = null,
         string createdAt = "2025-08-15T18:29:41.633Z",
         string updatedAt = "2025-11-10T16:07:21.000Z",
         string publishedAt = "2025-08-15T18:30:00.000Z")
@@ -51,7 +52,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             attributes = new
             {
                 title,
-                subtitle = (string?)null,
+                subtitle,
                 cardUid,
                 serialCode,
                 locale = "en",
@@ -545,7 +546,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card" && c.Game == Game);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card \u2014 The Rich One" && c.Game == Game);
         Assert.NotNull(card.DetailsJson);
         // Spot-check that all optional fields are present in the stored JSON blob.
         Assert.Contains("\"subtitle\":\"The Rich One\"", card.DetailsJson);
@@ -557,6 +558,75 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains("Aggression", card.DetailsJson);
         Assert.Contains("Imperial", card.DetailsJson);
         Assert.Contains("Sentinel", card.DetailsJson);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_SameTitle_DifferentSubtitle_Creates_Separate_Cards()
+    {
+        // Cards that share a title but differ by subtitle must be stored as distinct Card rows.
+        // Previously the second import would overwrite the first card because only (Game, Name)
+        // was used as the upsert key, and Name was set to Title alone.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // First card: "Chancellor Palpatine — Galactic Emperor"
+        var json1 = BuildStrapiJson(
+            id: 70001,
+            title: "Chancellor Palpatine",
+            subtitle: "Galactic Emperor",
+            serialCode: "SOR-CP-001",
+            cardUid: "CP001",
+            cardNumber: 1,
+            expansionCode: "SOR",
+            typeName: "Leader",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/CP001.png",
+            text: "The emperor's text.");
+
+        // Second card: "Chancellor Palpatine — How Liberty Dies"
+        var json2 = BuildStrapiJson(
+            id: 70002,
+            title: "Chancellor Palpatine",
+            subtitle: "How Liberty Dies",
+            serialCode: "SOR-CP-002",
+            cardUid: "CP002",
+            cardNumber: 2,
+            expansionCode: "SOR",
+            typeName: "Leader",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/CP002.png",
+            text: "How liberty dies text.");
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+
+        var summary1 = await importer.ImportFromFileAsync(ToStream(json1), options);
+        Assert.Equal(0, summary1.Errors);
+        Assert.Equal(1, summary1.CardsCreated);
+        Assert.Equal(1, summary1.PrintingsCreated);
+
+        var summary2 = await importer.ImportFromFileAsync(ToStream(json2), options);
+        Assert.Equal(0, summary2.Errors);
+        Assert.Equal(1, summary2.CardsCreated);
+        Assert.Equal(1, summary2.PrintingsCreated);
+
+        // Two distinct Card rows must exist — one per subtitle.
+        var card1 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 Galactic Emperor" && c.Game == Game);
+        var card2 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 How Liberty Dies" && c.Game == Game);
+        Assert.NotEqual(card1.Id, card2.Id);
+
+        // Each card's text must be its own, not overwritten by the second import.
+        Assert.Equal("The emperor's text.", card1.Description);
+        Assert.Equal("How liberty dies text.", card2.Description);
+
+        // Each printing must point to its own card.
+        var printing1 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-001");
+        var printing2 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-002");
+        Assert.Equal(card1.Id, printing1.CardId);
+        Assert.Equal(card2.Id, printing2.CardId);
     }
 
     [Fact]

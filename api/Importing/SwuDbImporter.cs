@@ -171,7 +171,9 @@ public sealed class SwuDbImporter : ISourceImporter
         var attrs = record.Attributes
             ?? throw new InvalidOperationException($"Record id={record.Id} has no attributes.");
 
-        string name = attrs.Title?.Trim() ?? "Unknown";
+        string name = string.IsNullOrWhiteSpace(attrs.Subtitle)
+            ? attrs.Title?.Trim() ?? "Unknown"
+            : $"{attrs.Title?.Trim()} \u2014 {attrs.Subtitle.Trim()}";
         string type = attrs.Type?.Data?.Attributes?.Name ?? string.Empty;
         string? text = attrs.Text;
         string set = attrs.Expansion?.Data?.Attributes?.Code?.ToUpperInvariant() ?? "UNK";
