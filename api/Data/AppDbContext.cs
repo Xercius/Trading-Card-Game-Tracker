@@ -43,6 +43,15 @@ namespace api.Data
                  .HasComputedColumnSql("LOWER(TRIM([Game]))", stored: true);
                 e.HasIndex("GameNorm");
 
+                // self-referencing FK: a variant card points to its base card
+                e.HasOne(c => c.BaseCard)
+                 .WithMany(c => c.Variants)
+                 .HasForeignKey(c => c.BaseCardId)
+                 .IsRequired(false)
+                 .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasIndex(c => c.BaseCardId);
+
                 // relationship to printings
                 e.HasMany(c => c.Printings)
                  .WithOne(p => p.Card)
