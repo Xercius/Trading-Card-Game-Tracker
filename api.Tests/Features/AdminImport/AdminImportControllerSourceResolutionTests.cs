@@ -1,6 +1,9 @@
+using api.Data;
 using api.Features.Admin.Import;
 using api.Importing;
 using api.Shared.Importing;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using Xunit;
@@ -50,7 +53,14 @@ public sealed class AdminImportControllerSourceResolutionTests
             .Select(mapping => (ISourceImporter)new StubImporter(mapping.ExpectedKey))
             .ToArray();
         var registry = new ImporterRegistry(importers);
-        return new AdminImportController(registry, new FileParser(), NullLogger<AdminImportController>.Instance);
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var db = new AppDbContext(dbOptions);
+        db.Database.EnsureCreated();
+        return new AdminImportController(registry, new FileParser(), db, NullLogger<AdminImportController>.Instance);
     }
 
     private sealed class StubImporter : ISourceImporter

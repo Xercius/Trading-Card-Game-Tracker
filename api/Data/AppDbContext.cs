@@ -15,6 +15,7 @@ namespace api.Data
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
+        public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -161,6 +162,17 @@ namespace api.Data
 
                 e.Property(p => p.Price)
                     .HasColumnType("decimal(14,2)");
+            });
+
+            b.Entity<ImportSyncHistory>(e =>
+            {
+                e.HasKey(h => h.Id);
+                e.Property(h => h.ImporterKey).IsRequired().HasMaxLength(64);
+                e.Property(h => h.SetCode).HasMaxLength(64);
+
+                // one row per (importer key, set code) combination
+                e.HasIndex(h => new { h.ImporterKey, h.SetCode })
+                 .IsUnique();
             });
         }
     }

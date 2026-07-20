@@ -222,6 +222,139 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         Assert.Contains("Lightning Bolt", content);
     }
 
+    [Fact]
+    public async Task Apply_Remote_Stores_SyncHistory_After_Success()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
+        {
+            Content = JsonContent.Create(new { source = "dummy", set = "SOR" }),
+        };
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await db.ImportSyncHistories
+            .FirstOrDefaultAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SOR");
+
+        Assert.NotNull(history);
+        // The recorded timestamp should be close to now.
+        Assert.True(DateTimeOffset.UtcNow - history!.LastSyncedAt < TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Apply_Remote_Updates_SyncHistory_On_Repeat_Run()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+
+        async Task<DateTimeOffset> RunApply()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
+            {
+                Content = JsonContent.Create(new { source = "dummy", set = "SHD" }),
+            };
+            (await client.SendAsync(request)).EnsureSuccessStatusCode();
+
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var h = await db.ImportSyncHistories.FirstAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+            return h.LastSyncedAt;
+        }
+
+        var first = await RunApply();
+        await Task.Delay(10); // ensure clock advances
+        var second = await RunApply();
+
+        // The second run should have updated the timestamp.
+        Assert.True(second >= first);
+
+        // There should be exactly one row, not two.
+        using var finalScope = services.CreateScope();
+        var finalDb = finalScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var count = await finalDb.ImportSyncHistories.CountAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task DryRun_Does_Not_Store_SyncHistory()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
+        {
+            Content = JsonContent.Create(new { source = "dummy", set = "JTL" }),
+        };
+        (await client.SendAsync(request)).EnsureSuccessStatusCode();
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var exists = await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == "dummy" && h.SetCode == "JTL");
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task GetHistory_Returns_All_SyncHistory_Entries()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _, _) = CreateClientWithTestImporter(factory);
+
+        // Seed two apply runs with different set codes.
+        async Task Apply(string set)
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
+            {
+                Content = JsonContent.Create(new { source = "dummy", set }),
+            };
+            (await client.SendAsync(req)).EnsureSuccessStatusCode();
+        }
+
+        await Apply("SOR");
+        await Apply("SHD");
+
+        var historyResponse = await client.GetFromJsonAsync<ImportSyncHistoryEntry[]>("/api/admin/import/history");
+        Assert.NotNull(historyResponse);
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode == "SOR");
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+    }
+
+    [Fact]
+    public async Task Apply_Remote_PassesUpdatedSince_To_Importer()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _, _) = CreateClientWithTestImporter(factory);
+
+        var since = new DateTimeOffset(2025, 11, 1, 0, 0, 0, TimeSpan.Zero);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
+        {
+            Content = JsonContent.Create(new { source = "dummy", set = "SOR", updatedSince = since }),
+        };
+        (await client.SendAsync(request)).EnsureSuccessStatusCode();
+
+        Assert.NotNull(TestImporter.LastUpdatedSince);
+        Assert.Equal(since, TestImporter.LastUpdatedSince);
+    }
+
+    [Fact]
+    public async Task DryRun_PassesUpdatedSince_To_Importer()
+    {
+        var (client, _, _) = CreateClientWithTestImporter(factory);
+
+        var since = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
+        {
+            Content = JsonContent.Create(new { source = "dummy", set = "SOR", updatedSince = since }),
+        };
+        (await client.SendAsync(request)).EnsureSuccessStatusCode();
+
+        Assert.NotNull(TestImporter.LastUpdatedSince);
+        Assert.Equal(since, TestImporter.LastUpdatedSince);
+    }
+
     private static (HttpClient Client, IServiceProvider Services, TestLoggerProvider LoggerProvider) CreateClientWithTestImporter(CustomWebApplicationFactory factory, TestLoggerProvider? loggerProvider = null)
     {
         TestImporter.Reset();
@@ -247,6 +380,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     {
         public static int? LastLimit { get; private set; }
         public static int LastPreviewRowCount { get; private set; }
+        public static DateTimeOffset? LastUpdatedSince { get; private set; }
 
         public string Key => "dummy";
         public string DisplayName => "Dummy Importer";
@@ -286,6 +420,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         public async Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
         {
             LastLimit = options.Limit ?? ImportingOptions.DefaultPreviewLimit;
+            LastUpdatedSince = options.UpdatedSince;
             LastPreviewRowCount = 0;
             return await db.WithDryRunAsync(options.DryRun, async () =>
             {
@@ -316,6 +451,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             LastLimit = null;
             LastPreviewRowCount = 0;
+            LastUpdatedSince = null;
         }
 
         private static ImportSummary CreateSummary(ImportOptions options) => new()

@@ -1,11 +1,14 @@
 // File: api/Features/Admin/Import/AdminImportController.cs
 
 using api.Common.Errors;
+using api.Data;
 using api.Importing;
 using api.Infrastructure.Startup;
+using api.Models;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace api.Features.Admin.Import;
@@ -16,6 +19,7 @@ public sealed class AdminImportController : ControllerBase
 {
     private readonly ImporterRegistry _registry;
     private readonly FileParser _fileParser;
+    private readonly AppDbContext _db;
     private readonly ILogger<AdminImportController> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
@@ -87,10 +91,11 @@ public sealed class AdminImportController : ControllerBase
             },
         };
 
-    public AdminImportController(ImporterRegistry registry, FileParser fileParser, ILogger<AdminImportController> logger)
+    public AdminImportController(ImporterRegistry registry, FileParser fileParser, AppDbContext db, ILogger<AdminImportController> logger)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _fileParser = fileParser ?? throw new ArgumentNullException(nameof(fileParser));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -131,6 +136,19 @@ public sealed class AdminImportController : ControllerBase
             sources.Length);
 
         return Ok(response);
+    }
+
+    [HttpGet("history")]
+    public async Task<ActionResult<IReadOnlyList<ImportSyncHistoryEntry>>> GetHistory(CancellationToken ct)
+    {
+        var entries = await _db.ImportSyncHistories
+            .AsNoTracking()
+            .OrderBy(h => h.ImporterKey)
+            .ThenBy(h => h.SetCode)
+            .Select(h => new ImportSyncHistoryEntry(h.ImporterKey, h.SetCode, h.LastSyncedAt))
+            .ToListAsync(ct);
+
+        return Ok(entries);
     }
 
     [HttpPost("dry-run")]
@@ -175,7 +193,8 @@ public sealed class AdminImportController : ControllerBase
             Upsert: true,
             Limit: effectiveLimit,
             UserId: null,
-            SetCode: request.Set);
+            SetCode: request.Set,
+            UpdatedSince: request.UpdatedSince);
 
         ImportSummary? summary = null;
         var sw = RequestTiming.Start();
@@ -287,13 +306,17 @@ public sealed class AdminImportController : ControllerBase
         }
 
         var importer = request.Importer;
-        
+
+        // Capture the sync timestamp before import starts so it can be stored on success.
+        var syncTimestamp = DateTimeOffset.UtcNow;
+
         var options = new ImportOptions(
             DryRun: false,
             Upsert: true,
             Limit: effectiveLimit,
             UserId: null,
-            SetCode: request.Set);
+            SetCode: request.Set,
+            UpdatedSince: request.UpdatedSince);
 
         ImportSummary? summary = null;
         var sw = RequestTiming.Start();
@@ -364,6 +387,13 @@ public sealed class AdminImportController : ControllerBase
                 title: "Import failed");
         }
 
+        // Persist the sync timestamp so subsequent runs can use UpdatedSince for incremental imports.
+        // Only record remote imports; file imports do not represent a live API sync state.
+        if (request.File is null)
+        {
+            await RecordSyncHistoryAsync(importer.Key, request.Set, syncTimestamp, ct);
+        }
+
         LogImportSuccess(operation, request, summary, duration);
 
         return Ok(new ImportApplyResponse(
@@ -371,6 +401,28 @@ public sealed class AdminImportController : ControllerBase
             Updated: summary.CardsUpdated + summary.PrintingsUpdated,
             Skipped: 0,
             Invalid: summary.Errors));
+    }
+
+    private async Task RecordSyncHistoryAsync(string importerKey, string? setCode, DateTimeOffset syncedAt, CancellationToken ct)
+    {
+        var entry = await _db.ImportSyncHistories
+            .FirstOrDefaultAsync(h => h.ImporterKey == importerKey && h.SetCode == setCode, ct);
+
+        if (entry is null)
+        {
+            _db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = importerKey,
+                SetCode = setCode,
+                LastSyncedAt = syncedAt,
+            });
+        }
+        else
+        {
+            entry.LastSyncedAt = syncedAt;
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     private void LogProblem(string operation, ObjectResult problem)
@@ -466,8 +518,16 @@ public sealed class AdminImportController : ControllerBase
             var set = form["set"].ToString();
             if (string.IsNullOrWhiteSpace(set)) set = null;
 
+            DateTimeOffset? updatedSince = null;
+            var updatedSinceRaw = form["updatedSince"].ToString();
+            if (!string.IsNullOrWhiteSpace(updatedSinceRaw) &&
+                DateTimeOffset.TryParse(updatedSinceRaw, out var parsedSince))
+            {
+                updatedSince = parsedSince;
+            }
+
             return new ParseRequestResult(
-                new ResolvedImportRequest(importer, set, limit, form.Files.FirstOrDefault()),
+                new ResolvedImportRequest(importer, set, limit, form.Files.FirstOrDefault(), updatedSince),
                 null);
         }
         else
@@ -505,7 +565,7 @@ public sealed class AdminImportController : ControllerBase
             var limit = payload.Limit ?? queryLimit;
 
             return new ParseRequestResult(
-                new ResolvedImportRequest(importer, payload.Set, limit, null),
+                new ResolvedImportRequest(importer, payload.Set, limit, null, payload.UpdatedSince),
                 null);
         }
     }
@@ -670,6 +730,7 @@ public sealed class AdminImportController : ControllerBase
         public string Source { get; init; } = string.Empty;
         public string? Set { get; init; }
         public int? Limit { get; init; }
+        public DateTimeOffset? UpdatedSince { get; init; }
     }
 
     private sealed record ParseRequestResult(ResolvedImportRequest? Request, ObjectResult? Problem);
@@ -678,7 +739,8 @@ public sealed class AdminImportController : ControllerBase
         ISourceImporter Importer,
         string? Set,
         int? Limit,
-        IFormFile? File);
+        IFormFile? File,
+        DateTimeOffset? UpdatedSince = null);
 }
 
 // ---------- shared DTOs for this controller (same namespace) ----------
@@ -693,6 +755,11 @@ public sealed record ImportSourceOption(
     ImportSetOption[] Sets);
 
 public sealed record ImportOptionsResponse(ImportSourceOption[] Sources);
+
+public sealed record ImportSyncHistoryEntry(
+    string ImporterKey,
+    string? SetCode,
+    DateTimeOffset LastSyncedAt);
 
 public sealed record ImportPreviewRow(
     string ExternalId,
