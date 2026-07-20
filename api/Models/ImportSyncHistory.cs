@@ -19,10 +19,11 @@ public sealed class ImportSyncHistory
     public required string ImporterKey { get; set; }
 
     /// <summary>
-    /// The optional set/expansion code last imported (e.g. "SOR"). Null for importers that do not use sets.
+    /// The set/expansion code last imported (e.g. "SOR"). Empty string for importers that do not use sets.
     /// </summary>
+    [Required]
     [MaxLength(64)]
-    public string? SetCode { get; set; }
+    public string SetCode { get; set; } = string.Empty;
 
     /// <summary>
     /// UTC timestamp recorded immediately before the last successful apply run.

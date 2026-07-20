@@ -280,6 +280,38 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
     }
 
     [Fact]
+    public async Task Apply_Remote_Uses_Single_Setless_SyncHistory_Row()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+
+        async Task RunApply()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
+            {
+                Content = JsonContent.Create(new { source = "dummy" }),
+            };
+            (await client.SendAsync(request)).EnsureSuccessStatusCode();
+        }
+
+        await RunApply();
+        await RunApply();
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await db.ImportSyncHistories
+            .Where(h => h.ImporterKey == "dummy")
+            .ToArrayAsync();
+
+        Assert.Single(history);
+        Assert.Equal(string.Empty, history[0].SetCode);
+
+        var historyResponse = await client.GetFromJsonAsync<ImportSyncHistoryEntry[]>("/api/admin/import/history");
+        Assert.NotNull(historyResponse);
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode is null);
+    }
+
+    [Fact]
     public async Task DryRun_Does_Not_Store_SyncHistory()
     {
         await factory.ResetDatabaseAsync();
