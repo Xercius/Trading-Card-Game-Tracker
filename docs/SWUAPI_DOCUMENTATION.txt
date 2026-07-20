@@ -63,7 +63,7 @@ HTTP method for all consumer-accessible endpoints: GET
     locale                                 en                 Language of returned records
     pagination[page]                       1                  1-based page index
     pagination[pageSize]                   100                Records per page (max ~100)
-    sort[0]                                expansion.sortValue:asc  Primary sort
+    sort[0]                                updatedAt:asc      Primary sort (importer default)
     sort[1]                                cardNumber:asc     Secondary sort
     filters[expansion][code][$eq]          SOR                Filter by expansion code
     filters[expansion][id][$eq]            2                  Filter by expansion internal ID
@@ -263,9 +263,9 @@ prefer client-side exclusion for those cases.
         `filters[updatedAt][$gt]=<timestamp>` to every API request, so
         only records modified since the previous run are fetched.
 
-    3.  Sort results by `updatedAt:asc` (the importer default when
-        `UpdatedSince` is set) so that pages are stable and you can
-        resume a partial import by advancing the cursor.
+    3.  Sort results by `updatedAt:asc` (the importer default for all
+        requests) so that pages are stable and you can resume a partial
+        import by advancing the cursor.
 
     4.  Apply a small overlap (subtract ≥ 1 minute from the stored
         timestamp) to guard against sub-second clock skew and records
@@ -290,9 +290,180 @@ prefer client-side exclusion for those cases.
     query string automatically.
 
 
-8. REFERENCES
--------------
-- Importer source : api/Importing/SwuDbImporter.cs
-- Usage guide     : docs/starwarsunlimitedapi.txt
-- Strapi REST API : https://docs.strapi.io/dev-docs/api/rest
-- Official site   : https://starwarsunlimited.com
+8. LOCALIZATION BEHAVIOUR
+-------------------------
+The `locale=en` query parameter selects English as the top-level locale,
+but English card records may still contain nested relationship data for
+other languages.
+
+Example of a nested localisation reference inside an English record:
+
+    "localizations": {
+      "data": [
+        { "attributes": { "locale": "it" } }
+      ]
+    }
+
+This does NOT indicate the returned card is Italian – it means the English
+record links to its Italian translation.
+
+To determine the language of a card record, always inspect:
+
+    data[].attributes.locale
+
+Do NOT infer language from the nested `attributes.localizations.data` list.
+The importer sets `locale=en` and skips any additional population of
+`localizations`, so the top-level `attributes.locale` will always be "en"
+for records returned by the importer.
+
+
+9. IMAGE URL RESOLUTION
+-----------------------
+Image data is returned under two Strapi media relationships:
+
+  artFront  – front card art (primary image)
+  artBack   – back card art (dual-sided cards only; may be null)
+
+Each media relationship contains an original URL and a set of pre-scaled
+format URLs inside the `formats` object.
+
+Response structure example (artFront):
+
+    "artFront": {
+      "data": {
+        "id": <int>,
+        "attributes": {
+          "url": "<original high-resolution URL>",
+          "formats": {
+            "card":      { "url": "<~card-sized URL>" },
+            "thumbnail": { "url": "<~thumbnail URL>" },
+            "xsmall":    { "url": "<~xsmall URL>" },
+            "xxsmall":   { "url": "<~xxsmall URL>" },
+            "xxxsmall":  { "url": "<~xxxsmall URL>" }
+          }
+        }
+      }
+    }
+
+Not every format key is guaranteed to be present for every card. The
+`artBack` relationship follows the same structure but `formats` may be
+absent or empty.
+
+Importer image priority (SwuDbImporter.UpsertAsync):
+
+  1. artFront.data.attributes.url         (original resolution)
+  2. artFront.data.attributes.formats.card.url
+  3. artFront.data.attributes.formats.thumbnail.url
+  4. artBack.data.attributes.url          (fallback for dual-sided cards)
+
+Note: The importer C# model (SwuImageFormats) only deserialises the
+`card` and `thumbnail` format keys. The `xsmall`, `xxsmall`, and
+`xxxsmall` keys exist in the API response but are not consumed; add them
+to SwuImageFormats if finer-grained image resolution is needed.
+
+
+10. VARIANT AND REPRINT EXCLUSION
+-----------------------------------
+Many-to-many relational fields (e.g. `variantTypes`) cannot be reliably
+excluded using simple $ne/$notIn URL filters in this custom Strapi
+endpoint. A card that belongs to multiple variant types can still satisfy
+a "not equal" condition through a different related record.
+
+For example, a card with variantTypes = [46, 51] will match
+`filters[variantTypes][id][$ne]=46` because it also relates to ID 51.
+
+Recommended approach for exclusion:
+
+  1. Retrieve all records for the expansion without any exclusion filter.
+  2. In your application code, inspect `variantTypes.data` for each card.
+  3. Discard any card whose `variantTypes.data` contains an ID in the
+     exclusion set.
+
+Example exclusion logic (JavaScript):
+
+    const excluded = new Set([46, 51, 56, 61, 66, 81, 86, 91]);
+    const baseCards = cards.filter(c => {
+      const ids = c.attributes.variantTypes?.data?.map(v => v.id) ?? [];
+      return !ids.some(id => excluded.has(id));
+    });
+
+The importer does not currently apply exclusion filters; it imports all
+records returned for the specified expansion code.
+
+
+11. TROUBLESHOOTING
+--------------------
+Problem: Date filter returns no results
+  Cause  : Timestamp must use the exact format yyyy-MM-ddTHH:mm:ss.sssZ
+            (milliseconds + literal Z). Omitting milliseconds may fail.
+  Fix    : Use filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z
+
+Problem: Filtering reprintOf by cardUid returns nothing
+  Cause  : filters[reprintOf][id][$eq] expects the internal numeric
+            record ID, not the public cardUid / CID.
+  Fix    : First resolve the CID:
+             GET card-list?filters[cardUid][$eq]=<CID>&pagination[pageSize]=1
+           Then use the returned top-level `id` in:
+             filters[reprintOf][id][$eq]=<INTERNAL_ID>
+
+Problem: $notIn does not exclude many-to-many relation IDs
+  Cause  : Described in section 10 above.
+  Fix    : Retrieve the full dataset and filter client-side.
+
+Problem: Response contains records in languages other than English
+  Cause  : Nested `localizations` relations are included in English
+           records (see section 8).
+  Fix    : Check data[].attributes.locale == "en". Nested localisation
+           objects do not affect the top-level card language.
+
+Problem: Empty response after adding filters
+  Fix    : Remove filters one at a time to identify the offending filter:
+           1. Test with only locale and pagination parameters.
+           2. Add the expansion filter.
+           3. Add the type filter.
+           4. Add variant/reprint filters last.
+
+
+12. URL TEMPLATES (QUICK REFERENCE)
+-------------------------------------
+All English cards (paged):
+  GET card-list?locale=en&pagination[page]=1&pagination[pageSize]=100
+
+One expansion by code:
+  GET card-list?locale=en&filters[expansion][code][$eq]=SOR&pagination[page]=1&pagination[pageSize]=100
+
+One expansion by internal Strapi ID:
+  GET card-list?locale=en&filters[expansion][id][$eq]=2&pagination[page]=1&pagination[pageSize]=100
+
+Leaders in one expansion:
+  GET card-list?locale=en&filters[expansion][id][$eq]=2&filters[type][id][$eq]=4&pagination[page]=1&pagination[pageSize]=100
+
+Base cards only (no variants):
+  GET card-list?locale=en&filters[variantOf][id][$null]=true&pagination[page]=1&pagination[pageSize]=100
+
+Variant cards only:
+  GET card-list?locale=en&filters[variantOf][id][$notNull]=true&pagination[page]=1&pagination[pageSize]=100
+
+Variants of a specific base card (internal ID):
+  GET card-list?locale=en&filters[variantOf][id][$eq]=5&pagination[page]=1&pagination[pageSize]=100
+
+Reprints of a specific base card (internal ID):
+  GET card-list?locale=en&filters[reprintOf][id][$eq]=12345&pagination[page]=1&pagination[pageSize]=100
+
+Resolve a public CID to internal ID:
+  GET card-list?locale=en&filters[cardUid][$eq]=1020365882&pagination[pageSize]=1
+
+Recently updated cards (incremental sync):
+  GET card-list?locale=en&filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z&sort[0]=updatedAt:asc&pagination[page]=1&pagination[pageSize]=100
+
+One expansion + incremental update filter:
+  GET card-list?locale=en&filters[expansion][code][$eq]=SOR&filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z&sort[0]=updatedAt:asc&sort[1]=cardNumber:asc&pagination[page]=1&pagination[pageSize]=100
+
+
+13. REFERENCES
+--------------
+- Importer source  : api/Importing/SwuDbImporter.cs
+- Usage guide      : docs/starwarsunlimitedapi.txt
+- Connectivity test: api/scripts/test-swu-api-connectivity.sh
+- Strapi REST API  : https://docs.strapi.io/dev-docs/api/rest
+- Official site    : https://starwarsunlimited.com

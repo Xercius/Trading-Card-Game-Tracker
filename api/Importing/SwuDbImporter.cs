@@ -174,11 +174,13 @@ public sealed class SwuDbImporter : ISourceImporter
         if (!string.Equals(attrs.Locale, "en", StringComparison.OrdinalIgnoreCase))
         {
             summary.Messages.Add(
-                $"Skipping non-English record id={record.Id} locale={attrs.Locale ?? "(null)"} title={attrs.Title}.");
+                $"Skipping record id={record.Id} with locale={attrs.Locale ?? "(null)"} (expected \"en\") title={attrs.Title}.");
             return;
         }
 
-        string name = attrs.Title?.Trim() ?? "Unknown";
+        string name = string.IsNullOrWhiteSpace(attrs.Subtitle)
+            ? attrs.Title?.Trim() ?? "Unknown"
+            : $"{attrs.Title?.Trim()} \u2014 {attrs.Subtitle.Trim()}";
         string type = attrs.Type?.Data?.Attributes?.Name ?? string.Empty;
         string? text = attrs.Text;
         string set = attrs.Expansion?.Data?.Attributes?.Code?.ToUpperInvariant() ?? "UNK";
@@ -187,6 +189,13 @@ public sealed class SwuDbImporter : ISourceImporter
         string? cardUid = attrs.CardUid;
         int sourceId = record.Id;
         string rarity = attrs.Rarity ?? "Unknown";
+
+        // variantOf / reprintOf relationship metadata from the API.
+        int? variantOfSourceId = attrs.VariantOf?.Data?.Id;
+        string? variantOfCardUid = attrs.VariantOf?.Data?.Attributes?.CardUid;
+        string? variantOfTitle = attrs.VariantOf?.Data?.Attributes?.Title?.Trim();
+        int? reprintOfSourceId = attrs.ReprintOf?.Data?.Id;
+        string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
 
         // Foil detection: check if any variantType has foil=true.
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
@@ -219,7 +228,11 @@ public sealed class SwuDbImporter : ISourceImporter
             health = attrs.Health,
             cost = attrs.Cost,
             text,
-            artist = attrs.Artist
+            artist = attrs.Artist,
+            variantOfSourceId,
+            variantOfCardUid,
+            reprintOfSourceId,
+            reprintOfCardUid
         }, JsonOptions);
 
         if (card is null)
@@ -242,6 +255,16 @@ public sealed class SwuDbImporter : ISourceImporter
             if (card.Description != text) { card.Description = text; changed = true; }
             if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
+        }
+
+        // Resolve BaseCardId from the variantOf relationship.
+        // Try to find the base card by title within the same game (using local cache first).
+        if (variantOfTitle is not null)
+        {
+            var baseCard = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == variantOfTitle)
+                           ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == variantOfTitle, ct);
+            if (baseCard is not null && card.BaseCardId != baseCard.Id)
+                card.BaseCardId = baseCard.Id;
         }
 
         // Find existing printing by serialCode (if available) or by set+number within this game.
