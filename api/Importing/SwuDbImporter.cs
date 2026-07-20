@@ -184,7 +184,7 @@ public sealed class SwuDbImporter : ISourceImporter
         string type = attrs.Type?.Data?.Attributes?.Name ?? string.Empty;
         string? text = attrs.Text;
         string set = attrs.Expansion?.Data?.Attributes?.Code?.ToUpperInvariant() ?? "UNK";
-        string number = attrs.CardNumber?.ToString() ?? throw new InvalidOperationException("Missing cardNumber.");
+        string number = attrs.CardNumber?.ToString() ?? record.Id.ToString();
         string? serialCode = attrs.SerialCode;
         string? cardUid = attrs.CardUid;
         int sourceId = record.Id;

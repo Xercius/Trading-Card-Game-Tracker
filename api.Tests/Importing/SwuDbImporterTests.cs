@@ -30,7 +30,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         string title,
         string? serialCode,
         string? cardUid,
-        int cardNumber,
+        int? cardNumber,
         string expansionCode,
         string typeName,
         string rarity,
@@ -1092,6 +1092,41 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId));
         Assert.Equal(JsonValueKind.Null, reprintOfSourceId.ValueKind);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_Card_Without_CardNumber_Falls_Back_To_RecordId()
+    {
+        // When cardNumber is absent (null) the importer must fall back to record.Id.ToString()
+        // as the number, and the card+printing should be upserted successfully (no errors).
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 77777,
+            title: "No Number Card",
+            serialCode: null,
+            cardUid: "7777700001",
+            cardNumber: null,
+            expansionCode: "SOR",
+            typeName: "Event",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        // Number should be the record id string when both serialCode and cardNumber are null.
+        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "SOR" && p.Number == "77777");
+        Assert.Equal("SOR", printing.Set);
+        Assert.Equal("77777", printing.Number);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
