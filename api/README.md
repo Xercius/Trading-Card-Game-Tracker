@@ -22,7 +22,7 @@ Bash:
 
 * Add a migration under `/Data/Migrations`.
 * Apply it to the local SQLite database.
-* Target .NET 9 and EF Core 9 tooling.
+* Target .NET 10 and EF Core 10 tooling.
 
 ### Visual Studio Package Manager Console alternative
 

@@ -37,9 +37,12 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         bool foil,
         string? imageUrl,
         string? text = null,
+        string? subtitle = null,
         string createdAt = "2025-08-15T18:29:41.633Z",
         string updatedAt = "2025-11-10T16:07:21.000Z",
-        string publishedAt = "2025-08-15T18:30:00.000Z")
+        string publishedAt = "2025-08-15T18:30:00.000Z",
+        object? variantOf = null,
+        object? reprintOf = null)
     {
         object? artFrontData = imageUrl is not null
             ? (object)new { id = 1, attributes = new { url = imageUrl, formats = (object?)null } }
@@ -51,7 +54,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             attributes = new
             {
                 title,
-                subtitle = (string?)null,
+                subtitle,
                 cardUid,
                 serialCode,
                 locale = "en",
@@ -78,8 +81,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                         new { id = foil ? 51 : 46, attributes = new { name = foil ? "Foil" : "Standard", variantId = foil ? "02" : "01", foil } }
                     }
                 },
-                variantOf = new { data = (object?)null },
-                reprintOf = new { data = (object?)null },
+                variantOf = variantOf ?? new { data = (object?)null },
+                reprintOf = reprintOf ?? new { data = (object?)null },
                 artFront = new { data = artFrontData },
                 artBack = new { data = (object?)null }
             }
@@ -545,7 +548,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card" && c.Game == Game);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card \u2014 The Rich One" && c.Game == Game);
         Assert.NotNull(card.DetailsJson);
         // Spot-check that all optional fields are present in the stored JSON blob.
         Assert.Contains("\"subtitle\":\"The Rich One\"", card.DetailsJson);
@@ -557,6 +560,75 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains("Aggression", card.DetailsJson);
         Assert.Contains("Imperial", card.DetailsJson);
         Assert.Contains("Sentinel", card.DetailsJson);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_SameTitle_DifferentSubtitle_Creates_Separate_Cards()
+    {
+        // Cards that share a title but differ by subtitle must be stored as distinct Card rows.
+        // Previously the second import would overwrite the first card because only (Game, Name)
+        // was used as the upsert key, and Name was set to Title alone.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // First card: "Chancellor Palpatine — Galactic Emperor"
+        var json1 = BuildStrapiJson(
+            id: 70001,
+            title: "Chancellor Palpatine",
+            subtitle: "Galactic Emperor",
+            serialCode: "SOR-CP-001",
+            cardUid: "CP001",
+            cardNumber: 1,
+            expansionCode: "SOR",
+            typeName: "Leader",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/CP001.png",
+            text: "The emperor's text.");
+
+        // Second card: "Chancellor Palpatine — How Liberty Dies"
+        var json2 = BuildStrapiJson(
+            id: 70002,
+            title: "Chancellor Palpatine",
+            subtitle: "How Liberty Dies",
+            serialCode: "SOR-CP-002",
+            cardUid: "CP002",
+            cardNumber: 2,
+            expansionCode: "SOR",
+            typeName: "Leader",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/CP002.png",
+            text: "How liberty dies text.");
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+
+        var summary1 = await importer.ImportFromFileAsync(ToStream(json1), options);
+        Assert.Equal(0, summary1.Errors);
+        Assert.Equal(1, summary1.CardsCreated);
+        Assert.Equal(1, summary1.PrintingsCreated);
+
+        var summary2 = await importer.ImportFromFileAsync(ToStream(json2), options);
+        Assert.Equal(0, summary2.Errors);
+        Assert.Equal(1, summary2.CardsCreated);
+        Assert.Equal(1, summary2.PrintingsCreated);
+
+        // Two distinct Card rows must exist — one per subtitle.
+        var card1 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 Galactic Emperor" && c.Game == Game);
+        var card2 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 How Liberty Dies" && c.Game == Game);
+        Assert.NotEqual(card1.Id, card2.Id);
+
+        // Each card's text must be its own, not overwritten by the second import.
+        Assert.Equal("The emperor's text.", card1.Description);
+        Assert.Equal("How liberty dies text.", card2.Description);
+
+        // Each printing must point to its own card.
+        var printing1 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-001");
+        var printing2 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-002");
+        Assert.Equal(card1.Id, printing1.CardId);
+        Assert.Equal(card2.Id, printing2.CardId);
     }
 
     [Fact]
@@ -717,15 +789,24 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+<<<<<<< HEAD
     public async Task ImportFromFileAsync_Card_Without_CardNumber_Falls_Back_To_RecordId()
     {
         // When cardNumber is absent (null) the importer must fall back to record.Id.ToString()
         // as the number, and the card+printing should be upserted successfully (no errors).
+=======
+    public async Task ImportFromFileAsync_Stores_VariantOf_And_ReprintOf_In_DetailsJson()
+    {
+        // The importer must persist variantOfSourceId/variantOfCardUid and
+        // reprintOfSourceId/reprintOfCardUid in the Card's DetailsJson so the
+        // relationship data is available without a schema change.
+>>>>>>> origin/master
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var importer = CreateImporter(db);
 
+<<<<<<< HEAD
         var json = BuildStrapiJson(
             id: 77777,
             title: "No Number Card",
@@ -737,18 +818,210 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             rarity: "Common",
             foil: false,
             imageUrl: null);
+=======
+        var variantOfData = new { data = new { id = 12345, attributes = new { title = "Luke Skywalker", cardUid = "9000000001" } } };
+        var reprintOfData = new { data = new { id = 99999, attributes = new { title = "Old Luke", cardUid = "8000000001" } } };
+
+        var json = BuildStrapiJson(
+            id: 55100,
+            title: "Luke Skywalker (Variant)",
+            serialCode: "06020099",
+            cardUid: "5000000001",
+            cardNumber: 99,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: true,
+            imageUrl: null,
+            variantOf: variantOfData,
+            reprintOf: reprintOfData);
+>>>>>>> origin/master
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR");
         var summary = await importer.ImportFromFileAsync(ToStream(json), options);
 
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
+<<<<<<< HEAD
         Assert.Equal(1, summary.PrintingsCreated);
 
         // Number should be the record id string when both serialCode and cardNumber are null.
         var printing = await db.CardPrintings.SingleAsync(p => p.Set == "SOR" && p.Number == "77777");
         Assert.Equal("SOR", printing.Set);
         Assert.Equal("77777", printing.Number);
+=======
+
+        var card = await db.Cards.SingleAsync(c => c.Name == "Luke Skywalker (Variant)" && c.Game == Game);
+        Assert.NotNull(card.DetailsJson);
+
+        using var doc = JsonDocument.Parse(card.DetailsJson);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("variantOfSourceId", out var variantOfSourceId), "DetailsJson must contain 'variantOfSourceId'");
+        Assert.Equal(12345, variantOfSourceId.GetInt32());
+
+        Assert.True(root.TryGetProperty("variantOfCardUid", out var variantOfCardUid), "DetailsJson must contain 'variantOfCardUid'");
+        Assert.Equal("9000000001", variantOfCardUid.GetString());
+
+        Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId), "DetailsJson must contain 'reprintOfSourceId'");
+        Assert.Equal(99999, reprintOfSourceId.GetInt32());
+
+        Assert.True(root.TryGetProperty("reprintOfCardUid", out var reprintOfCardUid), "DetailsJson must contain 'reprintOfCardUid'");
+        Assert.Equal("8000000001", reprintOfCardUid.GetString());
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_Resolves_BaseCardId_When_BaseCard_Already_Imported()
+    {
+        // When a variant card is imported after its base card, BaseCardId must be set
+        // to the base card's primary key.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // First: import the base card.
+        var baseJson = BuildStrapiJson(
+            id: 10001,
+            title: "Han Solo",
+            serialCode: "07010001",
+            cardUid: "1000000001",
+            cardNumber: 1,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: null);
+
+        await importer.ImportFromFileAsync(ToStream(baseJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
+
+        var baseCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo" && c.Game == Game);
+
+        // Second: import the variant card that references the base by title.
+        var variantOfData = new { data = new { id = 10001, attributes = new { title = "Han Solo", cardUid = "1000000001" } } };
+
+        var variantJson = BuildStrapiJson(
+            id: 10002,
+            title: "Han Solo (Showcase)",
+            serialCode: "07010001SC",
+            cardUid: "1000000002",
+            cardNumber: 1,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: null,
+            variantOf: variantOfData);
+
+        var summary = await importer.ImportFromFileAsync(ToStream(variantJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+
+        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo (Showcase)" && c.Game == Game);
+        Assert.Equal(baseCard.Id, variantCard.BaseCardId);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_BaseCardId_Null_When_Base_Not_Yet_Imported()
+    {
+        // If the base card is not present in the DB at the time the variant is imported,
+        // BaseCardId must remain null (it can be resolved on a subsequent import run).
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // Import only the variant — the base card "Princess Leia" does not exist yet.
+        var variantOfData = new { data = new { id = 20001, attributes = new { title = "Princess Leia", cardUid = "2000000001" } } };
+
+        var variantJson = BuildStrapiJson(
+            id: 20002,
+            title: "Princess Leia (Alternate Art)",
+            serialCode: "07020002AA",
+            cardUid: "2000000002",
+            cardNumber: 2,
+            expansionCode: "SHD",
+            typeName: "Unit",
+            rarity: "Rare",
+            foil: false,
+            imageUrl: null,
+            variantOf: variantOfData);
+
+        var summary = await importer.ImportFromFileAsync(ToStream(variantJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+
+        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Princess Leia (Alternate Art)" && c.Game == Game);
+        // Base not yet in DB — BaseCardId must be null.
+        Assert.Null(variantCard.BaseCardId);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_BaseCard_Without_VariantOf_Has_Null_BaseCardId()
+    {
+        // Cards that are not variants must have BaseCardId = null.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 30001,
+            title: "Darth Maul",
+            serialCode: "06030001",
+            cardUid: "3000000001",
+            cardNumber: 1,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Rare",
+            foil: false,
+            imageUrl: null);
+
+        await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
+
+        var card = await db.Cards.SingleAsync(c => c.Name == "Darth Maul" && c.Game == Game);
+        Assert.Null(card.BaseCardId);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_NullVariantOf_Stores_Null_VariantOf_Fields_In_DetailsJson()
+    {
+        // When variantOf is null in the API response the DetailsJson must still be valid JSON
+        // and the variantOfSourceId / variantOfCardUid fields must be present with null values.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 40001,
+            title: "R2-D2",
+            serialCode: "06040001",
+            cardUid: "4000000001",
+            cardNumber: 1,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
+
+        var card = await db.Cards.SingleAsync(c => c.Name == "R2-D2" && c.Game == Game);
+        Assert.NotNull(card.DetailsJson);
+
+        using var doc = JsonDocument.Parse(card.DetailsJson);
+        var root = doc.RootElement;
+
+        // Fields must be present but null.
+        Assert.True(root.TryGetProperty("variantOfSourceId", out var variantOfSourceId));
+        Assert.Equal(JsonValueKind.Null, variantOfSourceId.ValueKind);
+
+        Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId));
+        Assert.Equal(JsonValueKind.Null, reprintOfSourceId.ValueKind);
+>>>>>>> origin/master
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────

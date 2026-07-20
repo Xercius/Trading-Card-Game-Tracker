@@ -7,11 +7,13 @@ The goal is to eventually incorporate cards from the following games:
 --Star Wars CCG
 --Guardians
 --Dicemasters
+--Pokémon TCG
+--Transformers
 
 ## Development Environment
-- **.NET SDK**: 9.0 (pinned via `global.json`)
+- **.NET SDK**: 10.0 (pinned via `global.json`)
 - **Node.js**: 20+ (for Vite client)
-- **Entity Framework Core**: 9.0.14 (Sqlite provider, design, and tools packages)
+- **Entity Framework Core**: 10.0.10 (Sqlite provider, design, and tools packages)
 
 ### Running the Development Servers
 
@@ -30,10 +32,10 @@ curl -k https://localhost:7226/api/health
 ```
 
 #### Vite Development Server
-From the `client-vite` directory:
+From the repository root:
 ```bash
-npm install  # or pnpm install
-npm run dev  # or pnpm dev
+pnpm install --filter client-vite...
+pnpm --filter client-vite dev
 ```
 The Vite dev server will run on `http://localhost:5173`.
 
@@ -66,16 +68,77 @@ curl -k https://localhost:7226/api/health
 ### Minimal developer seed data
 - Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
 
-## Recent API additions
-- `GET /api/health` – returns a simple health check status to verify API connectivity.
+## API overview
+
+### Cards
+- `GET /api/cards` – paged, filtered card search (supports `game`, `set`, `rarity`, `q` query parameters).
+- `GET /api/cards/search` – alias for the main search endpoint.
+- `GET /api/cards/{id}` – retrieve a single card by ID.
 - `GET /api/cards/{id}/printings` – returns the available printings for a card, ordered by set and collector number.
 - `GET /api/cards/{id}/sparkline?days=30` – returns aggregated value points for the card across its non-proxy printings.
-- `GET /api/collection/value/history?days=90` – produces daily totals for the authenticated user's collection with proxies excluded.
-- `GET /api/decks/{deckId}/value/history?days=90` – surfaces daily deck values across owned printings with proxies excluded.
+- `POST /api/cards/printing` – add a new card printing.
+- `POST /api/cards/{id}/printings/import` – import printings for a card.
+- `GET /api/cards/printings` – list all printings.
+- `GET /api/cards/facets` – all filter facets (games, sets, rarities) with counts.
+- `GET /api/cards/facets/games` – distinct game names.
+- `GET /api/cards/facets/sets` – distinct set codes, optionally filtered by `game`.
+- `GET /api/cards/facets/rarities` – distinct rarity values.
+
+### Collection
+- `GET /api/collection` – list the authenticated user's owned cards.
 - `POST /api/collection/items` – quick-add endpoint that increments the owned quantity for the authenticated user.
+- `POST /api/collection` – add a card to the collection.
+- `PUT /api/collection/{cardPrintingId}` – replace quantity for a collection entry.
+- `PATCH /api/collection/{cardPrintingId}` – partially update a collection entry.
+- `PATCH /api/collection/bulk` – bulk-update quantities for multiple entries.
+- `POST /api/collection/delta` – apply a quantity delta to a collection entry.
+- `DELETE /api/collection/{cardPrintingId}` – remove a card from the collection.
+- `GET /api/collection/value/history?days=90` – produces daily totals for the authenticated user's collection with proxies excluded.
+
+### Decks
+- `GET /api/decks` – list decks for the authenticated user.
+- `POST /api/deck` – create a new deck.
+- `GET /api/deck/{deckId}` – retrieve a specific deck.
+- `PATCH /api/deck/{deckId}` – partially update a deck (e.g. rename).
+- `PUT /api/deck/{deckId}` – fully update a deck.
+- `DELETE /api/deck/{deckId}` – delete a deck.
+- `GET /api/deck/{deckId}/cards` – list cards in a deck.
+- `GET /api/deck/{deckId}/cards-with-availability` – list cards with owned-quantity availability.
+- `POST /api/deck/{deckId}/cards` – add a card to the deck.
+- `POST /api/deck/{deckId}/cards/upsert` – upsert a card in the deck.
+- `POST /api/deck/{deckId}/cards/delta` – apply a quantity delta to a deck card.
+- `POST /api/deck/{deckId}/cards/quantity-delta` – alias for quantity delta.
+- `PUT /api/deck/{deckId}/cards/{cardPrintingId}` – replace quantity for a deck card.
+- `PATCH /api/deck/{deckId}/cards/{cardPrintingId}` – partially update a deck card.
+- `DELETE /api/deck/{deckId}/cards/{cardPrintingId}` – remove a card from the deck.
+- `GET /api/deck/{deckId}/availability` – summarise owned vs. required quantities.
+- `GET /api/decks/{deckId}/value/history?days=90` – daily deck values across owned printings with proxies excluded.
+
+### Wishlist
+- `GET /api/wishlist` – list the authenticated user's wishlist entries.
 - `POST /api/wishlist/items` – quick-add endpoint that increments the desired quantity for the authenticated user.
+- `POST /api/wishlist` – add a card to the wishlist.
+- `PUT /api/wishlist` – update a wishlist entry.
+- `POST /api/wishlist/move-to-collection` – move a wishlist entry into the collection.
+- `DELETE /api/wishlist/{cardPrintingId}` – remove a card from the wishlist.
+
+### Prices & values
+- `GET /api/prices/{printingId}/history` – price history for a specific printing.
+- `GET /api/value/collection/summary` – aggregated collection value summary for the authenticated user.
+- `GET /api/value/cardprinting/{id}` – current value for a specific card printing.
+- `GET /api/value/deck/{deckId}` – current value for a specific deck.
+- `POST /api/value/refresh` – trigger a value recalculation.
+
+### Health
+- `GET /api/health` – returns a simple health check status to verify API connectivity.
+
+### Users
+- `GET /api/user/{id}` – retrieve a user by ID.
 
 ## Admin operations
-- `[RequireAdmin]` enforces administrator access based on the authenticated JWT principal and returns a `403` problem response otherwise.
-- `/api/admin/users` exposes admin-only CRUD operations for users with optimistic UI support in the Vite client. The API prevents demoting or deleting the final administrator and returns a `409 Conflict` problem response when that safeguard triggers.
-- `/api/admin/prices/ingest` ingests per-printing price points and safely upserts duplicates based on `(cardPrintingId, capturedAt)`.
+- `/api/admin/import/options` – returns the available importers, supported games, and known set codes.
+- `/api/admin/import/dry-run` – preview an import without persisting changes (JSON payload or `multipart/form-data`).
+- `/api/admin/import/apply` – commit an import. Mirrors the dry-run payloads.
+- `/api/admin/prices/ingest` – ingest per-printing price snapshots; upserts on `(cardPrintingId, capturedAt)`.
+
+See [ADMIN.md](ADMIN.md) for the full admin import guide including file formats and the example workflow.
