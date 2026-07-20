@@ -57,12 +57,24 @@ public sealed class SwuDbImporter : ISourceImporter
         int page = 1;
         int pageCount = 1;
 
+        // Discovery step: resolve the expansion code to its internal numeric Strapi ID.
+        // Filtering by ID is more reliable than filtering by code (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        int? expansionId = await TryResolveExpansionIdAsync(expansionCode, ct);
+        if (expansionId is null)
+        {
+            summary.Messages.Add(
+                $"Warning: could not resolve numeric expansion ID for '{expansionCode}'; falling back to code-based filter.");
+        }
+
         var allRecords = new List<StrapiRecord>();
         while (page <= pageCount)
         {
             var qs = HttpUtility.ParseQueryString(string.Empty);
             qs["locale"] = "en";
-            qs["filters[expansion][code][$eq]"] = expansionCode;
+            if (expansionId is not null)
+                qs["filters[expansion][id][$eq]"] = expansionId.Value.ToString();
+            else
+                qs["filters[expansion][code][$eq]"] = expansionCode;
             if (options.UpdatedSince is { } since)
                 qs["filters[updatedAt][$gt]"] = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             qs["pagination[page]"] = page.ToString();
@@ -162,6 +174,37 @@ public sealed class SwuDbImporter : ISourceImporter
                 $"Processed {Math.Min(processed, records.Count)} records from file (set={options.SetCode ?? "unknown"}).");
             return summary;
         });
+    }
+
+    /// <summary>
+    /// Issues a lightweight single-card request to resolve the expansion <paramref name="code"/>
+    /// to its internal Strapi numeric ID.  Returns <c>null</c> if the lookup fails for any reason,
+    /// in which case the caller should fall back to code-based filtering.
+    /// </summary>
+    private async Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct)
+    {
+        try
+        {
+            var qs = HttpUtility.ParseQueryString(string.Empty);
+            qs["locale"] = "en";
+            qs["filters[expansion][code][$eq]"] = code;
+            qs["pagination[pageSize]"] = "1";
+
+            using var response = await _http.GetAsync($"card-list?{qs}", ct);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+
+            var paged = await JsonSerializer.DeserializeAsync<StrapiPagedResponse>(stream, JsonOptions, ct);
+            return paged?.Data?.FirstOrDefault()?.Attributes?.Expansion?.Data?.Id;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private async Task UpsertAsync(StrapiRecord record, ImportSummary summary, CancellationToken ct)
