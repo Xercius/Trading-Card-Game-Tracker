@@ -244,6 +244,7 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetCode")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 

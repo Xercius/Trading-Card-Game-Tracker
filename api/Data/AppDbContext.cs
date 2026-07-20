@@ -168,7 +168,7 @@ namespace api.Data
             {
                 e.HasKey(h => h.Id);
                 e.Property(h => h.ImporterKey).IsRequired().HasMaxLength(64);
-                e.Property(h => h.SetCode).HasMaxLength(64);
+                e.Property(h => h.SetCode).IsRequired().HasMaxLength(64);
 
                 // one row per (importer key, set code) combination
                 e.HasIndex(h => new { h.ImporterKey, h.SetCode })

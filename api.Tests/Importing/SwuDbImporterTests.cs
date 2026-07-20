@@ -1366,7 +1366,6 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     /// <summary>
-<<<<<<< HEAD
     /// Simulates a server error on the first HTTP request (the ID-resolution discovery probe)
     /// and returns a configurable canned JSON response for all subsequent requests.
     /// Captures every request URL so tests can assert on query parameters.
@@ -1383,12 +1382,15 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
             }
+
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(fallbackJson, Encoding.UTF8, "application/json")
             });
         }
-=======
+    }
+
+    /// <summary>
     /// Always returns the configured HTTP status code, allowing tests to verify
     /// that non-success responses are surfaced as <see cref="HttpRequestException"/>.
     /// </summary>
@@ -1445,6 +1447,5 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             data = records,
             meta = new { pagination = new { page, pageSize = count, pageCount, total = pageCount * count } }
         });
->>>>>>> origin/master
     }
 }

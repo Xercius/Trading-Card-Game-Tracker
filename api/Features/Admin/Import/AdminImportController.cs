@@ -145,7 +145,10 @@ public sealed class AdminImportController : ControllerBase
             .AsNoTracking()
             .OrderBy(h => h.ImporterKey)
             .ThenBy(h => h.SetCode)
-            .Select(h => new ImportSyncHistoryEntry(h.ImporterKey, h.SetCode, h.LastSyncedAt))
+            .Select(h => new ImportSyncHistoryEntry(
+                h.ImporterKey,
+                h.SetCode == string.Empty ? null : h.SetCode,
+                h.LastSyncedAt))
             .ToListAsync(ct);
 
         return Ok(entries);
@@ -405,15 +408,16 @@ public sealed class AdminImportController : ControllerBase
 
     private async Task RecordSyncHistoryAsync(string importerKey, string? setCode, DateTimeOffset syncedAt, CancellationToken ct)
     {
+        var normalizedSetCode = NormalizeSetCode(setCode);
         var entry = await _db.ImportSyncHistories
-            .FirstOrDefaultAsync(h => h.ImporterKey == importerKey && h.SetCode == setCode, ct);
+            .FirstOrDefaultAsync(h => h.ImporterKey == importerKey && h.SetCode == normalizedSetCode, ct);
 
         if (entry is null)
         {
             _db.ImportSyncHistories.Add(new ImportSyncHistory
             {
                 ImporterKey = importerKey,
-                SetCode = setCode,
+                SetCode = normalizedSetCode,
                 LastSyncedAt = syncedAt,
             });
         }
@@ -424,6 +428,8 @@ public sealed class AdminImportController : ControllerBase
 
         await _db.SaveChangesAsync(ct);
     }
+
+    private static string NormalizeSetCode(string? setCode) => string.IsNullOrWhiteSpace(setCode) ? string.Empty : setCode;
 
     private void LogProblem(string operation, ObjectResult problem)
     {

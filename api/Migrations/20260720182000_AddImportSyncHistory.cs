@@ -17,7 +17,7 @@ namespace api.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     ImporterKey = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
-                    SetCode = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
+                    SetCode = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     LastSyncedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
