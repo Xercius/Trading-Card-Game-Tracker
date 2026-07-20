@@ -807,8 +807,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         var options = new ImportOptions(DryRun: true, SetCode: "SOR");
         await importer.ImportFromRemoteAsync(options);
 
-        Assert.NotEmpty(handler.CapturedRequests);
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        // CapturedRequests[0] is the ID-resolution discovery request;
+        // CapturedRequests[1] is the first (and only) paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
 
         // Must sort by updatedAt ascending so incremental callers can page predictably.
         Assert.Contains("updatedAt:asc", rawQuery);
@@ -847,8 +850,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         var options = new ImportOptions(DryRun: true, SetCode: "SOR", UpdatedSince: since);
         await importer.ImportFromRemoteAsync(options);
 
-        Assert.NotEmpty(handler.CapturedRequests);
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        // CapturedRequests[0] is the ID-resolution discovery request;
+        // CapturedRequests[1] is the first (and only) paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
 
         // The date filter must appear in the query string.
         Assert.Contains("filters[updatedAt][$gt]", rawQuery);
@@ -1129,13 +1135,86 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("77777", printing.Number);
     }
 
+    [Fact]
+    public async Task ImportFromRemoteAsync_Uses_NumericExpansionId_Filter_When_Resolved()
+    {
+        // The discovery step fetches a single card to read expansion.data.id, then all
+        // subsequent paging requests must use filters[expansion][id][$eq] instead of the
+        // code-based filter (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Build JSON with a distinctive expansion ID (7) so we can assert it appears in the filter.
+        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80001, title: "Rey",
+            serialCode: "08010001", expansionId: 7);
+
+        var handler = new CapturingHttpMessageHandler(cardJson);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: true, SetCode: "SOR");
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        // There must be at least 2 requests: one discovery + one paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+
+        // CapturedRequests[0] is the discovery request – it must use the code-based filter with pageSize=1.
+        var discoveryQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        Assert.Contains("filters[expansion][code][$eq]=SOR", discoveryQuery);
+        Assert.Contains("pagination[pageSize]=1", discoveryQuery);
+        Assert.DoesNotContain("pagination[page]=", discoveryQuery);
+
+        // CapturedRequests[1] is the first paging request – it must use the numeric ID filter.
+        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
+        Assert.Contains("filters[expansion][id][$eq]=7", pagingQuery);
+        Assert.DoesNotContain("filters[expansion][code]", pagingQuery);
+
+        // No fallback warning must be emitted when the ID was resolved successfully.
+        Assert.DoesNotContain(summary.Messages, m => m.StartsWith("Warning:"));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_FallsBackToCodeFilter_When_IdResolution_Fails()
+    {
+        // When the discovery request returns an HTTP error, the importer must fall back to the
+        // code-based filter and include a warning in the import summary messages.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80002, title: "Finn",
+            serialCode: "08010002");
+
+        // First request (discovery) returns a server error; subsequent requests succeed.
+        var handler = new FailFirstRequestCapturingHandler(cardJson);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: true, SetCode: "TWI");
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        // There must be at least 2 requests: one failed discovery + one paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+
+        // The paging request must fall back to the code-based filter.
+        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
+        Assert.Contains("filters[expansion][code][$eq]=TWI", pagingQuery);
+        Assert.DoesNotContain("filters[expansion][id]", pagingQuery);
+
+        // A warning must appear in the summary messages.
+        Assert.Contains(summary.Messages, m => m.Contains("Warning") && m.Contains("TWI"));
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds a single-record Strapi page response with explicit pagination metadata.
-    /// Used for pagination tests that need pageCount > 1.
+    /// Builds a single-record Strapi page response with explicit pagination metadata,
+    /// optionally overriding the numeric expansion ID embedded in the card attributes.
+    /// Used for pagination and expansion-ID tests.
     /// </summary>
-    private static string BuildStrapiPage(int page, int pageCount, int id, string title, string serialCode)
+    private static string BuildStrapiPage(int page, int pageCount, int id, string title, string serialCode,
+        int expansionId = 2)
     {
         var record = new
         {
@@ -1160,7 +1239,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                 keywords = (string[]?)null,
                 updatedAt = "2025-11-10T16:07:21.000Z",
                 type = new { data = new { id = 3, attributes = new { name = "Unit", value = "Unit" } } },
-                expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                expansion = new { data = new { id = expansionId, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
                 variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
                 variantOf = new { data = (object?)null },
                 reprintOf = new { data = (object?)null },
@@ -1226,6 +1305,30 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    /// <summary>
+    /// Simulates a server error on the first HTTP request (the ID-resolution discovery probe)
+    /// and returns a configurable canned JSON response for all subsequent requests.
+    /// Captures every request URL so tests can assert on query parameters.
+    /// </summary>
+    private sealed class FailFirstRequestCapturingHandler(string fallbackJson) : HttpMessageHandler
+    {
+        private int _callCount;
+        public List<Uri> CapturedRequests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            CapturedRequests.Add(request.RequestUri!);
+            if (Interlocked.Increment(ref _callCount) == 1)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(fallbackJson, Encoding.UTF8, "application/json")
             });
         }
     }
