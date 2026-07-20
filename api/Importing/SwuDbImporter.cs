@@ -171,6 +171,13 @@ public sealed class SwuDbImporter : ISourceImporter
         var attrs = record.Attributes
             ?? throw new InvalidOperationException($"Record id={record.Id} has no attributes.");
 
+        if (!string.Equals(attrs.Locale, "en", StringComparison.OrdinalIgnoreCase))
+        {
+            summary.Messages.Add(
+                $"Skipping record id={record.Id} with locale={attrs.Locale ?? "(null)"} (expected \"en\") title={attrs.Title}.");
+            return;
+        }
+
         string name = string.IsNullOrWhiteSpace(attrs.Subtitle)
             ? attrs.Title?.Trim() ?? "Unknown"
             : $"{attrs.Title?.Trim()} \u2014 {attrs.Subtitle.Trim()}";
