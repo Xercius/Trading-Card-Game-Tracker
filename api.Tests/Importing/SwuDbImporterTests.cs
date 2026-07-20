@@ -260,6 +260,106 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ImportFromFileAsync_Skips_NonEnglish_Records_And_Adds_Warning()
+    {
+        // Records whose attributes.locale is not "en" must be silently skipped; no card or
+        // printing should be written to the database, and the summary must contain a warning.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        // Build a Strapi response that contains two records: one Italian (should be skipped)
+        // and one English (should be imported normally).
+        var records = new[]
+        {
+            new
+            {
+                id = 77001,
+                attributes = new
+                {
+                    title = "Scheda Italiana",
+                    subtitle = (string?)null,
+                    cardUid = "IT00000001",
+                    serialCode = "IT000001",
+                    locale = "it",           // non-English — must be skipped
+                    cardNumber = 1,
+                    rarity = "Common",
+                    text = (string?)null,
+                    artist = (string?)null,
+                    cost = (int?)1,
+                    power = (int?)null,
+                    health = (int?)null,
+                    arena = (string?)null,
+                    aspects = (string[]?)null,
+                    traits = (string[]?)null,
+                    keywords = (string[]?)null,
+                    updatedAt = "2025-11-10T16:07:21.000Z",
+                    type = new { data = new { id = 1, attributes = new { name = "Unit", value = "Unit" } } },
+                    expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                    variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
+                    variantOf = new { data = (object?)null },
+                    reprintOf = new { data = (object?)null },
+                    artFront = new { data = (object?)null },
+                    artBack = new { data = (object?)null }
+                }
+            },
+            new
+            {
+                id = 77002,
+                attributes = new
+                {
+                    title = "English Card",
+                    subtitle = (string?)null,
+                    cardUid = "EN00000002",
+                    serialCode = "EN000002",
+                    locale = "en",           // English — must be imported
+                    cardNumber = 2,
+                    rarity = "Rare",
+                    text = (string?)null,
+                    artist = (string?)null,
+                    cost = (int?)2,
+                    power = (int?)null,
+                    health = (int?)null,
+                    arena = (string?)null,
+                    aspects = (string[]?)null,
+                    traits = (string[]?)null,
+                    keywords = (string[]?)null,
+                    updatedAt = "2025-11-10T16:07:21.000Z",
+                    type = new { data = new { id = 1, attributes = new { name = "Unit", value = "Unit" } } },
+                    expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                    variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
+                    variantOf = new { data = (object?)null },
+                    reprintOf = new { data = (object?)null },
+                    artFront = new { data = (object?)null },
+                    artBack = new { data = (object?)null }
+                }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(new
+        {
+            data = records,
+            meta = new { pagination = new { page = 1, pageSize = 100, pageCount = 1, total = 2 } }
+        });
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+
+        // Only the English card should be created.
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        // The Italian card must not appear in the database.
+        Assert.False(await db.Cards.AnyAsync(c => c.Name == "Scheda Italiana" && c.Game == Game));
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "English Card" && c.Game == Game));
+
+        // A warning message about the skipped record must be present in the summary.
+        Assert.Contains(summary.Messages, m => m.Contains("77001") && m.Contains("it"));
+    }
+
+    [Fact]
     public async Task ImportFromFileAsync_UsesExpansionCode_AsSet()
     {
         await factory.ResetDatabaseAsync();
