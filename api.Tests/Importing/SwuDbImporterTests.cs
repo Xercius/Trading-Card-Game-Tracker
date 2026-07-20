@@ -894,6 +894,62 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page Two Card" && c.Game == Game));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ImportFromRemoteAsync_ThrowsArgumentException_When_SetCode_Is_Null_Or_Whitespace(string? setCode)
+    {
+        // SetCode is required for the remote import — the importer must throw before any HTTP call.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var options = new ImportOptions(DryRun: false, SetCode: setCode);
+        await Assert.ThrowsAsync<ArgumentException>(() => importer.ImportFromRemoteAsync(options));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_Propagates_HttpRequestException_On_Http_Error()
+    {
+        // When the API returns a non-success status code, EnsureSuccessStatusCode() throws
+        // HttpRequestException which must propagate to the caller unchanged.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        using var handler = new ErrorHttpMessageHandler(HttpStatusCode.InternalServerError);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        await Assert.ThrowsAsync<HttpRequestException>(() => importer.ImportFromRemoteAsync(options));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_Respects_Limit_Across_Multiple_Pages()
+    {
+        // When Limit is set the importer fetches all pages first and then processes at most
+        // Limit records, so only that many cards and printings must be created.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Two pages of 5 cards each (10 total); Limit=3 must stop after 3 upserts.
+        var page1 = BuildStrapiPageWithMultipleRecords(page: 1, pageCount: 2, startId: 82000, count: 5);
+        var page2 = BuildStrapiPageWithMultipleRecords(page: 2, pageCount: 2, startId: 82005, count: 5);
+
+        var pageResponses = new Dictionary<int, string> { [1] = page1, [2] = page2 };
+        using var handler = new FakePagedHttpMessageHandler(pageResponses);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR", Limit: 3);
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(3, summary.CardsCreated);
+        Assert.Equal(3, summary.PrintingsCreated);
+    }
+
     [Fact]
     public async Task ImportFromFileAsync_Stores_VariantOf_And_ReprintOf_In_DetailsJson()
     {
@@ -1310,6 +1366,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     /// <summary>
+<<<<<<< HEAD
     /// Simulates a server error on the first HTTP request (the ID-resolution discovery probe)
     /// and returns a configurable canned JSON response for all subsequent requests.
     /// Captures every request URL so tests can assert on query parameters.
@@ -1331,5 +1388,63 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                 Content = new StringContent(fallbackJson, Encoding.UTF8, "application/json")
             });
         }
+=======
+    /// Always returns the configured HTTP status code, allowing tests to verify
+    /// that non-success responses are surfaced as <see cref="HttpRequestException"/>.
+    /// </summary>
+    private sealed class ErrorHttpMessageHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+            => Task.FromResult(new HttpResponseMessage(statusCode));
+    }
+
+    /// <summary>
+    /// Builds a Strapi page response containing <paramref name="count"/> minimal card records,
+    /// used to simulate multi-record pages for limit and pagination tests.
+    /// </summary>
+    private static string BuildStrapiPageWithMultipleRecords(int page, int pageCount, int startId, int count)
+    {
+        var records = Enumerable.Range(0, count).Select(i =>
+        {
+            int id = startId + i;
+            return (object)new
+            {
+                id,
+                attributes = new
+                {
+                    title = $"Card {id}",
+                    subtitle = (string?)null,
+                    cardUid = id.ToString(),
+                    serialCode = $"LT{id:D8}",
+                    locale = "en",
+                    cardNumber = id,
+                    rarity = "Common",
+                    text = (string?)null,
+                    artist = (string?)null,
+                    cost = (int?)null,
+                    power = (int?)null,
+                    health = (int?)null,
+                    arena = (string?)null,
+                    aspects = (string[]?)null,
+                    traits = (string[]?)null,
+                    keywords = (string[]?)null,
+                    updatedAt = "2025-11-10T16:07:21.000Z",
+                    type = new { data = new { id = 3, attributes = new { name = "Unit", value = "Unit" } } },
+                    expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                    variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
+                    variantOf = new { data = (object?)null },
+                    reprintOf = new { data = (object?)null },
+                    artFront = new { data = (object?)null },
+                    artBack = new { data = (object?)null }
+                }
+            };
+        }).ToArray();
+
+        return JsonSerializer.Serialize(new
+        {
+            data = records,
+            meta = new { pagination = new { page, pageSize = count, pageCount, total = pageCount * count } }
+        });
+>>>>>>> origin/master
     }
 }
