@@ -57,12 +57,24 @@ public sealed class SwuDbImporter : ISourceImporter
         int page = 1;
         int pageCount = 1;
 
+        // Discovery step: resolve the expansion code to its internal numeric Strapi ID.
+        // Filtering by ID is more reliable than filtering by code (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        int? expansionId = await TryResolveExpansionIdAsync(expansionCode, ct);
+        if (expansionId is null)
+        {
+            summary.Messages.Add(
+                $"Warning: could not resolve numeric expansion ID for '{expansionCode}'; falling back to code-based filter.");
+        }
+
         var allRecords = new List<StrapiRecord>();
         while (page <= pageCount)
         {
             var qs = HttpUtility.ParseQueryString(string.Empty);
             qs["locale"] = "en";
-            qs["filters[expansion][code][$eq]"] = expansionCode;
+            if (expansionId is not null)
+                qs["filters[expansion][id][$eq]"] = expansionId.Value.ToString();
+            else
+                qs["filters[expansion][code][$eq]"] = expansionCode;
             if (options.UpdatedSince is { } since)
                 qs["filters[updatedAt][$gt]"] = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             qs["pagination[page]"] = page.ToString();
@@ -102,10 +114,6 @@ public sealed class SwuDbImporter : ISourceImporter
             }
 
             await _db.SaveChangesAsync(ct);
-
-            if (!options.DryRun)
-                await UpsertSyncLogAsync(expansionCode, ct);
-
             summary.Messages.Add(
                 $"Processed {Math.Min(processed, allRecords.Count)} records for expansion={expansionCode}.");
             return summary;
@@ -162,14 +170,41 @@ public sealed class SwuDbImporter : ISourceImporter
             }
 
             await _db.SaveChangesAsync(ct);
-
-            if (!options.DryRun && options.SetCode is not null)
-                await UpsertSyncLogAsync(options.SetCode.Trim().ToUpperInvariant(), ct);
-
             summary.Messages.Add(
                 $"Processed {Math.Min(processed, records.Count)} records from file (set={options.SetCode ?? "unknown"}).");
             return summary;
         });
+    }
+
+    /// <summary>
+    /// Issues a lightweight single-card request to resolve the expansion <paramref name="code"/>
+    /// to its internal Strapi numeric ID.  Returns <c>null</c> if the lookup fails for any reason,
+    /// in which case the caller should fall back to code-based filtering.
+    /// </summary>
+    private async Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct)
+    {
+        try
+        {
+            var qs = HttpUtility.ParseQueryString(string.Empty);
+            qs["locale"] = "en";
+            qs["filters[expansion][code][$eq]"] = code;
+            qs["pagination[pageSize]"] = "1";
+
+            using var response = await _http.GetAsync($"card-list?{qs}", ct);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+
+            var paged = await JsonSerializer.DeserializeAsync<StrapiPagedResponse>(stream, JsonOptions, ct);
+            return paged?.Data?.FirstOrDefault()?.Attributes?.Expansion?.Data?.Id;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private async Task UpsertAsync(StrapiRecord record, ImportSummary summary, CancellationToken ct)
@@ -328,38 +363,6 @@ public sealed class SwuDbImporter : ISourceImporter
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed) summary.PrintingsUpdated++;
         }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Sync log helpers
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Creates or updates the <see cref="ImportSyncLog"/> row for this importer and set,
-    /// recording <see cref="DateTimeOffset.UtcNow"/> as <c>LastSyncedAt</c>.  Called at the
-    /// end of every successful non-dry-run import so the next run can pass the stored
-    /// timestamp as <c>ImportOptions.UpdatedSince</c> to perform an incremental sync.
-    /// </summary>
-    private async Task UpsertSyncLogAsync(string setCode, CancellationToken ct)
-    {
-        var entry = await _db.ImportSyncLogs
-            .FirstOrDefaultAsync(s => s.Source == Key && s.SetCode == setCode, ct);
-
-        if (entry is null)
-        {
-            _db.ImportSyncLogs.Add(new api.Models.ImportSyncLog
-            {
-                Source = Key,
-                SetCode = setCode,
-                LastSyncedAt = DateTimeOffset.UtcNow
-            });
-        }
-        else
-        {
-            entry.LastSyncedAt = DateTimeOffset.UtcNow;
-        }
-
-        await _db.SaveChangesAsync(ct);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

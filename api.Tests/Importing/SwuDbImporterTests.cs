@@ -807,8 +807,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         var options = new ImportOptions(DryRun: true, SetCode: "SOR");
         await importer.ImportFromRemoteAsync(options);
 
-        Assert.NotEmpty(handler.CapturedRequests);
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        // CapturedRequests[0] is the ID-resolution discovery request;
+        // CapturedRequests[1] is the first (and only) paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
 
         // Must sort by updatedAt ascending so incremental callers can page predictably.
         Assert.Contains("updatedAt:asc", rawQuery);
@@ -847,8 +850,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         var options = new ImportOptions(DryRun: true, SetCode: "SOR", UpdatedSince: since);
         await importer.ImportFromRemoteAsync(options);
 
-        Assert.NotEmpty(handler.CapturedRequests);
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        // CapturedRequests[0] is the ID-resolution discovery request;
+        // CapturedRequests[1] is the first (and only) paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
 
         // The date filter must appear in the query string.
         Assert.Contains("filters[updatedAt][$gt]", rawQuery);
@@ -886,6 +892,62 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(2, summary.PrintingsCreated);
         Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page One Card" && c.Game == Game));
         Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page Two Card" && c.Game == Game));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ImportFromRemoteAsync_ThrowsArgumentException_When_SetCode_Is_Null_Or_Whitespace(string? setCode)
+    {
+        // SetCode is required for the remote import — the importer must throw before any HTTP call.
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var options = new ImportOptions(DryRun: false, SetCode: setCode);
+        await Assert.ThrowsAsync<ArgumentException>(() => importer.ImportFromRemoteAsync(options));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_Propagates_HttpRequestException_On_Http_Error()
+    {
+        // When the API returns a non-success status code, EnsureSuccessStatusCode() throws
+        // HttpRequestException which must propagate to the caller unchanged.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        using var handler = new ErrorHttpMessageHandler(HttpStatusCode.InternalServerError);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        await Assert.ThrowsAsync<HttpRequestException>(() => importer.ImportFromRemoteAsync(options));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_Respects_Limit_Across_Multiple_Pages()
+    {
+        // When Limit is set the importer fetches all pages first and then processes at most
+        // Limit records, so only that many cards and printings must be created.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Two pages of 5 cards each (10 total); Limit=3 must stop after 3 upserts.
+        var page1 = BuildStrapiPageWithMultipleRecords(page: 1, pageCount: 2, startId: 82000, count: 5);
+        var page2 = BuildStrapiPageWithMultipleRecords(page: 2, pageCount: 2, startId: 82005, count: 5);
+
+        var pageResponses = new Dictionary<int, string> { [1] = page1, [2] = page2 };
+        using var handler = new FakePagedHttpMessageHandler(pageResponses);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR", Limit: 3);
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(3, summary.CardsCreated);
+        Assert.Equal(3, summary.PrintingsCreated);
     }
 
     [Fact]
@@ -1129,13 +1191,86 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("77777", printing.Number);
     }
 
+    [Fact]
+    public async Task ImportFromRemoteAsync_Uses_NumericExpansionId_Filter_When_Resolved()
+    {
+        // The discovery step fetches a single card to read expansion.data.id, then all
+        // subsequent paging requests must use filters[expansion][id][$eq] instead of the
+        // code-based filter (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Build JSON with a distinctive expansion ID (7) so we can assert it appears in the filter.
+        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80001, title: "Rey",
+            serialCode: "08010001", expansionId: 7);
+
+        var handler = new CapturingHttpMessageHandler(cardJson);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: true, SetCode: "SOR");
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        // There must be at least 2 requests: one discovery + one paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+
+        // CapturedRequests[0] is the discovery request – it must use the code-based filter with pageSize=1.
+        var discoveryQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
+        Assert.Contains("filters[expansion][code][$eq]=SOR", discoveryQuery);
+        Assert.Contains("pagination[pageSize]=1", discoveryQuery);
+        Assert.DoesNotContain("pagination[page]=", discoveryQuery);
+
+        // CapturedRequests[1] is the first paging request – it must use the numeric ID filter.
+        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
+        Assert.Contains("filters[expansion][id][$eq]=7", pagingQuery);
+        Assert.DoesNotContain("filters[expansion][code]", pagingQuery);
+
+        // No fallback warning must be emitted when the ID was resolved successfully.
+        Assert.DoesNotContain(summary.Messages, m => m.StartsWith("Warning:"));
+    }
+
+    [Fact]
+    public async Task ImportFromRemoteAsync_FallsBackToCodeFilter_When_IdResolution_Fails()
+    {
+        // When the discovery request returns an HTTP error, the importer must fall back to the
+        // code-based filter and include a warning in the import summary messages.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80002, title: "Finn",
+            serialCode: "08010002");
+
+        // First request (discovery) returns a server error; subsequent requests succeed.
+        var handler = new FailFirstRequestCapturingHandler(cardJson);
+        var importer = CreateImporter(db, handler);
+
+        var options = new ImportOptions(DryRun: true, SetCode: "TWI");
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        // There must be at least 2 requests: one failed discovery + one paging request.
+        Assert.True(handler.CapturedRequests.Count >= 2,
+            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+
+        // The paging request must fall back to the code-based filter.
+        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
+        Assert.Contains("filters[expansion][code][$eq]=TWI", pagingQuery);
+        Assert.DoesNotContain("filters[expansion][id]", pagingQuery);
+
+        // A warning must appear in the summary messages.
+        Assert.Contains(summary.Messages, m => m.Contains("Warning") && m.Contains("TWI"));
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds a single-record Strapi page response with explicit pagination metadata.
-    /// Used for pagination tests that need pageCount > 1.
+    /// Builds a single-record Strapi page response with explicit pagination metadata,
+    /// optionally overriding the numeric expansion ID embedded in the card attributes.
+    /// Used for pagination and expansion-ID tests.
     /// </summary>
-    private static string BuildStrapiPage(int page, int pageCount, int id, string title, string serialCode)
+    private static string BuildStrapiPage(int page, int pageCount, int id, string title, string serialCode,
+        int expansionId = 2)
     {
         var record = new
         {
@@ -1160,7 +1295,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                 keywords = (string[]?)null,
                 updatedAt = "2025-11-10T16:07:21.000Z",
                 type = new { data = new { id = 3, attributes = new { name = "Unit", value = "Unit" } } },
-                expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                expansion = new { data = new { id = expansionId, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
                 variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
                 variantOf = new { data = (object?)null },
                 reprintOf = new { data = (object?)null },
@@ -1183,111 +1318,6 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         public StubHttpClientFactory(HttpMessageHandler handler) => _client = new HttpClient(handler);
         public HttpClient CreateClient(string name) => _client;
         public void Dispose() => _client.Dispose();
-    }
-
-    // ─── sync log tests ─────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task ImportFromFileAsync_NonDryRun_Creates_ImportSyncLog_Entry()
-    {
-        // After a successful non-dry-run import the importer must persist an
-        // ImportSyncLog row for the given source + set so subsequent runs can
-        // read it as the UpdatedSince lower-bound for incremental syncs.
-        await factory.ResetDatabaseAsync();
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var importer = CreateImporter(db);
-
-        var json = BuildStrapiJson(
-            id: 80001,
-            title: "Sync Test Card",
-            serialCode: "SYNC001",
-            cardUid: "1111111111",
-            cardNumber: 1,
-            expansionCode: "SOR",
-            typeName: "Unit",
-            rarity: "Common",
-            foil: false,
-            imageUrl: null);
-
-        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
-        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
-        var after = DateTimeOffset.UtcNow.AddSeconds(1);
-
-        Assert.Equal(0, summary.Errors);
-
-        var log = await db.ImportSyncLogs.SingleAsync(l => l.Source == "swu" && l.SetCode == "SOR");
-        Assert.NotNull(log);
-        Assert.True(log.LastSyncedAt >= before, "LastSyncedAt should be >= start of test");
-        Assert.True(log.LastSyncedAt <= after, "LastSyncedAt should be <= end of test");
-    }
-
-    [Fact]
-    public async Task ImportFromFileAsync_DryRun_Does_Not_Create_ImportSyncLog_Entry()
-    {
-        // Dry-run imports must not persist any data, including sync log rows.
-        await factory.ResetDatabaseAsync();
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var importer = CreateImporter(db);
-
-        var json = BuildStrapiJson(
-            id: 80002,
-            title: "Dry Run Card",
-            serialCode: "DRYRUN01",
-            cardUid: "2222222222",
-            cardNumber: 2,
-            expansionCode: "SOR",
-            typeName: "Unit",
-            rarity: "Common",
-            foil: false,
-            imageUrl: null);
-
-        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: true, SetCode: "SOR"));
-
-        Assert.Equal(0, summary.Errors);
-        var log = await db.ImportSyncLogs.FirstOrDefaultAsync(l => l.Source == "swu" && l.SetCode == "SOR");
-        Assert.Null(log);
-    }
-
-    [Fact]
-    public async Task ImportFromFileAsync_NonDryRun_Updates_Existing_ImportSyncLog_Entry()
-    {
-        // If a sync log row already exists for the source + set it should be updated
-        // (upserted) rather than duplicated, enforcing the unique (Source, SetCode) constraint.
-        await factory.ResetDatabaseAsync();
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var importer = CreateImporter(db);
-
-        var json = BuildStrapiJson(
-            id: 80003,
-            title: "Upsert Sync Card",
-            serialCode: "UPRT001",
-            cardUid: "3333333333",
-            cardNumber: 3,
-            expansionCode: "SOR",
-            typeName: "Unit",
-            rarity: "Common",
-            foil: false,
-            imageUrl: null);
-
-        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
-
-        // First import — creates the row.
-        await importer.ImportFromFileAsync(ToStream(json), options);
-        var firstLog = await db.ImportSyncLogs.SingleAsync(l => l.Source == "swu" && l.SetCode == "SOR");
-        var firstTimestamp = firstLog.LastSyncedAt;
-
-        // Small delay so the two timestamps are distinguishable.
-        await Task.Delay(10);
-
-        // Second import — must update the same row, not insert a second one.
-        await importer.ImportFromFileAsync(ToStream(json), options);
-
-        var logs = await db.ImportSyncLogs.Where(l => l.Source == "swu" && l.SetCode == "SOR").ToListAsync();
-        Assert.Single(logs);
-        Assert.True(logs[0].LastSyncedAt >= firstTimestamp, "LastSyncedAt should advance on re-import");
     }
 
     /// <summary>
@@ -1333,5 +1363,89 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             });
         }
+    }
+
+    /// <summary>
+    /// Simulates a server error on the first HTTP request (the ID-resolution discovery probe)
+    /// and returns a configurable canned JSON response for all subsequent requests.
+    /// Captures every request URL so tests can assert on query parameters.
+    /// </summary>
+    private sealed class FailFirstRequestCapturingHandler(string fallbackJson) : HttpMessageHandler
+    {
+        private int _callCount;
+        public List<Uri> CapturedRequests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            CapturedRequests.Add(request.RequestUri!);
+            if (Interlocked.Increment(ref _callCount) == 1)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(fallbackJson, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    /// <summary>
+    /// Always returns the configured HTTP status code, allowing tests to verify
+    /// that non-success responses are surfaced as <see cref="HttpRequestException"/>.
+    /// </summary>
+    private sealed class ErrorHttpMessageHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+            => Task.FromResult(new HttpResponseMessage(statusCode));
+    }
+
+    /// <summary>
+    /// Builds a Strapi page response containing <paramref name="count"/> minimal card records,
+    /// used to simulate multi-record pages for limit and pagination tests.
+    /// </summary>
+    private static string BuildStrapiPageWithMultipleRecords(int page, int pageCount, int startId, int count)
+    {
+        var records = Enumerable.Range(0, count).Select(i =>
+        {
+            int id = startId + i;
+            return (object)new
+            {
+                id,
+                attributes = new
+                {
+                    title = $"Card {id}",
+                    subtitle = (string?)null,
+                    cardUid = id.ToString(),
+                    serialCode = $"LT{id:D8}",
+                    locale = "en",
+                    cardNumber = id,
+                    rarity = "Common",
+                    text = (string?)null,
+                    artist = (string?)null,
+                    cost = (int?)null,
+                    power = (int?)null,
+                    health = (int?)null,
+                    arena = (string?)null,
+                    aspects = (string[]?)null,
+                    traits = (string[]?)null,
+                    keywords = (string[]?)null,
+                    updatedAt = "2025-11-10T16:07:21.000Z",
+                    type = new { data = new { id = 3, attributes = new { name = "Unit", value = "Unit" } } },
+                    expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
+                    variantTypes = new { data = new[] { new { id = 46, attributes = new { name = "Standard", variantId = "01", foil = false } } } },
+                    variantOf = new { data = (object?)null },
+                    reprintOf = new { data = (object?)null },
+                    artFront = new { data = (object?)null },
+                    artBack = new { data = (object?)null }
+                }
+            };
+        }).ToArray();
+
+        return JsonSerializer.Serialize(new
+        {
+            data = records,
+            meta = new { pagination = new { page, pageSize = count, pageCount, total = pageCount * count } }
+        });
     }
 }

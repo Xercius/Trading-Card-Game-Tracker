@@ -15,7 +15,7 @@ namespace api.Data
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
-        public DbSet<ImportSyncLog> ImportSyncLogs => Set<ImportSyncLog>();
+        public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -164,16 +164,15 @@ namespace api.Data
                     .HasColumnType("decimal(14,2)");
             });
 
-            // --- ImportSyncLog (incremental import tracking) ---
-            b.Entity<ImportSyncLog>(e =>
+            b.Entity<ImportSyncHistory>(e =>
             {
-                e.HasKey(s => s.Id);
+                e.HasKey(h => h.Id);
+                e.Property(h => h.ImporterKey).IsRequired().HasMaxLength(64);
+                e.Property(h => h.SetCode).HasMaxLength(64);
 
-                e.Property(s => s.Source).IsRequired().HasMaxLength(64);
-                e.Property(s => s.SetCode).HasMaxLength(32);
-
-                // One row per (importer, set): allows fast upsert by source + set.
-                e.HasIndex(s => new { s.Source, s.SetCode }).IsUnique();
+                // one row per (importer key, set code) combination
+                e.HasIndex(h => new { h.ImporterKey, h.SetCode })
+                 .IsUnique();
             });
         }
     }

@@ -229,30 +229,30 @@ namespace api.Migrations
                     b.ToTable("DeckCards");
                 });
 
-            modelBuilder.Entity("api.Models.ImportSyncLog", b =>
+            modelBuilder.Entity("api.Models.ImportSyncHistory", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ImporterKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset>("LastSyncedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SetCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Source", "SetCode")
+                    b.HasIndex("ImporterKey", "SetCode")
                         .IsUnique();
 
-                    b.ToTable("ImportSyncLogs");
+                    b.ToTable("ImportSyncHistories");
                 });
 
             modelBuilder.Entity("api.Models.User", b =>
