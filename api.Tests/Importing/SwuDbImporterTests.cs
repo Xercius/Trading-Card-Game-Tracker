@@ -1185,6 +1185,111 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         public void Dispose() => _client.Dispose();
     }
 
+    // ─── sync log tests ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ImportFromFileAsync_NonDryRun_Creates_ImportSyncLog_Entry()
+    {
+        // After a successful non-dry-run import the importer must persist an
+        // ImportSyncLog row for the given source + set so subsequent runs can
+        // read it as the UpdatedSince lower-bound for incremental syncs.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 80001,
+            title: "Sync Test Card",
+            serialCode: "SYNC001",
+            cardUid: "1111111111",
+            cardNumber: 1,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        var before = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
+        var after = DateTimeOffset.UtcNow.AddSeconds(1);
+
+        Assert.Equal(0, summary.Errors);
+
+        var log = await db.ImportSyncLogs.SingleAsync(l => l.Source == "swu" && l.SetCode == "SOR");
+        Assert.NotNull(log);
+        Assert.True(log.LastSyncedAt >= before, "LastSyncedAt should be >= start of test");
+        Assert.True(log.LastSyncedAt <= after, "LastSyncedAt should be <= end of test");
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_DryRun_Does_Not_Create_ImportSyncLog_Entry()
+    {
+        // Dry-run imports must not persist any data, including sync log rows.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 80002,
+            title: "Dry Run Card",
+            serialCode: "DRYRUN01",
+            cardUid: "2222222222",
+            cardNumber: 2,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: true, SetCode: "SOR"));
+
+        Assert.Equal(0, summary.Errors);
+        var log = await db.ImportSyncLogs.FirstOrDefaultAsync(l => l.Source == "swu" && l.SetCode == "SOR");
+        Assert.Null(log);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_NonDryRun_Updates_Existing_ImportSyncLog_Entry()
+    {
+        // If a sync log row already exists for the source + set it should be updated
+        // (upserted) rather than duplicated, enforcing the unique (Source, SetCode) constraint.
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = BuildStrapiJson(
+            id: 80003,
+            title: "Upsert Sync Card",
+            serialCode: "UPRT001",
+            cardUid: "3333333333",
+            cardNumber: 3,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Common",
+            foil: false,
+            imageUrl: null);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+
+        // First import — creates the row.
+        await importer.ImportFromFileAsync(ToStream(json), options);
+        var firstLog = await db.ImportSyncLogs.SingleAsync(l => l.Source == "swu" && l.SetCode == "SOR");
+        var firstTimestamp = firstLog.LastSyncedAt;
+
+        // Small delay so the two timestamps are distinguishable.
+        await Task.Delay(10);
+
+        // Second import — must update the same row, not insert a second one.
+        await importer.ImportFromFileAsync(ToStream(json), options);
+
+        var logs = await db.ImportSyncLogs.Where(l => l.Source == "swu" && l.SetCode == "SOR").ToListAsync();
+        Assert.Single(logs);
+        Assert.True(logs[0].LastSyncedAt >= firstTimestamp, "LastSyncedAt should advance on re-import");
+    }
+
     /// <summary>
     /// Captures every request URL sent through the <see cref="HttpClient"/> and returns a
     /// configurable canned Strapi JSON response so unit tests can inspect query parameters

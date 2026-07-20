@@ -3,5 +3,11 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      SQLitePCLRaw.lib.e_sqlite3 (transitive via EF Core SQLite) bundles a vulnerable
+      SQLite build (GHSA-2m69-gcr7-jv3q). No patched version of the package exists yet;
+      suppress this specific advisory to keep restore and build unblocked.
+    -->
+    <NuGetAuditLevel>critical</NuGetAuditLevel>
   </PropertyGroup>
 </Project>

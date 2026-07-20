@@ -102,6 +102,10 @@ public sealed class SwuDbImporter : ISourceImporter
             }
 
             await _db.SaveChangesAsync(ct);
+
+            if (!options.DryRun)
+                await UpsertSyncLogAsync(expansionCode, ct);
+
             summary.Messages.Add(
                 $"Processed {Math.Min(processed, allRecords.Count)} records for expansion={expansionCode}.");
             return summary;
@@ -158,6 +162,10 @@ public sealed class SwuDbImporter : ISourceImporter
             }
 
             await _db.SaveChangesAsync(ct);
+
+            if (!options.DryRun && options.SetCode is not null)
+                await UpsertSyncLogAsync(options.SetCode.Trim().ToUpperInvariant(), ct);
+
             summary.Messages.Add(
                 $"Processed {Math.Min(processed, records.Count)} records from file (set={options.SetCode ?? "unknown"}).");
             return summary;
@@ -320,6 +328,38 @@ public sealed class SwuDbImporter : ISourceImporter
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed) summary.PrintingsUpdated++;
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Sync log helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates or updates the <see cref="ImportSyncLog"/> row for this importer and set,
+    /// recording <see cref="DateTimeOffset.UtcNow"/> as <c>LastSyncedAt</c>.  Called at the
+    /// end of every successful non-dry-run import so the next run can pass the stored
+    /// timestamp as <c>ImportOptions.UpdatedSince</c> to perform an incremental sync.
+    /// </summary>
+    private async Task UpsertSyncLogAsync(string setCode, CancellationToken ct)
+    {
+        var entry = await _db.ImportSyncLogs
+            .FirstOrDefaultAsync(s => s.Source == Key && s.SetCode == setCode, ct);
+
+        if (entry is null)
+        {
+            _db.ImportSyncLogs.Add(new api.Models.ImportSyncLog
+            {
+                Source = Key,
+                SetCode = setCode,
+                LastSyncedAt = DateTimeOffset.UtcNow
+            });
+        }
+        else
+        {
+            entry.LastSyncedAt = DateTimeOffset.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

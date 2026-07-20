@@ -15,6 +15,7 @@ namespace api.Data
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
+        public DbSet<ImportSyncLog> ImportSyncLogs => Set<ImportSyncLog>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -161,6 +162,18 @@ namespace api.Data
 
                 e.Property(p => p.Price)
                     .HasColumnType("decimal(14,2)");
+            });
+
+            // --- ImportSyncLog (incremental import tracking) ---
+            b.Entity<ImportSyncLog>(e =>
+            {
+                e.HasKey(s => s.Id);
+
+                e.Property(s => s.Source).IsRequired().HasMaxLength(64);
+                e.Property(s => s.SetCode).HasMaxLength(32);
+
+                // One row per (importer, set): allows fast upsert by source + set.
+                e.HasIndex(s => new { s.Source, s.SetCode }).IsUnique();
             });
         }
     }
