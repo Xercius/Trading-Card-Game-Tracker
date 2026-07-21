@@ -1,12 +1,19 @@
+using api.Tests.Fixtures;
+using System.Net.Http.Headers;
+
 namespace api.Tests;
 
 public static class HttpClientExtensions
 {
-    /// <summary>
-    /// Returns the client unchanged. Authentication is no longer required;
-    /// this method exists for test-call compatibility.
-    /// </summary>
-    public static HttpClient WithUser(this HttpClient client, int _ = 0) => client;
+    public static HttpClient WithUser(this HttpClient client, int userId = 0)
+    {
+        _ = userId;
+        return client;
+    }
 
-    public static HttpClient AsAdmin(this HttpClient client) => client;
+    public static HttpClient AsAdmin(this HttpClient client)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CustomWebApplicationFactory.AdminApiToken);
+        return client;
+    }
 }
