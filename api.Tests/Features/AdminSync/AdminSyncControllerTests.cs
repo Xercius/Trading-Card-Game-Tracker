@@ -129,6 +129,144 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task RunStarWarsUnlimited_WithRealImporter_UpdatesCardsAndPersistsSyncMetadata()
+    {
+        await factory.ResetDatabaseAsync();
+        var remoteCards = new RecordingSwuApiClient(
+        [
+            CreateRecord(
+                id: 3001,
+                title: "Grand Moff Tarkin",
+                cardUid: "3001",
+                serialCode: "SOR-020",
+                setCode: "SOR",
+                setName: "Spark of Rebellion",
+                typeName: "Leader",
+                text: "Updated text.",
+                artist: "Updated Artist",
+                cost: 4,
+                power: 3,
+                health: 5,
+                aspects: ["Villainy", "Command"],
+                traits: ["Imperial", "Leader"],
+                rarity: "Legendary",
+                imageUrl: "https://example.test/tarkin-updated.png",
+                createdAt: new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
+                updatedAt: new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero)),
+            CreateRecord(
+                id: 3002,
+                title: "Luke Skywalker",
+                cardUid: "3002",
+                serialCode: "SOR-021",
+                setCode: "SOR",
+                setName: "Spark of Rebellion",
+                text: "Deal 3 damage to a unit.",
+                artist: "Artist Two",
+                cost: 5,
+                power: 4,
+                health: 6,
+                aspects: ["Heroism", "Command"],
+                traits: ["Rebel", "Jedi"],
+                keywords: ["Restore"],
+                rarity: "Rare",
+                imageUrl: "https://example.test/luke.png",
+                createdAt: new DateTimeOffset(2026, 7, 5, 9, 0, 0, TimeSpan.Zero),
+                updatedAt: new DateTimeOffset(2026, 7, 21, 12, 5, 0, TimeSpan.Zero))
+        ]);
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, remoteCards);
+        await SeedSwuSetAsync(services, "SOR");
+
+        using (var seedScope = services.CreateScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Cards.Add(new Card
+            {
+                Game = "Star Wars Unlimited",
+                Name = "Grand Moff Tarkin",
+                CardType = "Leader",
+                Description = "Original text.",
+                DetailsJson = "{\"version\":1}"
+            });
+            await db.SaveChangesAsync();
+
+            var existingCard = await db.Cards.SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
+            db.CardPrintings.Add(new CardPrinting
+            {
+                CardId = existingCard.Id,
+                Set = "SOR",
+                Number = "SOR-020",
+                Rarity = "Common",
+                Style = "Standard",
+                ImageUrl = "https://example.test/tarkin-original.png",
+                DetailsJson = "{\"version\":1}"
+            });
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "swu",
+                SetCode = "SOR",
+                LastSyncedAt = new DateTimeOffset(2026, 7, 20, 8, 0, 0, TimeSpan.Zero)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        client.AsAdmin();
+        var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("swu", payload!.Source);
+        Assert.Equal("Succeeded", payload.Status);
+        Assert.Equal(1, payload.SetCount);
+        Assert.Equal(2, payload.Created);
+        Assert.Equal(2, payload.Updated);
+        Assert.Equal(0, payload.Invalid);
+        Assert.Contains(payload.Messages, message => message.Contains("Processed 2 records", StringComparison.Ordinal));
+
+        Assert.Equal(1, remoteCards.GetAllCardsCallCount);
+        Assert.NotNull(remoteCards.CapturedFilter);
+        Assert.Equal(42, remoteCards.CapturedFilter!.ExpansionId);
+        Assert.Null(remoteCards.CapturedFilter.ExpansionCode);
+        Assert.Null(remoteCards.CapturedFilter.UpdatedSince);
+
+        using var scope = services.CreateScope();
+        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var updatedCard = await appDb.Cards
+            .Include(c => c.Printings)
+            .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
+        Assert.Equal("Updated text.", updatedCard.Description);
+        Assert.Contains("\"Updated text.\"", updatedCard.DetailsJson, StringComparison.Ordinal);
+
+        var updatedPrinting = Assert.Single(updatedCard.Printings);
+        Assert.Equal("Legendary", updatedPrinting.Rarity);
+        Assert.Equal("https://example.test/tarkin-updated.png", updatedPrinting.ImageUrl);
+
+        var newCard = await appDb.Cards
+            .Include(c => c.Printings)
+            .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Luke Skywalker");
+        Assert.Equal("Deal 3 damage to a unit.", newCard.Description);
+        var newPrinting = Assert.Single(newCard.Printings);
+        Assert.Equal("SOR", newPrinting.Set);
+        Assert.Equal("SOR-021", newPrinting.Number);
+        Assert.Equal("Rare", newPrinting.Rarity);
+
+        var syncHistory = await appDb.ImportSyncHistories
+            .Where(h => h.ImporterKey == "swu" && h.SetCode == "SOR")
+            .ToArrayAsync();
+        var historyEntry = Assert.Single(syncHistory);
+        Assert.True(historyEntry.LastSyncedAt >= payload.StartedAt);
+        Assert.True(historyEntry.LastSyncedAt <= payload.CompletedAt);
+
+        var syncLog = await appDb.SyncLogs
+            .Include(log => log.SwuSet)
+            .SingleAsync(log => log.SwuSet != null && log.SwuSet.Code == "SOR");
+        Assert.Equal("Succeeded", syncLog.Status);
+        Assert.Equal(4, syncLog.CardsUpserted);
+        Assert.NotNull(syncLog.CompletedAt);
+        Assert.Null(syncLog.ErrorMessage);
+    }
+
+    [Fact]
     public async Task RunStarWarsUnlimited_WhenSyncAlreadyRunning_ReturnsConflictStatus()
     {
         await factory.ResetDatabaseAsync();
@@ -221,6 +359,22 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         return (customized.CreateClient(), customized.Services, customized);
     }
 
+    private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSwuApiClient(
+        CustomWebApplicationFactory factory,
+        RecordingSwuApiClient apiClient)
+    {
+        var customized = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll(typeof(ISWUApiClient));
+                services.AddSingleton<ISWUApiClient>(apiClient);
+            });
+        });
+
+        return (customized.CreateClient(), customized.Services, customized);
+    }
+
     private static async Task SeedSwuSetAsync(IServiceProvider services, params string[] codes)
     {
         using var scope = services.CreateScope();
@@ -257,6 +411,71 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await db.SaveChangesAsync();
     }
 
+    private static StrapiRecord CreateRecord(
+        int id,
+        string title,
+        string cardUid,
+        string serialCode,
+        string setCode,
+        string setName,
+        string typeName = "Unit",
+        string? subtitle = null,
+        string? text = null,
+        string? artist = null,
+        int? cost = null,
+        int? power = null,
+        int? health = null,
+        string? arena = null,
+        string[]? aspects = null,
+        string[]? traits = null,
+        string[]? keywords = null,
+        string rarity = "Common",
+        string? imageUrl = null,
+        string? backImageUrl = null,
+        DateTimeOffset? createdAt = null,
+        DateTimeOffset? updatedAt = null) =>
+        new(
+            id,
+            new SwuCardAttributes(
+                Title: title,
+                Subtitle: subtitle,
+                CardUid: cardUid,
+                SerialCode: serialCode,
+                Locale: "en",
+                CardNumber: 1,
+                Rarity: rarity,
+                Text: text,
+                Artist: artist,
+                Cost: cost,
+                Power: power,
+                Health: health,
+                Arena: arena,
+                Aspects: aspects,
+                Traits: traits,
+                Keywords: keywords,
+                CreatedAt: createdAt,
+                UpdatedAt: updatedAt,
+                PublishedAt: updatedAt,
+                Type: new StrapiRelation<SwuTypeAttributes>(
+                    new StrapiRelationData<SwuTypeAttributes>(1, new SwuTypeAttributes(typeName, null))),
+                Expansion: new StrapiRelation<SwuExpansionAttributes>(
+                    new StrapiRelationData<SwuExpansionAttributes>(1, new SwuExpansionAttributes(setName, setCode))),
+                VariantTypes: null,
+                VariantOf: null,
+                ReprintOf: null,
+                ArtFront: imageUrl is null
+                    ? null
+                    : new StrapiRelation<SwuImageAttributes>(
+                        new StrapiRelationData<SwuImageAttributes>(
+                            1,
+                            new SwuImageAttributes(imageUrl, null))),
+                ArtBack: backImageUrl is null
+                    ? null
+                    : new StrapiRelation<SwuImageAttributes>(
+                        new StrapiRelationData<SwuImageAttributes>(
+                            2,
+                            new SwuImageAttributes(backImageUrl, null)))));
+
     private sealed class SyncTestImporter : ISourceImporter
     {
         private static readonly ConcurrentDictionary<string, ImportSummary> Summaries = new(StringComparer.OrdinalIgnoreCase);
@@ -268,7 +487,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
         public string DisplayName => "SWU Test Importer";
 
-        public IEnumerable<string> SupportedGames => [ "Star Wars Unlimited" ];
+        public IEnumerable<string> SupportedGames => ["Star Wars Unlimited"];
 
         public static IReadOnlyCollection<string> RequestedSetCodes => RequestedSetsInternal.ToArray();
 
@@ -336,5 +555,22 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             Errors = summary.Errors,
             Messages = [.. summary.Messages]
         };
+    }
+
+    private sealed class RecordingSwuApiClient(IReadOnlyList<StrapiRecord> records) : ISWUApiClient
+    {
+        public SWUCardFilter? CapturedFilter { get; private set; }
+
+        public int GetAllCardsCallCount { get; private set; }
+
+        public Task<IReadOnlyList<StrapiRecord>> GetAllCardsAsync(SWUCardFilter filter, CancellationToken ct = default)
+        {
+            GetAllCardsCallCount++;
+            CapturedFilter = filter;
+            return Task.FromResult(records);
+        }
+
+        public Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct = default) =>
+            Task.FromResult<int?>(code == "SOR" ? 42 : null);
     }
 }
