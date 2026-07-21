@@ -182,6 +182,7 @@ namespace api.Data
             // --- SwuSet (SWU expansion set catalogue) ---
             b.Entity<SwuSet>(e =>
             {
+                e.ToTable("SwuSets");
                 e.HasKey(s => s.Id);
 
                 e.Property(s => s.Code).IsRequired().HasMaxLength(32);
@@ -194,6 +195,7 @@ namespace api.Data
             // --- SwuCard (SWU-specific logical card) ---
             b.Entity<SwuCard>(e =>
             {
+                e.ToTable("SwuCards");
                 e.HasKey(c => c.Id);
 
                 e.Property(c => c.Title).IsRequired().HasMaxLength(256);
@@ -210,7 +212,9 @@ namespace api.Data
                 e.HasIndex(c => c.StrapiId).IsUnique();
 
                 // unique cardUid when present
-                e.HasIndex(c => c.CardUid).IsUnique();
+                e.HasIndex(c => c.CardUid)
+                 .IsUnique()
+                 .HasFilter("\"CardUid\" IS NOT NULL");
 
                 // fast lookup by set + title
                 e.HasIndex(c => new { c.SwuSetId, c.Title, c.Subtitle });
@@ -234,6 +238,7 @@ namespace api.Data
             // --- SwuCardPrinting (SWU-specific printing variant) ---
             b.Entity<SwuCardPrinting>(e =>
             {
+                e.ToTable("SwuCardPrintings");
                 e.HasKey(p => p.Id);
 
                 e.Property(p => p.Number).IsRequired().HasMaxLength(32);
@@ -268,6 +273,7 @@ namespace api.Data
             // --- SyncLog (SWU import operation audit log) ---
             b.Entity<SyncLog>(e =>
             {
+                e.ToTable("SyncLogs");
                 e.HasKey(l => l.Id);
 
                 e.Property(l => l.Status).IsRequired().HasMaxLength(16);
