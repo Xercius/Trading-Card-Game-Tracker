@@ -18,6 +18,67 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
+    public async Task GetStarWarsUnlimitedStatus_WhenUnauthenticated_ReturnsUnauthorized()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _, _) = CreateClientWithSyncImporter(factory);
+
+        var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/status");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedStatus_WhenAuthenticated_ReturnsIdleStatus_And_HistoryDetails()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithSyncImporter(factory);
+        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
+        await SeedSyncHistoryAsync(services, "SHD", new DateTimeOffset(2026, 7, 21, 11, 30, 0, TimeSpan.Zero));
+
+        client.AsAdmin();
+        var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/status");
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusDetailsResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("swu", payload!.Source);
+        Assert.Equal("Idle", payload.Status);
+        Assert.Null(payload.RunningSince);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 11, 30, 0, TimeSpan.Zero), payload.LastCompletedAt);
+        Assert.Equal(2, payload.HistoryCount);
+        Assert.Empty(payload.Messages);
+        Assert.Equal(["SHD", "SOR"], payload.History.Select(h => h.SetCode).ToArray());
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedStatus_WhenSyncRunning_ReturnsRunningStatus()
+    {
+        await factory.ResetDatabaseAsync();
+        var (firstClient, services, customizedFactory) = CreateClientWithSyncImporter(factory);
+        await SeedSwuSetAsync(services, "SOR");
+        SyncTestImporter.SetSummary("SOR", created: 1, updated: 0, invalid: 0, "SOR complete");
+        SyncTestImporter.BlockNextImport();
+
+        firstClient.AsAdmin();
+        var firstRequest = firstClient.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
+        await SyncTestImporter.WaitForImportToStartAsync();
+
+        using var secondClient = customizedFactory.CreateClient().AsAdmin();
+        var statusResponse = await secondClient.GetAsync("/api/admin/sync/star-wars-unlimited/status");
+        statusResponse.EnsureSuccessStatusCode();
+
+        var payload = await statusResponse.Content.ReadFromJsonAsync<AdminSyncStatusDetailsResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Running", payload!.Status);
+        Assert.NotNull(payload.RunningSince);
+
+        SyncTestImporter.ReleaseImport();
+        var completed = await firstRequest;
+        completed.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task RunStarWarsUnlimited_WhenUnauthenticated_ReturnsUnauthorized()
     {
         await factory.ResetDatabaseAsync();
@@ -127,6 +188,20 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
                 LastSyncedAt = DateTimeOffset.UtcNow
             });
         }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedSyncHistoryAsync(IServiceProvider services, string setCode, DateTimeOffset syncedAt)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = setCode,
+            LastSyncedAt = syncedAt
+        });
 
         await db.SaveChangesAsync();
     }

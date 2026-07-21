@@ -24,6 +24,34 @@ public sealed class AdminSyncController(
     private const string SwuGameName = "Star Wars Unlimited";
     private const string SyncRouteKey = "star-wars-unlimited";
 
+    [HttpGet("star-wars-unlimited/status")]
+    public async Task<ActionResult<AdminSyncStatusDetailsResponse>> GetStarWarsUnlimitedStatus(CancellationToken ct)
+    {
+        var history = (await db.ImportSyncHistories
+            .AsNoTracking()
+            .Where(h => h.ImporterKey == SwuImporterKey)
+            .Select(h => new AdminSyncSetHistoryEntry(h.SetCode, h.LastSyncedAt))
+            .ToArrayAsync(ct))
+            .OrderByDescending(h => h.LastSyncedAt)
+            .ThenBy(h => h.SetCode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var isRunning = executionTracker.TryGetStartedAt(SyncRouteKey, out var runningSince);
+        var status = isRunning ? "Running" : "Idle";
+        string[] messages = history.Length == 0
+            ? ["No sync history recorded yet."]
+            : Array.Empty<string>();
+
+        return Ok(new AdminSyncStatusDetailsResponse(
+            Source: SwuImporterKey,
+            Status: status,
+            RunningSince: isRunning ? runningSince : null,
+            LastCompletedAt: history.FirstOrDefault()?.LastSyncedAt,
+            HistoryCount: history.Length,
+            History: history,
+            Messages: messages));
+    }
+
     [HttpPost("star-wars-unlimited")]
     public async Task<ActionResult<AdminSyncStatusResponse>> RunStarWarsUnlimited(CancellationToken ct)
     {
