@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { IMPORT_MAX_ROWS_PREVIEW, UPLOAD_MAX_SIZE_MB } from "@/constants";
 import { useApply, useDryRun, useImportOptions } from "@/features/admin/import/hooks";
+import AdminSyncPanel from "@/features/admin/sync/AdminSyncPanel";
 import type {
   DryRunParams,
   ImportPreviewResponse,
@@ -170,6 +171,8 @@ export default function AdminImportPage() {
           Preview remote imports or upload files before applying changes.
         </p>
       </div>
+
+      <AdminSyncPanel />
 
       {toast && (
         <div

@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { act } from "react-dom/test-utils";
-import { createRoot } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import AdminImportPage from "../AdminImportPage";
 import http from "@/lib/http";
 import { UPLOAD_MAX_SIZE_MB } from "@/constants";
@@ -22,63 +22,64 @@ function createClient() {
   });
 }
 
-async function flush() {
-  await act(async () => {
-    await Promise.resolve();
-  });
-}
+const defaultSyncStatus = {
+  source: "swu",
+  status: "Idle",
+  runningSince: null,
+  lastCompletedAt: null,
+  historyCount: 0,
+  history: [],
+  messages: ["No sync history recorded yet."],
+};
 
-async function renderPage(client: QueryClient) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  await act(async () => {
-    root.render(
-      <MemoryRouter>
-        <QueryClientProvider client={client}>
-          <AdminImportPage />
-        </QueryClientProvider>
-      </MemoryRouter>
-    );
-  });
-
-  await flush();
+function renderPage(client: QueryClient) {
+  const user = userEvent.setup();
+  const view = render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <AdminImportPage />
+      </QueryClientProvider>
+    </MemoryRouter>
+  );
 
   return {
-    container,
-    cleanup: async () => {
-      await act(async () => {
-        root.unmount();
-      });
-      container.remove();
-      client.clear();
-    },
+    user,
+    cleanupClient: () => client.clear(),
+    ...view,
   };
 }
 
 describe("AdminImportPage", () => {
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 
   it("runs a dry-run and renders preview rows", async () => {
     const client = createClient();
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: {
-        sources: [
-          {
-            key: "dummy",
-            importerKey: "dummy",
-            displayName: "Dummy Importer",
-            games: ["Test Game"],
-            sets: [
-              { code: "ALP", name: "Alpha" },
-              { code: "BETA", name: "Beta" },
+    vi.spyOn(http, "get").mockImplementation((url: string) => {
+      if (url === "admin/import/options") {
+        return Promise.resolve({
+          data: {
+            sources: [
+              {
+                key: "dummy",
+                importerKey: "dummy",
+                displayName: "Dummy Importer",
+                games: ["Test Game"],
+                sets: [
+                  { code: "ALP", name: "Alpha" },
+                  { code: "BETA", name: "Beta" },
+                ],
+              },
             ],
           },
-        ],
-      },
+        });
+      }
+      if (url === "admin/sync/star-wars-unlimited/status") {
+        return Promise.resolve({ data: defaultSyncStatus });
+      }
+      return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
     vi.spyOn(http, "post").mockImplementation((url: string) => {
@@ -106,64 +107,45 @@ describe("AdminImportPage", () => {
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
-    const { container, cleanup } = await renderPage(client);
+    const { cleanupClient, user } = renderPage(client);
 
-    const combobox = container.querySelector('button[role="combobox"]');
-    expect(combobox).not.toBeNull();
-    combobox && combobox.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
+    await user.click((await screen.findAllByRole("combobox"))[0]);
+    await user.click(await screen.findByRole("option", { name: "Dummy Importer" }));
 
-    const option = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Dummy Importer")
-    );
-    expect(option).toBeDefined();
-    option && option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
+    await user.click(screen.getAllByRole("combobox")[1]);
+    await user.click(await screen.findByRole("option", { name: "Alpha (ALP)" }));
 
-    const setSelect = container.querySelectorAll('button[role="combobox"]')[1];
-    expect(setSelect).toBeDefined();
-    setSelect && setSelect.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
+    await user.click(screen.getByRole("button", { name: "Dry-run" }));
 
-    const setOption = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Alpha")
-    );
-    expect(setOption).toBeDefined();
-    setOption && setOption.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
+    expect(await screen.findByText("New: 2")).toBeVisible();
+    expect(screen.getByText("Update: 1")).toBeVisible();
+    expect(screen.getByText("New records")).toBeVisible();
 
-    const dryRunButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Dry-run")
-    );
-    expect(dryRunButton).toBeDefined();
-    await act(async () => {
-      dryRunButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-    await flush();
-
-    expect(container.textContent).toContain("New: 2");
-    expect(container.textContent).toContain("Update: 1");
-    const tableStatus = container.querySelector("table tbody tr td");
-    expect(tableStatus?.textContent).toContain("New");
-
-    await cleanup();
+    cleanupClient();
   });
 
   it("applies an import and shows a toast", async () => {
     const client = createClient();
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: {
-        sources: [
-          {
-            key: "dummy",
-            importerKey: "dummy",
-            displayName: "Dummy Importer",
-            games: ["Test Game"],
-            sets: [],
+    vi.spyOn(http, "get").mockImplementation((url: string) => {
+      if (url === "admin/import/options") {
+        return Promise.resolve({
+          data: {
+            sources: [
+              {
+                key: "dummy",
+                importerKey: "dummy",
+                displayName: "Dummy Importer",
+                games: ["Test Game"],
+                sets: [],
+              },
+            ],
           },
-        ],
-      },
+        });
+      }
+      if (url === "admin/sync/star-wars-unlimited/status") {
+        return Promise.resolve({ data: defaultSyncStatus });
+      }
+      return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
     const postMock = vi.spyOn(http, "post").mockImplementation((url: string) => {
@@ -181,84 +163,57 @@ describe("AdminImportPage", () => {
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
-    const { container, cleanup } = await renderPage(client);
+    const { cleanupClient, user } = renderPage(client);
 
-    const combobox = container.querySelector('button[role="combobox"]');
-    combobox && combobox.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
-    const option = Array.from(container.querySelectorAll('button[role="option"]')).find((el) =>
-      el.textContent?.includes("Dummy Importer")
+    await user.click((await screen.findAllByRole("combobox"))[0]);
+    await user.click(await screen.findByRole("option", { name: "Dummy Importer" }));
+
+    await user.click(screen.getByRole("button", { name: "Dry-run" }));
+    await screen.findByText("New: 1");
+
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() =>
+      expect(postMock).toHaveBeenCalledWith(
+        "admin/import/apply",
+        expect.anything(),
+        expect.any(Object)
+      )
     );
-    option && option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flush();
+    expect(await screen.findByText(/Import applied/i)).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
 
-    const dryRunButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Dry-run")
-    );
-    await act(async () => {
-      dryRunButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-    await flush();
-
-    const applyButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Apply")
-    );
-    await act(async () => {
-      applyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    expect(postMock).toHaveBeenCalledWith(
-      "admin/import/apply",
-      expect.anything(),
-      expect.any(Object)
-    );
-    expect(container.textContent).toContain("Import applied");
-    const table = container.querySelector("table");
-    expect(table).toBeNull();
-
-    await cleanup();
+    cleanupClient();
   });
 
   it("validates upload file type and size", async () => {
     const client = createClient();
-    vi.spyOn(http, "get").mockResolvedValue({ data: { sources: [] } });
-
-    const { container, cleanup } = await renderPage(client);
-
-    const uploadTab = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Upload file")
-    );
-    await act(async () => {
-      uploadTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    vi.spyOn(http, "get").mockImplementation((url: string) => {
+      if (url === "admin/import/options") {
+        return Promise.resolve({ data: { sources: [] } });
+      }
+      if (url === "admin/sync/star-wars-unlimited/status") {
+        return Promise.resolve({ data: defaultSyncStatus });
+      }
+      return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
-    await flush();
 
-    const input = container.querySelector("input[type='file']") as HTMLInputElement;
+    const { cleanupClient, container, user } = renderPage(client);
+
+    await user.click(await screen.findByRole("button", { name: "Upload file" }));
+
+    const input = container.querySelector("input[type='file']") as HTMLInputElement | null;
     expect(input).not.toBeNull();
 
     const badFile = new File(["bad"], "bad.txt", { type: "text/plain" });
-    await act(async () => {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(badFile);
-      input.files = dataTransfer.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await flush();
-    expect(container.textContent).toContain("Unsupported file type");
+    fireEvent.change(input!, { target: { files: [badFile] } });
+    expect(await screen.findByText(/Unsupported file type/i)).toBeVisible();
 
     const largeBlob = new Uint8Array(UPLOAD_MAX_SIZE_MB * 1024 * 1024 + 1);
     const largeFile = new File([largeBlob], "huge.csv", { type: "text/csv" });
-    await act(async () => {
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(largeFile);
-      input.files = dataTransfer.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    await flush();
-    expect(container.textContent).toContain(`File exceeds ${UPLOAD_MAX_SIZE_MB} MB limit.`);
+    fireEvent.change(input!, { target: { files: [largeFile] } });
+    expect(await screen.findByText(`File exceeds ${UPLOAD_MAX_SIZE_MB} MB limit.`)).toBeVisible();
 
-    await cleanup();
+    cleanupClient();
   });
 });
