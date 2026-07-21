@@ -17,6 +17,9 @@ namespace api.Data
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
         public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
         public DbSet<SwuSet> SwuSets => Set<SwuSet>();
+        public DbSet<SwuCard> SwuCards => Set<SwuCard>();
+        public DbSet<SwuCardPrinting> SwuCardPrintings => Set<SwuCardPrinting>();
+        public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -186,6 +189,98 @@ namespace api.Data
 
                 // one row per expansion code (enforced at DB level)
                 e.HasIndex(s => s.Code).IsUnique();
+            });
+
+            // --- SwuCard (SWU-specific logical card) ---
+            b.Entity<SwuCard>(e =>
+            {
+                e.HasKey(c => c.Id);
+
+                e.Property(c => c.Title).IsRequired().HasMaxLength(256);
+                e.Property(c => c.CardType).IsRequired().HasMaxLength(64);
+                e.Property(c => c.CardUid).HasMaxLength(64);
+                e.Property(c => c.Subtitle).HasMaxLength(256);
+                e.Property(c => c.Arena).HasMaxLength(32);
+                e.Property(c => c.Artist).HasMaxLength(128);
+                e.Property(c => c.Aspects).HasMaxLength(256);
+                e.Property(c => c.Traits).HasMaxLength(512);
+                e.Property(c => c.Keywords).HasMaxLength(512);
+
+                // one row per Strapi record ID
+                e.HasIndex(c => c.StrapiId).IsUnique();
+
+                // unique cardUid when present
+                e.HasIndex(c => c.CardUid).IsUnique();
+
+                // fast lookup by set + title
+                e.HasIndex(c => new { c.SwuSetId, c.Title, c.Subtitle });
+
+                // FK to SwuSet (primary set that introduced this card)
+                e.HasOne(c => c.SwuSet)
+                 .WithMany(s => s.Cards)
+                 .HasForeignKey(c => c.SwuSetId)
+                 .OnDelete(DeleteBehavior.Restrict);
+
+                // self-referencing FK for variant cards
+                e.HasOne(c => c.BaseCard)
+                 .WithMany(c => c.Variants)
+                 .HasForeignKey(c => c.BaseCardId)
+                 .IsRequired(false)
+                 .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasIndex(c => c.BaseCardId);
+            });
+
+            // --- SwuCardPrinting (SWU-specific printing variant) ---
+            b.Entity<SwuCardPrinting>(e =>
+            {
+                e.HasKey(p => p.Id);
+
+                e.Property(p => p.Number).IsRequired().HasMaxLength(32);
+                e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
+                e.Property(p => p.Style).IsRequired().HasMaxLength(64);
+                e.Property(p => p.ImageUrl).HasMaxLength(1024);
+                e.Property(p => p.BackImageUrl).HasMaxLength(1024);
+
+                // one row per Strapi record ID
+                e.HasIndex(p => p.StrapiId).IsUnique();
+
+                // uniqueness: one printing per (card, set, number, style)
+                e.HasIndex(p => new { p.SwuCardId, p.SwuSetId, p.Number, p.Style })
+                 .IsUnique();
+
+                // fast lookup by set + number
+                e.HasIndex(p => new { p.SwuSetId, p.Number });
+
+                // FK to SwuCard
+                e.HasOne(p => p.SwuCard)
+                 .WithMany(c => c.Printings)
+                 .HasForeignKey(p => p.SwuCardId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                // FK to SwuSet
+                e.HasOne(p => p.SwuSet)
+                 .WithMany(s => s.Printings)
+                 .HasForeignKey(p => p.SwuSetId)
+                 .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // --- SyncLog (SWU import operation audit log) ---
+            b.Entity<SyncLog>(e =>
+            {
+                e.HasKey(l => l.Id);
+
+                e.Property(l => l.Status).IsRequired().HasMaxLength(16);
+
+                // fast lookup by set + time
+                e.HasIndex(l => new { l.SwuSetId, l.StartedAt });
+
+                // nullable FK to SwuSet
+                e.HasOne(l => l.SwuSet)
+                 .WithMany(s => s.SyncLogs)
+                 .HasForeignKey(l => l.SwuSetId)
+                 .IsRequired(false)
+                 .OnDelete(DeleteBehavior.SetNull);
             });
         }
     }

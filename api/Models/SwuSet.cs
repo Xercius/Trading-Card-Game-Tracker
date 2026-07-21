@@ -35,4 +35,19 @@ public sealed class SwuSet
     /// UTC timestamp of the last time this set row was written by the importer.
     /// </summary>
     public DateTimeOffset LastSyncedAt { get; set; }
+
+    /// <summary>
+    /// Cards that were introduced in this expansion set.
+    /// </summary>
+    public ICollection<SwuCard> Cards { get; set; } = new List<SwuCard>();
+
+    /// <summary>
+    /// All printings released as part of this expansion set.
+    /// </summary>
+    public ICollection<SwuCardPrinting> Printings { get; set; } = new List<SwuCardPrinting>();
+
+    /// <summary>
+    /// Sync log entries for import operations that targeted this set.
+    /// </summary>
+    public ICollection<SyncLog> SyncLogs { get; set; } = new List<SyncLog>();
 }
