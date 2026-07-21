@@ -24,6 +24,45 @@ public sealed class AdminSyncController(
     private const string SwuGameName = "Star Wars Unlimited";
     private const string SyncRouteKey = "star-wars-unlimited";
 
+    [HttpGet("star-wars-unlimited/logs")]
+    public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
+    {
+        if (limit is <= 0 or > 200)
+        {
+            limit = 50;
+        }
+
+        var totalCount = await db.SyncLogs.CountAsync(ct);
+
+        var allLogs = await db.SyncLogs
+            .AsNoTracking()
+            .Select(l => new AdminSyncLogEntry(
+                l.Id,
+                l.SwuSetId,
+                l.SwuSet != null ? l.SwuSet.Code : null,
+                l.StartedAt,
+                l.CompletedAt,
+                l.IsIncremental,
+                l.UpdatedSince,
+                l.CardsReturned,
+                l.CardsUpserted,
+                l.Status,
+                l.ErrorMessage))
+            .ToListAsync(ct);
+
+        var logs = allLogs
+            .OrderByDescending(l => l.StartedAt)
+            .Take(limit)
+            .ToList();
+
+        return Ok(new AdminSyncLogsResponse(
+            Source: SwuImporterKey,
+            TotalCount: totalCount,
+            Logs: logs));
+    }
+
     [HttpGet("star-wars-unlimited/status")]
     public async Task<ActionResult<AdminSyncStatusDetailsResponse>> GetStarWarsUnlimitedStatus(CancellationToken ct)
     {
@@ -104,15 +143,32 @@ public sealed class AdminSyncController(
             foreach (var setCode in setCodes)
             {
                 var syncTimestamp = DateTimeOffset.UtcNow;
-                var summary = await importer.ImportFromRemoteAsync(
-                    new ImportOptions(
-                        DryRun: false,
-                        Upsert: true,
-                        SetCode: setCode),
-                    ct);
+                var syncLog = await CreatePendingSyncLogAsync(setCode, syncTimestamp, ct);
+                try
+                {
+                    var summary = await importer.ImportFromRemoteAsync(
+                        new ImportOptions(
+                            DryRun: false,
+                            Upsert: true,
+                            SetCode: setCode),
+                        ct);
 
-                MergeSummary(combined, summary);
-                await RecordSyncHistoryAsync(setCode, syncTimestamp, ct);
+                    MergeSummary(combined, summary);
+                    await RecordSyncHistoryAsync(setCode, syncTimestamp, ct);
+                    await UpdateSyncLogSucceededAsync(syncLog, summary, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    await UpdateSyncLogFailedAsync(syncLog, "Sync was cancelled.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Admin sync failed for {Source}/{SetCode}.", SwuImporterKey, setCode);
+                    combined.Errors++;
+                    combined.Messages.Add($"Set {setCode} failed: {ex.Message}");
+                    await UpdateSyncLogFailedAsync(syncLog, ex.Message);
+                }
             }
 
             var completedAt = DateTimeOffset.UtcNow;
@@ -141,6 +197,59 @@ public sealed class AdminSyncController(
         finally
         {
             executionTracker.Complete(SyncRouteKey);
+        }
+    }
+
+    private async Task<SyncLog> CreatePendingSyncLogAsync(string setCode, DateTimeOffset startedAt, CancellationToken ct)
+    {
+        var swuSetId = await db.SwuSets
+            .AsNoTracking()
+            .Where(s => s.Code == setCode)
+            .Select(s => (int?)s.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var syncLog = new SyncLog
+        {
+            SwuSetId = swuSetId,
+            StartedAt = startedAt,
+            IsIncremental = false,
+            Status = "Pending"
+        };
+        db.SyncLogs.Add(syncLog);
+        await db.SaveChangesAsync(ct);
+        return syncLog;
+    }
+
+    private async Task UpdateSyncLogSucceededAsync(SyncLog syncLog, ImportSummary summary, CancellationToken ct)
+    {
+        try
+        {
+            syncLog.Status = "Succeeded";
+            syncLog.CompletedAt = DateTimeOffset.UtcNow;
+            syncLog.CardsUpserted = summary.CardsCreated + summary.PrintingsCreated
+                                    + summary.CardsUpdated + summary.PrintingsUpdated;
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist Succeeded SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+        }
+    }
+
+    private async Task UpdateSyncLogFailedAsync(SyncLog syncLog, string errorMessage)
+    {
+        try
+        {
+            db.ChangeTracker.Clear();
+            db.SyncLogs.Attach(syncLog);
+            syncLog.Status = "Failed";
+            syncLog.CompletedAt = DateTimeOffset.UtcNow;
+            syncLog.ErrorMessage = errorMessage;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
         }
     }
 

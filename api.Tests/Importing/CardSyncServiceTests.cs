@@ -3,6 +3,7 @@ using api.Importing;
 using api.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace api.Tests.Importing;
@@ -42,7 +43,7 @@ public sealed class CardSyncServiceTests
                     createdAt: createdAt,
                     updatedAt: updatedAt)
             ]);
-        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -187,7 +188,7 @@ public sealed class CardSyncServiceTests
                     createdAt: createdAt,
                     updatedAt: updatedAt)
             ]);
-        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -282,7 +283,7 @@ public sealed class CardSyncServiceTests
                     createdAt: new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
                     updatedAt: new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero))
             ]);
-        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -331,7 +332,7 @@ public sealed class CardSyncServiceTests
         {
             GetAllCardsException = new HttpRequestException("SWU API unavailable")
         };
-        var service = new CardSyncService(db, client, new FixedTimeProvider(new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero)));
+        var service = new CardSyncService(db, client, new FixedTimeProvider(new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero)), NullLogger<CardSyncService>.Instance);
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -344,6 +345,83 @@ public sealed class CardSyncServiceTests
         Assert.Equal(
             originalSyncTime,
             await service.GetLastSyncTimeAsync("swu", "SOR"));
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenSuccessful_WritesSyncLogSucceeded()
+    {
+        await using var db = await CreateDbContextAsync();
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        var client = new StubSwuApiClient(
+            records:
+            [
+                CreateRecord(
+                    id: 5001,
+                    title: "Obi-Wan Kenobi",
+                    cardUid: "5001",
+                    serialCode: "SOR-005",
+                    setCode: "SOR",
+                    setName: "Spark of Rebellion",
+                    createdAt: syncTime,
+                    updatedAt: syncTime)
+            ]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        var syncLog = await db.SyncLogs.SingleAsync();
+        Assert.Equal("Succeeded", syncLog.Status);
+        Assert.NotNull(syncLog.CompletedAt);
+        Assert.Null(syncLog.ErrorMessage);
+        Assert.Equal(1, syncLog.CardsReturned);
+        Assert.True(syncLog.CardsUpserted >= 1);
+        Assert.False(syncLog.IsIncremental);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenApiFails_WritesSyncLogFailed()
+    {
+        await using var db = await CreateDbContextAsync();
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        var client = new StubSwuApiClient(Array.Empty<StrapiRecord>())
+        {
+            GetAllCardsException = new HttpRequestException("SWU API unavailable")
+        };
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        var syncLog = await db.SyncLogs.SingleAsync();
+        Assert.Equal("Failed", syncLog.Status);
+        Assert.NotNull(syncLog.CompletedAt);
+        Assert.NotNull(syncLog.ErrorMessage);
+        Assert.Contains("SWU API unavailable", syncLog.ErrorMessage, StringComparison.Ordinal);
+        Assert.Equal(0, syncLog.CardsUpserted);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenIncremental_WritesSyncLogIsIncremental()
+    {
+        await using var db = await CreateDbContextAsync();
+        var lastSync = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = "SOR",
+            LastSyncedAt = lastSync
+        });
+        await db.SaveChangesAsync();
+
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        var syncLog = await db.SyncLogs.SingleAsync();
+        Assert.True(syncLog.IsIncremental);
+        Assert.Equal(lastSync, syncLog.UpdatedSince);
+        Assert.Equal("Succeeded", syncLog.Status);
     }
 
     private static async Task<AppDbContext> CreateDbContextAsync()
