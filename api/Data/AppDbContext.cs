@@ -16,6 +16,7 @@ namespace api.Data
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
         public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
+        public DbSet<SwuSet> SwuSets => Set<SwuSet>();
 
         protected override void OnModelCreating(ModelBuilder b)
         {
@@ -173,6 +174,18 @@ namespace api.Data
                 // one row per (importer key, set code) combination
                 e.HasIndex(h => new { h.ImporterKey, h.SetCode })
                  .IsUnique();
+            });
+
+            // --- SwuSet (SWU expansion set catalogue) ---
+            b.Entity<SwuSet>(e =>
+            {
+                e.HasKey(s => s.Id);
+
+                e.Property(s => s.Code).IsRequired().HasMaxLength(32);
+                e.Property(s => s.Name).HasMaxLength(256);
+
+                // one row per expansion code (enforced at DB level)
+                e.HasIndex(s => s.Code).IsUnique();
             });
         }
     }

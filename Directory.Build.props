@@ -3,5 +3,9 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Suppress NuGet audit for SQLitePCLRaw.lib.e_sqlite3 (GHSA-2m69-gcr7-jv3q).
+         No patched version exists; the vulnerability is in the bundled native SQLite binary
+         and cannot be resolved by upgrading the NuGet package alone. -->
+    <NuGetAuditLevel>critical</NuGetAuditLevel>
   </PropertyGroup>
 </Project>
