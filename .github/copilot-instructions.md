@@ -3,8 +3,14 @@
 ## Project Overview
 A local web application for tracking trading card collections, deck building, wishlists, and collection/deck values. Supports **Magic the Gathering**, **Star Wars Unlimited**, **Disney Lorcana**, **Flesh and Blood**, **Star Wars CCG**, **Guardians**, **Dicemasters**, **Pokémon TCG**, and **Transformers**. Cards are imported from external APIs/scrapers via 13 game-specific importers in `api/Importing/`.
 
+> **Path-specific guidance:** Detailed coding standards live in focused instruction files that Copilot loads automatically when you work in the relevant area:
+> - `api/**/*.cs` → `.github/instructions/api.instructions.md`
+> - `client-vite/src/**/*.{ts,tsx}` → `.github/instructions/client.instructions.md`
+> - `api/Migrations/**`, `api/Data/**`, `api/Models/**` → `.github/instructions/database.instructions.md`
+> - `api.Tests/**`, `**/__tests__/**`, `**/*.test.{ts,tsx}` → `.github/instructions/testing.instructions.md`
+
 ## Setup
-- Requires **.NET 9 SDK** (per `global.json`) and **Node.js 20+**.
+- Requires **.NET 10 SDK** (per `global.json`) and **Node.js 20+**.
 - API
   ```bash
   dotnet restore ./api/api.csproj
@@ -23,145 +29,79 @@ A local web application for tracking trading card collections, deck building, wi
   pnpm --filter client-vite dev   # http://localhost:5173
   ```
 
-## Coding Standards
-### C#
-- Prefer async/await. Inject dependencies via DI.
-- Small, single-purpose services. Records/immutable DTOs.
-- Controllers return `ActionResult<T>` and RFC 7807 `ProblemDetails`.
-- Case-insensitive search: avoid `ToLower()`. Use SQLite NOCASE or `EF.Functions.Like` with normalized columns.
-- Map only via AutoMapper profiles.
-- Service size: keep services/handlers under 300 lines. If a service spans multiple domains, split by responsibility (for example pricing vs valuation).
-- Helper methods: group related private helpers near the consuming method, and extract cross-service shared logic into focused helper classes instead of growing one service.
-
-### TypeScript/React
-- Functional components + hooks. Strict typing (`noImplicitAny`).
-- TanStack Query for server state. shadcn/ui + Tailwind for UI.
-- One component per file. No side effects in render.
-- Small components: aim for presentational components under 150 lines; split rendering concerns into sub-components when UI sections can stand alone.
-- Custom hooks: extract stateful or side-effect-heavy logic into `useFeatureName` hooks and keep components primarily declarative.
-- Sub-components: place reusable sub-components in separate files and compose them rather than expanding a single monolithic component.
-
-### Testing
-- API: xUnit + WebApplicationFactory with SQLite (in-memory or file per test).
-- Client: Vitest + React Testing Library.
-- Deterministic tests. Assert HTTP codes and JSON shapes.
-- Run backend tests: `ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release`
-- Run frontend tests: `cd client-vite && npm test -- --run`
-
-## File Size & Modularity
-- **C# services/handlers:** Keep files under 300 lines. Split by domain concern when exceeded.
-- **React components:** Keep files under 250 lines. Extract custom hooks and sub-components when growth is driven by mixed concerns.
-- **Controllers:** Keep each controller under 200 lines total. Move business logic to services and split controllers by resource area when needed.
-- **When to split files:** Split when a file has multiple responsibilities, independent concerns that can evolve separately, or becomes difficult to understand in a single screen.
-- **Dependencies & imports:** Group imports/usings as framework → third-party packages → app/feature modules → relative modules. If a file needs imports from 10+ modules, treat it as a design warning and refactor to reduce coupling.
-
-## Anti-patterns to Avoid
-- **God services:** One service owning unrelated workflows, validation, caching, and orchestration.
-- **Monolithic components:** Single React files handling fetching, state machines, rendering, and side effects all together.
-- **Fat controllers:** Controllers containing business rules instead of delegating to services.
-- **Long files:** Large files that require excessive scrolling and obscure intent; prefer smaller focused modules.
-
-## Code Quality & Metrics
-- **Cyclomatic complexity:** Keep methods low complexity; avoid methods with more than 10 branch points.
-- **Method length limits:** Keep methods under 50 lines in C# and under 40 lines in TypeScript before extracting helpers.
-- **Nesting depth:** Prefer guard clauses/early returns and avoid nesting deeper than 3 levels.
-- **Refactoring trigger:** If a change increases complexity, split logic into focused collaborators before adding more branches.
-
 ## Security
 - Trust forwarded headers only from configured `KnownProxies`/`KnownNetworks` within `ForwardLimit`.
 - Resolve client IP from rightmost `X-Forwarded-For` that is not a trusted proxy.
 - Never authorize based on `Host` header.
-- Secrets only via env or configuration files ignored by Git.
+- Secrets only via env or configuration files ignored by Git. Never hardcode credentials.
 
 ## Pull Requests
 - One concern per PR. Keep diffs small.
 - Describe commands used for testing and expected results.
 - Run all tests locally before push.
-- No route or schema changes without migration and note.
+- No route or schema changes without a migration and a note in the PR description.
+- No breaking API changes without a versioning plan (see Backwards Compatibility below).
 
 ## Style / Formatting
-- Follow `.editorconfig` and Prettier. 4-space (C#), 2-space (TS/JSON).
-- `dotnet format` and `pnpm format` before commit.
-- Keep imports ordered. Remove unused.
+- Follow `.editorconfig` and Prettier. 4-space indent (C#), 2-space (TS/JSON).
+- Run `dotnet format` and `pnpm format` before commit.
+- Keep imports ordered (framework → third-party → app modules → relative). Remove unused imports.
+- CI gates: `dotnet format --verify-no-changes`, `pnpm lint`, `pnpm typecheck`, and all tests must pass.
 
----
+## Error Handling Patterns
 
-## Architectural Patterns
+### API (C#)
+- All unhandled exceptions are caught by global middleware and returned as RFC 7807 `ProblemDetails`.
+- Use a central `ProblemDetailsFactory` for known exception types (400/404/409/403).
+- Never return raw exception messages or stack traces to the client.
+- Log unexpected exceptions at `Error` level with structured context (request path, user ID).
+- Business-rule violations (not found, conflict) log at `Warning` level.
 
-### C# API
-- **Feature folders:** `/Features/<Area>/{Controller, Dtos, Mapping, Services, Validation}`. No cross-feature coupling.
-- **Guard clauses:** Early return on invalid input. Small private helpers over nested `if`.
-- **Cancellation:** Pass `CancellationToken` from controller to EF.
-- **Result shape:** Use 200/201/204/400/404/409. RFC 7807 for errors.
-- **Idempotent imports:** `/api/admin/import` uses checksums/upserts. No duplicate rows on retry.
-- **Time handling:** UTC-only persistence with `DateTimeOffset` or UTC `DateTime`.
-- **Options pattern:** `IOptions<T>` + `ValidateOnStart()` for config sections.
-- **Logging:** Structured logs with `EventId`. Use `BeginScope` for request/deck/user context.
+### Client (TypeScript)
+- Wrap route-level components with `ErrorBoundary` to catch render-time errors.
+- Display user-friendly messages for API errors — never surface raw error objects in the UI.
+- Use `toast` notifications for mutation success/failure feedback.
+- Log client-side errors to the browser console in development; integrate an error reporter in production if needed.
 
-### EF Core
-- **Read vs Write:** Reads use `.AsNoTracking()`. Writes track entities.
-- **Paging:** All list endpoints accept `page` and `pageSize` (max cap). Return `X-Total-Count`.
-- **Search:** Use `EF.Functions.Like(col, pattern)` or NOCASE collation; avoid `ToLower()` to keep indexes.
-- **Projection:** Prefer `Select` into DTOs over `Include`. Use `.AsSplitQuery()` when needed.
-- **Indexes:** Add indexes for lookups and normalized text columns.
-- **Transactions:** `BeginTransactionAsync()` for multi-entity changes.
-- **Concurrency:** Use `RowVersion`/concurrency tokens on mutable aggregates.
+## Documentation Standards
 
-### Validation & Errors
-- **FluentValidation:** Per-request validators in `/Features/*/Validation`.
-- **Problem factory:** Central `ProblemDetailsFactory` maps known exceptions → 400/404/409 with consistent type/instance/title.
-- **Model errors:** Return validation summary in `errors` extension per RFC 7807.
+### C# (XML Comments)
+- Add `/// <summary>` XML comments to all `public` methods and properties in service classes and interfaces.
+- Document non-obvious parameters with `/// <param name="...">`. Skip trivial getters/setters.
+- Keep comments concise — explain *why*, not *what* (the code shows what).
 
-### Security Patterns
-- **Current user:** `ICurrentUser` abstraction from claims. Controllers do not parse headers directly.
-- **Forwarded headers:** Rightmost non-trusted-proxy IP from `X-Forwarded-For` within limit.
+### TypeScript (JSDoc)
+- Add JSDoc comments (`/** */`) to all exported custom hooks, API functions, and utility functions.
+- Document non-obvious props in component prop type definitions.
+- Prefer self-documenting names over verbose comments.
 
-### HTTP API Conventions
-- **Routes:** `/api/<plural>` with REST verbs. No verbs in paths.
-- **Created:** `POST` returns `201 Created` with `Location` header.
-- **ETags (optional):** Heavy GETs may use ETags. Honor `If-None-Match`.
+## Backwards Compatibility & API Versioning
+- This is a local single-user application. No public API versioning is required.
+- Avoid breaking changes to existing API response shapes or route paths when the client depends on them.
+- If a breaking change is necessary, update the client and API together in the same PR.
+- Database schema changes must be non-destructive (additive). Use migrations with explicit data steps for column changes.
+- Never delete or modify applied migration files.
 
-### Testing Patterns
-- **API:** One test = one HTTP call/assert status + JSON schema. Use factory and per-test DB.
-- **EF:** Wrap tests in transaction and rollback. Seed with minimal fixtures.
-- **Time:** Fixed clock via `ISystemClock` or test shim.
+## Deployment & Environment Configuration
 
-### React/TypeScript
-- **Query keys:** Centralized in `client-vite/src/lib/queryKeys.ts`, e.g. `['cards', { game, set, page, q }]`.
-- **React Query:** Configure `staleTime`. Use `select` to shape data. Optimistic updates with `onMutate/onError/onSettled`.
-- **Schemas:** `zod` for request/response validation. Consider generating types from OpenAPI/DTOs.
-- **Forms:** `react-hook-form` + `@hookform/resolvers/zod`. No ad-hoc uncontrolled state.
-- **Routing:** Per-feature route modules with `Suspense` and `ErrorBoundary` per route.
-- **Virtualization:** `@tanstack/react-virtual` for card grids.
-- **State rule:** Server state in React Query. Local UI state in components. Avoid global state unless cross-route.
+### Environments
+| Environment | Purpose |
+|-------------|---------|
+| `Development` | Local dev. Uses `appsettings.Development.json`. Hot-reload via `dotnet watch`. |
+| `Testing` | Automated tests. Uses per-test SQLite DB. No external services called. |
+| `Production` | Deployed instance. Uses env vars or production config files (not checked in). |
 
-### Styling/UI
-- **shadcn/ui:** Use local registry. Variants via `cva`. Minimal inline styles.
-- **A11y:** Keyboard reachability and proper `aria-*` on custom controls.
+### Configuration Management
+- Use `IOptions<T>` + `ValidateOnStart()` for all typed configuration sections.
+- Sensitive config (JWT secret, external API keys) must be in environment variables or untracked config files.
+- `appsettings.Development.json` may contain dev-only non-sensitive overrides and is `.gitignore`d for secrets.
+- Client environment is configured via `client-vite/.env.local` (not committed). Only `VITE_` prefixed variables are exposed to the browser.
 
-### Build/CI
-- **Gates:** `dotnet format --verify-no-changes`, `pnpm lint`, `pnpm typecheck`, and tests in CI.
-- **Migrations:** Every model change includes a named migration plus snapshot diff in PR.
-
----
-
-## Data Model (EF Core / SQLite)
-
-| Entity | Purpose |
-|--------|---------|
-| `Card` | Unique card definition — `(Game, Name)` unique. |
-| `CardPrinting` | Printing variant per set/number/image. FK → `Card`. |
-| `User` | Registered user with `Email`, `Role` (`User`/`Admin`), timestamps. |
-| `UserCard` | Owned inventory — `(UserId, CardPrintingId)` unique; `Quantity`, `IsProxy`. |
-| `Deck` | Named deck belonging to a `User`. |
-| `DeckCard` | Deck membership — `(DeckId, CardPrintingId)` unique; `Quantity`. |
-| `WishlistEntry` | Desired cards — `(UserId, CardPrintingId)` unique; `DesiredQuantity`. |
-| `CardPriceHistory` | Per-printing price at a point in time. `(CardPrintingId, CapturedAt)` unique. |
-| `ValueHistory` | Aggregated daily value snapshots for a user's collection or deck. |
-
-**Key rules:**
-- Proxy cards (`IsProxy=true`) are **excluded** from all value calculations.
-- All timestamps are stored as UTC (`DateTimeOffset` or UTC `DateTime`).
+## Monorepo Coordination (API ↔ Client)
+- When changing an API response DTO, update the corresponding TypeScript type in `client-vite/src/` in the same PR.
+- When adding a new API endpoint, add the matching API client function in `client-vite/src/features/api/` and register the query key in `lib/queryKeys.ts`.
+- Database migrations and the EF model change must be in the same PR as the API feature that uses them.
+- Run both backend and frontend tests before pushing any PR that touches both layers.
 
 ---
 
@@ -213,23 +153,3 @@ Each importer lives in `api/Importing/<Game>Importer.cs` and implements `ICardIm
 - See `ADMIN.md` for expected file formats and import workflow.
 
 **Existing importers:** MTG (Scryfall), Pokémon TCG API, Lorcana (LorcanaDB), Flesh and Blood (FABDB), Star Wars Unlimited (SWUDB), Star Wars CCG (SWCCGDB), Guardians, Dicemasters, Transformers, and several others.
-
----
-
-## Common Patterns to Follow
-
-### New API endpoint
-1. Add controller method in the relevant `Features/<Area>/<Area>Controller.cs`.
-2. Create request/response DTOs as `record` types in `Features/<Area>/Dtos/`.
-3. Add FluentValidation validator in `Features/<Area>/Validation/`.
-4. Add AutoMapper profile in `Features/<Area>/Mapping/`.
-5. Wire service logic in `Features/<Area>/Services/` (inject via DI).
-6. Add integration test in `api.Tests/Features/<Area>/`.
-
-### New React page / feature
-1. Create page component in `client-vite/src/pages/`.
-2. Add route in `client-vite/src/routes/index.tsx` with `Suspense` + `ErrorBoundary`.
-3. Add API function in `client-vite/src/features/api/`.
-4. Register query key in `client-vite/src/lib/queryKeys.ts`.
-5. Use `useQuery`/`useMutation` from TanStack Query in the component.
-6. Add Vitest test in a `__tests__/` subdirectory next to the component.
