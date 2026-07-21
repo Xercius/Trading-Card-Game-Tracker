@@ -424,6 +424,171 @@ public sealed class CardSyncServiceTests
         Assert.Equal("Succeeded", syncLog.Status);
     }
 
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenForceFullSync_IgnoresSyncHistory()
+    {
+        await using var db = await CreateDbContextAsync();
+        var lastSync = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = "SOR",
+            LastSyncedAt = lastSync
+        });
+        await db.SaveChangesAsync();
+
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR", forceFullSync: true);
+
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Null(client.CapturedFilter!.UpdatedSince);
+
+        var syncLog = await db.SyncLogs.SingleAsync();
+        Assert.False(syncLog.IsIncremental);
+        Assert.Null(syncLog.UpdatedSince);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenUnsupportedImporterKey_ThrowsNotSupportedException()
+    {
+        await using var db = await CreateDbContextAsync();
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(DateTimeOffset.UtcNow), NullLogger<CardSyncService>.Instance);
+
+        await Assert.ThrowsAsync<NotSupportedException>(
+            () => service.SyncNewAndUpdatedCardsAsync("mtg", "SOR"));
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenSetCodeIsEmpty_ThrowsArgumentException()
+    {
+        await using var db = await CreateDbContextAsync();
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(DateTimeOffset.UtcNow), NullLogger<CardSyncService>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.SyncNewAndUpdatedCardsAsync("swu", ""));
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenRecordHasNonEnglishLocale_SkipsRecord()
+    {
+        await using var db = await CreateDbContextAsync();
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        var frenchRecord = new StrapiRecord(
+            9001,
+            new SwuCardAttributes(
+                Title: "Luke Skywalker",
+                Subtitle: null,
+                CardUid: "9001",
+                SerialCode: "SOR-100",
+                Locale: "fr",
+                CardNumber: 100,
+                Rarity: "Common",
+                Text: null,
+                Artist: null,
+                Cost: null,
+                Power: null,
+                Health: null,
+                Arena: null,
+                Aspects: null,
+                Traits: null,
+                Keywords: null,
+                CreatedAt: syncTime,
+                UpdatedAt: syncTime,
+                PublishedAt: syncTime,
+                Type: new StrapiRelation<SwuTypeAttributes>(
+                    new StrapiRelationData<SwuTypeAttributes>(1, new SwuTypeAttributes("Unit", null))),
+                Expansion: new StrapiRelation<SwuExpansionAttributes>(
+                    new StrapiRelationData<SwuExpansionAttributes>(1, new SwuExpansionAttributes("Spark of Rebellion", "SOR"))),
+                VariantTypes: null,
+                VariantOf: null,
+                ReprintOf: null,
+                ArtFront: null,
+                ArtBack: null));
+
+        var client = new StubSwuApiClient([frenchRecord]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(0, summary.CardsCreated);
+        Assert.Equal(0, summary.PrintingsCreated);
+        Assert.Equal(0, summary.Errors);
+        Assert.Empty(await db.SwuCards.ToListAsync());
+    }
+
+    [Fact]
+    public async Task GetLastSyncTimeAsync_WhenNoHistory_ReturnsNull()
+    {
+        await using var db = await CreateDbContextAsync();
+        var service = new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(DateTimeOffset.UtcNow), NullLogger<CardSyncService>.Instance);
+
+        var result = await service.GetLastSyncTimeAsync("swu", "SOR");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetLastSyncTimeAsync_WhenHistoryExists_ReturnsLastSyncTime()
+    {
+        await using var db = await CreateDbContextAsync();
+        var lastSync = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = "SOR",
+            LastSyncedAt = lastSync
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(DateTimeOffset.UtcNow), NullLogger<CardSyncService>.Instance);
+
+        var result = await service.GetLastSyncTimeAsync("swu", "SOR");
+
+        Assert.Equal(lastSync, result);
+    }
+
+    [Fact]
+    public async Task UpdateLastSyncTimeAsync_WhenNoExistingHistory_CreatesNewRecord()
+    {
+        await using var db = await CreateDbContextAsync();
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(syncTime), NullLogger<CardSyncService>.Instance);
+
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", syncTime);
+
+        var history = await db.ImportSyncHistories.SingleAsync();
+        Assert.Equal("swu", history.ImporterKey);
+        Assert.Equal("SOR", history.SetCode);
+        Assert.Equal(syncTime, history.LastSyncedAt);
+    }
+
+    [Fact]
+    public async Task UpdateLastSyncTimeAsync_WhenHistoryExists_UpdatesExistingRecord()
+    {
+        await using var db = await CreateDbContextAsync();
+        var originalSync = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
+        var newSync = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = "SOR",
+            LastSyncedAt = originalSync
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(newSync), NullLogger<CardSyncService>.Instance);
+
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", newSync);
+
+        var history = await db.ImportSyncHistories.SingleAsync();
+        Assert.Equal(newSync, history.LastSyncedAt);
+    }
+
     private static async Task<AppDbContext> CreateDbContextAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
