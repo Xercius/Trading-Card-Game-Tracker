@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Web;
 using Xunit;
 
 namespace api.Tests.Importing;
@@ -94,11 +93,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     private static Stream ToStream(string json)
         => new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-    private static SwuDbImporter CreateImporter(AppDbContext db)
-        => new(db, new StubHttpClientFactory());
-
-    private static SwuDbImporter CreateImporter(AppDbContext db, HttpMessageHandler handler)
-        => new(db, new StubHttpClientFactory(handler));
+    private static SwuDbImporter CreateImporter(AppDbContext db, ISWUApiClient? client = null)
+        => new(db, client ?? new StubSWUApiClient());
 
     // ─── tests ──────────────────────────────────────────────────────────────
 
@@ -783,106 +779,69 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task ImportFromRemoteAsync_WithoutUpdatedSince_Uses_DefaultSort_By_UpdatedAt()
     {
-        // When no UpdatedSince filter is provided the importer must still sort by updatedAt:asc
-        // so that incremental callers can track the highest timestamp they have seen.
+        // When no UpdatedSince filter is provided the importer must forward null UpdatedSince
+        // to the API client. The updatedAt:asc sort is the API client's responsibility.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var singleCardJson = BuildStrapiJson(
-            id: 60001,
-            title: "Obi-Wan Kenobi",
-            serialCode: "06010020",
-            cardUid: "9988001122",
-            cardNumber: 20,
-            expansionCode: "SOR",
-            typeName: "Unit",
-            rarity: "Rare",
-            foil: false,
-            imageUrl: null);
+        var cards = ParseRecords(BuildStrapiJson(
+            id: 60001, title: "Obi-Wan Kenobi", serialCode: "06010020", cardUid: "9988001122",
+            cardNumber: 20, expansionCode: "SOR", typeName: "Unit", rarity: "Rare", foil: false, imageUrl: null));
 
-        var handler = new CapturingHttpMessageHandler(singleCardJson);
-        var importer = CreateImporter(db, handler);
+        var client = new CapturingSWUApiClient(cards, expansionId: 2);
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: true, SetCode: "SOR");
         await importer.ImportFromRemoteAsync(options);
 
-        // CapturedRequests[0] is the ID-resolution discovery request;
-        // CapturedRequests[1] is the first (and only) paging request.
-        Assert.True(handler.CapturedRequests.Count >= 2,
-            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
-
-        // Must sort by updatedAt ascending so incremental callers can page predictably.
-        Assert.Contains("updatedAt:asc", rawQuery);
-
-        // Must NOT include updatedAt filter when UpdatedSince is absent.
-        Assert.DoesNotContain("filters[updatedAt]", rawQuery);
+        // UpdatedSince must be null when the option was not provided.
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Null(client.CapturedFilter.UpdatedSince);
     }
 
     [Fact]
     public async Task ImportFromRemoteAsync_WithUpdatedSince_Includes_DateFilter_In_QueryString()
     {
-        // When UpdatedSince is set the importer must add filters[updatedAt][$gt]=<timestamp>
+        // When UpdatedSince is set the importer must forward it to the API client via the filter
         // so the API only returns cards modified after the given point in time.
         // This is the reliable strategy for incremental update detection (Task 2.4).
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var singleCardJson = BuildStrapiJson(
-            id: 60002,
-            title: "Han Solo",
-            serialCode: "06010021",
-            cardUid: "1122334455",
-            cardNumber: 21,
-            expansionCode: "SOR",
-            typeName: "Unit",
-            rarity: "Common",
-            foil: false,
-            imageUrl: null,
-            updatedAt: "2025-12-01T09:00:00.000Z");
-
-        var handler = new CapturingHttpMessageHandler(singleCardJson);
-        var importer = CreateImporter(db, handler);
+        var cards = ParseRecords(BuildStrapiJson(
+            id: 60002, title: "Han Solo", serialCode: "06010021", cardUid: "1122334455",
+            cardNumber: 21, expansionCode: "SOR", typeName: "Unit", rarity: "Common", foil: false, imageUrl: null));
 
         var since = new DateTimeOffset(2025, 11, 1, 0, 0, 0, TimeSpan.Zero);
+        var client = new CapturingSWUApiClient(cards, expansionId: 2);
+        var importer = CreateImporter(db, client);
+
         var options = new ImportOptions(DryRun: true, SetCode: "SOR", UpdatedSince: since);
         await importer.ImportFromRemoteAsync(options);
 
-        // CapturedRequests[0] is the ID-resolution discovery request;
-        // CapturedRequests[1] is the first (and only) paging request.
-        Assert.True(handler.CapturedRequests.Count >= 2,
-            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
-        var rawQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
-
-        // The date filter must appear in the query string.
-        Assert.Contains("filters[updatedAt][$gt]", rawQuery);
-
-        // The timestamp must be in ISO-8601 UTC format (yyyy-MM-ddTHH:mm:ss.fffZ).
-        Assert.Contains("2025-11-01T00:00:00.000Z", rawQuery);
-
-        // Results must be ordered by updatedAt ascending for correct incremental paging.
-        Assert.Contains("updatedAt:asc", rawQuery);
+        // UpdatedSince must be forwarded exactly as provided.
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Equal(since, client.CapturedFilter.UpdatedSince);
     }
 
     [Fact]
     public async Task ImportFromRemoteAsync_Pages_Through_Multiple_Pages()
     {
-        // The importer reads meta.pagination.pageCount on page 1 and then fetches
-        // every subsequent page until all records are collected.
+        // The importer must process all cards returned by the API client (which handles
+        // pagination internally) and persist each one.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Two-page response: page 1 declares pageCount=2 and contains card A;
-        // page 2 contains card B.
-        var page1 = BuildStrapiPage(page: 1, pageCount: 2, id: 71000, title: "Page One Card", serialCode: "PG010001");
-        var page2 = BuildStrapiPage(page: 2, pageCount: 2, id: 71001, title: "Page Two Card", serialCode: "PG020001");
+        // API client returns two cards (pagination is the client's concern).
+        var cards = new List<StrapiRecord>();
+        cards.AddRange(ParseRecords(BuildStrapiPage(page: 1, pageCount: 1, id: 71000, title: "Page One Card", serialCode: "PG010001")));
+        cards.AddRange(ParseRecords(BuildStrapiPage(page: 1, pageCount: 1, id: 71001, title: "Page Two Card", serialCode: "PG020001")));
 
-        var pageResponses = new Dictionary<int, string> { [1] = page1, [2] = page2 };
-        using var handler = new FakePagedHttpMessageHandler(pageResponses);
-        var importer = CreateImporter(db, handler);
+        var client = new StubSWUApiClient(cards);
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR");
         var summary = await importer.ImportFromRemoteAsync(options);
@@ -912,14 +871,14 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task ImportFromRemoteAsync_Propagates_HttpRequestException_On_Http_Error()
     {
-        // When the API returns a non-success status code, EnsureSuccessStatusCode() throws
-        // HttpRequestException which must propagate to the caller unchanged.
+        // When the API client throws HttpRequestException, the importer must propagate it unchanged.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        using var handler = new ErrorHttpMessageHandler(HttpStatusCode.InternalServerError);
-        var importer = CreateImporter(db, handler);
+        var client = new ThrowingSWUApiClient(
+            new HttpRequestException("server error", null, HttpStatusCode.InternalServerError));
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR");
         await Assert.ThrowsAsync<HttpRequestException>(() => importer.ImportFromRemoteAsync(options));
@@ -928,19 +887,19 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task ImportFromRemoteAsync_Respects_Limit_Across_Multiple_Pages()
     {
-        // When Limit is set the importer fetches all pages first and then processes at most
-        // Limit records, so only that many cards and printings must be created.
+        // When Limit is set the importer must stop after processing that many records
+        // even when the API client returns more.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Two pages of 5 cards each (10 total); Limit=3 must stop after 3 upserts.
-        var page1 = BuildStrapiPageWithMultipleRecords(page: 1, pageCount: 2, startId: 82000, count: 5);
-        var page2 = BuildStrapiPageWithMultipleRecords(page: 2, pageCount: 2, startId: 82005, count: 5);
+        // 10 cards total; Limit=3 must stop after 3 upserts.
+        var cards = new List<StrapiRecord>();
+        cards.AddRange(ParseRecords(BuildStrapiPageWithMultipleRecords(page: 1, pageCount: 2, startId: 82000, count: 5)));
+        cards.AddRange(ParseRecords(BuildStrapiPageWithMultipleRecords(page: 2, pageCount: 2, startId: 82005, count: 5)));
 
-        var pageResponses = new Dictionary<int, string> { [1] = page1, [2] = page2 };
-        using var handler = new FakePagedHttpMessageHandler(pageResponses);
-        var importer = CreateImporter(db, handler);
+        var client = new StubSWUApiClient(cards);
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR", Limit: 3);
         var summary = await importer.ImportFromRemoteAsync(options);
@@ -1194,69 +1153,54 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task ImportFromRemoteAsync_Uses_NumericExpansionId_Filter_When_Resolved()
     {
-        // The discovery step fetches a single card to read expansion.data.id, then all
-        // subsequent paging requests must use filters[expansion][id][$eq] instead of the
-        // code-based filter (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        // When TryResolveExpansionIdAsync returns a numeric ID, the importer must forward it
+        // in the filter so the API client uses the more reliable ID-based filter.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Build JSON with a distinctive expansion ID (7) so we can assert it appears in the filter.
-        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80001, title: "Rey",
-            serialCode: "08010001", expansionId: 7);
+        var cards = ParseRecords(BuildStrapiPage(page: 1, pageCount: 1, id: 80001, title: "Rey",
+            serialCode: "08010001", expansionId: 7));
 
-        var handler = new CapturingHttpMessageHandler(cardJson);
-        var importer = CreateImporter(db, handler);
+        // Client reports expansion ID 7 from TryResolveExpansionIdAsync.
+        var client = new CapturingSWUApiClient(cards, expansionId: 7);
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: true, SetCode: "SOR");
         var summary = await importer.ImportFromRemoteAsync(options);
 
-        // There must be at least 2 requests: one discovery + one paging request.
-        Assert.True(handler.CapturedRequests.Count >= 2,
-            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
+        // Filter must carry the resolved numeric ID, not the code string.
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Equal(7, client.CapturedFilter.ExpansionId);
+        Assert.Null(client.CapturedFilter.ExpansionCode);
 
-        // CapturedRequests[0] is the discovery request – it must use the code-based filter with pageSize=1.
-        var discoveryQuery = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
-        Assert.Contains("filters[expansion][code][$eq]=SOR", discoveryQuery);
-        Assert.Contains("pagination[pageSize]=1", discoveryQuery);
-        Assert.DoesNotContain("pagination[page]=", discoveryQuery);
-
-        // CapturedRequests[1] is the first paging request – it must use the numeric ID filter.
-        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
-        Assert.Contains("filters[expansion][id][$eq]=7", pagingQuery);
-        Assert.DoesNotContain("filters[expansion][code]", pagingQuery);
-
-        // No fallback warning must be emitted when the ID was resolved successfully.
+        // No fallback warning when the ID was resolved successfully.
         Assert.DoesNotContain(summary.Messages, m => m.StartsWith("Warning:"));
     }
 
     [Fact]
     public async Task ImportFromRemoteAsync_FallsBackToCodeFilter_When_IdResolution_Fails()
     {
-        // When the discovery request returns an HTTP error, the importer must fall back to the
+        // When TryResolveExpansionIdAsync returns null, the importer must fall back to the
         // code-based filter and include a warning in the import summary messages.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var cardJson = BuildStrapiPage(page: 1, pageCount: 1, id: 80002, title: "Finn",
-            serialCode: "08010002");
+        var cards = ParseRecords(BuildStrapiPage(page: 1, pageCount: 1, id: 80002, title: "Finn",
+            serialCode: "08010002"));
 
-        // First request (discovery) returns a server error; subsequent requests succeed.
-        var handler = new FailFirstRequestCapturingHandler(cardJson);
-        var importer = CreateImporter(db, handler);
+        // Client returns null from TryResolveExpansionIdAsync (simulates discovery failure).
+        var client = new CapturingSWUApiClient(cards, expansionId: null);
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: true, SetCode: "TWI");
         var summary = await importer.ImportFromRemoteAsync(options);
 
-        // There must be at least 2 requests: one failed discovery + one paging request.
-        Assert.True(handler.CapturedRequests.Count >= 2,
-            $"Expected at least 2 requests (discovery + page 1), but got {handler.CapturedRequests.Count}.");
-
-        // The paging request must fall back to the code-based filter.
-        var pagingQuery = Uri.UnescapeDataString(handler.CapturedRequests[1].Query);
-        Assert.Contains("filters[expansion][code][$eq]=TWI", pagingQuery);
-        Assert.DoesNotContain("filters[expansion][id]", pagingQuery);
+        // The filter must fall back to the code-based filter when ID resolution fails.
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Equal("TWI", client.CapturedFilter.ExpansionCode);
+        Assert.Null(client.CapturedFilter.ExpansionId);
 
         // A warning must appear in the summary messages.
         Assert.Contains(summary.Messages, m => m.Contains("Warning") && m.Contains("TWI"));
@@ -1311,93 +1255,59 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         });
     }
 
-    private sealed class StubHttpClientFactory : IHttpClientFactory, IDisposable
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web) { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// Deserialises a Strapi-format JSON string into a flat list of <see cref="StrapiRecord"/>
+    /// objects so remote-import tests can supply pre-built card data to the stub API client.
+    /// </summary>
+    private static IReadOnlyList<StrapiRecord> ParseRecords(string strapiJson)
     {
-        private readonly HttpClient _client;
-        public StubHttpClientFactory() => _client = new HttpClient();
-        public StubHttpClientFactory(HttpMessageHandler handler) => _client = new HttpClient(handler);
-        public HttpClient CreateClient(string name) => _client;
-        public void Dispose() => _client.Dispose();
+        var paged = JsonSerializer.Deserialize<StrapiPagedResponse>(strapiJson, JsonOptions);
+        return paged?.Data ?? [];
+    }
+
+    /// <summary>Returns a preconfigured list of cards for every <c>GetAllCardsAsync</c> call.</summary>
+    private sealed class StubSWUApiClient(
+        IReadOnlyList<StrapiRecord>? cards = null,
+        int? expansionId = null) : ISWUApiClient
+    {
+        public Task<IReadOnlyList<StrapiRecord>> GetAllCardsAsync(SWUCardFilter filter, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<StrapiRecord>>(cards ?? []);
+
+        public Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct = default)
+            => Task.FromResult(expansionId);
     }
 
     /// <summary>
-    /// Captures every request URL sent through the <see cref="HttpClient"/> and returns a
-    /// configurable canned Strapi JSON response so unit tests can inspect query parameters
-    /// without making real network calls.
+    /// Records the <see cref="SWUCardFilter"/> passed to <c>GetAllCardsAsync</c> so tests
+    /// can assert on what filter the importer built.
     /// </summary>
-    internal sealed class CapturingHttpMessageHandler(string responseJson) : HttpMessageHandler
+    private sealed class CapturingSWUApiClient(
+        IReadOnlyList<StrapiRecord>? cards = null,
+        int? expansionId = null) : ISWUApiClient
     {
-        public List<Uri> CapturedRequests { get; } = [];
+        public SWUCardFilter? CapturedFilter { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
+        public Task<IReadOnlyList<StrapiRecord>> GetAllCardsAsync(SWUCardFilter filter, CancellationToken ct = default)
         {
-            CapturedRequests.Add(request.RequestUri!);
-            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-            {
-                Content = new StringContent(responseJson, Encoding.UTF8, "application/json")
-            };
-            return Task.FromResult(response);
+            CapturedFilter = filter;
+            return Task.FromResult<IReadOnlyList<StrapiRecord>>(cards ?? []);
         }
+
+        public Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct = default)
+            => Task.FromResult(expansionId);
     }
 
-    /// <summary>
-    /// Returns a pre-built JSON string for each requested page number,
-    /// allowing pagination tests to simulate multi-page API responses
-    /// without hitting a real network endpoint.
-    /// </summary>
-    private sealed class FakePagedHttpMessageHandler(Dictionary<int, string> pages) : HttpMessageHandler
+    /// <summary>Throws the configured exception on <c>GetAllCardsAsync</c>.</summary>
+    private sealed class ThrowingSWUApiClient(Exception exception) : ISWUApiClient
     {
-        private static readonly string FallbackJson =
-            "{\"data\":[],\"meta\":{\"pagination\":{\"page\":1,\"pageSize\":100,\"pageCount\":1,\"total\":0}}}";
+        public Task<IReadOnlyList<StrapiRecord>> GetAllCardsAsync(SWUCardFilter filter, CancellationToken ct = default)
+            => throw exception;
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
-            int page = int.TryParse(query["pagination[page]"], out int p) ? p : 1;
-            string json = pages.TryGetValue(page, out string? r) ? r : FallbackJson;
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
-        }
-    }
-
-    /// <summary>
-    /// Simulates a server error on the first HTTP request (the ID-resolution discovery probe)
-    /// and returns a configurable canned JSON response for all subsequent requests.
-    /// Captures every request URL so tests can assert on query parameters.
-    /// </summary>
-    private sealed class FailFirstRequestCapturingHandler(string fallbackJson) : HttpMessageHandler
-    {
-        private int _callCount;
-        public List<Uri> CapturedRequests { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            CapturedRequests.Add(request.RequestUri!);
-            if (Interlocked.Increment(ref _callCount) == 1)
-            {
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
-            }
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(fallbackJson, Encoding.UTF8, "application/json")
-            });
-        }
-    }
-
-    /// <summary>
-    /// Always returns the configured HTTP status code, allowing tests to verify
-    /// that non-success responses are surfaced as <see cref="HttpRequestException"/>.
-    /// </summary>
-    private sealed class ErrorHttpMessageHandler(HttpStatusCode statusCode) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-            => Task.FromResult(new HttpResponseMessage(statusCode));
+        public Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct = default)
+            => Task.FromResult<int?>(null);
     }
 
     /// <summary>
