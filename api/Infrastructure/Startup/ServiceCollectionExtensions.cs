@@ -182,10 +182,21 @@ internal static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=app.db"));
         services.AddHttpClient();
 
+        // Typed HTTP client for the Star Wars: Unlimited API.
+        services.AddHttpClient<SWUApiClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://admin.starwarsunlimited.com/api/");
+            client.Timeout = TimeSpan.FromMinutes(5);
+        });
+        services.AddScoped<ISWUApiClient, SWUApiClient>();
+
         services.AddScoped<ISourceImporter, ScryfallImporter>();
         services.AddScoped<ISourceImporter, SwccgdbImporter>();
         services.AddScoped<ISourceImporter, LorcanaJsonImporter>();
-        services.AddScoped<ISourceImporter, SwuDbImporter>();
+        services.AddScoped<ISourceImporter>(sp =>
+            new SwuDbImporter(
+                sp.GetRequiredService<AppDbContext>(),
+                sp.GetRequiredService<ISWUApiClient>()));
         services.AddScoped<ISourceImporter, PokemonTcgImporter>();
         services.AddScoped<ISourceImporter, FabDbImporter>();
         services.AddScoped<ISourceImporter, GuardiansLocalImporter>();

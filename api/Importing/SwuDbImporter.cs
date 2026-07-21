@@ -2,8 +2,6 @@ using api.Data;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Web;
 
 namespace api.Importing;
 
@@ -18,22 +16,17 @@ public sealed class SwuDbImporter : ISourceImporter
     public string DisplayName => "Star Wars: Unlimited (Official API)";
     public IEnumerable<string> SupportedGames => new[] { "Star Wars Unlimited" };
 
-    private const string BaseAddress = "https://admin.starwarsunlimited.com/api/";
-    private const int PageSize = 100;
-
     private readonly AppDbContext _db;
-    private readonly HttpClient _http;
+    private readonly ISWUApiClient _client;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public SwuDbImporter(AppDbContext db, IHttpClientFactory httpFactory)
+    internal SwuDbImporter(AppDbContext db, ISWUApiClient client)
     {
         _db = db;
-        _http = httpFactory.CreateClient(nameof(SwuDbImporter));
-        _http.BaseAddress = new Uri(BaseAddress);
-        _http.Timeout = TimeSpan.FromMinutes(5);
+        _client = client;
     }
 
     /// <summary>
@@ -54,46 +47,22 @@ public sealed class SwuDbImporter : ISourceImporter
         var expansionCode = options.SetCode!.Trim().ToUpperInvariant();
         var limit = options.Limit ?? int.MaxValue;
         int processed = 0;
-        int page = 1;
-        int pageCount = 1;
 
         // Discovery step: resolve the expansion code to its internal numeric Strapi ID.
         // Filtering by ID is more reliable than filtering by code (see docs/SWUAPI_DOCUMENTATION.txt §5).
-        int? expansionId = await TryResolveExpansionIdAsync(expansionCode, ct);
+        int? expansionId = await _client.TryResolveExpansionIdAsync(expansionCode, ct);
         if (expansionId is null)
         {
             summary.Messages.Add(
                 $"Warning: could not resolve numeric expansion ID for '{expansionCode}'; falling back to code-based filter.");
         }
 
-        var allRecords = new List<StrapiRecord>();
-        while (page <= pageCount)
-        {
-            var qs = HttpUtility.ParseQueryString(string.Empty);
-            qs["locale"] = "en";
-            if (expansionId is not null)
-                qs["filters[expansion][id][$eq]"] = expansionId.Value.ToString();
-            else
-                qs["filters[expansion][code][$eq]"] = expansionCode;
-            if (options.UpdatedSince is { } since)
-                qs["filters[updatedAt][$gt]"] = since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-            qs["pagination[page]"] = page.ToString();
-            qs["pagination[pageSize]"] = PageSize.ToString();
-            qs["sort[0]"] = "updatedAt:asc";
-            qs["sort[1]"] = "cardNumber:asc";
+        var filter = new SWUCardFilter(
+            ExpansionCode: expansionId is null ? expansionCode : null,
+            ExpansionId: expansionId,
+            UpdatedSince: options.UpdatedSince);
 
-            using var response = await _http.GetAsync($"card-list?{qs}", ct);
-            response.EnsureSuccessStatusCode();
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-
-            var page_response = await JsonSerializer.DeserializeAsync<StrapiPagedResponse>(stream, JsonOptions, ct)
-                         ?? throw new InvalidOperationException("Empty response from Star Wars: Unlimited API.");
-
-            pageCount = page_response.Meta?.Pagination?.PageCount ?? 1;
-            if (page_response.Data is not null)
-                allRecords.AddRange(page_response.Data);
-            page++;
-        }
+        var allRecords = await _client.GetAllCardsAsync(filter, ct);
 
         return await _db.WithDryRunAsync(options.DryRun, async () =>
         {
@@ -174,37 +143,6 @@ public sealed class SwuDbImporter : ISourceImporter
                 $"Processed {Math.Min(processed, records.Count)} records from file (set={options.SetCode ?? "unknown"}).");
             return summary;
         });
-    }
-
-    /// <summary>
-    /// Issues a lightweight single-card request to resolve the expansion <paramref name="code"/>
-    /// to its internal Strapi numeric ID.  Returns <c>null</c> if the lookup fails for any reason,
-    /// in which case the caller should fall back to code-based filtering.
-    /// </summary>
-    private async Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct)
-    {
-        try
-        {
-            var qs = HttpUtility.ParseQueryString(string.Empty);
-            qs["locale"] = "en";
-            qs["filters[expansion][code][$eq]"] = code;
-            qs["pagination[pageSize]"] = "1";
-
-            using var response = await _http.GetAsync($"card-list?{qs}", ct);
-            response.EnsureSuccessStatusCode();
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-
-            var paged = await JsonSerializer.DeserializeAsync<StrapiPagedResponse>(stream, JsonOptions, ct);
-            return paged?.Data?.FirstOrDefault()?.Attributes?.Expansion?.Data?.Id;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 
     private async Task UpsertAsync(StrapiRecord record, ImportSummary summary, CancellationToken ct)
@@ -364,91 +302,4 @@ public sealed class SwuDbImporter : ISourceImporter
             if (changed) summary.PrintingsUpdated++;
         }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Strapi response models
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed record StrapiPagedResponse(
-        [property: JsonPropertyName("data")] List<StrapiRecord>? Data,
-        [property: JsonPropertyName("meta")] StrapiMeta? Meta);
-
-    private sealed record StrapiMeta(
-        [property: JsonPropertyName("pagination")] StrapiPagination? Pagination);
-
-    private sealed record StrapiPagination(
-        [property: JsonPropertyName("page")] int Page,
-        [property: JsonPropertyName("pageSize")] int PageSize,
-        [property: JsonPropertyName("pageCount")] int PageCount,
-        [property: JsonPropertyName("total")] int Total);
-
-    private sealed record StrapiRecord(
-        [property: JsonPropertyName("id")] int Id,
-        [property: JsonPropertyName("attributes")] SwuCardAttributes? Attributes);
-
-    private sealed record SwuCardAttributes(
-        [property: JsonPropertyName("title")] string? Title,
-        [property: JsonPropertyName("subtitle")] string? Subtitle,
-        [property: JsonPropertyName("cardUid")] string? CardUid,
-        [property: JsonPropertyName("serialCode")] string? SerialCode,
-        [property: JsonPropertyName("locale")] string? Locale,
-        [property: JsonPropertyName("cardNumber")] int? CardNumber,
-        [property: JsonPropertyName("rarity")] string? Rarity,
-        [property: JsonPropertyName("text")] string? Text,
-        [property: JsonPropertyName("artist")] string? Artist,
-        [property: JsonPropertyName("cost")] int? Cost,
-        [property: JsonPropertyName("power")] int? Power,
-        [property: JsonPropertyName("health")] int? Health,
-        [property: JsonPropertyName("arena")] string? Arena,
-        [property: JsonPropertyName("aspects")] string[]? Aspects,
-        [property: JsonPropertyName("traits")] string[]? Traits,
-        [property: JsonPropertyName("keywords")] string[]? Keywords,
-        [property: JsonPropertyName("createdAt")] DateTimeOffset? CreatedAt,
-        [property: JsonPropertyName("updatedAt")] DateTimeOffset? UpdatedAt,
-        [property: JsonPropertyName("publishedAt")] DateTimeOffset? PublishedAt,
-        [property: JsonPropertyName("type")] StrapiRelation<SwuTypeAttributes>? Type,
-        [property: JsonPropertyName("expansion")] StrapiRelation<SwuExpansionAttributes>? Expansion,
-        [property: JsonPropertyName("variantTypes")] StrapiRelationList<SwuVariantTypeAttributes>? VariantTypes,
-        [property: JsonPropertyName("variantOf")] StrapiRelation<SwuVariantRefAttributes>? VariantOf,
-        [property: JsonPropertyName("reprintOf")] StrapiRelation<SwuVariantRefAttributes>? ReprintOf,
-        [property: JsonPropertyName("artFront")] StrapiRelation<SwuImageAttributes>? ArtFront,
-        [property: JsonPropertyName("artBack")] StrapiRelation<SwuImageAttributes>? ArtBack);
-
-    private sealed record StrapiRelation<T>(
-        [property: JsonPropertyName("data")] StrapiRelationData<T>? Data);
-
-    private sealed record StrapiRelationList<T>(
-        [property: JsonPropertyName("data")] List<StrapiRelationData<T>>? Data);
-
-    private sealed record StrapiRelationData<T>(
-        [property: JsonPropertyName("id")] int Id,
-        [property: JsonPropertyName("attributes")] T? Attributes);
-
-    private sealed record SwuTypeAttributes(
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("value")] string? Value);
-
-    private sealed record SwuExpansionAttributes(
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("code")] string? Code);
-
-    private sealed record SwuVariantTypeAttributes(
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("variantId")] string? VariantId,
-        [property: JsonPropertyName("foil")] bool? Foil);
-
-    private sealed record SwuVariantRefAttributes(
-        [property: JsonPropertyName("title")] string? Title,
-        [property: JsonPropertyName("cardUid")] string? CardUid);
-
-    private sealed record SwuImageAttributes(
-        [property: JsonPropertyName("url")] string? Url,
-        [property: JsonPropertyName("formats")] SwuImageFormats? Formats);
-
-    private sealed record SwuImageFormats(
-        [property: JsonPropertyName("card")] SwuImageFormat? Card,
-        [property: JsonPropertyName("thumbnail")] SwuImageFormat? Thumbnail);
-
-    private sealed record SwuImageFormat(
-        [property: JsonPropertyName("url")] string? Url);
 }
