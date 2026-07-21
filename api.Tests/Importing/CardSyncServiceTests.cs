@@ -15,6 +15,7 @@ public sealed class CardSyncServiceTests
         await using var db = await CreateDbContextAsync();
         var createdAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
         var updatedAt = new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero);
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
         var client = new StubSwuApiClient(
             records:
             [
@@ -41,7 +42,7 @@ public sealed class CardSyncServiceTests
                     createdAt: createdAt,
                     updatedAt: updatedAt)
             ]);
-        var service = new CardSyncService(db, client);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -90,6 +91,11 @@ public sealed class CardSyncServiceTests
         Assert.Equal(createdAt, printing.ApiCreatedAt);
         Assert.Equal(updatedAt, printing.ApiUpdatedAt);
         Assert.Equal(updatedAt, printing.LastSyncedAt);
+
+        var syncHistory = await db.ImportSyncHistories.SingleAsync();
+        Assert.Equal("swu", syncHistory.ImporterKey);
+        Assert.Equal("SOR", syncHistory.SetCode);
+        Assert.Equal(syncTime, syncHistory.LastSyncedAt);
     }
 
     [Fact]
@@ -99,6 +105,7 @@ public sealed class CardSyncServiceTests
         var lastSync = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
         var createdAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
         var updatedAt = new DateTimeOffset(2026, 7, 19, 12, 0, 0, TimeSpan.Zero);
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
 
         var set = new SwuSet
         {
@@ -180,7 +187,7 @@ public sealed class CardSyncServiceTests
                     createdAt: createdAt,
                     updatedAt: updatedAt)
             ]);
-        var service = new CardSyncService(db, client);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -191,6 +198,9 @@ public sealed class CardSyncServiceTests
         Assert.Equal(0, summary.PrintingsCreated);
         Assert.Equal(0, summary.PrintingsUpdated);
         Assert.Equal(0, summary.Errors);
+
+        var syncHistory = await db.ImportSyncHistories.SingleAsync();
+        Assert.Equal(syncTime, syncHistory.LastSyncedAt);
     }
 
     [Fact]
@@ -198,6 +208,7 @@ public sealed class CardSyncServiceTests
     {
         await using var db = await CreateDbContextAsync();
         var lastSync = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
         var set = new SwuSet
         {
             Code = "SOR",
@@ -271,7 +282,7 @@ public sealed class CardSyncServiceTests
                     createdAt: new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
                     updatedAt: new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero))
             ]);
-        var service = new CardSyncService(db, client);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(syncTime));
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -296,17 +307,23 @@ public sealed class CardSyncServiceTests
         Assert.Equal("https://example.test/new-front.png", updatedPrinting.ImageUrl);
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedPrinting.ApiUpdatedAt);
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedPrinting.LastSyncedAt);
+
+        var syncHistory = await db.ImportSyncHistories.SingleAsync();
+        Assert.Equal("swu", syncHistory.ImporterKey);
+        Assert.Equal("SOR", syncHistory.SetCode);
+        Assert.Equal(syncTime, syncHistory.LastSyncedAt);
     }
 
     [Fact]
     public async Task SyncNewAndUpdatedCardsAsync_WhenApiFails_HandlesApiFailures()
     {
         await using var db = await CreateDbContextAsync();
+        var originalSyncTime = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
             ImporterKey = "swu",
             SetCode = "SOR",
-            LastSyncedAt = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero)
+            LastSyncedAt = originalSyncTime
         });
         await db.SaveChangesAsync();
 
@@ -314,7 +331,7 @@ public sealed class CardSyncServiceTests
         {
             GetAllCardsException = new HttpRequestException("SWU API unavailable")
         };
-        var service = new CardSyncService(db, client);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero)));
 
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
@@ -325,7 +342,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(0, summary.PrintingsCreated);
         Assert.Equal(0, summary.PrintingsUpdated);
         Assert.Equal(
-            new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero),
+            originalSyncTime,
             await service.GetLastSyncTimeAsync("swu", "SOR"));
     }
 
@@ -407,6 +424,11 @@ public sealed class CardSyncServiceTests
                         new StrapiRelationData<SwuImageAttributes>(
                             2,
                             new SwuImageAttributes(backImageUrl, null)))));
+
+    private sealed class FixedTimeProvider(DateTimeOffset fixedUtcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => fixedUtcNow;
+    }
 
     private sealed class StubSwuApiClient(IReadOnlyList<StrapiRecord> records) : ISWUApiClient
     {

@@ -13,16 +13,19 @@ internal sealed class CardSyncService : ICardSyncService
 
     private readonly AppDbContext _db;
     private readonly ISWUApiClient _client;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CardSyncService"/> class.
     /// </summary>
     /// <param name="db">Database context containing sync history and SWU entities.</param>
     /// <param name="client">SWU API client used to fetch modified cards.</param>
-    public CardSyncService(AppDbContext db, ISWUApiClient client)
+    /// <param name="timeProvider">Time provider used to obtain the current UTC time.</param>
+    public CardSyncService(AppDbContext db, ISWUApiClient client, TimeProvider timeProvider)
     {
         _db = db;
         _client = client;
+        _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
@@ -36,6 +39,8 @@ internal sealed class CardSyncService : ICardSyncService
     {
         ValidateRequest(importerKey, setCode);
 
+        var syncStartedAt = _timeProvider.GetUtcNow();
+
         try
         {
             var effectiveUpdatedSince = forceFullSync
@@ -43,7 +48,9 @@ internal sealed class CardSyncService : ICardSyncService
                 : updatedSince ?? await GetLastSyncTimeAsync(importerKey, setCode, ct);
 
             var records = await LoadRecordsAsync(setCode!, effectiveUpdatedSince, limit, ct);
-            return await BuildSummaryAsync(importerKey, setCode!, records, ct);
+            var summary = await BuildSummaryAsync(importerKey, setCode!, records, ct);
+            await UpdateLastSyncTimeAsync(importerKey, setCode, syncStartedAt, ct);
+            return summary;
         }
         catch (OperationCanceledException)
         {
@@ -161,7 +168,7 @@ internal sealed class CardSyncService : ICardSyncService
             return summary;
         }
 
-        var fallbackSyncTime = DateTimeOffset.UtcNow;
+        var fallbackSyncTime = _timeProvider.GetUtcNow();
         var setCodes = comparableRecords
             .Select(r => r.SetCode)
             .Distinct(StringComparer.OrdinalIgnoreCase)
