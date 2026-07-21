@@ -10,10 +10,13 @@ namespace api.Importing;
 internal sealed class CardSyncService : ICardSyncService
 {
     private const string SupportedImporterKey = "swu";
+    private const int MaxFetchRetries = 2;
+    private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
 
     private readonly AppDbContext _db;
     private readonly ISWUApiClient _client;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<CardSyncService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CardSyncService"/> class.
@@ -21,11 +24,13 @@ internal sealed class CardSyncService : ICardSyncService
     /// <param name="db">Database context containing sync history and SWU entities.</param>
     /// <param name="client">SWU API client used to fetch modified cards.</param>
     /// <param name="timeProvider">Time provider used to obtain the current UTC time.</param>
-    public CardSyncService(AppDbContext db, ISWUApiClient client, TimeProvider timeProvider)
+    /// <param name="logger">Logger for structured sync operation telemetry.</param>
+    public CardSyncService(AppDbContext db, ISWUApiClient client, TimeProvider timeProvider, ILogger<CardSyncService> logger)
     {
         _db = db;
         _client = client;
         _timeProvider = timeProvider;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -41,23 +46,37 @@ internal sealed class CardSyncService : ICardSyncService
 
         var syncStartedAt = _timeProvider.GetUtcNow();
 
+        var effectiveUpdatedSince = forceFullSync
+            ? null
+            : updatedSince ?? await GetLastSyncTimeAsync(importerKey, setCode, ct);
+
+        var syncLog = await CreatePendingSyncLogAsync(setCode!, effectiveUpdatedSince, syncStartedAt, ct);
+
         try
         {
-            var effectiveUpdatedSince = forceFullSync
-                ? null
-                : updatedSince ?? await GetLastSyncTimeAsync(importerKey, setCode, ct);
-
-            var records = await LoadRecordsAsync(setCode!, effectiveUpdatedSince, limit, ct);
+            var records = await LoadRecordsWithRetryAsync(setCode!, effectiveUpdatedSince, limit, ct);
             var summary = await BuildSummaryAsync(importerKey, setCode!, records, ct);
             await UpdateLastSyncTimeAsync(importerKey, setCode, syncStartedAt, ct);
+
+            await MarkSyncLogSucceededAsync(syncLog, records.Count, summary, ct);
+
+            _logger.LogInformation(
+                "Sync succeeded for {ImporterKey}/{SetCode}. CardsCreated={CardsCreated}, CardsUpdated={CardsUpdated}, Errors={Errors}.",
+                importerKey, setCode, summary.CardsCreated + summary.PrintingsCreated,
+                summary.CardsUpdated + summary.PrintingsUpdated, summary.Errors);
+
             return summary;
         }
         catch (OperationCanceledException)
         {
+            await MarkSyncLogFailedAsync(syncLog, "Sync was cancelled.", CancellationToken.None);
             throw;
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Sync failed for {ImporterKey}/{SetCode}.", importerKey, setCode);
+            await MarkSyncLogFailedAsync(syncLog, ex.Message, CancellationToken.None);
+
             return new ImportSummary
             {
                 Source = importerKey,
@@ -109,6 +128,95 @@ internal sealed class CardSyncService : ICardSyncService
         }
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task<SyncLog> CreatePendingSyncLogAsync(
+        string setCode,
+        DateTimeOffset? effectiveUpdatedSince,
+        DateTimeOffset syncStartedAt,
+        CancellationToken ct)
+    {
+        var normalizedCode = NormalizeSetCode(setCode).ToUpperInvariant();
+        var swuSetId = await _db.SwuSets
+            .AsNoTracking()
+            .Where(s => s.Code == normalizedCode)
+            .Select(s => (int?)s.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var syncLog = new SyncLog
+        {
+            SwuSetId = swuSetId,
+            StartedAt = syncStartedAt,
+            IsIncremental = effectiveUpdatedSince.HasValue,
+            UpdatedSince = effectiveUpdatedSince,
+            Status = "Pending"
+        };
+        _db.SyncLogs.Add(syncLog);
+        await _db.SaveChangesAsync(ct);
+        return syncLog;
+    }
+
+    private async Task MarkSyncLogSucceededAsync(
+        SyncLog syncLog,
+        int cardsReturned,
+        ImportSummary summary,
+        CancellationToken ct)
+    {
+        syncLog.Status = "Succeeded";
+        syncLog.CompletedAt = _timeProvider.GetUtcNow();
+        syncLog.CardsReturned = cardsReturned;
+        syncLog.CardsUpserted = summary.CardsCreated + summary.PrintingsCreated
+                                + summary.CardsUpdated + summary.PrintingsUpdated;
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist Succeeded SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+        }
+    }
+
+    private async Task MarkSyncLogFailedAsync(SyncLog syncLog, string errorMessage, CancellationToken ct)
+    {
+        try
+        {
+            _db.ChangeTracker.Clear();
+            _db.SyncLogs.Attach(syncLog);
+            syncLog.Status = "Failed";
+            syncLog.CompletedAt = _timeProvider.GetUtcNow();
+            syncLog.ErrorMessage = errorMessage;
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+        }
+    }
+
+    private async Task<IReadOnlyList<StrapiRecord>> LoadRecordsWithRetryAsync(
+        string setCode,
+        DateTimeOffset? updatedSince,
+        int? limit,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await LoadRecordsAsync(setCode, updatedSince, limit, ct);
+            }
+            catch (HttpRequestException ex) when (attempt < MaxFetchRetries && !ct.IsCancellationRequested)
+            {
+                var delay = RetryBaseDelay * (attempt + 1);
+                _logger.LogWarning(
+                    ex,
+                    "Transient HTTP error fetching SWU cards (attempt {Attempt}/{MaxRetries}), retrying in {Delay}s.",
+                    attempt + 1, MaxFetchRetries + 1, delay.TotalSeconds);
+                await Task.Delay(delay, ct);
+            }
+        }
     }
 
     private async Task<IReadOnlyList<StrapiRecord>> LoadRecordsAsync(

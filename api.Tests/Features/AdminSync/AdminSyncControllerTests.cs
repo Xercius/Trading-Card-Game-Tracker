@@ -155,6 +155,57 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         completed.EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task GetStarWarsUnlimitedLogs_WhenUnauthenticated_ReturnsUnauthorized()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _, _) = CreateClientWithSyncImporter(factory);
+
+        var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/logs");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedLogs_WhenNoLogs_ReturnsEmptyList()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _, _) = CreateClientWithSyncImporter(factory);
+
+        client.AsAdmin();
+        var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/logs");
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncLogsResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("swu", payload!.Source);
+        Assert.Equal(0, payload.TotalCount);
+        Assert.Empty(payload.Logs);
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedLogs_AfterSync_ReturnsSyncLogEntries()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithSyncImporter(factory);
+        await SeedSwuSetAsync(services, "SOR");
+        SyncTestImporter.SetSummary("SOR", created: 2, updated: 1, invalid: 0, "SOR complete");
+
+        client.AsAdmin();
+        await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
+
+        var logsResponse = await client.GetAsync("/api/admin/sync/star-wars-unlimited/logs");
+        logsResponse.EnsureSuccessStatusCode();
+
+        var payload = await logsResponse.Content.ReadFromJsonAsync<AdminSyncLogsResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(1, payload!.TotalCount);
+        Assert.Single(payload.Logs);
+        Assert.Equal("Succeeded", payload.Logs[0].Status);
+        Assert.Equal("SOR", payload.Logs[0].SetCode);
+        Assert.Null(payload.Logs[0].ErrorMessage);
+    }
+
     private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSyncImporter(CustomWebApplicationFactory factory)
     {
         SyncTestImporter.Reset();
