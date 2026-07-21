@@ -1,8 +1,11 @@
 using api.Common.Errors;
 using api.Data;
+using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Infrastructure.Auth;
 using api.Shared.Importing;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +51,12 @@ internal static class ServiceCollectionExtensions
 
         services.AddControllers()
             .AddJsonOptions(JsonOptionsConfigurator.Configure);
+
+        services.AddAuthentication(AdminTokenAuthenticationHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, AdminTokenAuthenticationHandler>(
+                AdminTokenAuthenticationHandler.SchemeName,
+                _ => { });
+        services.AddAuthorization();
 
 
         services.Configure<ApiBehaviorOptions>(options =>
@@ -205,6 +214,7 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<ISourceImporter, TransformersFmImporter>();
         services.AddScoped<ImporterRegistry>();
         services.AddScoped<FileParser>();
+        services.AddSingleton<AdminSyncExecutionTracker>();
     }
 
     /// <summary>
