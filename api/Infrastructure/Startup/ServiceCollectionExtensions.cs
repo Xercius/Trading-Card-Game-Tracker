@@ -189,6 +189,7 @@ internal static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromMinutes(5);
         });
         services.AddScoped<ISWUApiClient, SWUApiClient>();
+        services.AddScoped<ICardSyncService, CardSyncService>();
 
         services.AddScoped<ISourceImporter, ScryfallImporter>();
         services.AddScoped<ISourceImporter, SwccgdbImporter>();
