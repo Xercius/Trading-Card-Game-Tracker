@@ -13,6 +13,8 @@ public sealed class CardSyncServiceTests
     public async Task SyncNewAndUpdatedCardsAsync_WhenNoSyncHistory_HandlesFirstSync()
     {
         await using var db = await CreateDbContextAsync();
+        var createdAt = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
+        var updatedAt = new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero);
         var client = new StubSwuApiClient(
             records:
             [
@@ -23,7 +25,21 @@ public sealed class CardSyncServiceTests
                     serialCode: "SOR-001",
                     setCode: "SOR",
                     setName: "Spark of Rebellion",
-                    text: "Deal 3 damage.")
+                    subtitle: "Faithful Friend",
+                    text: "Deal 3 damage.",
+                    artist: "Artist One",
+                    cost: 5,
+                    power: 4,
+                    health: 6,
+                    arena: "Ground",
+                    aspects: ["Heroism", "Command"],
+                    traits: ["Rebel", "Jedi"],
+                    keywords: ["Restore"],
+                    rarity: "Legendary",
+                    imageUrl: "https://example.test/front.png",
+                    backImageUrl: "https://example.test/back.png",
+                    createdAt: createdAt,
+                    updatedAt: updatedAt)
             ]);
         var service = new CardSyncService(db, client);
 
@@ -36,6 +52,44 @@ public sealed class CardSyncServiceTests
         Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(0, summary.PrintingsUpdated);
         Assert.Equal(0, summary.Errors);
+
+        var set = await db.SwuSets.SingleAsync();
+        Assert.Equal("SOR", set.Code);
+        Assert.Equal("Spark of Rebellion", set.Name);
+        Assert.Equal(updatedAt, set.LastSyncedAt);
+
+        var card = await db.SwuCards.SingleAsync();
+        Assert.Equal(1001, card.StrapiId);
+        Assert.Equal("1001", card.CardUid);
+        Assert.Equal("Luke Skywalker", card.Title);
+        Assert.Equal("Faithful Friend", card.Subtitle);
+        Assert.Equal("Unit", card.CardType);
+        Assert.Equal("Deal 3 damage.", card.Description);
+        Assert.Equal("Ground", card.Arena);
+        Assert.Equal(5, card.Cost);
+        Assert.Equal(4, card.Power);
+        Assert.Equal(6, card.Health);
+        Assert.Equal("Artist One", card.Artist);
+        Assert.Equal("Heroism|Command", card.Aspects);
+        Assert.Equal("Rebel|Jedi", card.Traits);
+        Assert.Equal("Restore", card.Keywords);
+        Assert.Equal(set.Id, card.SwuSetId);
+        Assert.Equal(createdAt, card.ApiCreatedAt);
+        Assert.Equal(updatedAt, card.ApiUpdatedAt);
+        Assert.Equal(updatedAt, card.LastSyncedAt);
+
+        var printing = await db.SwuCardPrintings.SingleAsync();
+        Assert.Equal(1001, printing.StrapiId);
+        Assert.Equal(card.Id, printing.SwuCardId);
+        Assert.Equal(set.Id, printing.SwuSetId);
+        Assert.Equal("SOR-001", printing.Number);
+        Assert.Equal("Legendary", printing.Rarity);
+        Assert.Equal("Standard", printing.Style);
+        Assert.Equal("https://example.test/front.png", printing.ImageUrl);
+        Assert.Equal("https://example.test/back.png", printing.BackImageUrl);
+        Assert.Equal(createdAt, printing.ApiCreatedAt);
+        Assert.Equal(updatedAt, printing.ApiUpdatedAt);
+        Assert.Equal(updatedAt, printing.LastSyncedAt);
     }
 
     [Fact]
@@ -201,7 +255,7 @@ public sealed class CardSyncServiceTests
                     cardUid: "3001",
                     serialCode: "SOR-020",
                     setCode: "SOR",
-                    setName: "Spark of Rebellion",
+                    setName: "Spark of Rebellion Remastered",
                     typeName: "Unit",
                     text: "New text",
                     artist: "Artist B",
@@ -226,6 +280,22 @@ public sealed class CardSyncServiceTests
         Assert.Equal(0, summary.PrintingsCreated);
         Assert.Equal(1, summary.PrintingsUpdated);
         Assert.Equal(0, summary.Errors);
+
+        var updatedSet = await db.SwuSets.SingleAsync(s => s.Code == "SOR");
+        Assert.Equal("Spark of Rebellion Remastered", updatedSet.Name);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedSet.LastSyncedAt);
+
+        var updatedCard = await db.SwuCards.SingleAsync(c => c.StrapiId == 3001);
+        Assert.Equal("New text", updatedCard.Description);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedCard.ApiUpdatedAt);
+        Assert.Equal(updatedSet.Id, updatedCard.SwuSetId);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedCard.LastSyncedAt);
+
+        var updatedPrinting = await db.SwuCardPrintings.SingleAsync(p => p.StrapiId == 3001);
+        Assert.Equal("Legendary", updatedPrinting.Rarity);
+        Assert.Equal("https://example.test/new-front.png", updatedPrinting.ImageUrl);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedPrinting.ApiUpdatedAt);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedPrinting.LastSyncedAt);
     }
 
     [Fact]
@@ -281,6 +351,7 @@ public sealed class CardSyncServiceTests
         string setCode,
         string setName,
         string typeName = "Unit",
+        string? subtitle = null,
         string? text = null,
         string? artist = null,
         int? cost = null,
@@ -292,13 +363,14 @@ public sealed class CardSyncServiceTests
         string[]? keywords = null,
         string rarity = "Common",
         string? imageUrl = null,
+        string? backImageUrl = null,
         DateTimeOffset? createdAt = null,
         DateTimeOffset? updatedAt = null) =>
         new(
             id,
             new SwuCardAttributes(
                 Title: title,
-                Subtitle: null,
+                Subtitle: subtitle,
                 CardUid: cardUid,
                 SerialCode: serialCode,
                 Locale: "en",
@@ -329,7 +401,12 @@ public sealed class CardSyncServiceTests
                         new StrapiRelationData<SwuImageAttributes>(
                             1,
                             new SwuImageAttributes(imageUrl, null))),
-                ArtBack: null));
+                ArtBack: backImageUrl is null
+                    ? null
+                    : new StrapiRelation<SwuImageAttributes>(
+                        new StrapiRelationData<SwuImageAttributes>(
+                            2,
+                            new SwuImageAttributes(backImageUrl, null)))));
 
     private sealed class StubSwuApiClient(IReadOnlyList<StrapiRecord> records) : ISWUApiClient
     {
