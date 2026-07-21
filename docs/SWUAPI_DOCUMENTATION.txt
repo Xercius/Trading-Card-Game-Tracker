@@ -3,10 +3,13 @@ Star Wars: Unlimited – API Specification
 
 Document scope
 --------------
-This file records the base URL, authentication method, rate-limit behaviour, and
-full list of known endpoints for the Star Wars: Unlimited card-data API as
-observed by the SwuDbImporter (api/Importing/SwuDbImporter.cs) and the existing
-reference notes in docs/starwarsunlimitedapi.txt.
+This file records the base URL, authentication method, rate-limit behaviour,
+known endpoints, and the real-world limitations/gotchas currently accounted for
+by the Star Wars: Unlimited importer. It is based on the live-response shape
+captured in repository tests, the importer/client implementation
+(api/Importing/SwuDbImporter.cs, api/Importing/SWUApiClient.cs), the SWU
+connectivity smoke test (api/scripts/test-swu-api-connectivity.sh), and the
+existing reference notes in docs/starwarsunlimitedapi.txt.
 
 IMPORTANT: The endpoints below are internal endpoints operated by Atomic Mass
 Games / Fantasy Flight Games for the official card database at
@@ -21,13 +24,24 @@ https://admin.starwarsunlimited.com/api/
 
 2. AUTHENTICATION
 -----------------
-Method  : None (unauthenticated public HTTP GET)
-Headers : No Authorization, API-Key, or token header is required.
-          The importer sends only the standard headers added automatically
-          by .NET's HttpClient (Accept, User-Agent, etc.).
-Notes   : Because no credentials are required, all requests must be GET
-          requests. Write operations (POST/PUT/DELETE) are not available to
-          external consumers.
+Method  : Read-only HTTP GET requests. The current importer sends no auth.
+Headers : The live importer sends only the standard headers added
+          automatically by .NET's HttpClient.
+Notes   : In repository-tested flows, card-list reads are attempted
+          anonymously first. However, this endpoint is internal and upstream
+          auth expectations may change without notice.
+
+Gotcha  : The connectivity smoke test supports optional
+          SWU_API_IDENTIFIER + SWU_API_PASSWORD or SWU_API_TOKEN inputs even
+          though the importer itself does not send credentials.
+Workaround:
+          - Treat anonymous access as an observed convenience, not a stable
+            contract.
+          - If anonymous requests start failing, use
+            api/scripts/test-swu-api-connectivity.sh to determine whether the
+            endpoint now requires auth before changing importer behavior.
+          - Write operations (POST/PUT/DELETE) are not consumed by this
+            application and should not be assumed available to external users.
 
 
 3. RATE LIMITING
@@ -35,14 +49,19 @@ Notes   : Because no credentials are required, all requests must be GET
 Official limits : None have been publicly documented by the operator.
 Observed limits : No explicit rate-limit response (HTTP 429) has been
                   encountered during normal import operations.
-Practical rules applied by the importer:
+Practical rules applied by the importer/client:
   - HTTP client timeout : 5 minutes per request
-  - Page size cap       : 100 records per page (maximum used in practice)
-  - No explicit delay   : Requests are paged sequentially; no artificial
-                          sleep is inserted between pages.
-Recommendation  : Keep page size at or below 100. If a 429 or 503 response
-                  is received, implement exponential back-off starting at 1 s.
-                  Avoid issuing more than one concurrent request to this host.
+  - Page size cap       : 100 records per page
+  - Request shape       : Requests are paged sequentially
+  - Automatic retry     : HTTP 429 only, up to 3 retries
+  - Retry delay         : Retry-After header when present; otherwise 1 s,
+                          2 s, then 4 s exponential back-off
+Gotcha          : HTTP 503 and other non-success statuses are NOT retried by
+                  the current client; they surface immediately as
+                  HttpRequestException.
+Recommendation  : Keep page size at or below 100, avoid concurrent fetches to
+                  this host, and re-run the import later if upstream returns
+                  503/5xx responses.
 
 
 4. ENDPOINTS
@@ -153,11 +172,18 @@ HTTP method for all consumer-accessible endpoints: GET
     codebase. Any future use of additional endpoints should be documented in
     a new section here before being relied upon in production code.
 
+    Gotcha: there is no repository-verified dedicated "list all sets" endpoint
+    that this application depends on.
+    Workaround: derive expansion metadata from `card-list` itself:
+      - set code  : data[].attributes.expansion.data.attributes.code
+      - set name  : data[].attributes.expansion.data.attributes.name
+      - set ID    : data[].attributes.expansion.data.id
+
 
 5. KNOWN EXPANSION CODES
 -------------------------
-The following set codes have been observed in imported data.
-The numeric ID shown is the Strapi relationship ID used in
+The following set codes are referenced by current repository validation and
+import documentation. The numeric ID shown is the Strapi relationship ID used in
 filters[expansion][id][$eq].
 
 Code    Name                                   Strapi ID (observed)
@@ -165,12 +191,18 @@ Code    Name                                   Strapi ID (observed)
 SOR     Spark of Rebellion                     2
 SHD     Shadows of the Galaxy                  (verify via API)
 TWI     Twilight of the Republic               (verify via API)
+JTL     Jump to Lightspeed                     (verify via API)
 SOTG    Set of the Galaxy (promo/other)        (verify via API)
 
 Note: Always verify the current numeric Strapi ID by calling the card-list
 endpoint with filters[expansion][code][$eq]=<CODE> and reading
 data[0].attributes.expansion.data.id from the response, as IDs may differ
 across API environments or after data migrations.
+
+Gotcha: this table is not authoritative and may lag behind newly published
+expansions or promo-only codes.
+Workaround: resolve the code dynamically from a live card-list response instead
+of hard-coding the numeric ID.
 
 
 6. FILTER OPERATOR REFERENCE
@@ -392,7 +424,7 @@ records returned for the specified expansion code.
 
 
 11. TROUBLESHOOTING
---------------------
+-------------------
 Problem: Date filter returns no results
   Cause  : Timestamp must use the exact format yyyy-MM-ddTHH:mm:ss.sssZ
             (milliseconds + literal Z). Omitting milliseconds may fail.
@@ -425,7 +457,7 @@ Problem: Empty response after adding filters
 
 
 12. URL TEMPLATES (QUICK REFERENCE)
--------------------------------------
+----------------------------------
 All English cards (paged):
   GET card-list?locale=en&pagination[page]=1&pagination[pageSize]=100
 
@@ -460,7 +492,79 @@ One expansion + incremental update filter:
   GET card-list?locale=en&filters[expansion][code][$eq]=SOR&filters[updatedAt][$gt]=2025-11-01T00:00:00.000Z&sort[0]=updatedAt:asc&sort[1]=cardNumber:asc&pagination[page]=1&pagination[pageSize]=100
 
 
-13. REFERENCES
+13. VERIFIED LIMITATIONS, GOTCHAS, AND WORKAROUNDS
+--------------------------------------------------
+These are the behaviors the current repository explicitly accounts for in the
+importer, tests, or smoke-test tooling.
+
+13.1  Internal, unstable upstream API
+      Limitation: `card-list` is an internal Strapi endpoint, not a supported
+      public contract.
+      Workaround: keep this file, `docs/SWU_IMPORT_GUIDE.md`, and
+      `api/scripts/test-swu-api-connectivity.sh` in sync whenever the payload
+      shape changes.
+
+13.2  Expansion-code imports are caller-driven
+      Limitation: remote imports require a set code up front; the application
+      does not expose a verified live set-picker sourced from SWU.
+      Workaround: discover the code from prior card-list responses or known SWU
+      set abbreviations, then let the importer resolve the numeric Strapi ID
+      dynamically when possible.
+
+13.3  Numeric expansion ID lookup is best-effort
+      Gotcha: the importer first tries `filters[expansion][code][$eq]=<CODE>`
+      with `pagination[pageSize]=1` to discover the internal expansion ID. If
+      that discovery request fails or returns no cards, imports fall back to the
+      less-reliable code filter.
+      Workaround: prefer `filters[expansion][id][$eq]` once you know the ID;
+      treat code-based filtering as a fallback path.
+
+13.4  English-only import is enforced twice
+      Gotcha: requests always include `locale=en`, but the importer still checks
+      `data[].attributes.locale` and skips non-English records.
+      Workaround: do not rely only on the URL parameter; validate the top-level
+      record locale, especially when replaying captured files.
+
+13.5  File imports are more permissive than the live API contract
+      Gotcha: `ImportFromFileAsync` accepts either the full Strapi envelope
+      (`{ "data": [...], "meta": ... }`) or a bare array for backwards
+      compatibility. The remote API contract remains the Strapi envelope.
+      Workaround: use enveloped payloads for captures/documentation; reserve
+      bare arrays for deterministic local test fixtures only.
+
+13.6  Missing fields fall back to synthetic values
+      Gotcha:
+        - missing `serialCode`  -> printing key falls back to `set + cardNumber`
+        - missing `cardNumber`  -> printing number falls back to top-level `id`
+        - missing `expansion`   -> set falls back to `UNK`
+      Workaround: expect stable upserts only when `serialCode` or
+      `expansion+cardNumber` are present; audit any `UNK` set values after an
+      import because they indicate incomplete upstream data.
+
+13.7  Base-card linking is opportunistic
+      Gotcha: `variantOf` / `reprintOf` relationship metadata is preserved in
+      JSON, but `BaseCardId` is populated only if the referenced base card is
+      already present locally.
+      Workaround: import base cards before showcase/alternate-art variants, or
+      rerun the import after the base set has been loaded.
+
+13.8  Incremental sync must overlap the boundary
+      Gotcha: update detection uses strict `filters[updatedAt][$gt]=...`.
+      Records whose timestamps land exactly on the saved boundary can be missed
+      if you reuse the previous timestamp verbatim.
+      Workaround: subtract at least one minute from the stored sync time before
+      the next incremental run. The importer upsert path is idempotent, so
+      re-fetching a small overlap is safe.
+
+13.9  Variant-type exclusion is not trustworthy server-side
+      Limitation: `$ne` / `$notIn` filters on `variantTypes` can still match a
+      record through a different related row in this customized Strapi
+      endpoint.
+      Workaround: fetch the broader result set, inspect
+      `variantTypes.data[*].id`, and exclude unwanted variant IDs client-side.
+
+
+14. REFERENCES
 --------------
 - Importer source  : api/Importing/SwuDbImporter.cs
 - Usage guide      : docs/starwarsunlimitedapi.txt
