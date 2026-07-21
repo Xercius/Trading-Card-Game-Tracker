@@ -190,6 +190,7 @@ internal static class ServiceCollectionExtensions
     {
         services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=app.db"));
         services.AddHttpClient();
+        services.AddSingleton(TimeProvider.System);
 
         // Typed HTTP client for the Star Wars: Unlimited API.
         services.AddHttpClient<SWUApiClient>(client =>
