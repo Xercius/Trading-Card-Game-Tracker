@@ -30,11 +30,16 @@ A local web application for tracking trading card collections, deck building, wi
 - Controllers return `ActionResult<T>` and RFC 7807 `ProblemDetails`.
 - Case-insensitive search: avoid `ToLower()`. Use SQLite NOCASE or `EF.Functions.Like` with normalized columns.
 - Map only via AutoMapper profiles.
+- Service size: keep services/handlers under 300 lines. If a service spans multiple domains, split by responsibility (for example pricing vs valuation).
+- Helper methods: group related private helpers near the consuming method, and extract cross-service shared logic into focused helper classes instead of growing one service.
 
 ### TypeScript/React
 - Functional components + hooks. Strict typing (`noImplicitAny`).
 - TanStack Query for server state. shadcn/ui + Tailwind for UI.
 - One component per file. No side effects in render.
+- Small components: aim for presentational components under 150 lines; split rendering concerns into sub-components when UI sections can stand alone.
+- Custom hooks: extract stateful or side-effect-heavy logic into `useFeatureName` hooks and keep components primarily declarative.
+- Sub-components: place reusable sub-components in separate files and compose them rather than expanding a single monolithic component.
 
 ### Testing
 - API: xUnit + WebApplicationFactory with SQLite (in-memory or file per test).
@@ -42,6 +47,25 @@ A local web application for tracking trading card collections, deck building, wi
 - Deterministic tests. Assert HTTP codes and JSON shapes.
 - Run backend tests: `ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release`
 - Run frontend tests: `cd client-vite && npm test -- --run`
+
+## File Size & Modularity
+- **C# services/handlers:** Keep files under 300 lines. Split by domain concern when exceeded.
+- **React components:** Keep files under 250 lines. Extract custom hooks and sub-components when growth is driven by mixed concerns.
+- **Controllers:** Keep each controller under 200 lines total. Move business logic to services and split controllers by resource area when needed.
+- **When to split files:** Split when a file has multiple responsibilities, independent concerns that can evolve separately, or becomes difficult to understand in a single screen.
+- **Dependencies & imports:** Group imports/usings as framework → third-party packages → app/feature modules → relative modules. If a file needs imports from 10+ modules, treat it as a design warning and refactor to reduce coupling.
+
+## Anti-patterns to Avoid
+- **God services:** One service owning unrelated workflows, validation, caching, and orchestration.
+- **Monolithic components:** Single React files handling fetching, state machines, rendering, and side effects all together.
+- **Fat controllers:** Controllers containing business rules instead of delegating to services.
+- **Long files:** Large files that require excessive scrolling and obscure intent; prefer smaller focused modules.
+
+## Code Quality & Metrics
+- **Cyclomatic complexity:** Keep methods low complexity; avoid methods with more than 10 branch points.
+- **Method length limits:** Keep methods under 50 lines in C# and under 40 lines in TypeScript before extracting helpers.
+- **Nesting depth:** Prefer guard clauses/early returns and avoid nesting deeper than 3 levels.
+- **Refactoring trigger:** If a change increases complexity, split logic into focused collaborators before adding more branches.
 
 ## Security
 - Trust forwarded headers only from configured `KnownProxies`/`KnownNetworks` within `ForwardLimit`.
