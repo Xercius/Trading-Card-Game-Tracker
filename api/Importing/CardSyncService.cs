@@ -161,6 +161,7 @@ internal sealed class CardSyncService : ICardSyncService
             return summary;
         }
 
+        var fallbackSyncTime = DateTimeOffset.UtcNow;
         var setCodes = comparableRecords
             .Select(r => r.SetCode)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -180,51 +181,68 @@ internal sealed class CardSyncService : ICardSyncService
             .ToArray();
 
         var setsByCode = await _db.SwuSets
-            .AsNoTracking()
             .Where(s => setCodes.Contains(s.Code))
             .ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
         var printingsByStrapiId = await _db.SwuCardPrintings
-            .AsNoTracking()
             .Include(p => p.SwuCard)
             .Include(p => p.SwuSet)
             .Where(p => printingIds.Contains(p.StrapiId))
             .ToDictionaryAsync(p => p.StrapiId, ct);
         var cardsByStrapiId = await _db.SwuCards
-            .AsNoTracking()
             .Include(c => c.SwuSet)
             .Where(c => cardStrapiIds.Contains(c.StrapiId))
             .ToDictionaryAsync(c => c.StrapiId, ct);
         var cardsByCardUid = await _db.SwuCards
-            .AsNoTracking()
             .Include(c => c.SwuSet)
             .Where(c => c.CardUid != null && cardUids.Contains(c.CardUid))
             .ToDictionaryAsync(c => c.CardUid!, StringComparer.OrdinalIgnoreCase, ct);
 
         foreach (var record in comparableRecords)
         {
+            var rowSyncTime = record.ApiUpdatedAt ?? record.ApiCreatedAt ?? fallbackSyncTime;
+            var swuSet = UpsertSet(record, rowSyncTime, setsByCode);
             var existingPrinting = printingsByStrapiId.GetValueOrDefault(record.PrintingStrapiId);
             var existingCard = ResolveExistingCard(record, existingPrinting, cardsByStrapiId, cardsByCardUid);
-            var existingSet = setsByCode.GetValueOrDefault(record.SetCode);
 
             if (existingCard is null)
             {
+                existingCard = CreateCard(record, swuSet, rowSyncTime);
+                _db.SwuCards.Add(existingCard);
+                cardsByStrapiId[record.CardStrapiId] = existingCard;
+                if (record.CardUid is not null)
+                {
+                    cardsByCardUid[record.CardUid] = existingCard;
+                }
+
                 summary.CardsCreated++;
             }
-            else if (CardHasChanges(existingCard, existingSet, record))
+            else
             {
-                summary.CardsUpdated++;
+                if (UpdateCard(existingCard, swuSet, record, rowSyncTime))
+                {
+                    summary.CardsUpdated++;
+                }
+
+                if (record.CardUid is not null)
+                {
+                    cardsByCardUid[record.CardUid] = existingCard;
+                }
             }
 
             if (existingPrinting is null)
             {
+                existingPrinting = CreatePrinting(record, existingCard, swuSet, rowSyncTime);
+                _db.SwuCardPrintings.Add(existingPrinting);
+                printingsByStrapiId[record.PrintingStrapiId] = existingPrinting;
                 summary.PrintingsCreated++;
             }
-            else if (PrintingHasChanges(existingPrinting, existingSet, record))
+            else if (UpdatePrinting(existingPrinting, existingCard, swuSet, record, rowSyncTime))
             {
                 summary.PrintingsUpdated++;
             }
         }
 
+        await _db.SaveChangesAsync(ct);
         return summary;
     }
 
@@ -267,6 +285,7 @@ internal sealed class CardSyncService : ICardSyncService
             Traits: JoinValues(attributes.Traits),
             Keywords: JoinValues(attributes.Keywords),
             SetCode: ResolveSetCode(attributes, requestedSetCode),
+            SetName: NullIfWhiteSpace(attributes.Expansion?.Data?.Attributes?.Name),
             Number: NullIfWhiteSpace(attributes.SerialCode) ?? attributes.CardNumber?.ToString() ?? record.Id.ToString(),
             Rarity: NullIfWhiteSpace(attributes.Rarity) ?? "Unknown",
             Style: ResolveStyle(attributes),
@@ -302,33 +321,145 @@ internal sealed class CardSyncService : ICardSyncService
         return null;
     }
 
-    private static bool CardHasChanges(SwuCard existingCard, SwuSet? existingSet, MappedRecord record) =>
-        existingCard.CardUid != record.CardUid
-        || existingCard.Title != record.Title
-        || existingCard.Subtitle != record.Subtitle
-        || existingCard.CardType != record.CardType
-        || existingCard.Description != record.Description
-        || existingCard.Arena != record.Arena
-        || existingCard.Cost != record.Cost
-        || existingCard.Power != record.Power
-        || existingCard.Health != record.Health
-        || existingCard.Artist != record.Artist
-        || existingCard.Aspects != record.Aspects
-        || existingCard.Traits != record.Traits
-        || existingCard.Keywords != record.Keywords
-        || existingCard.ApiCreatedAt != record.ApiCreatedAt
-        || existingCard.ApiUpdatedAt != record.ApiUpdatedAt
-        || (existingSet is not null && existingCard.SwuSetId != existingSet.Id);
+    private SwuSet UpsertSet(
+        MappedRecord record,
+        DateTimeOffset rowSyncTime,
+        IDictionary<string, SwuSet> setsByCode)
+    {
+        if (setsByCode.TryGetValue(record.SetCode, out var existingSet))
+        {
+            if (existingSet.Name != record.SetName)
+            {
+                existingSet.Name = record.SetName;
+                existingSet.LastSyncedAt = rowSyncTime;
+            }
 
-    private static bool PrintingHasChanges(SwuCardPrinting existingPrinting, SwuSet? existingSet, MappedRecord record) =>
-        existingPrinting.Number != record.Number
-        || existingPrinting.Rarity != record.Rarity
-        || existingPrinting.Style != record.Style
-        || existingPrinting.ImageUrl != record.ImageUrl
-        || existingPrinting.BackImageUrl != record.BackImageUrl
-        || existingPrinting.ApiCreatedAt != record.ApiCreatedAt
-        || existingPrinting.ApiUpdatedAt != record.ApiUpdatedAt
-        || (existingSet is not null && existingPrinting.SwuSetId != existingSet.Id);
+            return existingSet;
+        }
+
+        var swuSet = new SwuSet
+        {
+            Code = record.SetCode,
+            Name = record.SetName,
+            LastSyncedAt = rowSyncTime
+        };
+        _db.SwuSets.Add(swuSet);
+        setsByCode[record.SetCode] = swuSet;
+        return swuSet;
+    }
+
+    private static SwuCard CreateCard(MappedRecord record, SwuSet swuSet, DateTimeOffset rowSyncTime) =>
+        new()
+        {
+            StrapiId = record.CardStrapiId,
+            CardUid = record.CardUid,
+            Title = record.Title,
+            Subtitle = record.Subtitle,
+            CardType = record.CardType,
+            Description = record.Description,
+            Arena = record.Arena,
+            Cost = record.Cost,
+            Power = record.Power,
+            Health = record.Health,
+            Artist = record.Artist,
+            Aspects = record.Aspects,
+            Traits = record.Traits,
+            Keywords = record.Keywords,
+            SwuSet = swuSet,
+            ApiCreatedAt = record.ApiCreatedAt,
+            ApiUpdatedAt = record.ApiUpdatedAt,
+            LastSyncedAt = rowSyncTime
+        };
+
+    private static bool UpdateCard(SwuCard existingCard, SwuSet swuSet, MappedRecord record, DateTimeOffset rowSyncTime)
+    {
+        var changed = false;
+
+        if (existingCard.CardUid != record.CardUid) { existingCard.CardUid = record.CardUid; changed = true; }
+        if (existingCard.Title != record.Title) { existingCard.Title = record.Title; changed = true; }
+        if (existingCard.Subtitle != record.Subtitle) { existingCard.Subtitle = record.Subtitle; changed = true; }
+        if (existingCard.CardType != record.CardType) { existingCard.CardType = record.CardType; changed = true; }
+        if (existingCard.Description != record.Description) { existingCard.Description = record.Description; changed = true; }
+        if (existingCard.Arena != record.Arena) { existingCard.Arena = record.Arena; changed = true; }
+        if (existingCard.Cost != record.Cost) { existingCard.Cost = record.Cost; changed = true; }
+        if (existingCard.Power != record.Power) { existingCard.Power = record.Power; changed = true; }
+        if (existingCard.Health != record.Health) { existingCard.Health = record.Health; changed = true; }
+        if (existingCard.Artist != record.Artist) { existingCard.Artist = record.Artist; changed = true; }
+        if (existingCard.Aspects != record.Aspects) { existingCard.Aspects = record.Aspects; changed = true; }
+        if (existingCard.Traits != record.Traits) { existingCard.Traits = record.Traits; changed = true; }
+        if (existingCard.Keywords != record.Keywords) { existingCard.Keywords = record.Keywords; changed = true; }
+        if (existingCard.ApiCreatedAt != record.ApiCreatedAt) { existingCard.ApiCreatedAt = record.ApiCreatedAt; changed = true; }
+        if (existingCard.ApiUpdatedAt != record.ApiUpdatedAt) { existingCard.ApiUpdatedAt = record.ApiUpdatedAt; changed = true; }
+        if (existingCard.SwuSetId != swuSet.Id || !ReferenceEquals(existingCard.SwuSet, swuSet))
+        {
+            existingCard.SwuSet = swuSet;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            existingCard.LastSyncedAt = rowSyncTime;
+        }
+
+        return changed;
+    }
+
+    private static SwuCardPrinting CreatePrinting(
+        MappedRecord record,
+        SwuCard swuCard,
+        SwuSet swuSet,
+        DateTimeOffset rowSyncTime) =>
+        new()
+        {
+            StrapiId = record.PrintingStrapiId,
+            SwuCard = swuCard,
+            SwuSet = swuSet,
+            Number = record.Number,
+            Rarity = record.Rarity,
+            Style = record.Style,
+            ImageUrl = record.ImageUrl,
+            BackImageUrl = record.BackImageUrl,
+            ApiCreatedAt = record.ApiCreatedAt,
+            ApiUpdatedAt = record.ApiUpdatedAt,
+            LastSyncedAt = rowSyncTime
+        };
+
+    private static bool UpdatePrinting(
+        SwuCardPrinting existingPrinting,
+        SwuCard swuCard,
+        SwuSet swuSet,
+        MappedRecord record,
+        DateTimeOffset rowSyncTime)
+    {
+        var changed = false;
+
+        if (existingPrinting.SwuCardId != swuCard.Id || !ReferenceEquals(existingPrinting.SwuCard, swuCard))
+        {
+            existingPrinting.SwuCard = swuCard;
+            changed = true;
+        }
+
+        if (existingPrinting.SwuSetId != swuSet.Id || !ReferenceEquals(existingPrinting.SwuSet, swuSet))
+        {
+            existingPrinting.SwuSet = swuSet;
+            changed = true;
+        }
+
+        if (existingPrinting.Number != record.Number) { existingPrinting.Number = record.Number; changed = true; }
+        if (existingPrinting.Rarity != record.Rarity) { existingPrinting.Rarity = record.Rarity; changed = true; }
+        if (existingPrinting.Style != record.Style) { existingPrinting.Style = record.Style; changed = true; }
+        if (existingPrinting.ImageUrl != record.ImageUrl) { existingPrinting.ImageUrl = record.ImageUrl; changed = true; }
+        if (existingPrinting.BackImageUrl != record.BackImageUrl) { existingPrinting.BackImageUrl = record.BackImageUrl; changed = true; }
+        if (existingPrinting.ApiCreatedAt != record.ApiCreatedAt) { existingPrinting.ApiCreatedAt = record.ApiCreatedAt; changed = true; }
+        if (existingPrinting.ApiUpdatedAt != record.ApiUpdatedAt) { existingPrinting.ApiUpdatedAt = record.ApiUpdatedAt; changed = true; }
+
+        if (changed)
+        {
+            existingPrinting.LastSyncedAt = rowSyncTime;
+        }
+
+        return changed;
+    }
 
     private static string ResolveSetCode(SwuCardAttributes attributes, string requestedSetCode) =>
         NormalizeSetCode(attributes.Expansion?.Data?.Attributes?.Code ?? requestedSetCode).ToUpperInvariant();
@@ -399,6 +530,7 @@ internal sealed class CardSyncService : ICardSyncService
         string? Traits,
         string? Keywords,
         string SetCode,
+        string? SetName,
         string Number,
         string Rarity,
         string Style,
