@@ -114,7 +114,9 @@ Current `SwuDbImporter.ImportFromRemoteAsync`:
 - sorts by:
   - `updatedAt:asc`
   - `cardNumber:asc`
+  - `id:asc` as a unique tie-breaker
 - adds `filters[updatedAt][$gt]=<ISO-8601 UTC>` when `UpdatedSince` is supplied
+- rejects malformed, truncated, or inconsistent pagination and repeated upstream IDs instead of treating an incomplete response as a successful sync
 
 ### 3. File import behavior
 

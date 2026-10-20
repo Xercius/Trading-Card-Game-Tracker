@@ -81,6 +81,7 @@ public sealed class SwuSharedImporterRegressionTests
         var summary = await ImportAsync(database, first, first, variant, variant);
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(2, summary.PrintingsCreated);
         await using var db = database.Open();
         var card = await db.Cards.SingleAsync();
@@ -135,6 +136,8 @@ public sealed class SwuSharedImporterRegressionTests
             Record(2, "Leia", "SHD", "variant", subtitle: "Showcase", variantId: 1),
             Record(1, "Leia", "SOR", "base", subtitle: "Rebel"));
         Assert.Equal(0, result.Errors);
+        Assert.Equal(2, result.CardsCreated);
+        Assert.Equal(0, result.CardsUpdated);
         await using var db = database.Open();
         var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
         var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
@@ -157,6 +160,43 @@ public sealed class SwuSharedImporterRegressionTests
         var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
         Assert.Equal(basis.Id, variant.BaseCardId);
         Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.CardId == variant.Id));
+    }
+
+    [Fact]
+    public async Task Import_DeferredRelationshipRepair_CountsExistingCardInDryRunAndCommit()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(2, "Variant", "SHD", "two", variantId: 1));
+        var basis = Record(1, "Base", "SOR", "one");
+        await using (var db = database.Open())
+        {
+            await using var stream = Payload(basis);
+            var preview = await new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(
+                stream, new ImportOptions(DryRun: true));
+            Assert.Equal(1, preview.CardsCreated);
+            Assert.Equal(1, preview.CardsUpdated);
+        }
+        await AssertBaseAsync(database, "Variant", null);
+        var committed = await ImportAsync(database, basis);
+        Assert.Equal(1, committed.CardsCreated);
+        Assert.Equal(1, committed.CardsUpdated);
+        await AssertBaseAsync(database, "Variant", "Base");
+        var replay = await ImportAsync(database, basis);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
+    }
+
+    [Fact]
+    public async Task Import_MetadataAndRelationshipChange_CountsExistingCardOnce()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database,
+            Record(1, "Base", "SOR", "one"),
+            Record(2, "Variant", "SHD", "two"));
+        var updated = Record(2, "Variant", "SHD", "two", variantId: 1);
+        var result = await ImportAsync(database, updated, updated);
+        Assert.Equal(0, result.CardsCreated);
+        Assert.Equal(1, result.CardsUpdated);
+        await AssertBaseAsync(database, "Variant", "Base");
     }
 
     [Fact]
@@ -271,6 +311,7 @@ public sealed class SwuSharedImporterRegressionTests
     [InlineData("missing-pagination")]
     [InlineData("wrong-page")]
     [InlineData("truncated")]
+    [InlineData("duplicate")]
     public async Task Import_FailedLaterApiPage_WritesNothing(string failure)
     {
         await using var database = await Database.CreateAsync();
@@ -422,6 +463,11 @@ public sealed class SwuSharedImporterRegressionTests
                 "missing-data" => """{"meta":{"pagination":{"page":2,"pageSize":1,"pageCount":2,"total":2}}}""",
                 "missing-pagination" => """{"data":[]}""",
                 "wrong-page" => """{"data":[],"meta":{"pagination":{"page":1,"pageSize":1,"pageCount":2,"total":2}}}""",
+                "duplicate" => JsonSerializer.Serialize(new
+                {
+                    data = new[] { Record(1, "Repeated page", "SOR", "one") },
+                    meta = new { pagination = new { page = 2, pageSize = 1, pageCount = 2, total = 2 } }
+                }),
                 _ => """{"data":[],"meta":{"pagination":{"page":2,"pageSize":1,"pageCount":1,"total":2}}}"""
             } : JsonSerializer.Serialize(new
             {

@@ -71,6 +71,7 @@ internal sealed class SWUApiClient : ISWUApiClient
         CancellationToken ct = default)
     {
         var all = new List<StrapiRecord>();
+        var sourceIds = new HashSet<int>();
         int page = 1;
         int pageCount = 1;
         int? total = null;
@@ -94,6 +95,8 @@ internal sealed class SWUApiClient : ISWUApiClient
 
             pageCount = pagination.PageCount;
             total = pagination.Total;
+            if (paged.Data.Any(record => record is { Id: > 0 } && !sourceIds.Add(record.Id)))
+                throw new InvalidOperationException("Repeated card identity in Star Wars: Unlimited API pagination.");
             all.AddRange(paged.Data);
 
             page++;
@@ -150,6 +153,7 @@ internal sealed class SWUApiClient : ISWUApiClient
         qs["pagination[pageSize]"] = PageSize.ToString();
         qs["sort[0]"] = "updatedAt:asc";
         qs["sort[1]"] = "cardNumber:asc";
+        qs["sort[2]"] = "id:asc";
 
         return qs.ToString()!;
     }

@@ -215,6 +215,7 @@ public sealed class SWUApiClientTests
         var query = Uri.UnescapeDataString(handler.CapturedRequests[0].Query);
         Assert.Contains("updatedAt:asc", query);
         Assert.Contains("cardNumber:asc", query);
+        Assert.Contains("sort[2]=id:asc", query);
     }
 
     [Fact]
@@ -311,6 +312,19 @@ public sealed class SWUApiClientTests
     public async Task GetAllCardsAsync_MalformedPagination_ThrowsInsteadOfReturningPartialData(string json)
     {
         var client = CreateClient(new CapturingHandler(json));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));
+    }
+
+    [Fact]
+    public async Task GetAllCardsAsync_RepeatedIdentityAcrossPages_RejectsShiftedPagination()
+    {
+        var client = CreateClient(new FakePagedHandler(new Dictionary<int, string>
+        {
+            [1] = BuildStrapiPage(1, 2, id: 1),
+            [2] = BuildStrapiPage(2, 2, id: 1)
+        }));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));

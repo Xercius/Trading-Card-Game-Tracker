@@ -84,6 +84,7 @@ HTTP method for all consumer-accessible endpoints: GET
     pagination[pageSize]                   100                Records per page (max ~100)
     sort[0]                                updatedAt:asc      Primary sort (importer default)
     sort[1]                                cardNumber:asc     Secondary sort
+    sort[2]                                id:asc             Unique record tie-breaker
     filters[expansion][code][$eq]          SOR                Filter by expansion code
     filters[expansion][id][$eq]            2                  Filter by expansion internal ID
     filters[type][id][$eq]                 4                  Filter by card-type internal ID

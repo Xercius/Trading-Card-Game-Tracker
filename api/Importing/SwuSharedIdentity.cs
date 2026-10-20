@@ -35,8 +35,9 @@ internal sealed class SwuSharedIdentity
         _bySetNumber[(printing.Set, printing.Number)] = printing;
     }
 
-    internal void ResolveRelationships()
+    internal IReadOnlyList<Card> ResolveRelationships()
     {
+        var changed = new List<Card>();
         var bySource = _printings
             .Where(p => ReadInt(p.DetailsJson, "sourceId") is > 0)
             .GroupBy(p => ReadInt(p.DetailsJson, "sourceId")!.Value)
@@ -51,11 +52,14 @@ internal sealed class SwuSharedIdentity
             var card = group.Key;
             var baseCard = group.Select(p => ResolveBase(p, bySource, byUid))
                 .FirstOrDefault(target => target is not null && !ReferenceEquals(target, card));
+            if (card.BaseCardId == baseCard?.Id) continue;
             // A printing without a relationship must not erase another printing's valid link.
             // If no printing resolves, clear stale links after upstream changes/removals.
             card.BaseCard = baseCard;
             card.BaseCardId = baseCard?.Id;
+            changed.Add(card);
         }
+        return changed;
     }
 
     private static Card? ResolveBase(CardPrinting printing,
@@ -95,5 +99,21 @@ internal sealed class SwuSharedIdentity
         {
             return null;
         }
+    }
+}
+
+internal sealed class SwuSharedCardChanges(ImportSummary summary)
+{
+    private readonly HashSet<Card> _created = [];
+    private readonly HashSet<Card> _updated = [];
+
+    internal void Created(Card card)
+    {
+        if (_created.Add(card)) summary.CardsCreated++;
+    }
+
+    internal void Updated(Card card)
+    {
+        if (!_created.Contains(card) && _updated.Add(card)) summary.CardsUpdated++;
     }
 }

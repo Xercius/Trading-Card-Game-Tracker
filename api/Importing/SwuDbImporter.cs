@@ -106,6 +106,7 @@ public sealed class SwuDbImporter : ISourceImporter
                 .Include(p => p.Card)
                 .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
+            var cardChanges = new SwuSharedCardChanges(summary);
             int processed = 0;
             foreach (var record in records.Take(Math.Max(0, options.Limit ?? int.MaxValue)))
             {
@@ -115,9 +116,13 @@ public sealed class SwuDbImporter : ISourceImporter
                     summary.PrintingsCreated, summary.PrintingsUpdated);
                 try
                 {
-                    Upsert(record, summary, identity);
+                    var card = Upsert(record, summary, identity);
+                    _db.ChangeTracker.DetectChanges();
+                    var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
                     // EF rolls back failed writes to a savepoint in the import transaction.
                     await _db.SaveChangesAsync(ct);
+                    if (state == EntityState.Added) cardChanges.Created(card!);
+                    if (state == EntityState.Modified) cardChanges.Updated(card!);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -133,7 +138,8 @@ public sealed class SwuDbImporter : ISourceImporter
                 }
             }
 
-            identity.ResolveRelationships();
+            foreach (var card in identity.ResolveRelationships())
+                cardChanges.Updated(card);
             await _db.SaveChangesAsync(ct);
             summary.Messages.Add($"Processed {processed} records {description}.");
             return summary;
@@ -156,7 +162,7 @@ public sealed class SwuDbImporter : ISourceImporter
         }
     }
 
-    private void Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity)
+    private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity)
     {
         const string game = "Star Wars Unlimited";
 
@@ -168,7 +174,7 @@ public sealed class SwuDbImporter : ISourceImporter
         {
             summary.Messages.Add(
                 $"Skipping record id={record.Id} with locale={attrs.Locale ?? "(null)"} (expected \"en\") title={attrs.Title}.");
-            return;
+            return null;
         }
 
         if (record.Id <= 0 || string.IsNullOrWhiteSpace(attrs.Title))
@@ -257,16 +263,13 @@ public sealed class SwuDbImporter : ISourceImporter
                 DetailsJson = cardJson
             };
             _db.Cards.Add(card);
-            summary.CardsCreated++;
         }
         else
         {
-            bool changed = false;
-            if (card.Name != name) { card.Name = name; changed = true; }
-            if (card.CardType != type) { card.CardType = type; changed = true; }
-            if (card.Description != text) { card.Description = text; changed = true; }
-            if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
-            if (changed) summary.CardsUpdated++;
+            card.Name = name;
+            card.CardType = type;
+            card.Description = text;
+            card.DetailsJson = cardJson;
         }
 
         if (printing is null)
@@ -297,5 +300,6 @@ public sealed class SwuDbImporter : ISourceImporter
             if (changed) summary.PrintingsUpdated++;
         }
         identity.Track(printing);
+        return card;
     }
 }
