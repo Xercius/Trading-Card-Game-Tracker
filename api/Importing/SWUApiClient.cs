@@ -200,9 +200,13 @@ internal sealed record StrapiMeta(
     [property: JsonPropertyName("pagination")] StrapiPagination? Pagination);
 
 internal sealed record StrapiPagination(
+    [property: JsonRequired]
     [property: JsonPropertyName("page")] int Page,
+    [property: JsonRequired]
     [property: JsonPropertyName("pageSize")] int PageSize,
+    [property: JsonRequired]
     [property: JsonPropertyName("pageCount")] int PageCount,
+    [property: JsonRequired]
     [property: JsonPropertyName("total")] int Total);
 
 internal sealed record StrapiRecord(

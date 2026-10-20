@@ -73,6 +73,23 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
+    public async Task Import_CorrectedSerialDoesNotRemainAnIdentityAlias()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(1, "Original", "SOR", "old-serial"));
+        await ImportAsync(database, Record(1, "Renamed", "SOR", "new-serial"));
+
+        var result = await ImportAsync(database, Record(2, "Distinct card", "SHD", "old-serial"));
+
+        Assert.Equal(0, result.Errors);
+        await using var db = database.Open();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.Equal(2, await db.CardPrintings.CountAsync());
+        Assert.Equal(1, await db.CardPrintings.CountAsync(printing => printing.Number == "new-serial"));
+        Assert.Equal(1, await db.CardPrintings.CountAsync(printing => printing.Number == "old-serial"));
+    }
+
+    [Fact]
     public async Task Import_DuplicatePayload_UsesTrackedPrintingAndSharedCanonicalCard()
     {
         await using var database = await Database.CreateAsync();
@@ -126,6 +143,19 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal("uid-1", metadata.RootElement.GetProperty("variantOfCardUid").GetString());
         Assert.Equal(3, metadata.RootElement.GetProperty("reprintOfSourceId").GetInt32());
         Assert.Equal("uid-3", metadata.RootElement.GetProperty("reprintOfCardUid").GetString());
+    }
+
+    [Fact]
+    public async Task Import_ReprintOnlyRelationship_ResolvesWhenBaseArrivesLater()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(2, "Reprint", "SHD", "two", reprintId: 1));
+        await ImportAsync(database, Record(1, "Base", "SOR", "one"));
+
+        await using var db = database.Open();
+        var baseCard = await db.Cards.SingleAsync(card => card.Name == "Base");
+        var reprint = await db.Cards.SingleAsync(card => card.Name == "Reprint");
+        Assert.Equal(baseCard.Id, reprint.BaseCardId);
     }
 
     [Fact]

@@ -107,62 +107,90 @@ public sealed class SwuDbImporter : ISourceImporter
                 .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
             var cardChanges = new SwuSharedCardChanges(summary);
-            int processed = 0;
-            foreach (var record in records.Take(Math.Max(0, options.Limit ?? int.MaxValue)))
+            var autoDetectChangesEnabled = _db.ChangeTracker.AutoDetectChangesEnabled;
+            _db.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                processed++;
-                var counts = (summary.CardsCreated, summary.CardsUpdated,
-                    summary.PrintingsCreated, summary.PrintingsUpdated);
-                try
+                int processed = 0;
+                foreach (var record in records.Take(Math.Max(0, options.Limit ?? int.MaxValue)))
                 {
-                    var card = Upsert(record, summary, identity);
-                    _db.ChangeTracker.DetectChanges();
-                    var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
-                    // EF rolls back failed writes to a savepoint in the import transaction.
-                    await _db.SaveChangesAsync(ct);
-                    if (state == EntityState.Added) cardChanges.Created(card!);
-                    if (state == EntityState.Modified) cardChanges.Updated(card!);
+                    ct.ThrowIfCancellationRequested();
+                    processed++;
+                    var counts = (summary.CardsCreated, summary.CardsUpdated,
+                        summary.PrintingsCreated, summary.PrintingsUpdated);
+                    var changes = new RecordChanges();
+                    try
+                    {
+                        var card = Upsert(record, summary, identity, changes);
+                        var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
+                        // EF rolls back failed writes to a savepoint in the import transaction.
+                        await _db.SaveChangesAsync(ct);
+                        if (state == EntityState.Added) cardChanges.Created(card!);
+                        if (state == EntityState.Modified) cardChanges.Updated(card!);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _db.ChangeTracker.DetectChanges();
+                        RestoreFailedRecord(changes);
+                        identity = new SwuSharedIdentity(_db.CardPrintings.Local
+                            .Where(p => p.Card.Game == "Star Wars Unlimited"));
+                        (summary.CardsCreated, summary.CardsUpdated,
+                            summary.PrintingsCreated, summary.PrintingsUpdated) = counts;
+                        summary.Errors++;
+                        var attrs = record?.Attributes;
+                        summary.Messages.Add(
+                            $"Error [id={record?.Id} serialCode={attrs?.SerialCode}] {attrs?.Title}: Record could not be imported.");
+                    }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    RestoreFailedRecord();
-                    identity = new SwuSharedIdentity(_db.CardPrintings.Local
-                        .Where(p => p.Card.Game == "Star Wars Unlimited"));
-                    (summary.CardsCreated, summary.CardsUpdated,
-                        summary.PrintingsCreated, summary.PrintingsUpdated) = counts;
-                    summary.Errors++;
-                    var attrs = record?.Attributes;
-                    summary.Messages.Add(
-                        $"Error [id={record?.Id} serialCode={attrs?.SerialCode}] {attrs?.Title}: Record could not be imported.");
-                }
-            }
 
-            foreach (var card in identity.ResolveRelationships())
-                cardChanges.Updated(card);
-            await _db.SaveChangesAsync(ct);
-            summary.Messages.Add($"Processed {processed} records {description}.");
-            return summary;
+                foreach (var card in identity.ResolveRelationships())
+                {
+                    cardChanges.Updated(card);
+                    var entry = _db.Entry(card);
+                    if (entry.State != EntityState.Added)
+                        entry.Property(entity => entity.BaseCardId).IsModified = true;
+                }
+
+                await _db.SaveChangesAsync(ct);
+                summary.Messages.Add($"Processed {processed} records {description}.");
+                return summary;
+            }
+            finally
+            {
+                _db.ChangeTracker.AutoDetectChangesEnabled = autoDetectChangesEnabled;
+            }
         });
     }
 
-    private void RestoreFailedRecord()
+    private void RestoreFailedRecord(RecordChanges changes)
     {
-        var added = _db.ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Added).ToList();
-        foreach (var printing in added.Select(e => e.Entity).OfType<CardPrinting>())
-            printing.Card.Printings.Remove(printing);
-        foreach (var entry in added)
-            entry.State = EntityState.Detached;
-        foreach (var entry in _db.ChangeTracker.Entries()
-                     .Where(e => e.State == EntityState.Modified).ToList())
+        if (changes.Printing is { } printing)
         {
-            entry.CurrentValues.SetValues(entry.OriginalValues);
-            entry.State = EntityState.Unchanged;
+            var entry = _db.Entry(printing);
+            if (changes.PrintingCreated)
+            {
+                printing.Card.Printings.Remove(printing);
+                entry.State = EntityState.Detached;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.CurrentValues.SetValues(entry.OriginalValues);
+                entry.State = EntityState.Unchanged;
+            }
+        }
+
+        if (changes.Card is not { } card) return;
+        var cardEntry = _db.Entry(card);
+        if (changes.CardCreated)
+            cardEntry.State = EntityState.Detached;
+        else if (cardEntry.State == EntityState.Modified)
+        {
+            cardEntry.CurrentValues.SetValues(cardEntry.OriginalValues);
+            cardEntry.State = EntityState.Unchanged;
         }
     }
 
-    private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity)
+    private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity, RecordChanges changes)
     {
         const string game = "Star Wars Unlimited";
 
@@ -263,14 +291,20 @@ public sealed class SwuDbImporter : ISourceImporter
                 DetailsJson = cardJson
             };
             _db.Cards.Add(card);
+            changes.CardCreated = true;
         }
         else
         {
+            bool changed = card.Name != name || card.CardType != type
+                || card.Description != text || card.DetailsJson != cardJson;
             card.Name = name;
             card.CardType = type;
             card.Description = text;
             card.DetailsJson = cardJson;
+            if (changed && _db.Entry(card).State != EntityState.Added)
+                _db.Entry(card).State = EntityState.Modified;
         }
+        changes.Card = card;
 
         if (printing is null)
         {
@@ -287,6 +321,7 @@ public sealed class SwuDbImporter : ISourceImporter
             };
             _db.CardPrintings.Add(printing);
             summary.PrintingsCreated++;
+            changes.PrintingCreated = true;
         }
         else
         {
@@ -297,9 +332,23 @@ public sealed class SwuDbImporter : ISourceImporter
             if (printing.Style != style) { printing.Style = style; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
-            if (changed) summary.PrintingsUpdated++;
+            if (changed)
+            {
+                summary.PrintingsUpdated++;
+                if (_db.Entry(printing).State != EntityState.Added)
+                    _db.Entry(printing).State = EntityState.Modified;
+            }
         }
+        changes.Printing = printing;
         identity.Track(printing);
         return card;
+    }
+
+    private sealed class RecordChanges
+    {
+        internal Card? Card { get; set; }
+        internal CardPrinting? Printing { get; set; }
+        internal bool CardCreated { get; set; }
+        internal bool PrintingCreated { get; set; }
     }
 }

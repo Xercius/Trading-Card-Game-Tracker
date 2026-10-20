@@ -727,6 +727,44 @@ public sealed class CardSyncServiceTests
         Assert.Equal(since, client.CapturedFilter!.UpdatedSince);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenExplicitUpdatedSinceIsDisconnected_RetainsCheckpoint(bool hasCheckpoint)
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        if (hasCheckpoint)
+            await new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(checkpoint),
+                NullLogger<CardSyncService>.Instance).UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+        var since = hasCheckpoint ? checkpoint.AddDays(1) : checkpoint;
+        var service = new CardSyncService(db, new StubSwuApiClient([]),
+            new FixedTimeProvider(checkpoint.AddDays(2)), NullLogger<CardSyncService>.Instance);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR", updatedSince: since);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(hasCheckpoint ? checkpoint : null, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Partial", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenExplicitUpdatedSinceConnectsToCheckpoint_AdvancesCheckpoint()
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient([]),
+            new FixedTimeProvider(checkpoint.AddDays(2)), NullLogger<CardSyncService>.Instance);
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync(
+            "swu", "SOR", updatedSince: checkpoint.AddDays(-1));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(checkpoint.AddDays(2), await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Succeeded", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
     [Fact]
     public async Task SyncNewAndUpdatedCardsAsync_WhenRunTakesTime_CheckpointsRunStart()
     {

@@ -392,7 +392,10 @@ public sealed class AdminImportController : ControllerBase
 
         // Persist the sync timestamp so subsequent runs can use UpdatedSince for incremental imports.
         // Only record remote imports; file imports do not represent a live API sync state.
-        if (request.File is null && request.Limit is null && summary.Errors == 0)
+        if (request.File is null && request.Limit is null && summary.Errors == 0
+            && await HasConnectedCoverageAsync(importer.Key,
+                importer.Key == "swu" ? request.Set?.Trim().ToUpperInvariant() : request.Set,
+                request.UpdatedSince, ct))
         {
             var setCode = importer.Key == "swu" ? request.Set?.Trim().ToUpperInvariant() : request.Set;
             await RecordSyncHistoryAsync(importer.Key, setCode, syncTimestamp, ct);
@@ -428,6 +431,24 @@ public sealed class AdminImportController : ControllerBase
         }
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task<bool> HasConnectedCoverageAsync(
+        string importerKey,
+        string? setCode,
+        DateTimeOffset? updatedSince,
+        CancellationToken ct)
+    {
+        if (updatedSince is null)
+            return true;
+
+        var normalizedSetCode = NormalizeSetCode(setCode);
+        var checkpoint = await _db.ImportSyncHistories
+            .Where(history => history.ImporterKey == importerKey && history.SetCode == normalizedSetCode)
+            .Select(history => (DateTimeOffset?)history.LastSyncedAt)
+            .FirstOrDefaultAsync(ct);
+
+        return checkpoint is { } savedCheckpoint && updatedSince.Value <= savedCheckpoint;
     }
 
     private static string NormalizeSetCode(string? setCode) => string.IsNullOrWhiteSpace(setCode) ? string.Empty : setCode;

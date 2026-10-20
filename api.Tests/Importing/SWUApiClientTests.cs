@@ -1,6 +1,7 @@
 using api.Importing;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Web;
 using Xunit;
 
@@ -314,6 +315,16 @@ public sealed class SWUApiClientTests
         var client = CreateClient(new CapturingHandler(json));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));
+    }
+
+    [Fact]
+    public async Task GetAllCardsAsync_MissingPaginationCounters_FailsDeserialization()
+    {
+        var client = CreateClient(new CapturingHandler(
+            """{"data":[],"meta":{"pagination":{"page":1,"pageSize":100}}}"""));
+
+        await Assert.ThrowsAsync<JsonException>(
             () => client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));
     }
 

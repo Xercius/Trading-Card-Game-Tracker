@@ -64,14 +64,16 @@ internal sealed class CardSyncService : ICardSyncService
             var records = await LoadRecordsWithRetryAsync(setCode!, effectiveUpdatedSince, limit, ct);
             await using var transaction = await _db.Database.BeginTransactionAsync(ct);
             var summary = await BuildSummaryAsync(importerKey, setCode!, records, ct);
-            var complete = limit is null && summary.Errors == 0;
+            var connectedCoverage = effectiveUpdatedSince is null
+                || savedCheckpoint is { } checkpoint && effectiveUpdatedSince.Value <= checkpoint;
+            var complete = limit is null && summary.Errors == 0 && connectedCoverage;
             if (complete)
             {
                 await UpdateLastSyncTimeAsync(importerKey, setCode, syncStartedAt, ct);
             }
             else
             {
-                summary.Messages.Add("Checkpoint retained because the sync was limited or contained rejected records.");
+                summary.Messages.Add("Checkpoint retained because the sync was limited, contained rejected records, or did not cover a contiguous time range.");
             }
 
             await CompleteSyncLogAsync(syncLog, records.Count, summary, complete, ct);

@@ -289,6 +289,75 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Apply_Remote_WhenExplicitUpdatedSinceIsDisconnected_RetainsCheckpoint(bool hasCheckpoint)
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        if (hasCheckpoint)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "dummy",
+                SetCode = "SOR",
+                LastSyncedAt = checkpoint
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
+        {
+            source = "dummy",
+            set = "SOR",
+            updatedSince = hasCheckpoint ? checkpoint.AddDays(1) : checkpoint
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var verification = services.CreateScope();
+        var context = verification.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await context.ImportSyncHistories.SingleOrDefaultAsync();
+        if (hasCheckpoint)
+            Assert.Equal(checkpoint, history!.LastSyncedAt);
+        else
+            Assert.Null(history);
+    }
+
+    [Fact]
+    public async Task Apply_Remote_WhenExplicitUpdatedSinceConnectsToCheckpoint_AdvancesCheckpoint()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "dummy",
+                SetCode = "SOR",
+                LastSyncedAt = checkpoint
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
+        {
+            source = "dummy",
+            set = "SOR",
+            updatedSince = checkpoint.AddDays(-1)
+        });
+
+        response.EnsureSuccessStatusCode();
+        using var verification = services.CreateScope();
+        var context = verification.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True((await context.ImportSyncHistories.SingleAsync()).LastSyncedAt > checkpoint);
+    }
+
     [Fact]
     public async Task Apply_Remote_Updates_SyncHistory_On_Repeat_Run()
     {

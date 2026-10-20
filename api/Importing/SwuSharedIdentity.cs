@@ -7,6 +7,8 @@ namespace api.Importing;
 internal sealed class SwuSharedIdentity
 {
     private readonly List<CardPrinting> _printings = [];
+    private readonly HashSet<CardPrinting> _printingSet = [];
+    private readonly Dictionary<CardPrinting, PrintingKeys> _keysByPrinting = [];
     private readonly Dictionary<int, CardPrinting> _bySource = [];
     private readonly Dictionary<string, CardPrinting> _bySerial = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Set, string Number), CardPrinting> _bySetNumber = [];
@@ -26,11 +28,25 @@ internal sealed class SwuSharedIdentity
 
     internal void Track(CardPrinting printing)
     {
-        if (!_printings.Contains(printing)) _printings.Add(printing);
-        if (ReadInt(printing.DetailsJson, "sourceId") is int id && id > 0)
-            _bySource[id] = printing;
-        if (ReadString(printing.DetailsJson, "serialCode") is { } serial)
-            _bySerial[serial] = printing;
+        if (_printingSet.Add(printing)) _printings.Add(printing);
+
+        if (_keysByPrinting.TryGetValue(printing, out var oldKeys))
+        {
+            if (oldKeys.SourceId is { } oldSourceId)
+                RemoveIfOwned(_bySource, oldSourceId, printing);
+            if (oldKeys.SerialCode is not null)
+                RemoveIfOwned(_bySerial, oldKeys.SerialCode, printing);
+            RemoveIfOwned(_bySerial, oldKeys.Number, printing);
+            RemoveIfOwned(_bySetNumber, oldKeys.SetNumber, printing);
+        }
+
+        var sourceIdValue = ReadInt(printing.DetailsJson, "sourceId");
+        var sourceId = sourceIdValue is > 0 ? sourceIdValue : null;
+        var serialCode = ReadString(printing.DetailsJson, "serialCode");
+        var keys = new PrintingKeys(sourceId, serialCode, printing.Number, (printing.Set, printing.Number));
+        _keysByPrinting[printing] = keys;
+        if (sourceId is { } idValue) _bySource[idValue] = printing;
+        if (serialCode is not null) _bySerial[serialCode] = printing;
         _bySerial.TryAdd(printing.Number, printing);
         _bySetNumber[(printing.Set, printing.Number)] = printing;
     }
@@ -68,13 +84,33 @@ internal sealed class SwuSharedIdentity
         var json = HasProperty(printing.DetailsJson, "variantOfSourceId")
             ? printing.DetailsJson : printing.Card.DetailsJson;
         Card? baseCard = null;
-        if (ReadInt(json, "variantOfSourceId") is int sourceId && sourceId > 0)
-            bySource.TryGetValue(sourceId, out baseCard);
+        var sourceId = ReadInt(json, "variantOfSourceId");
         var uid = ReadString(json, "variantOfCardUid");
+        if (sourceId is not > 0 && string.IsNullOrWhiteSpace(uid))
+        {
+            sourceId = ReadInt(json, "reprintOfSourceId");
+            uid = ReadString(json, "reprintOfCardUid");
+        }
+
+        if (sourceId is > 0)
+            bySource.TryGetValue(sourceId.Value, out baseCard);
         if (baseCard is null && !string.IsNullOrWhiteSpace(uid))
             byUid.TryGetValue(uid, out baseCard);
         return baseCard;
     }
+
+    private static void RemoveIfOwned<TKey>(Dictionary<TKey, CardPrinting> index, TKey key, CardPrinting printing)
+        where TKey : notnull
+    {
+        if (index.TryGetValue(key, out var indexed) && ReferenceEquals(indexed, printing))
+            index.Remove(key);
+    }
+
+    private sealed record PrintingKeys(
+        int? SourceId,
+        string? SerialCode,
+        string Number,
+        (string Set, string Number) SetNumber);
 
     private static bool HasProperty(string? json, string name)
         => Read(json, name) is not null;
