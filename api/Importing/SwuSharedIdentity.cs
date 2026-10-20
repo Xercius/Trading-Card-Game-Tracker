@@ -46,24 +46,30 @@ internal sealed class SwuSharedIdentity
             .GroupBy(p => ReadString(p.DetailsJson, "cardUid")!)
             .ToDictionary(g => g.Key, g => g.First().Card);
 
-        foreach (var printing in _printings)
+        foreach (var group in _printings.GroupBy(p => p.Card))
         {
-            var json = HasProperty(printing.DetailsJson, "variantOfSourceId")
-                ? printing.DetailsJson : printing.Card.DetailsJson;
-            var sourceId = ReadInt(json, "variantOfSourceId");
-            var uid = ReadString(json, "variantOfCardUid");
-            Card? baseCard = null;
-            if (sourceId is > 0)
-                bySource.TryGetValue(sourceId.Value, out baseCard);
-            if (baseCard is null && !string.IsNullOrWhiteSpace(uid))
-                byUid.TryGetValue(uid, out baseCard);
-
-            // Same-name variants intentionally share a canonical Card.
-            if (baseCard is not null && !ReferenceEquals(baseCard, printing.Card))
-                printing.Card.BaseCard = baseCard;
-            else if (printing.Card.BaseCardId == printing.Card.Id && printing.Card.Id != 0)
-                printing.Card.BaseCard = null;
+            var card = group.Key;
+            var baseCard = group.Select(p => ResolveBase(p, bySource, byUid))
+                .FirstOrDefault(target => target is not null && !ReferenceEquals(target, card));
+            // A printing without a relationship must not erase another printing's valid link.
+            // If no printing resolves, clear stale links after upstream changes/removals.
+            card.BaseCard = baseCard;
+            card.BaseCardId = baseCard?.Id;
         }
+    }
+
+    private static Card? ResolveBase(CardPrinting printing,
+        IReadOnlyDictionary<int, Card> bySource, IReadOnlyDictionary<string, Card> byUid)
+    {
+        var json = HasProperty(printing.DetailsJson, "variantOfSourceId")
+            ? printing.DetailsJson : printing.Card.DetailsJson;
+        Card? baseCard = null;
+        if (ReadInt(json, "variantOfSourceId") is int sourceId && sourceId > 0)
+            bySource.TryGetValue(sourceId, out baseCard);
+        var uid = ReadString(json, "variantOfCardUid");
+        if (baseCard is null && !string.IsNullOrWhiteSpace(uid))
+            byUid.TryGetValue(uid, out baseCard);
+        return baseCard;
     }
 
     private static bool HasProperty(string? json, string name)

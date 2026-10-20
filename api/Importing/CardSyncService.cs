@@ -11,6 +11,7 @@ internal sealed class CardSyncService : ICardSyncService
 {
     private const string SupportedImporterKey = "swu";
     private const string DedicatedHistoryKey = "swu-dedicated";
+    private const string FailureMessage = "Sync failed. Check the server logs for details.";
     private const int MaxFetchRetries = 2;
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CheckpointOverlap = TimeSpan.FromMinutes(5);
@@ -91,14 +92,14 @@ internal sealed class CardSyncService : ICardSyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Sync failed for {ImporterKey}/{SetCode}.", importerKey, setCode);
-            await MarkSyncLogFailedAsync(syncLog, ex.Message, CancellationToken.None);
+            await MarkSyncLogFailedAsync(syncLog, FailureMessage, CancellationToken.None);
 
             return new ImportSummary
             {
                 Source = importerKey,
                 DryRun = false,
                 Errors = 1,
-                Messages = new List<string> { $"Sync failed: {ex.Message}" }
+                Messages = new List<string> { FailureMessage }
             };
         }
     }

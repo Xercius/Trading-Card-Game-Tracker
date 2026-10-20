@@ -162,7 +162,8 @@ public sealed class SwuDbImporter : ISourceImporter
 
         var attrs = record.Attributes
             ?? throw new InvalidOperationException($"Record id={record.Id} has no attributes.");
-
+        if (string.IsNullOrWhiteSpace(attrs.Locale))
+            throw new InvalidOperationException("A locale is required.");
         if (!string.Equals(attrs.Locale, "en", StringComparison.OrdinalIgnoreCase))
         {
             summary.Messages.Add(

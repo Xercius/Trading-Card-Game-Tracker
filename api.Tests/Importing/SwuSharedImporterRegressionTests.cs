@@ -160,6 +160,57 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
+    public async Task Import_ChangedRemovedAndDeferredRelationships_RepairsStaleLinks()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database,
+            Record(1, "First base", "SOR", "one"),
+            Record(2, "Second base", "SHD", "two"),
+            Record(3, "Variant", "SHD", "three", variantId: 1));
+        await AssertBaseAsync(database, "Variant", "First base");
+
+        await ImportAsync(database, Record(3, "Variant", "SHD", "three", variantId: 2));
+        await AssertBaseAsync(database, "Variant", "Second base");
+        await ImportAsync(database, Record(3, "Variant", "SHD", "three"));
+        await AssertBaseAsync(database, "Variant", null);
+        await ImportAsync(database, Record(3, "Variant", "SHD", "three", variantId: 1));
+        await AssertBaseAsync(database, "Variant", "First base");
+        await ImportAsync(database, Record(3, "Variant", "SHD", "three", variantId: 4));
+        await AssertBaseAsync(database, "Variant", null);
+        await ImportAsync(database, Record(4, "Later base", "TWI", "four"));
+        await AssertBaseAsync(database, "Variant", "Later base");
+    }
+
+    [Fact]
+    public async Task Import_RemovedRelationship_PreservesOtherCanonicalPrintingLink()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database,
+            Record(1, "Base", "SOR", "one"),
+            Record(2, "Variant", "SHD", "two", variantId: 1),
+            Record(3, "Variant", "TWI", "three", variantId: 1));
+        await ImportAsync(database, Record(2, "Variant", "SHD", "two"));
+        await AssertBaseAsync(database, "Variant", "Base");
+        await ImportAsync(database, Record(3, "Variant", "TWI", "three"));
+        await AssertBaseAsync(database, "Variant", null);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task Import_MissingLocale_ReportsErrorInsteadOfSkipping(string? locale)
+    {
+        await using var database = await Database.CreateAsync();
+        var result = await ImportAsync(database, Record(1, "Invalid", "SOR", "one", locale: locale));
+        Assert.Equal(1, result.Errors);
+        Assert.Equal(0, result.CardsCreated + result.PrintingsCreated);
+        await using var db = database.Open();
+        Assert.Empty(await db.Cards.ToListAsync());
+        Assert.Empty(await db.CardPrintings.ToListAsync());
+    }
+
+    [Fact]
     public async Task Import_InvalidRecord_ReportsErrorWithoutPartialChanges()
     {
         await using var database = await Database.CreateAsync();
@@ -273,7 +324,8 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     private static object Record(int id, string title, string set, string serial,
-        string? subtitle = null, int? variantId = null, string? variantUid = null, int? reprintId = null)
+        string? subtitle = null, int? variantId = null, string? variantUid = null,
+        int? reprintId = null, string? locale = "en")
         => new
         {
             id,
@@ -281,7 +333,7 @@ public sealed class SwuSharedImporterRegressionTests
             {
                 title,
                 subtitle,
-                locale = "en",
+                locale,
                 serialCode = serial,
                 cardUid = $"uid-{id}",
                 cardNumber = id,
@@ -304,6 +356,14 @@ public sealed class SwuSharedImporterRegressionTests
 
     private static MemoryStream Payload(params object[] records)
         => new(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(records)));
+
+    private static async Task AssertBaseAsync(Database database, string name, string? baseName)
+    {
+        await using var db = database.Open();
+        var card = await db.Cards.Include(c => c.BaseCard).SingleAsync(c => c.Name == name);
+        Assert.Equal(baseName, card.BaseCard?.Name);
+        Assert.Equal(baseName is null, card.BaseCardId is null);
+    }
 
     private static async Task<ImportSummary> ImportAsync(Database database, params object[] records)
     {

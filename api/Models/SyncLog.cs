@@ -31,8 +31,8 @@ public sealed class SyncLog
     public DateTimeOffset StartedAt { get; set; }
 
     /// <summary>
-    /// UTC timestamp when this sync operation completed successfully.
-    /// Null if the sync is still in progress or failed before completion.
+    /// UTC timestamp when this sync operation finished, regardless of outcome.
+    /// Null while the sync is still in progress.
     /// </summary>
     public DateTimeOffset? CompletedAt { get; set; }
 
@@ -60,7 +60,8 @@ public sealed class SyncLog
 
     /// <summary>
     /// Outcome of the sync operation.
-    /// Expected values: <c>"Pending"</c>, <c>"Succeeded"</c>, <c>"Failed"</c>.
+    /// Expected values: <c>"Pending"</c>, <c>"Succeeded"</c>, <c>"Failed"</c>,
+    /// or <c>"Partial"</c> for limit-specified runs that retain the checkpoint.
     /// </summary>
     [Required]
     [MaxLength(16)]

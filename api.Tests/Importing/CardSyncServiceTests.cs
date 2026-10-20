@@ -337,7 +337,8 @@ public sealed class CardSyncServiceTests
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
         Assert.Equal(1, summary.Errors);
-        Assert.Contains(summary.Messages, message => message.Contains("SWU API unavailable", StringComparison.Ordinal));
+        Assert.Contains("Sync failed. Check the server logs for details.", summary.Messages);
+        Assert.DoesNotContain(summary.Messages, message => message.Contains("SWU API unavailable", StringComparison.Ordinal));
         Assert.Equal(0, summary.CardsCreated);
         Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(0, summary.PrintingsCreated);
@@ -395,7 +396,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal("Failed", syncLog.Status);
         Assert.NotNull(syncLog.CompletedAt);
         Assert.NotNull(syncLog.ErrorMessage);
-        Assert.Contains("SWU API unavailable", syncLog.ErrorMessage, StringComparison.Ordinal);
+        Assert.Equal("Sync failed. Check the server logs for details.", syncLog.ErrorMessage);
         Assert.Equal(0, syncLog.CardsUpserted);
     }
 
