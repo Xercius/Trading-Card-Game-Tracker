@@ -33,14 +33,17 @@ export default function AdminSyncPanel() {
   const latestHistory = useMemo(() => statusQuery.data?.history[0] ?? null, [statusQuery.data]);
   const isRunning = statusQuery.data?.status === "Running";
 
-  const handleRunSync = async () => {
+  const handleRunSync = async (forceFullSync = false) => {
     setFeedback(null);
 
     try {
-      const result = await runSync.mutateAsync();
+      const result = await runSync.mutateAsync(forceFullSync);
+      const succeeded = result.status === "Succeeded" && result.invalid === 0;
       setFeedback({
-        tone: "success",
-        message: buildSuccessMessage(result),
+        tone: succeeded ? "success" : "error",
+        message: succeeded
+          ? buildSuccessMessage(result)
+          : `Sync incomplete — ${result.invalid} invalid. Failed sets retain their previous checkpoints; retry the sync.`,
       });
     } catch (error) {
       setFeedback({
@@ -79,7 +82,7 @@ export default function AdminSyncPanel() {
         <div>
           <h2 className="text-lg font-semibold">Star Wars Unlimited sync</h2>
           <p className="text-sm text-muted-foreground">
-            Review the latest sync activity and trigger a fresh import.
+            Sync changes since the last successful run, or reconcile all cards with a full sync.
           </p>
         </div>
         <Badge variant={isRunning ? "default" : "secondary"}>{statusQuery.data.status}</Badge>
@@ -131,8 +134,20 @@ export default function AdminSyncPanel() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={handleRunSync} disabled={runSync.isPending || isRunning}>
+        <Button
+          type="button"
+          onClick={() => handleRunSync()}
+          disabled={runSync.isPending || isRunning}
+        >
           {runSync.isPending ? "Running sync…" : "Run sync"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => handleRunSync(true)}
+          disabled={runSync.isPending || isRunning}
+        >
+          Full reconciliation
         </Button>
         <Button
           type="button"

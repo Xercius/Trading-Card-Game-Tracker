@@ -10,8 +10,10 @@ namespace api.Importing;
 internal sealed class CardSyncService : ICardSyncService
 {
     private const string SupportedImporterKey = "swu";
+    private const string DedicatedHistoryKey = "swu-dedicated";
     private const int MaxFetchRetries = 2;
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan CheckpointOverlap = TimeSpan.FromMinutes(5);
 
     private readonly AppDbContext _db;
     private readonly ISWUApiClient _client;
@@ -43,26 +45,40 @@ internal sealed class CardSyncService : ICardSyncService
         CancellationToken ct = default)
     {
         ValidateRequest(importerKey, setCode);
+        importerKey = SupportedImporterKey;
+        setCode = NormalizeSetCode(setCode).ToUpperInvariant();
 
         var syncStartedAt = _timeProvider.GetUtcNow();
-
+        var savedCheckpoint = await GetLastSyncTimeAsync(importerKey, setCode, ct);
         var effectiveUpdatedSince = forceFullSync
             ? null
-            : updatedSince ?? await GetLastSyncTimeAsync(importerKey, setCode, ct);
+            : updatedSince ?? (savedCheckpoint.HasValue
+                ? savedCheckpoint.Value - CheckpointOverlap
+                : null);
 
         var syncLog = await CreatePendingSyncLogAsync(setCode!, effectiveUpdatedSince, syncStartedAt, ct);
 
         try
         {
             var records = await LoadRecordsWithRetryAsync(setCode!, effectiveUpdatedSince, limit, ct);
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
             var summary = await BuildSummaryAsync(importerKey, setCode!, records, ct);
-            await UpdateLastSyncTimeAsync(importerKey, setCode, syncStartedAt, ct);
+            var complete = limit is null && summary.Errors == 0;
+            if (complete)
+            {
+                await UpdateLastSyncTimeAsync(importerKey, setCode, syncStartedAt, ct);
+            }
+            else
+            {
+                summary.Messages.Add("Checkpoint retained because the sync was limited or contained rejected records.");
+            }
 
-            await MarkSyncLogSucceededAsync(syncLog, records.Count, summary, ct);
+            await CompleteSyncLogAsync(syncLog, records.Count, summary, complete, ct);
+            await transaction.CommitAsync(ct);
 
             _logger.LogInformation(
-                "Sync succeeded for {ImporterKey}/{SetCode}. CardsCreated={CardsCreated}, CardsUpdated={CardsUpdated}, Errors={Errors}.",
-                importerKey, setCode, summary.CardsCreated + summary.PrintingsCreated,
+                "Sync completed for {ImporterKey}/{SetCode} with status {Status}. CardsCreated={CardsCreated}, CardsUpdated={CardsUpdated}, Errors={Errors}.",
+                importerKey, setCode, syncLog.Status, summary.CardsCreated + summary.PrintingsCreated,
                 summary.CardsUpdated + summary.PrintingsUpdated, summary.Errors);
 
             return summary;
@@ -93,11 +109,12 @@ internal sealed class CardSyncService : ICardSyncService
         string? setCode = null,
         CancellationToken ct = default)
     {
-        var normalizedSetCode = NormalizeSetCode(setCode);
+        var normalizedSetCode = NormalizeSetCode(setCode).ToUpperInvariant();
+        var historyKey = GetHistoryKey(importerKey);
 
         return await _db.ImportSyncHistories
             .AsNoTracking()
-            .Where(h => h.ImporterKey == importerKey && h.SetCode == normalizedSetCode)
+            .Where(h => h.ImporterKey == historyKey && h.SetCode == normalizedSetCode)
             .Select(h => (DateTimeOffset?)h.LastSyncedAt)
             .FirstOrDefaultAsync(ct);
     }
@@ -109,15 +126,16 @@ internal sealed class CardSyncService : ICardSyncService
         DateTimeOffset syncedAt,
         CancellationToken ct = default)
     {
-        var normalizedSetCode = NormalizeSetCode(setCode);
+        var normalizedSetCode = NormalizeSetCode(setCode).ToUpperInvariant();
+        var historyKey = GetHistoryKey(importerKey);
         var existing = await _db.ImportSyncHistories
-            .FirstOrDefaultAsync(h => h.ImporterKey == importerKey && h.SetCode == normalizedSetCode, ct);
+            .FirstOrDefaultAsync(h => h.ImporterKey == historyKey && h.SetCode == normalizedSetCode, ct);
 
         if (existing is null)
         {
             _db.ImportSyncHistories.Add(new ImportSyncHistory
             {
-                ImporterKey = importerKey,
+                ImporterKey = historyKey,
                 SetCode = normalizedSetCode,
                 LastSyncedAt = syncedAt
             });
@@ -156,26 +174,21 @@ internal sealed class CardSyncService : ICardSyncService
         return syncLog;
     }
 
-    private async Task MarkSyncLogSucceededAsync(
+    private async Task CompleteSyncLogAsync(
         SyncLog syncLog,
         int cardsReturned,
         ImportSummary summary,
+        bool complete,
         CancellationToken ct)
     {
-        syncLog.Status = "Succeeded";
+        syncLog.Status = summary.Errors > 0 ? "Failed" : complete ? "Succeeded" : "Partial";
+        syncLog.ErrorMessage = summary.Errors > 0 ? "One or more upstream records were rejected." : null;
         syncLog.CompletedAt = _timeProvider.GetUtcNow();
         syncLog.CardsReturned = cardsReturned;
         syncLog.CardsUpserted = summary.CardsCreated + summary.PrintingsCreated
                                 + summary.CardsUpdated + summary.PrintingsUpdated;
 
-        try
-        {
-            await _db.SaveChangesAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to persist Succeeded SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
-        }
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task MarkSyncLogFailedAsync(SyncLog syncLog, string errorMessage, CancellationToken ct)
@@ -187,6 +200,7 @@ internal sealed class CardSyncService : ICardSyncService
             syncLog.Status = "Failed";
             syncLog.CompletedAt = _timeProvider.GetUtcNow();
             syncLog.ErrorMessage = errorMessage;
+            syncLog.CardsUpserted = 0;
             await _db.SaveChangesAsync(ct);
         }
         catch (Exception ex)
@@ -256,10 +270,16 @@ internal sealed class CardSyncService : ICardSyncService
         };
 
         var comparableRecords = new List<MappedRecord>(records.Count);
+        var writtenCards = new HashSet<SwuCard>();
         foreach (var record in records)
         {
             if (!TryMapRecord(record, setCode, out var mappedRecord, out var skipMessage))
             {
+                if (record.Attributes is null || string.IsNullOrWhiteSpace(record.Attributes.Locale)
+                    || string.Equals(record.Attributes.Locale, "en", StringComparison.OrdinalIgnoreCase))
+                {
+                    summary.Errors++;
+                }
                 if (skipMessage is not null)
                 {
                     summary.Messages.Add(skipMessage);
@@ -289,12 +309,6 @@ internal sealed class CardSyncService : ICardSyncService
             .Select(r => r.CardStrapiId)
             .Distinct()
             .ToArray();
-        var cardUids = comparableRecords
-            .Where(r => !string.IsNullOrWhiteSpace(r.CardUid))
-            .Select(r => r.CardUid!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
         var setsByCode = await _db.SwuSets
             .Where(s => setCodes.Contains(s.Code))
             .ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
@@ -307,40 +321,27 @@ internal sealed class CardSyncService : ICardSyncService
             .Include(c => c.SwuSet)
             .Where(c => cardStrapiIds.Contains(c.StrapiId))
             .ToDictionaryAsync(c => c.StrapiId, ct);
-        var cardsByCardUid = await _db.SwuCards
-            .Include(c => c.SwuSet)
-            .Where(c => c.CardUid != null && cardUids.Contains(c.CardUid))
-            .ToDictionaryAsync(c => c.CardUid!, StringComparer.OrdinalIgnoreCase, ct);
-
         foreach (var record in comparableRecords)
         {
             var rowSyncTime = record.ApiUpdatedAt ?? record.ApiCreatedAt ?? fallbackSyncTime;
             var swuSet = UpsertSet(record, rowSyncTime, setsByCode);
             var existingPrinting = printingsByStrapiId.GetValueOrDefault(record.PrintingStrapiId);
-            var existingCard = ResolveExistingCard(record, existingPrinting, cardsByStrapiId, cardsByCardUid);
+            var existingCard = existingPrinting?.SwuCard ?? cardsByStrapiId.GetValueOrDefault(record.CardStrapiId);
 
             if (existingCard is null)
             {
                 existingCard = CreateCard(record, swuSet, rowSyncTime);
                 _db.SwuCards.Add(existingCard);
                 cardsByStrapiId[record.CardStrapiId] = existingCard;
-                if (record.CardUid is not null)
-                {
-                    cardsByCardUid[record.CardUid] = existingCard;
-                }
-
                 summary.CardsCreated++;
+                writtenCards.Add(existingCard);
             }
             else
             {
                 if (UpdateCard(existingCard, swuSet, record, rowSyncTime))
                 {
                     summary.CardsUpdated++;
-                }
-
-                if (record.CardUid is not null)
-                {
-                    cardsByCardUid[record.CardUid] = existingCard;
+                    writtenCards.Add(existingCard);
                 }
             }
 
@@ -357,6 +358,9 @@ internal sealed class CardSyncService : ICardSyncService
             }
         }
 
+        await _db.SaveChangesAsync(ct);
+        var relationshipUpdates = await SwuBaseCardResolver.ResolveAsync(_db, ct);
+        summary.CardsUpdated += relationshipUpdates.Count(card => !writtenCards.Contains(card));
         await _db.SaveChangesAsync(ct);
         return summary;
     }
@@ -383,11 +387,27 @@ internal sealed class CardSyncService : ICardSyncService
             return false;
         }
 
+        if (record.Id <= 0 || string.IsNullOrWhiteSpace(attributes.Title)
+            || string.IsNullOrWhiteSpace(attributes.Type?.Data?.Attributes?.Name)
+            || !string.Equals(ResolveSetCode(attributes, requestedSetCode), requestedSetCode, StringComparison.OrdinalIgnoreCase))
+        {
+            skipMessage = $"Rejecting record id={record.Id} because its identity, title, type, or set is invalid.";
+            return false;
+        }
+
+        var baseStrapiId = attributes.VariantOf?.Data?.Id ?? attributes.ReprintOf?.Data?.Id;
+        if (baseStrapiId <= 0 || baseStrapiId == record.Id)
+        {
+            skipMessage = $"Rejecting record id={record.Id} because its upstream base reference is invalid.";
+            return false;
+        }
+
         mappedRecord = new MappedRecord(
             CardStrapiId: record.Id,
             PrintingStrapiId: record.Id,
+            BaseStrapiId: baseStrapiId,
             CardUid: NullIfWhiteSpace(attributes.CardUid),
-            Title: (attributes.Title ?? "Unknown").Trim(),
+            Title: attributes.Title.Trim(),
             Subtitle: NullIfWhiteSpace(attributes.Subtitle),
             CardType: attributes.Type?.Data?.Attributes?.Name ?? string.Empty,
             Description: NullIfWhiteSpace(attributes.Text),
@@ -410,30 +430,6 @@ internal sealed class CardSyncService : ICardSyncService
             ApiUpdatedAt: attributes.UpdatedAt);
 
         return true;
-    }
-
-    private static SwuCard? ResolveExistingCard(
-        MappedRecord record,
-        SwuCardPrinting? existingPrinting,
-        IReadOnlyDictionary<int, SwuCard> cardsByStrapiId,
-        IReadOnlyDictionary<string, SwuCard> cardsByCardUid)
-    {
-        if (existingPrinting?.SwuCard is not null)
-        {
-            return existingPrinting.SwuCard;
-        }
-
-        if (cardsByStrapiId.TryGetValue(record.CardStrapiId, out var existingCard))
-        {
-            return existingCard;
-        }
-
-        if (record.CardUid is not null && cardsByCardUid.TryGetValue(record.CardUid, out existingCard))
-        {
-            return existingCard;
-        }
-
-        return null;
     }
 
     private SwuSet UpsertSet(
@@ -467,6 +463,7 @@ internal sealed class CardSyncService : ICardSyncService
         new()
         {
             StrapiId = record.CardStrapiId,
+            BaseStrapiId = record.BaseStrapiId,
             CardUid = record.CardUid,
             Title = record.Title,
             Subtitle = record.Subtitle,
@@ -490,6 +487,16 @@ internal sealed class CardSyncService : ICardSyncService
     {
         var changed = false;
 
+        if (existingCard.BaseStrapiId != record.BaseStrapiId)
+        {
+            existingCard.BaseStrapiId = record.BaseStrapiId;
+            if (record.BaseStrapiId is null)
+            {
+                existingCard.BaseCard = null;
+                existingCard.BaseCardId = null;
+            }
+            changed = true;
+        }
         if (existingCard.CardUid != record.CardUid) { existingCard.CardUid = record.CardUid; changed = true; }
         if (existingCard.Title != record.Title) { existingCard.Title = record.Title; changed = true; }
         if (existingCard.Subtitle != record.Subtitle) { existingCard.Subtitle = record.Subtitle; changed = true; }
@@ -615,6 +622,11 @@ internal sealed class CardSyncService : ICardSyncService
     private static string NormalizeSetCode(string? setCode) =>
         string.IsNullOrWhiteSpace(setCode) ? string.Empty : setCode.Trim();
 
+    private static string GetHistoryKey(string importerKey) =>
+        string.Equals(importerKey, SupportedImporterKey, StringComparison.OrdinalIgnoreCase)
+            ? DedicatedHistoryKey
+            : importerKey;
+
     private static void ValidateRequest(string importerKey, string? setCode)
     {
         if (!string.Equals(importerKey, SupportedImporterKey, StringComparison.OrdinalIgnoreCase))
@@ -631,6 +643,7 @@ internal sealed class CardSyncService : ICardSyncService
     private readonly record struct MappedRecord(
         int CardStrapiId,
         int PrintingStrapiId,
+        int? BaseStrapiId,
         string? CardUid,
         string Title,
         string? Subtitle,

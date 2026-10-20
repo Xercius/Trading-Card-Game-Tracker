@@ -301,6 +301,30 @@ public sealed class SWUApiClientTests
 
     // ─── Rate-limit retry ────────────────────────────────────────────────────
 
+    [Theory]
+    [InlineData("""{"data":[]}""")]
+    [InlineData("""{"meta":{"pagination":{"page":1,"pageSize":100,"pageCount":1,"total":0}}}""")]
+    [InlineData("""{"data":[],"meta":{"pagination":{"page":1,"pageSize":0,"pageCount":1,"total":0}}}""")]
+    [InlineData("""{"data":[],"meta":{"pagination":{"page":1,"pageSize":100,"pageCount":0,"total":1}}}""")]
+    [InlineData("""{"data":[],"meta":{"pagination":{"page":1,"pageSize":100,"pageCount":1,"total":1}}}""")]
+    [InlineData("""{"data":[{"id":1}],"meta":{"pagination":{"page":1,"pageSize":100,"pageCount":1,"total":2}}}""")]
+    public async Task GetAllCardsAsync_MalformedPagination_ThrowsInsteadOfReturningPartialData(string json)
+    {
+        var client = CreateClient(new CapturingHandler(json));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));
+    }
+
+    [Fact]
+    public async Task GetAllCardsAsync_ZeroPageCountWithNoResults_ReturnsEmptyList()
+    {
+        var client = CreateClient(new CapturingHandler(
+            """{"data":[],"meta":{"pagination":{"page":1,"pageSize":100,"pageCount":0,"total":0}}}"""));
+
+        Assert.Empty(await client.GetAllCardsAsync(new SWUCardFilter(ExpansionCode: "SOR")));
+    }
+
     [Fact]
     public async Task GetAllCardsAsync_RetriesOnce_On429_ThenSucceeds()
     {

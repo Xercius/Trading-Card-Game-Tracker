@@ -92,7 +92,9 @@ public sealed class AdminSyncController(
     }
 
     [HttpPost("star-wars-unlimited")]
-    public async Task<ActionResult<AdminSyncStatusResponse>> RunStarWarsUnlimited(CancellationToken ct)
+    public async Task<ActionResult<AdminSyncStatusResponse>> RunStarWarsUnlimited(
+        CancellationToken ct,
+        [FromQuery] bool forceFullSync = false)
     {
         var startedAt = DateTimeOffset.UtcNow;
         if (!executionTracker.TryStart(SyncRouteKey, startedAt))
@@ -143,19 +145,33 @@ public sealed class AdminSyncController(
             foreach (var setCode in setCodes)
             {
                 var syncTimestamp = DateTimeOffset.UtcNow;
-                var syncLog = await CreatePendingSyncLogAsync(setCode, syncTimestamp, ct);
+                var lastSyncedAt = forceFullSync ? null : await db.ImportSyncHistories
+                    .AsNoTracking()
+                    .Where(h => h.ImporterKey == SwuImporterKey && h.SetCode == setCode)
+                    .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+                    .FirstOrDefaultAsync(ct);
+                var updatedSince = lastSyncedAt?.AddMinutes(-1);
+                var syncLog = await CreatePendingSyncLogAsync(setCode, syncTimestamp, updatedSince, ct);
                 try
                 {
                     var summary = await importer.ImportFromRemoteAsync(
                         new ImportOptions(
                             DryRun: false,
                             Upsert: true,
-                            SetCode: setCode),
+                            SetCode: setCode,
+                            UpdatedSince: updatedSince),
                         ct);
 
                     MergeSummary(combined, summary);
-                    await RecordSyncHistoryAsync(setCode, syncTimestamp, ct);
-                    await UpdateSyncLogSucceededAsync(syncLog, summary, ct);
+                    if (summary.Errors == 0)
+                    {
+                        await RecordSyncHistoryAsync(setCode, syncTimestamp, ct);
+                        await UpdateSyncLogSucceededAsync(syncLog, summary, ct);
+                    }
+                    else
+                    {
+                        await UpdateSyncLogFailedAsync(syncLog, "Import contained invalid records; synchronization checkpoint was not advanced.");
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -166,8 +182,8 @@ public sealed class AdminSyncController(
                 {
                     logger.LogError(ex, "Admin sync failed for {Source}/{SetCode}.", SwuImporterKey, setCode);
                     combined.Errors++;
-                    combined.Messages.Add($"Set {setCode} failed: {ex.Message}");
-                    await UpdateSyncLogFailedAsync(syncLog, ex.Message);
+                    combined.Messages.Add($"Set {setCode} failed. Retry the sync; its checkpoint was not advanced.");
+                    await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
                 }
             }
 
@@ -180,7 +196,7 @@ public sealed class AdminSyncController(
                 combined.CardsUpdated + combined.PrintingsUpdated,
                 combined.Errors);
 
-            return Ok(BuildResponse("Succeeded", startedAt, completedAt, setCodes.Length, combined));
+            return Ok(BuildResponse(combined.Errors == 0 ? "Succeeded" : "Failed", startedAt, completedAt, setCodes.Length, combined));
         }
         catch (OperationCanceledException)
         {
@@ -192,7 +208,7 @@ public sealed class AdminSyncController(
             logger.LogError(ex, "Admin sync failed for {Source}.", SwuImporterKey);
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
-                BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, ex.Message));
+                BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, "Sync failed. See server logs for details."));
         }
         finally
         {
@@ -200,7 +216,8 @@ public sealed class AdminSyncController(
         }
     }
 
-    private async Task<SyncLog> CreatePendingSyncLogAsync(string setCode, DateTimeOffset startedAt, CancellationToken ct)
+    private async Task<SyncLog> CreatePendingSyncLogAsync(
+        string setCode, DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
     {
         var swuSetId = await db.SwuSets
             .AsNoTracking()
@@ -212,7 +229,8 @@ public sealed class AdminSyncController(
         {
             SwuSetId = swuSetId,
             StartedAt = startedAt,
-            IsIncremental = false,
+            IsIncremental = updatedSince.HasValue,
+            UpdatedSince = updatedSince,
             Status = "Pending"
         };
         db.SyncLogs.Add(syncLog);

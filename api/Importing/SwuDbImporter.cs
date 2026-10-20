@@ -1,7 +1,7 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using api.Data;
 using api.Models;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 
 namespace api.Importing;
 
@@ -45,11 +45,7 @@ public sealed class SwuDbImporter : ISourceImporter
         };
 
         var expansionCode = options.SetCode!.Trim().ToUpperInvariant();
-        var limit = options.Limit ?? int.MaxValue;
-        int processed = 0;
-
-        // Discovery step: resolve the expansion code to its internal numeric Strapi ID.
-        // Filtering by ID is more reliable than filtering by code (see docs/SWUAPI_DOCUMENTATION.txt §5).
+        // Numeric expansion IDs are more reliable than code-based API filtering.
         int? expansionId = await _client.TryResolveExpansionIdAsync(expansionCode, ct);
         if (expansionId is null)
         {
@@ -64,29 +60,8 @@ public sealed class SwuDbImporter : ISourceImporter
 
         var allRecords = await _client.GetAllCardsAsync(filter, ct);
 
-        return await _db.WithDryRunAsync(options.DryRun, async () =>
-        {
-            foreach (var record in allRecords)
-            {
-                if (processed++ >= limit) break;
-                try
-                {
-                    await UpsertAsync(record, summary, ct);
-                }
-                catch (Exception ex)
-                {
-                    summary.Errors++;
-                    var attrs = record.Attributes;
-                    summary.Messages.Add(
-                        $"Error [id={record.Id} serialCode={attrs?.SerialCode}] {attrs?.Title}: {ex.Message}");
-                }
-            }
-
-            await _db.SaveChangesAsync(ct);
-            summary.Messages.Add(
-                $"Processed {Math.Min(processed, allRecords.Count)} records for expansion={expansionCode}.");
-            return summary;
-        });
+        return await ImportRecordsAsync(allRecords, options, summary,
+            $"for expansion={expansionCode}", ct);
     }
 
     /// <summary>
@@ -117,35 +92,71 @@ public sealed class SwuDbImporter : ISourceImporter
             records = paged.Data ?? throw new InvalidOperationException("Missing 'data' array in file.");
         }
 
-        var limit = options.Limit ?? int.MaxValue;
-        int processed = 0;
+        return await ImportRecordsAsync(records, options, summary,
+            $"from file (set={options.SetCode ?? "unknown"})", ct);
+    }
 
+    private async Task<ImportSummary> ImportRecordsAsync(IReadOnlyList<StrapiRecord> records,
+        ImportOptions options, ImportSummary summary, string description, CancellationToken ct)
+    {
         return await _db.WithDryRunAsync(options.DryRun, async () =>
         {
-            foreach (var record in records)
+            await _db.Cards.Where(c => c.Game == "Star Wars Unlimited").LoadAsync(ct);
+            var printings = await _db.CardPrintings
+                .Include(p => p.Card)
+                .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
+            var identity = new SwuSharedIdentity(printings);
+            int processed = 0;
+            foreach (var record in records.Take(Math.Max(0, options.Limit ?? int.MaxValue)))
             {
-                if (processed++ >= limit) break;
+                ct.ThrowIfCancellationRequested();
+                processed++;
+                var counts = (summary.CardsCreated, summary.CardsUpdated,
+                    summary.PrintingsCreated, summary.PrintingsUpdated);
                 try
                 {
-                    await UpsertAsync(record, summary, ct);
+                    Upsert(record, summary, identity);
+                    // EF rolls back failed writes to a savepoint in the import transaction.
+                    await _db.SaveChangesAsync(ct);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    RestoreFailedRecord();
+                    identity = new SwuSharedIdentity(_db.CardPrintings.Local
+                        .Where(p => p.Card.Game == "Star Wars Unlimited"));
+                    (summary.CardsCreated, summary.CardsUpdated,
+                        summary.PrintingsCreated, summary.PrintingsUpdated) = counts;
                     summary.Errors++;
-                    var attrs = record.Attributes;
+                    var attrs = record?.Attributes;
                     summary.Messages.Add(
-                        $"Error [id={record.Id} serialCode={attrs?.SerialCode}] {attrs?.Title}: {ex.Message}");
+                        $"Error [id={record?.Id} serialCode={attrs?.SerialCode}] {attrs?.Title}: Record could not be imported.");
                 }
             }
 
+            identity.ResolveRelationships();
             await _db.SaveChangesAsync(ct);
-            summary.Messages.Add(
-                $"Processed {Math.Min(processed, records.Count)} records from file (set={options.SetCode ?? "unknown"}).");
+            summary.Messages.Add($"Processed {processed} records {description}.");
             return summary;
         });
     }
 
-    private async Task UpsertAsync(StrapiRecord record, ImportSummary summary, CancellationToken ct)
+    private void RestoreFailedRecord()
+    {
+        var added = _db.ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added).ToList();
+        foreach (var printing in added.Select(e => e.Entity).OfType<CardPrinting>())
+            printing.Card.Printings.Remove(printing);
+        foreach (var entry in added)
+            entry.State = EntityState.Detached;
+        foreach (var entry in _db.ChangeTracker.Entries()
+                     .Where(e => e.State == EntityState.Modified).ToList())
+        {
+            entry.CurrentValues.SetValues(entry.OriginalValues);
+            entry.State = EntityState.Unchanged;
+        }
+    }
+
+    private void Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity)
     {
         const string game = "Star Wars Unlimited";
 
@@ -159,6 +170,9 @@ public sealed class SwuDbImporter : ISourceImporter
             return;
         }
 
+        if (record.Id <= 0 || string.IsNullOrWhiteSpace(attrs.Title))
+            throw new InvalidOperationException("A positive source ID and title are required.");
+
         string name = string.IsNullOrWhiteSpace(attrs.Subtitle)
             ? attrs.Title?.Trim() ?? "Unknown"
             : $"{attrs.Title?.Trim()} \u2014 {attrs.Subtitle.Trim()}";
@@ -166,33 +180,28 @@ public sealed class SwuDbImporter : ISourceImporter
         string? text = attrs.Text;
         string set = attrs.Expansion?.Data?.Attributes?.Code?.ToUpperInvariant() ?? "UNK";
         string number = attrs.CardNumber?.ToString() ?? record.Id.ToString();
-        string? serialCode = attrs.SerialCode;
+        string? serialCode = string.IsNullOrWhiteSpace(attrs.SerialCode) ? null : attrs.SerialCode.Trim();
         string? cardUid = attrs.CardUid;
         int sourceId = record.Id;
         string rarity = attrs.Rarity ?? "Unknown";
 
-        // variantOf / reprintOf relationship metadata from the API.
         int? variantOfSourceId = attrs.VariantOf?.Data?.Id;
         string? variantOfCardUid = attrs.VariantOf?.Data?.Attributes?.CardUid;
-        string? variantOfTitle = attrs.VariantOf?.Data?.Attributes?.Title?.Trim();
         int? reprintOfSourceId = attrs.ReprintOf?.Data?.Id;
         string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
 
-        // Foil detection: check if any variantType has foil=true.
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
         string style = isFoil ? "Foil" : "Standard";
 
-        // Image: prefer artFront original URL, then card-sized format, then artBack.
         string? imageUrl = attrs.ArtFront?.Data?.Attributes?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url
                         ?? attrs.ArtBack?.Data?.Attributes?.Url;
 
-        // The printing key: use serialCode when present (strongest identifier), else set+number.
-        string printingKey = serialCode ?? $"{set}-{number}";
-
-        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
-                   ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        // Source/serial identity takes precedence over names, which can be corrected upstream.
+        var printing = identity.FindPrinting(sourceId, serialCode, set, number);
+        var card = printing?.Card
+                   ?? _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name);
 
         var cardJson = JsonSerializer.Serialize(new
         {
@@ -216,6 +225,26 @@ public sealed class SwuDbImporter : ISourceImporter
             reprintOfCardUid
         }, JsonOptions);
 
+        var printingJson = JsonSerializer.Serialize(new
+        {
+            sourceId,
+            cardUid,
+            serialCode,
+            set,
+            number,
+            rarity,
+            style,
+            aspects = attrs.Aspects,
+            cost = attrs.Cost,
+            createdAt = attrs.CreatedAt,
+            updatedAt = attrs.UpdatedAt,
+            variantOfSourceId,
+            variantOfCardUid,
+            reprintOfSourceId,
+            reprintOfCardUid
+        }, JsonOptions);
+
+        // All preparation above must finish before changing tracked entities.
         if (card is null)
         {
             card = new Card
@@ -232,47 +261,12 @@ public sealed class SwuDbImporter : ISourceImporter
         else
         {
             bool changed = false;
+            if (card.Name != name) { card.Name = name; changed = true; }
             if (card.CardType != type) { card.CardType = type; changed = true; }
             if (card.Description != text) { card.Description = text; changed = true; }
             if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
-
-        // Resolve BaseCardId from the variantOf relationship.
-        // Try to find the base card by title within the same game (using local cache first).
-        if (variantOfTitle is not null)
-        {
-            var baseCard = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == variantOfTitle)
-                           ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == variantOfTitle, ct);
-            if (baseCard is not null && card.BaseCardId != baseCard.Id)
-                card.BaseCardId = baseCard.Id;
-        }
-
-        // Find existing printing by serialCode (if available) or by set+number within this game.
-        var printing = serialCode is not null
-            ? await _db.CardPrintings
-                .Where(p => p.Number == serialCode)
-                .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.Id, (p, _) => p)
-                .FirstOrDefaultAsync(ct)
-            : await _db.CardPrintings
-                .Where(p => p.Set == set && p.Number == number)
-                .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.Id, (p, _) => p)
-                .FirstOrDefaultAsync(ct);
-
-        var printingJson = JsonSerializer.Serialize(new
-        {
-            sourceId,
-            cardUid,
-            serialCode,
-            set,
-            number,
-            rarity,
-            style,
-            aspects = attrs.Aspects,
-            cost = attrs.Cost,
-            createdAt = attrs.CreatedAt,
-            updatedAt = attrs.UpdatedAt
-        }, JsonOptions);
 
         if (printing is null)
         {
@@ -293,13 +287,14 @@ public sealed class SwuDbImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
             if (printing.Set != set) { printing.Set = set; changed = true; }
+            if (printing.Number != (serialCode ?? number)) { printing.Number = serialCode ?? number; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
             if (printing.Style != style) { printing.Style = style; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed) summary.PrintingsUpdated++;
         }
+        identity.Track(printing);
     }
 }

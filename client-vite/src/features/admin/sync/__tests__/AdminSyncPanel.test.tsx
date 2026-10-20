@@ -96,7 +96,7 @@ describe("AdminSyncPanel", () => {
             setCount: 2,
             created: 3,
             updated: 4,
-            invalid: 1,
+            invalid: 0,
             messages: ["Sync complete"],
           },
         });
@@ -111,11 +111,51 @@ describe("AdminSyncPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Run sync" }));
 
     await waitFor(() =>
-      expect(screen.getByText("Sync completed — 2 sets, 3 created, 4 updated, 1 invalid.")).toBeVisible()
+      expect(
+        screen.getByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
+      ).toBeVisible()
     );
     expect(postMock).toHaveBeenCalledWith("admin/sync/star-wars-unlimited", null);
     await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
 
+    unmount();
+    cleanupClient();
+  });
+
+  it("reports partial failure without displaying success", async () => {
+    vi.spyOn(http, "get").mockResolvedValue({
+      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
+    });
+    vi.spyOn(http, "post").mockResolvedValue({
+      data: { status: "Failed", invalid: 1 },
+    });
+    const { cleanupClient, unmount } = renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+
+    expect(await screen.findByText(/Sync incomplete — 1 invalid/)).toBeVisible();
+    expect(screen.queryByText(/Sync completed —/)).not.toBeInTheDocument();
+    unmount();
+    cleanupClient();
+  });
+
+  it("requests a full reconciliation explicitly", async () => {
+    vi.spyOn(http, "get").mockResolvedValue({
+      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
+    });
+    const postMock = vi.spyOn(http, "post").mockResolvedValue({
+      data: { status: "Succeeded", invalid: 0, setCount: 1, created: 0, updated: 0 },
+    });
+    const { cleanupClient, unmount } = renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Full reconciliation" }));
+
+    await waitFor(() =>
+      expect(postMock).toHaveBeenCalledWith(
+        "admin/sync/star-wars-unlimited?forceFullSync=true",
+        null
+      )
+    );
     unmount();
     cleanupClient();
   });

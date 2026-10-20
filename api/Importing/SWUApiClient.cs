@@ -73,18 +73,34 @@ internal sealed class SWUApiClient : ISWUApiClient
         var all = new List<StrapiRecord>();
         int page = 1;
         int pageCount = 1;
+        int? total = null;
 
         while (page <= pageCount)
         {
             var qs = BuildCardListQuery(filter, page);
             var paged = await FetchPageAsync($"card-list?{qs}", ct);
 
-            pageCount = paged.Meta?.Pagination?.PageCount ?? 1;
-            if (paged.Data is not null)
-                all.AddRange(paged.Data);
+            var pagination = paged.Meta?.Pagination;
+            if (paged.Data is null || pagination is null
+                || pagination.Page != page || pagination.PageSize <= 0
+                || pagination.PageCount < 0 || pagination.Total < 0
+                || (pagination.PageCount == 0 && (pagination.Total != 0 || paged.Data.Count != 0))
+                || (pagination.PageCount > 0 && pagination.PageCount < page)
+                || (page > 1 && pagination.PageCount != pageCount)
+                || (total is not null && pagination.Total != total)
+                || paged.Data.Count > pagination.PageSize
+                || (pagination.Total > 0 && paged.Data.Count == 0))
+                throw new InvalidOperationException("Invalid pagination response from Star Wars: Unlimited API.");
+
+            pageCount = pagination.PageCount;
+            total = pagination.Total;
+            all.AddRange(paged.Data);
 
             page++;
         }
+
+        if (all.Count != total)
+            throw new InvalidOperationException("Incomplete pagination response from Star Wars: Unlimited API.");
 
         return all;
     }

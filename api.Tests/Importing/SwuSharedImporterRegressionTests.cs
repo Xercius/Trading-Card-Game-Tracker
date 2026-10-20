@@ -1,0 +1,377 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Web;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using api.Data;
+using api.Importing;
+using api.Models;
+using Xunit;
+
+namespace api.Tests.Importing;
+
+public sealed class SwuSharedImporterRegressionTests
+{
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Import_ReplayAndRename_PreservesIdentityAndReferences(bool serialChanges)
+    {
+        await using var database = await Database.CreateAsync();
+        var original = Record(1, "Original", "SOR", "serial-1");
+        await ImportAsync(database, original);
+        int cardId;
+        int printingId;
+        await using (var db = database.Open())
+        {
+            var printing = await db.CardPrintings.SingleAsync();
+            cardId = printing.CardId;
+            printingId = printing.Id;
+            var user = new User { Username = "owner", DisplayName = "Owner" };
+            var deck = new Deck { User = user, Name = "Deck", Game = "Star Wars Unlimited" };
+            db.UserCards.Add(new UserCard
+            {
+                User = user,
+                CardPrintingId = printingId,
+                QuantityOwned = 3
+            });
+            db.DeckCards.Add(new DeckCard
+            {
+                Deck = deck,
+                CardPrintingId = printingId,
+                QuantityInDeck = 2
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var replay = await ImportAsync(database, original);
+        Assert.Equal(0, replay.Errors);
+        Assert.Equal(0, replay.CardsCreated + replay.PrintingsCreated
+            + replay.CardsUpdated + replay.PrintingsUpdated);
+
+        // A stable source ID survives serial corrections; a stable serial survives source-ID changes.
+        var renamed = Record(serialChanges ? 1 : 101, "Renamed", "SHD",
+            serialChanges ? "corrected-serial" : "serial-1", subtitle: "Corrected subtitle");
+        var result = await ImportAsync(database, renamed);
+        Assert.Equal(0, result.Errors);
+        Assert.Equal(0, result.CardsCreated + result.PrintingsCreated);
+        await using var verify = database.Open();
+        var card = await verify.Cards.SingleAsync();
+        var updated = await verify.CardPrintings.SingleAsync();
+        Assert.Equal(cardId, card.Id);
+        Assert.Equal("Renamed — Corrected subtitle", card.Name);
+        Assert.Equal(printingId, updated.Id);
+        Assert.Equal(cardId, updated.CardId);
+        var owned = await verify.UserCards.SingleAsync();
+        Assert.Equal(printingId, owned.CardPrintingId);
+        Assert.Equal(3, owned.QuantityOwned);
+        var deckCard = await verify.DeckCards.SingleAsync();
+        Assert.Equal(printingId, deckCard.CardPrintingId);
+        Assert.Equal(2, deckCard.QuantityInDeck);
+    }
+
+    [Fact]
+    public async Task Import_DuplicatePayload_UsesTrackedPrintingAndSharedCanonicalCard()
+    {
+        await using var database = await Database.CreateAsync();
+        var first = Record(1, "Han Solo", "SOR", "standard");
+        var variant = Record(2, "Han Solo", "SHD", "showcase", variantId: 1);
+        var summary = await ImportAsync(database, first, first, variant, variant);
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(2, summary.PrintingsCreated);
+        await using var db = database.Open();
+        var card = await db.Cards.SingleAsync();
+        Assert.Null(card.BaseCardId);
+        Assert.Equal(2, await db.CardPrintings.CountAsync());
+        Assert.All(await db.CardPrintings.ToListAsync(), p => Assert.Equal(card.Id, p.CardId));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Import_VariantBeforeBase_ResolvesStableIdentityAcrossSets(
+        bool separateImports, bool useUid)
+    {
+        await using var database = await Database.CreateAsync();
+        var variant = Record(2, "Luke Skywalker", "SHD", "variant", subtitle: "Showcase",
+            variantId: useUid ? 999 : 1, variantUid: "uid-1", reprintId: 3);
+        // This title deliberately matches the relationship's title but not its identity.
+        var impostor = Record(3, "Luke Skywalker", "SOR", "impostor", subtitle: "Wrong");
+        var basis = Record(1, "Luke Skywalker", "SOR", "base", subtitle: "Jedi Knight");
+        await ImportAsync(database, variant, impostor);
+        await using (var before = database.Open())
+        {
+            Assert.Null((await before.Cards.SingleAsync(c => c.Name.EndsWith("Showcase"))).BaseCardId);
+        }
+        if (separateImports)
+            await ImportAsync(database, basis);
+        else
+            await ImportAsync(database, variant, basis);
+
+        await using var db = database.Open();
+        var cards = await db.Cards.ToListAsync();
+        var baseCard = cards.Single(c => c.Name.EndsWith("Jedi Knight"));
+        var variantCard = cards.Single(c => c.Name.EndsWith("Showcase"));
+        Assert.Equal(baseCard.Id, variantCard.BaseCardId);
+        Assert.Null(baseCard.BaseCardId);
+        using var metadata = JsonDocument.Parse(
+            (await db.CardPrintings.SingleAsync(p => p.Number == "variant")).DetailsJson!);
+        Assert.Equal(useUid ? 999 : 1, metadata.RootElement.GetProperty("variantOfSourceId").GetInt32());
+        Assert.Equal("uid-1", metadata.RootElement.GetProperty("variantOfCardUid").GetString());
+        Assert.Equal(3, metadata.RootElement.GetProperty("reprintOfSourceId").GetInt32());
+        Assert.Equal("uid-3", metadata.RootElement.GetProperty("reprintOfCardUid").GetString());
+    }
+
+    [Fact]
+    public async Task Import_SamePayloadVariantBeforeBase_ResolvesTemporaryEntityKeys()
+    {
+        await using var database = await Database.CreateAsync();
+        var result = await ImportAsync(database,
+            Record(2, "Leia", "SHD", "variant", subtitle: "Showcase", variantId: 1),
+            Record(1, "Leia", "SOR", "base", subtitle: "Rebel"));
+        Assert.Equal(0, result.Errors);
+        await using var db = database.Open();
+        var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
+        var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
+        Assert.Equal(basis.Id, variant.BaseCardId);
+    }
+
+    [Fact]
+    public async Task Import_SharedCardMetadataOverwritten_RetainsPendingPrintingRelationship()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database,
+            Record(2, "Leia", "SHD", "variant", subtitle: "Showcase", variantId: 1));
+        await ImportAsync(database,
+            Record(3, "Leia", "TWI", "another-printing", subtitle: "Showcase"));
+        await ImportAsync(database,
+            Record(1, "Leia", "SOR", "base", subtitle: "Rebel"));
+
+        await using var db = database.Open();
+        var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
+        var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
+        Assert.Equal(basis.Id, variant.BaseCardId);
+        Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.CardId == variant.Id));
+    }
+
+    [Fact]
+    public async Task Import_InvalidRecord_ReportsErrorWithoutPartialChanges()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(1, "Valid", "SOR", "one"));
+        var result = await ImportAsync(database,
+            Record(1, " ", "SHD", "changed"),
+            new { id = 2, attributes = (object?)null },
+            Record(3, "Next", "SOR", "three"));
+        Assert.Equal(2, result.Errors);
+        Assert.Equal(1, result.CardsCreated);
+        Assert.Equal(1, result.PrintingsCreated);
+        await using var db = database.Open();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.Equal("Valid", (await db.CardPrintings.Include(p => p.Card)
+            .SingleAsync(p => p.Number == "one")).Card.Name);
+        Assert.False(await db.CardPrintings.AnyAsync(p => p.Number == "changed"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Import_PrintingConstraintFailure_RestoresFailedRecordAndContinues(bool newCard)
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database,
+            Record(1, "Shared", "SOR", "one"),
+            Record(2, "Shared", "SOR", "two"));
+        var failed = newCard
+            ? Record(3, "New", "SOR", "three")
+            : Record(1, "Changed", "SOR", "two");
+        // SQLite's trigger simulates a persistence failure after the entities have been changed.
+        await using (var setup = database.Open())
+        {
+            await setup.Database.ExecuteSqlRawAsync("""
+                CREATE TRIGGER RejectPrintingInsert BEFORE INSERT ON CardPrintings
+                WHEN NEW.Number = 'three' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
+                """);
+        }
+        var result = await ImportAsync(database, failed, Record(4, "Next", "SHD", "four"));
+        Assert.Equal(1, result.Errors);
+        Assert.Contains(result.Messages, message => message.Contains("Record could not be imported."));
+        Assert.DoesNotContain(result.Messages, message =>
+            message.Contains("Rejected printing") || message.Contains("UNIQUE constraint failed"));
+        Assert.Equal(1, result.CardsCreated);
+        Assert.Equal(1, result.PrintingsCreated);
+        await using var db = database.Open();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Shared"));
+        Assert.False(await db.Cards.AnyAsync(c => c.Name == "Changed" || c.Name == "New"));
+        Assert.Equal(3, await db.CardPrintings.CountAsync());
+        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Number == "one"));
+        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Number == "two"));
+    }
+
+    [Theory]
+    [InlineData("http")]
+    [InlineData("missing-data")]
+    [InlineData("missing-pagination")]
+    [InlineData("wrong-page")]
+    [InlineData("truncated")]
+    public async Task Import_FailedLaterApiPage_WritesNothing(string failure)
+    {
+        await using var database = await Database.CreateAsync();
+        using var http = new HttpClient(new PageHandler(failure))
+        {
+            BaseAddress = new Uri("https://example.invalid/api/")
+        };
+        await using (var db = database.Open())
+        {
+            var importer = new SwuDbImporter(db, new SWUApiClient(http));
+            await Assert.ThrowsAnyAsync<Exception>(() => importer.ImportFromRemoteAsync(
+                new ImportOptions(DryRun: false, SetCode: "SOR")));
+            Assert.Empty(db.ChangeTracker.Entries());
+        }
+        await using var verify = database.Open();
+        Assert.Empty(await verify.Cards.ToListAsync());
+        Assert.Empty(await verify.CardPrintings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Import_CancellationWhileSaving_IsNotCountedAsRecordError()
+    {
+        await using var database = await Database.CreateAsync();
+        await using (var db = database.Open(new CancelSaveInterceptor()))
+        {
+            await using var stream = Payload(Record(1, "Cancelled", "SOR", "one"));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+                    new ImportOptions(DryRun: false)));
+        }
+        await using var verify = database.Open();
+        Assert.Empty(await verify.Cards.ToListAsync());
+        Assert.Empty(await verify.CardPrintings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Import_Cancellation_PropagatesWithoutWrites()
+    {
+        await using var database = await Database.CreateAsync();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await using (var db = database.Open())
+        {
+            await using var stream = Payload(Record(1, "Cancelled", "SOR", "one"));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+                    new ImportOptions(DryRun: false), cancellation.Token));
+        }
+        await using var verify = database.Open();
+        Assert.Empty(await verify.Cards.ToListAsync());
+    }
+
+    private static object Record(int id, string title, string set, string serial,
+        string? subtitle = null, int? variantId = null, string? variantUid = null, int? reprintId = null)
+        => new
+        {
+            id,
+            attributes = new
+            {
+                title,
+                subtitle,
+                locale = "en",
+                serialCode = serial,
+                cardUid = $"uid-{id}",
+                cardNumber = id,
+                rarity = "Common",
+                expansion = new { data = new { id = 1, attributes = new { code = set } } },
+                variantOf = variantId is null ? null : new
+                {
+                    data = new
+                    {
+                        id = variantId.Value,
+                        attributes = new { title = "Luke Skywalker — Wrong", cardUid = variantUid }
+                    }
+                },
+                reprintOf = reprintId is null ? null : new
+                {
+                    data = new { id = reprintId.Value, attributes = new { cardUid = $"uid-{reprintId}" } }
+                }
+            }
+        };
+
+    private static MemoryStream Payload(params object[] records)
+        => new(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(records)));
+
+    private static async Task<ImportSummary> ImportAsync(Database database, params object[] records)
+    {
+        await using var db = database.Open();
+        await using var stream = Payload(records);
+        return await new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+            new ImportOptions(DryRun: false));
+    }
+
+    private sealed class Database(SqliteConnection connection) : IAsyncDisposable
+    {
+        internal AppDbContext Open(params IInterceptor[] interceptors)
+            => new(new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite(connection).AddInterceptors(interceptors).Options);
+
+        internal static async Task<Database> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+            var database = new Database(connection);
+            await using var db = database.Open();
+            await db.Database.EnsureCreatedAsync();
+            return database;
+        }
+
+        public ValueTask DisposeAsync() => connection.DisposeAsync();
+    }
+
+    private sealed class CancelSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) => throw new OperationCanceledException();
+    }
+
+    private sealed class UnusedClient : ISWUApiClient
+    {
+        public Task<IReadOnlyList<StrapiRecord>> GetAllCardsAsync(SWUCardFilter filter,
+            CancellationToken ct = default) => throw new NotSupportedException();
+
+        public Task<int?> TryResolveExpansionIdAsync(string code, CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class PageHandler(string failure) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            var page = query["pagination[page]"];
+            if (page == "2" && failure == "http")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway));
+            string json = page == "2" ? failure switch
+            {
+                "missing-data" => """{"meta":{"pagination":{"page":2,"pageSize":1,"pageCount":2,"total":2}}}""",
+                "missing-pagination" => """{"data":[]}""",
+                "wrong-page" => """{"data":[],"meta":{"pagination":{"page":1,"pageSize":1,"pageCount":2,"total":2}}}""",
+                _ => """{"data":[],"meta":{"pagination":{"page":2,"pageSize":1,"pageCount":1,"total":2}}}"""
+            } : JsonSerializer.Serialize(new
+            {
+                data = new[] { Record(1, "First page", "SOR", "one") },
+                meta = new { pagination = new { page = 1, pageSize = 1, pageCount = 2, total = 2 } }
+            });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+}

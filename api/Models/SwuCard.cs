@@ -117,6 +117,12 @@ public sealed class SwuCard
     public int? BaseCardId { get; set; }
 
     /// <summary>
+    /// Upstream variant/reprint target ID, retained until the referenced card is imported.
+    /// This is not a local foreign key and can reference a card in another set.
+    /// </summary>
+    public int? BaseStrapiId { get; set; }
+
+    /// <summary>
     /// Navigation property to the base card this variant was derived from.
     /// </summary>
     public SwuCard? BaseCard { get; set; }

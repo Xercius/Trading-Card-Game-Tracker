@@ -290,20 +290,24 @@ prefer client-side exclusion for those cases.
     1.  Record the UTC timestamp immediately before each successful import
         run (e.g. `DateTimeOffset.UtcNow` captured at start of run).
 
-    2.  On the next run supply this timestamp as `UpdatedSince` in
+    2.  Persist that start timestamp only after a complete, error-free
+        unlimited remote import commits. Dry-runs, file imports, limited
+        imports, and partially failed imports must not advance coverage.
+        On the next run supply the checkpoint with overlap as `UpdatedSince` in
         `ImportOptions`.  The importer will add
         `filters[updatedAt][$gt]=<timestamp>` to every API request, so
         only records modified since the previous run are fetched.
 
-    3.  Sort results by `updatedAt:asc` (the importer default for all
-        requests) so that pages are stable and you can resume a partial
-        import by advancing the cursor.
+    3.  Sort results by `updatedAt:asc` (the importer default).
+        Page-number pagination is not a snapshot when upstream data changes.
+        Do not advance a timestamp cursor after a partially processed run;
+        retry from the previous successful checkpoint.
 
     4.  Apply a small overlap (subtract ≥ 1 minute from the stored
         timestamp) to guard against sub-second clock skew and records
         whose `updatedAt` falls exactly on the boundary.
 
-    5.  The upsert logic in `SwuDbImporter.UpsertAsync` is idempotent:
+    5.  The shared SWU importer's upsert logic is idempotent:
         re-importing a card that has not changed produces no DB writes
         (no `CardsUpdated` / `PrintingsUpdated` increments), so
         overlapping records are safe to re-fetch.
@@ -316,6 +320,13 @@ prefer client-side exclusion for those cases.
     run) or if a corruption is suspected, omit `UpdatedSince` and import
     the full expansion.  The importer's upsert behaviour ensures
     idempotency.
+
+    The admin sync panel automatically applies a one-minute overlap and
+    offers Full reconciliation (?forceFullSync=true). Use full reconciliation
+    periodically and once after upgrading from older unsafe checkpoint logic.
+    Shared Card/CardPrinting and dedicated SWU tables are separate persistence
+    paths; their coverage checkpoints must remain isolated. See
+    docs/SWU_IMPORT_GUIDE.md for the current wiring and compatibility policy.
 
     C# `ImportOptions` parameter: `UpdatedSince` (type `DateTimeOffset?`).
     When set, the importer emits `filters[updatedAt][$gt]=...` in the
@@ -381,7 +392,7 @@ Not every format key is guaranteed to be present for every card. The
 `artBack` relationship follows the same structure but `formats` may be
 absent or empty.
 
-Importer image priority (SwuDbImporter.UpsertAsync):
+Shared importer image priority:
 
   1. artFront.data.attributes.url         (original resolution)
   2. artFront.data.attributes.formats.card.url
@@ -541,12 +552,12 @@ importer, tests, or smoke-test tooling.
       `expansion+cardNumber` are present; audit any `UNK` set values after an
       import because they indicate incomplete upstream data.
 
-13.7  Base-card linking is opportunistic
-      Gotcha: `variantOf` / `reprintOf` relationship metadata is preserved in
-      JSON, but `BaseCardId` is populated only if the referenced base card is
-      already present locally.
-      Workaround: import base cards before showcase/alternate-art variants, or
-      rerun the import after the base set has been loaded.
+13.7  Base-card linking requires the referenced upstream record
+      `variantOf` / `reprintOf` metadata is retained. Deferred relationship
+      resolution uses upstream identifiers, not display titles, and excludes
+      self-links. Import order within a payload does not determine linkage.
+      If the base belongs to an absent set, import that set; unresolved
+      references are retained for subsequent relationship repair.
 
 13.8  Incremental sync must overlap the boundary
       Gotcha: update detection uses strict `filters[updatedAt][$gt]=...`.
