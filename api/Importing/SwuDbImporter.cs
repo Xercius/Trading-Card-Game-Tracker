@@ -18,15 +18,17 @@ public sealed class SwuDbImporter : ISourceImporter
 
     private readonly AppDbContext _db;
     private readonly ISWUApiClient _client;
+    private readonly ILogger<SwuDbImporter> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    internal SwuDbImporter(AppDbContext db, ISWUApiClient client)
+    internal SwuDbImporter(AppDbContext db, ISWUApiClient client, ILogger<SwuDbImporter> logger)
     {
         _db = db;
         _client = client;
+        _logger = logger;
     }
 
     /// <summary>
@@ -130,6 +132,7 @@ public sealed class SwuDbImporter : ISourceImporter
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
+                        _logger.LogError(ex, "Failed to import SWU card record {SourceId}.", record?.Id);
                         _db.ChangeTracker.DetectChanges();
                         RestoreFailedRecord(changes);
                         identity = new SwuSharedIdentity(_db.CardPrintings.Local

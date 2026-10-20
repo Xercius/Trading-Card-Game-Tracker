@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using api.Data;
 using api.Importing;
 using api.Models;
+using api.Tests.Features.AdminImport;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace api.Tests.Importing;
@@ -201,7 +204,7 @@ public sealed class SwuSharedImporterRegressionTests
         await using (var db = database.Open())
         {
             await using var stream = Payload(basis);
-            var preview = await new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(
+            var preview = await new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(
                 stream, new ImportOptions(DryRun: true));
             Assert.Equal(1, preview.CardsCreated);
             Assert.Equal(1, preview.CardsUpdated);
@@ -335,6 +338,34 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Number == "two"));
     }
 
+    [Fact]
+    public async Task Import_RecordFailure_LogsExceptionAndSourceId_AndKeepsMessageGeneric()
+    {
+        await using var database = await Database.CreateAsync();
+        await using (var setup = database.Open())
+        {
+            await setup.Database.ExecuteSqlRawAsync("""
+                CREATE TRIGGER RejectPrintingInsert BEFORE INSERT ON CardPrintings
+                WHEN NEW.Number = 'failed' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
+                """);
+        }
+
+        var loggerProvider = new TestLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(loggerProvider));
+        await using var db = database.Open();
+        await using var stream = Payload(Record(71, "Rejected", "SOR", "failed"));
+        var summary = await new SwuDbImporter(db, new UnusedClient(),
+                loggerFactory.CreateLogger<SwuDbImporter>())
+            .ImportFromFileAsync(stream, new ImportOptions(DryRun: false));
+
+        Assert.Equal(1, summary.Errors);
+        Assert.Contains(summary.Messages, message => message.Contains("Record could not be imported."));
+        Assert.DoesNotContain(summary.Messages, message => message.Contains("Rejected printing"));
+        var log = Assert.Single(loggerProvider.Entries, entry => entry.Level == LogLevel.Error);
+        Assert.NotNull(log.Exception);
+        Assert.Contains(log.State, item => item.Key == "SourceId" && Equals(item.Value, 71));
+    }
+
     [Theory]
     [InlineData("http")]
     [InlineData("missing-data")]
@@ -351,7 +382,7 @@ public sealed class SwuSharedImporterRegressionTests
         };
         await using (var db = database.Open())
         {
-            var importer = new SwuDbImporter(db, new SWUApiClient(http));
+            var importer = new SwuDbImporter(db, new SWUApiClient(http), NullLogger<SwuDbImporter>.Instance);
             await Assert.ThrowsAnyAsync<Exception>(() => importer.ImportFromRemoteAsync(
                 new ImportOptions(DryRun: false, SetCode: "SOR")));
             Assert.Empty(db.ChangeTracker.Entries());
@@ -369,7 +400,7 @@ public sealed class SwuSharedImporterRegressionTests
         {
             await using var stream = Payload(Record(1, "Cancelled", "SOR", "one"));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+                new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(stream,
                     new ImportOptions(DryRun: false)));
         }
         await using var verify = database.Open();
@@ -387,7 +418,7 @@ public sealed class SwuSharedImporterRegressionTests
         {
             await using var stream = Payload(Record(1, "Cancelled", "SOR", "one"));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+                new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(stream,
                     new ImportOptions(DryRun: false), cancellation.Token));
         }
         await using var verify = database.Open();
@@ -440,7 +471,7 @@ public sealed class SwuSharedImporterRegressionTests
     {
         await using var db = database.Open();
         await using var stream = Payload(records);
-        return await new SwuDbImporter(db, new UnusedClient()).ImportFromFileAsync(stream,
+        return await new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(stream,
             new ImportOptions(DryRun: false));
     }
 

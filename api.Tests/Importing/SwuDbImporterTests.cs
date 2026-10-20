@@ -3,6 +3,7 @@ using api.Importing;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -94,7 +95,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         => new MemoryStream(Encoding.UTF8.GetBytes(json));
 
     private static SwuDbImporter CreateImporter(AppDbContext db, ISWUApiClient? client = null)
-        => new(db, client ?? new StubSWUApiClient());
+        => new(db, client ?? new StubSWUApiClient(), NullLogger<SwuDbImporter>.Instance);
 
     // ─── tests ──────────────────────────────────────────────────────────────
 
