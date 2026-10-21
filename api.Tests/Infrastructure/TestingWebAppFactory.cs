@@ -17,7 +17,7 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         _connection = new SqliteConnection("Filename=:memory:");
         _connection.Open();
     }
-    
+
     public new HttpClient CreateClient()
     {
         EnsureDatabaseCreated();
@@ -39,23 +39,23 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
 
             services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
         });
-        
+
         // Ensure database is created after all services are configured
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // This runs after all services are registered
         });
     }
-    
+
     private void EnsureDatabaseCreated()
     {
         if (_isDatabaseCreated) return;
-        
+
         _ = Server; // ensure host is built
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.EnsureCreated();
-        
+
         _isDatabaseCreated = true;
     }
 

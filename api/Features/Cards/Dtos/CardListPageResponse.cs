@@ -1,4 +1,4 @@
-﻿namespace api.Features.Cards.Dtos;
+namespace api.Features.Cards.Dtos;
 
 /// <summary>
 /// Response DTO for paginated card list results with virtualized scrolling support.

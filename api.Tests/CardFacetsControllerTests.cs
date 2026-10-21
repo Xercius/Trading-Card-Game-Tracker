@@ -78,15 +78,15 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Should have games
         Assert.NotEmpty(facets!.Games);
         Assert.All(facets.Games, f => Assert.True(f.Count > 0));
-        
+
         // Should have sets
         Assert.NotEmpty(facets.Sets);
         Assert.All(facets.Sets, f => Assert.True(f.Count > 0));
-        
+
         // Should have rarities
         Assert.NotEmpty(facets.Rarities);
         Assert.All(facets.Rarities, f => Assert.True(f.Count > 0));
@@ -103,12 +103,12 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Sets should only contain Magic sets
         Assert.NotEmpty(facets!.Sets);
         Assert.Contains(facets.Sets, f => f.Value == "Alpha");
         Assert.DoesNotContain(facets.Sets, f => f.Value == "Rise of the Floodborn");
-        
+
         // Rarities should only contain Magic rarities
         Assert.NotEmpty(facets.Rarities);
         Assert.DoesNotContain(facets.Rarities, f => f.Value == "Legendary");
@@ -125,10 +125,10 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Games should contain Magic
         Assert.Contains(facets!.Games, f => f.Value == "Magic");
-        
+
         // Rarities should only contain rarities from Alpha set
         Assert.NotEmpty(facets.Rarities);
     }
@@ -144,7 +144,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Games should only contain games with Common rarity
         Assert.NotEmpty(facets!.Games);
         Assert.Contains(facets.Games, f => f.Value == "Magic");
@@ -161,7 +161,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Should have facets but only for cards matching search term
         Assert.NotNull(facets!.Games);
         Assert.NotNull(facets.Sets);
@@ -179,10 +179,10 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(facets);
-        
+
         // Sets should only contain Magic sets with Common rarity cards
         Assert.NotEmpty(facets!.Sets);
-        
+
         // Games should contain Magic
         Assert.Contains(facets.Games, f => f.Value == "Magic");
     }
