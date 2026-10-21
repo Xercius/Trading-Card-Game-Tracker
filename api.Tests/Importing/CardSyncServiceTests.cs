@@ -94,7 +94,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(updatedAt, printing.LastSyncedAt);
 
         var syncHistory = await db.ImportSyncHistories.SingleAsync();
-        Assert.Equal("swu", syncHistory.ImporterKey);
+        Assert.Equal("swu-dedicated", syncHistory.ImporterKey);
         Assert.Equal("SOR", syncHistory.SetCode);
         Assert.Equal(syncTime, syncHistory.LastSyncedAt);
     }
@@ -156,7 +156,7 @@ public sealed class CardSyncServiceTests
 
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = lastSync
         });
@@ -193,7 +193,7 @@ public sealed class CardSyncServiceTests
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
         Assert.NotNull(client.CapturedFilter);
-        Assert.Equal(lastSync, client.CapturedFilter!.UpdatedSince);
+        Assert.Equal(lastSync.AddMinutes(-5), client.CapturedFilter!.UpdatedSince);
         Assert.Equal(0, summary.CardsCreated);
         Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(0, summary.PrintingsCreated);
@@ -310,7 +310,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedPrinting.LastSyncedAt);
 
         var syncHistory = await db.ImportSyncHistories.SingleAsync();
-        Assert.Equal("swu", syncHistory.ImporterKey);
+        Assert.Equal("swu-dedicated", syncHistory.ImporterKey);
         Assert.Equal("SOR", syncHistory.SetCode);
         Assert.Equal(syncTime, syncHistory.LastSyncedAt);
     }
@@ -322,7 +322,7 @@ public sealed class CardSyncServiceTests
         var originalSyncTime = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = originalSyncTime
         });
@@ -337,7 +337,8 @@ public sealed class CardSyncServiceTests
         var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
 
         Assert.Equal(1, summary.Errors);
-        Assert.Contains(summary.Messages, message => message.Contains("SWU API unavailable", StringComparison.Ordinal));
+        Assert.Contains("Sync failed. Check the server logs for details.", summary.Messages);
+        Assert.DoesNotContain(summary.Messages, message => message.Contains("SWU API unavailable", StringComparison.Ordinal));
         Assert.Equal(0, summary.CardsCreated);
         Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(0, summary.PrintingsCreated);
@@ -395,7 +396,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal("Failed", syncLog.Status);
         Assert.NotNull(syncLog.CompletedAt);
         Assert.NotNull(syncLog.ErrorMessage);
-        Assert.Contains("SWU API unavailable", syncLog.ErrorMessage, StringComparison.Ordinal);
+        Assert.Equal("Sync failed. Check the server logs for details.", syncLog.ErrorMessage);
         Assert.Equal(0, syncLog.CardsUpserted);
     }
 
@@ -407,7 +408,7 @@ public sealed class CardSyncServiceTests
         var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = lastSync
         });
@@ -420,7 +421,7 @@ public sealed class CardSyncServiceTests
 
         var syncLog = await db.SyncLogs.SingleAsync();
         Assert.True(syncLog.IsIncremental);
-        Assert.Equal(lastSync, syncLog.UpdatedSince);
+        Assert.Equal(lastSync.AddMinutes(-5), syncLog.UpdatedSince);
         Assert.Equal("Succeeded", syncLog.Status);
     }
 
@@ -432,7 +433,7 @@ public sealed class CardSyncServiceTests
         var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = lastSync
         });
@@ -539,7 +540,7 @@ public sealed class CardSyncServiceTests
         var lastSync = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = lastSync
         });
@@ -562,7 +563,7 @@ public sealed class CardSyncServiceTests
         await service.UpdateLastSyncTimeAsync("swu", "SOR", syncTime);
 
         var history = await db.ImportSyncHistories.SingleAsync();
-        Assert.Equal("swu", history.ImporterKey);
+        Assert.Equal("swu-dedicated", history.ImporterKey);
         Assert.Equal("SOR", history.SetCode);
         Assert.Equal(syncTime, history.LastSyncedAt);
     }
@@ -575,7 +576,7 @@ public sealed class CardSyncServiceTests
         var newSync = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = "swu-dedicated",
             SetCode = "SOR",
             LastSyncedAt = originalSync
         });
@@ -587,6 +588,329 @@ public sealed class CardSyncServiceTests
 
         var history = await db.ImportSyncHistories.SingleAsync();
         Assert.Equal(newSync, history.LastSyncedAt);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(1)]
+    [InlineData(10)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenLimitSpecified_RetainsCheckpoint(int limit)
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient(
+            [CreateRecord(1, "Card", "1", "SOR-001", "SOR", "Spark of Rebellion")]),
+            new FixedTimeProvider(checkpoint.AddDays(1)), NullLogger<CardSyncService>.Instance);
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR", limit: limit);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(checkpoint, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Partial", (await db.SyncLogs.SingleAsync()).Status);
+        Assert.Equal(limit > 0 ? 1 : 0, await db.SwuCards.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("attributes")]
+    [InlineData("id")]
+    [InlineData("title")]
+    [InlineData("type")]
+    [InlineData("locale")]
+    [InlineData("set")]
+    [InlineData("base")]
+    [InlineData("self")]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenRecordMalformed_RejectsWithoutAdvancingCheckpoint(string invalidField)
+    {
+        await using var db = await CreateDbContextAsync();
+        var valid = CreateRecord(1, "Card", "1", "SOR-001", "SOR", "Spark of Rebellion");
+        var invalid = invalidField switch
+        {
+            "attributes" => valid with { Attributes = null },
+            "id" => valid with { Id = 0 },
+            "title" => valid with { Attributes = valid.Attributes! with { Title = " " } },
+            "type" => valid with { Attributes = valid.Attributes! with { Type = null } },
+            "locale" => valid with { Attributes = valid.Attributes! with { Locale = null } },
+            "base" => valid with
+            {
+                Attributes = valid.Attributes! with
+                {
+                    VariantOf = new StrapiRelation<SwuVariantRefAttributes>(
+                        new StrapiRelationData<SwuVariantRefAttributes>(0, null))
+                }
+            },
+            "self" => valid with
+            {
+                Attributes = valid.Attributes! with
+                {
+                    VariantOf = new StrapiRelation<SwuVariantRefAttributes>(
+                        new StrapiRelationData<SwuVariantRefAttributes>(1, null))
+                }
+            },
+            _ => valid with
+            {
+                Attributes = valid.Attributes! with
+                {
+                    Expansion = new StrapiRelation<SwuExpansionAttributes>(
+                        new StrapiRelationData<SwuExpansionAttributes>(2, new SwuExpansionAttributes("Other", "SHD")))
+                }
+            }
+        };
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient([invalid]),
+            new FixedTimeProvider(checkpoint.AddDays(1)), NullLogger<CardSyncService>.Instance);
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(1, summary.Errors);
+        Assert.Empty(await db.SwuCards.ToListAsync());
+        Assert.Equal(checkpoint, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Failed", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenFinalPersistenceFails_RollsBackAndCanReplay(bool failLog)
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient(
+            [CreateRecord(1, "Card", "1", "SOR-001", "SOR", "Spark of Rebellion")]),
+            new FixedTimeProvider(checkpoint.AddDays(1)), NullLogger<CardSyncService>.Instance);
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+        await db.Database.ExecuteSqlRawAsync(failLog
+            ? """
+              CREATE TRIGGER RejectSync BEFORE UPDATE ON SyncLogs WHEN NEW.Status = 'Succeeded'
+              BEGIN SELECT RAISE(FAIL, 'Test final log failure'); END;
+              """
+            : """
+              CREATE TRIGGER RejectSync BEFORE UPDATE ON ImportSyncHistories
+              BEGIN SELECT RAISE(FAIL, 'Test checkpoint failure'); END;
+              """);
+
+        var failed = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(1, failed.Errors);
+        Assert.Empty(await db.SwuCards.ToListAsync());
+        Assert.Empty(await db.SwuCardPrintings.ToListAsync());
+        Assert.Empty(await db.SwuSets.ToListAsync());
+        Assert.Equal(checkpoint, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        var failedLog = await db.SyncLogs.SingleAsync();
+        Assert.Equal("Failed", failedLog.Status);
+        Assert.Equal(0, failedLog.CardsUpserted);
+
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER RejectSync;");
+        var replay = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+        var repeated = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(0, replay.Errors);
+        Assert.Equal(1, replay.CardsCreated);
+        Assert.Equal(0, repeated.CardsCreated);
+        Assert.Equal(0, repeated.PrintingsCreated);
+        Assert.Single(await db.SwuCards.ToListAsync());
+        Assert.Equal(checkpoint.AddDays(1), await service.GetLastSyncTimeAsync("swu", "SOR"));
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenExplicitUpdatedSince_UsesExactTimestamp()
+    {
+        await using var db = await CreateDbContextAsync();
+        var since = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(since.AddDays(1)), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR", updatedSince: since);
+
+        Assert.Equal(since, client.CapturedFilter!.UpdatedSince);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenExplicitUpdatedSinceIsDisconnected_RetainsCheckpoint(bool hasCheckpoint)
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        if (hasCheckpoint)
+            await new CardSyncService(db, new StubSwuApiClient([]), new FixedTimeProvider(checkpoint),
+                NullLogger<CardSyncService>.Instance).UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+        var since = hasCheckpoint ? checkpoint.AddDays(1) : checkpoint;
+        var service = new CardSyncService(db, new StubSwuApiClient([]),
+            new FixedTimeProvider(checkpoint.AddDays(2)), NullLogger<CardSyncService>.Instance);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR", updatedSince: since);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(hasCheckpoint ? checkpoint : null, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Partial", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenExplicitUpdatedSinceConnectsToCheckpoint_AdvancesCheckpoint()
+    {
+        await using var db = await CreateDbContextAsync();
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient([]),
+            new FixedTimeProvider(checkpoint.AddDays(2)), NullLogger<CardSyncService>.Instance);
+        await service.UpdateLastSyncTimeAsync("swu", "SOR", checkpoint);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync(
+            "swu", "SOR", updatedSince: checkpoint.AddDays(-1));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(checkpoint.AddDays(2), await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Succeeded", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenRunTakesTime_CheckpointsRunStart()
+    {
+        await using var db = await CreateDbContextAsync();
+        var startedAt = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new CardSyncService(db, new StubSwuApiClient(
+            [CreateRecord(1, "Card", "1", "SOR-001", "SOR", "Spark of Rebellion")]),
+            new AdvancingTimeProvider(startedAt), NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(startedAt, await service.GetLastSyncTimeAsync("swu", "SOR"));
+        var log = await db.SyncLogs.SingleAsync();
+        Assert.Equal(startedAt, log.StartedAt);
+        Assert.True(log.CompletedAt > startedAt);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenProductionCheckpointExists_UsesSeparateStagingHistory()
+    {
+        await using var db = await CreateDbContextAsync();
+        var productionCheckpoint = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        db.ImportSyncHistories.Add(new ImportSyncHistory
+        {
+            ImporterKey = "swu",
+            SetCode = "SOR",
+            LastSyncedAt = productionCheckpoint
+        });
+        await db.SaveChangesAsync();
+        var client = new StubSwuApiClient([]);
+        var service = new CardSyncService(db, client, new FixedTimeProvider(productionCheckpoint.AddDays(1)),
+            NullLogger<CardSyncService>.Instance);
+
+        await service.SyncNewAndUpdatedCardsAsync("SWU", " sor ");
+
+        Assert.Null(client.CapturedFilter!.UpdatedSince);
+        Assert.Equal(productionCheckpoint,
+            (await db.ImportSyncHistories.SingleAsync(history => history.ImporterKey == "swu")).LastSyncedAt);
+        Assert.Equal(productionCheckpoint.AddDays(1), await service.GetLastSyncTimeAsync("swu", "sor"));
+        Assert.Equal(2, await db.ImportSyncHistories.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenVariantArrivesBeforeBase_ResolvesAcrossRunsAndSets(bool reprint)
+    {
+        await using var db = await CreateDbContextAsync();
+        var now = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var variant = CreateRecord(2, "Variant title", "2", "SOR-002", "SOR", "Spark of Rebellion",
+            variantOf: reprint ? null : 1, reprintOf: reprint ? 1 : null);
+        var firstService = new CardSyncService(db, new StubSwuApiClient([variant]),
+            new FixedTimeProvider(now), NullLogger<CardSyncService>.Instance);
+
+        var first = await firstService.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(0, first.Errors);
+        Assert.Single(await db.SwuCards.ToListAsync());
+        var unresolved = await db.SwuCards.SingleAsync();
+        Assert.Equal(1, unresolved.BaseStrapiId);
+        Assert.Null(unresolved.BaseCardId);
+        db.ChangeTracker.Clear();
+
+        var secondService = new CardSyncService(db, new StubSwuApiClient(
+            [
+                CreateRecord(3, "Variant title", "3", "SHD-003", "SHD", "Shadows of the Galaxy"),
+                CreateRecord(1, "Different canonical title", "1", "SHD-001", "SHD", "Shadows of the Galaxy")
+            ]), new FixedTimeProvider(now.AddDays(1)), NullLogger<CardSyncService>.Instance);
+        var second = await secondService.SyncNewAndUpdatedCardsAsync("swu", "SHD");
+        db.ChangeTracker.Clear();
+
+        Assert.Equal(0, second.Errors);
+        var cards = await db.SwuCards.ToDictionaryAsync(card => card.StrapiId);
+        Assert.Equal(cards[1].Id, cards[2].BaseCardId);
+        Assert.NotEqual(cards[3].Id, cards[2].BaseCardId);
+        Assert.Null(cards[1].BaseCardId);
+        Assert.NotEqual(cards[1].SwuSetId, cards[2].SwuSetId);
+
+        var replay = await firstService.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+        Assert.Equal(0, replay.CardsCreated);
+        Assert.Equal(0, replay.CardsUpdated);
+        Assert.Equal(0, replay.PrintingsCreated);
+        Assert.Equal(3, await db.SwuCards.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenBaseAndVariantInSameBatch_ResolvesRegardlessOfOrder(bool baseFirst)
+    {
+        await using var db = await CreateDbContextAsync();
+        var canonical = CreateRecord(1, "Base", "1", "SOR-001", "SOR", "Spark of Rebellion");
+        var variant = CreateRecord(2, "Variant", "2", "SOR-002", "SOR", "Spark of Rebellion",
+            variantOf: 1, reprintOf: 3);
+        var service = new CardSyncService(db, new StubSwuApiClient(baseFirst ? [canonical, variant] : [variant, canonical]),
+            new FixedTimeProvider(new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero)),
+            NullLogger<CardSyncService>.Instance);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(0, summary.Errors);
+        var cards = await db.SwuCards.ToDictionaryAsync(card => card.StrapiId);
+        Assert.Equal(cards[1].Id, cards[2].BaseCardId);
+        Assert.Equal(1, cards[2].BaseStrapiId);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenDifferentUpstreamIdsShareUid_DoesNotMergeCanonicalAndVariant()
+    {
+        await using var db = await CreateDbContextAsync();
+        var service = new CardSyncService(db, new StubSwuApiClient(
+            [
+                CreateRecord(2, "Same title", "same-uid", "SOR-002", "SOR", "Spark of Rebellion", variantOf: 1),
+                CreateRecord(1, "Same title", "same-uid", "SOR-001", "SOR", "Spark of Rebellion")
+            ]), new FixedTimeProvider(new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero)),
+            NullLogger<CardSyncService>.Instance);
+
+        var summary = await service.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(1, summary.Errors);
+        Assert.Empty(await db.SwuCards.ToListAsync());
+        Assert.Null(await service.GetLastSyncTimeAsync("swu", "SOR"));
+        Assert.Equal("Failed", (await db.SyncLogs.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task SyncNewAndUpdatedCardsAsync_WhenUpstreamRemovesRelationship_ClearsStaleLocalReference()
+    {
+        await using var db = await CreateDbContextAsync();
+        var now = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
+        var canonical = CreateRecord(1, "Base", "1", "SOR-001", "SOR", "Spark of Rebellion");
+        var variant = CreateRecord(2, "Variant", "2", "SOR-002", "SOR", "Spark of Rebellion", variantOf: 1);
+        var firstService = new CardSyncService(db, new StubSwuApiClient([canonical, variant]),
+            new FixedTimeProvider(now), NullLogger<CardSyncService>.Instance);
+        await firstService.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+        var secondService = new CardSyncService(db, new StubSwuApiClient(
+            [variant with { Attributes = variant.Attributes! with { VariantOf = null } }]),
+            new FixedTimeProvider(now.AddDays(1)), NullLogger<CardSyncService>.Instance);
+
+        var summary = await secondService.SyncNewAndUpdatedCardsAsync("swu", "SOR");
+
+        Assert.Equal(0, summary.Errors);
+        db.ChangeTracker.Clear();
+        var updated = await db.SwuCards.SingleAsync(card => card.StrapiId == 2);
+        Assert.Null(updated.BaseStrapiId);
+        Assert.Null(updated.BaseCardId);
     }
 
     private static async Task<AppDbContext> CreateDbContextAsync()
@@ -625,7 +949,9 @@ public sealed class CardSyncServiceTests
         string? imageUrl = null,
         string? backImageUrl = null,
         DateTimeOffset? createdAt = null,
-        DateTimeOffset? updatedAt = null) =>
+        DateTimeOffset? updatedAt = null,
+        int? variantOf = null,
+        int? reprintOf = null) =>
         new(
             id,
             new SwuCardAttributes(
@@ -653,8 +979,14 @@ public sealed class CardSyncServiceTests
                 Expansion: new StrapiRelation<SwuExpansionAttributes>(
                     new StrapiRelationData<SwuExpansionAttributes>(1, new SwuExpansionAttributes(setName, setCode))),
                 VariantTypes: null,
-                VariantOf: null,
-                ReprintOf: null,
+                VariantOf: variantOf.HasValue
+                    ? new StrapiRelation<SwuVariantRefAttributes>(
+                        new StrapiRelationData<SwuVariantRefAttributes>(variantOf.Value, null))
+                    : null,
+                ReprintOf: reprintOf.HasValue
+                    ? new StrapiRelation<SwuVariantRefAttributes>(
+                        new StrapiRelationData<SwuVariantRefAttributes>(reprintOf.Value, null))
+                    : null,
                 ArtFront: imageUrl is null
                     ? null
                     : new StrapiRelation<SwuImageAttributes>(
@@ -671,6 +1003,16 @@ public sealed class CardSyncServiceTests
     private sealed class FixedTimeProvider(DateTimeOffset fixedUtcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => fixedUtcNow;
+    }
+
+    private sealed class AdvancingTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+        {
+            var current = utcNow;
+            utcNow = utcNow.AddMinutes(1);
+            return current;
+        }
     }
 
     private sealed class StubSwuApiClient(IReadOnlyList<StrapiRecord> records) : ISWUApiClient

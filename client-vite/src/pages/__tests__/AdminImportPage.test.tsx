@@ -124,7 +124,7 @@ describe("AdminImportPage", () => {
     cleanupClient();
   });
 
-  it("applies an import and shows a toast", async () => {
+  it.each([0, 1])("applies an import and reports %i invalid records", async (invalid) => {
     const client = createClient();
     vi.spyOn(http, "get").mockImplementation((url: string) => {
       if (url === "admin/import/options") {
@@ -158,7 +158,7 @@ describe("AdminImportPage", () => {
         });
       }
       if (url === "admin/import/apply") {
-        return Promise.resolve({ data: { created: 1, updated: 0, skipped: 0, invalid: 0 } });
+        return Promise.resolve({ data: { created: 1, updated: 0, skipped: 0, invalid } });
       }
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
@@ -180,7 +180,13 @@ describe("AdminImportPage", () => {
         expect.any(Object)
       )
     );
-    expect(await screen.findByText(/Import applied/i)).toBeVisible();
+    expect(
+      await screen.findByText(
+        invalid === 0
+          ? /Import applied/i
+          : /Import incomplete — 1 invalid; synchronization checkpoint was not advanced./
+      )
+    ).toBeVisible();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
 
     cleanupClient();

@@ -71,6 +71,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         };
         var firstResponse = await client.SendAsync(first);
         firstResponse.EnsureSuccessStatusCode();
+        Assert.Null(TestImporter.RawLimit);
         var firstPayload = await firstResponse.Content.ReadFromJsonAsync<ImportApplyResponse>();
         Assert.NotNull(firstPayload);
         Assert.Equal(1, firstPayload!.Created);
@@ -245,6 +246,118 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         Assert.True(DateTimeOffset.UtcNow - history!.LastSyncedAt < TimeSpan.FromMinutes(1));
     }
 
+    [Theory]
+    [InlineData(1, false, true)]
+    [InlineData(null, true, true)]
+    [InlineData(1, false, false)]
+    [InlineData(null, true, false)]
+    public async Task Apply_Remote_WhenLimitedOrRejected_DoesNotAdvanceCheckpoint(int? limit, bool rejectRecord, bool hasCheckpoint)
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+        TestImporter.RejectRecord = rejectRecord;
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        if (hasCheckpoint)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "dummy",
+                SetCode = "SOR",
+                LastSyncedAt = checkpoint
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new { source = "dummy", set = "SOR", limit });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ImportApplyResponse>();
+        Assert.Equal(rejectRecord ? 1 : 0, payload!.Invalid);
+        Assert.Equal(limit, TestImporter.RawLimit);
+        using var verification = services.CreateScope();
+        var context = verification.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await context.ImportSyncHistories.SingleOrDefaultAsync();
+        if (hasCheckpoint)
+        {
+            Assert.Equal(checkpoint, history!.LastSyncedAt);
+        }
+        else
+        {
+            Assert.Null(history);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Apply_Remote_WhenExplicitUpdatedSinceIsDisconnected_RetainsCheckpoint(bool hasCheckpoint)
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        if (hasCheckpoint)
+        {
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "dummy",
+                SetCode = "SOR",
+                LastSyncedAt = checkpoint
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
+        {
+            source = "dummy",
+            set = "SOR",
+            updatedSince = hasCheckpoint ? checkpoint.AddDays(1) : checkpoint
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var verification = services.CreateScope();
+        var context = verification.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await context.ImportSyncHistories.SingleOrDefaultAsync();
+        if (hasCheckpoint)
+            Assert.Equal(checkpoint, history!.LastSyncedAt);
+        else
+            Assert.Null(history);
+    }
+
+    [Fact]
+    public async Task Apply_Remote_WhenExplicitUpdatedSinceConnectsToCheckpoint_AdvancesCheckpoint()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithTestImporter(factory);
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = "dummy",
+                SetCode = "SOR",
+                LastSyncedAt = checkpoint
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
+        {
+            source = "dummy",
+            set = "SOR",
+            updatedSince = checkpoint.AddDays(-1)
+        });
+
+        response.EnsureSuccessStatusCode();
+        using var verification = services.CreateScope();
+        var context = verification.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True((await context.ImportSyncHistories.SingleAsync()).LastSyncedAt > checkpoint);
+    }
+
     [Fact]
     public async Task Apply_Remote_Updates_SyncHistory_On_Repeat_Run()
     {
@@ -413,6 +526,8 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         public static int? LastLimit { get; private set; }
         public static int LastPreviewRowCount { get; private set; }
         public static DateTimeOffset? LastUpdatedSince { get; private set; }
+        public static int? RawLimit { get; private set; }
+        public static bool RejectRecord { get; set; }
 
         public string Key => "dummy";
         public string DisplayName => "Dummy Importer";
@@ -453,6 +568,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             LastLimit = options.Limit ?? ImportingOptions.DefaultPreviewLimit;
             LastUpdatedSince = options.UpdatedSince;
+            RawLimit = options.Limit;
             LastPreviewRowCount = 0;
             return await db.WithDryRunAsync(options.DryRun, async () =>
             {
@@ -484,6 +600,8 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             LastLimit = null;
             LastPreviewRowCount = 0;
             LastUpdatedSince = null;
+            RawLimit = null;
+            RejectRecord = false;
         }
 
         private static ImportSummary CreateSummary(ImportOptions options) => new()
@@ -494,7 +612,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             CardsUpdated = 0,
             PrintingsCreated = 0,
             PrintingsUpdated = 0,
-            Errors = 0,
+            Errors = RejectRecord ? 1 : 0,
             Messages = new List<string>(),
         };
     }

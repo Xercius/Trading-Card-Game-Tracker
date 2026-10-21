@@ -71,20 +71,39 @@ internal sealed class SWUApiClient : ISWUApiClient
         CancellationToken ct = default)
     {
         var all = new List<StrapiRecord>();
+        var sourceIds = new HashSet<int>();
         int page = 1;
         int pageCount = 1;
+        int? total = null;
 
         while (page <= pageCount)
         {
             var qs = BuildCardListQuery(filter, page);
             var paged = await FetchPageAsync($"card-list?{qs}", ct);
 
-            pageCount = paged.Meta?.Pagination?.PageCount ?? 1;
-            if (paged.Data is not null)
-                all.AddRange(paged.Data);
+            var pagination = paged.Meta?.Pagination;
+            if (paged.Data is null || pagination is null
+                || pagination.Page != page || pagination.PageSize <= 0
+                || pagination.PageCount < 0 || pagination.Total < 0
+                || (pagination.PageCount == 0 && (pagination.Total != 0 || paged.Data.Count != 0))
+                || (pagination.PageCount > 0 && pagination.PageCount < page)
+                || (page > 1 && pagination.PageCount != pageCount)
+                || (total is not null && pagination.Total != total)
+                || paged.Data.Count > pagination.PageSize
+                || (pagination.Total > 0 && paged.Data.Count == 0))
+                throw new InvalidOperationException("Invalid pagination response from Star Wars: Unlimited API.");
+
+            pageCount = pagination.PageCount;
+            total = pagination.Total;
+            if (paged.Data.Any(record => record is { Id: > 0 } && !sourceIds.Add(record.Id)))
+                throw new InvalidOperationException("Repeated card identity in Star Wars: Unlimited API pagination.");
+            all.AddRange(paged.Data);
 
             page++;
         }
+
+        if (all.Count != total)
+            throw new InvalidOperationException("Incomplete pagination response from Star Wars: Unlimited API.");
 
         return all;
     }
@@ -134,6 +153,7 @@ internal sealed class SWUApiClient : ISWUApiClient
         qs["pagination[pageSize]"] = PageSize.ToString();
         qs["sort[0]"] = "updatedAt:asc";
         qs["sort[1]"] = "cardNumber:asc";
+        qs["sort[2]"] = "id:asc";
 
         return qs.ToString()!;
     }
@@ -180,9 +200,13 @@ internal sealed record StrapiMeta(
     [property: JsonPropertyName("pagination")] StrapiPagination? Pagination);
 
 internal sealed record StrapiPagination(
+    [property: JsonRequired]
     [property: JsonPropertyName("page")] int Page,
+    [property: JsonRequired]
     [property: JsonPropertyName("pageSize")] int PageSize,
+    [property: JsonRequired]
     [property: JsonPropertyName("pageCount")] int PageCount,
+    [property: JsonRequired]
     [property: JsonPropertyName("total")] int Total);
 
 internal sealed record StrapiRecord(

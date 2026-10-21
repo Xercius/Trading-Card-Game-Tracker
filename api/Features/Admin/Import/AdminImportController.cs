@@ -316,7 +316,7 @@ public sealed class AdminImportController : ControllerBase
         var options = new ImportOptions(
             DryRun: false,
             Upsert: true,
-            Limit: effectiveLimit,
+            Limit: request.File is null ? request.Limit : effectiveLimit,
             UserId: null,
             SetCode: request.Set,
             UpdatedSince: request.UpdatedSince);
@@ -392,9 +392,13 @@ public sealed class AdminImportController : ControllerBase
 
         // Persist the sync timestamp so subsequent runs can use UpdatedSince for incremental imports.
         // Only record remote imports; file imports do not represent a live API sync state.
-        if (request.File is null)
+        if (request.File is null && request.Limit is null && summary.Errors == 0
+            && await HasConnectedCoverageAsync(importer.Key,
+                importer.Key == "swu" ? request.Set?.Trim().ToUpperInvariant() : request.Set,
+                request.UpdatedSince, ct))
         {
-            await RecordSyncHistoryAsync(importer.Key, request.Set, syncTimestamp, ct);
+            var setCode = importer.Key == "swu" ? request.Set?.Trim().ToUpperInvariant() : request.Set;
+            await RecordSyncHistoryAsync(importer.Key, setCode, syncTimestamp, ct);
         }
 
         LogImportSuccess(operation, request, summary, duration);
@@ -429,6 +433,24 @@ public sealed class AdminImportController : ControllerBase
         await _db.SaveChangesAsync(ct);
     }
 
+    private async Task<bool> HasConnectedCoverageAsync(
+        string importerKey,
+        string? setCode,
+        DateTimeOffset? updatedSince,
+        CancellationToken ct)
+    {
+        if (updatedSince is null)
+            return true;
+
+        var normalizedSetCode = NormalizeSetCode(setCode);
+        var checkpoint = await _db.ImportSyncHistories
+            .Where(history => history.ImporterKey == importerKey && history.SetCode == normalizedSetCode)
+            .Select(history => (DateTimeOffset?)history.LastSyncedAt)
+            .FirstOrDefaultAsync(ct);
+
+        return checkpoint is { } savedCheckpoint && updatedSince.Value <= savedCheckpoint;
+    }
+
     private static string NormalizeSetCode(string? setCode) => string.IsNullOrWhiteSpace(setCode) ? string.Empty : setCode;
 
     private void LogProblem(string operation, ObjectResult problem)
@@ -456,7 +478,8 @@ public sealed class AdminImportController : ControllerBase
         var updated = summary.CardsUpdated + summary.PrintingsUpdated;
         var total = created + updated;
 
-        _logger.LogInformation(
+        _logger.Log(
+            summary.Errors == 0 ? LogLevel.Information : LogLevel.Warning,
             "Admin import {Operation} completed for {Source} via {Mode} in {DurationMs}ms. ItemCount={ItemCount}, Created={Created}, Updated={Updated}, Errors={Errors}, Success={Success}",
             operation,
             source,
@@ -466,7 +489,7 @@ public sealed class AdminImportController : ControllerBase
             created,
             updated,
             summary.Errors,
-            true);
+            summary.Errors == 0);
     }
 
     private void LogImportFailure(string operation, ResolvedImportRequest request, long durationMs, Exception exception, string errorType)

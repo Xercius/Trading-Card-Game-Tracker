@@ -207,7 +207,8 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(
                 sp.GetRequiredService<AppDbContext>(),
-                sp.GetRequiredService<ISWUApiClient>()));
+                sp.GetRequiredService<ISWUApiClient>(),
+                sp.GetRequiredService<ILogger<SwuDbImporter>>()));
         services.AddScoped<ISourceImporter, PokemonTcgImporter>();
         services.AddScoped<ISourceImporter, FabDbImporter>();
         services.AddScoped<ISourceImporter, GuardiansLocalImporter>();

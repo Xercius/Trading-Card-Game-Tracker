@@ -15,7 +15,7 @@ namespace api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
@@ -281,6 +281,9 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("BaseCardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BaseStrapiId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("CardType")

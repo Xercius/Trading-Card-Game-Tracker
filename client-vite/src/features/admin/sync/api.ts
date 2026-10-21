@@ -42,8 +42,9 @@ export function useStarWarsUnlimitedSyncStatusQuery() {
     queryKey: adminSyncKeys.starWarsUnlimitedStatus(),
     queryFn: async () => {
       try {
-        const response =
-          await http.get<AdminSyncStatusDetails>("admin/sync/star-wars-unlimited/status");
+        const response = await http.get<AdminSyncStatusDetails>(
+          "admin/sync/star-wars-unlimited/status"
+        );
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);
@@ -58,11 +59,13 @@ export function useStarWarsUnlimitedSyncStatusQuery() {
 export function useRunStarWarsUnlimitedSyncMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<AdminSyncStatusResponse>({
-    mutationFn: async () => {
+  return useMutation<AdminSyncStatusResponse, Error, boolean | undefined>({
+    mutationFn: async (forceFullSync) => {
       try {
         const response = await http.post<AdminSyncStatusResponse>(
-          "admin/sync/star-wars-unlimited",
+          forceFullSync
+            ? "admin/sync/star-wars-unlimited?forceFullSync=true"
+            : "admin/sync/star-wars-unlimited",
           null
         );
         return response.data;

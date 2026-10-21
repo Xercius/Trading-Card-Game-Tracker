@@ -119,8 +119,11 @@ export default function AdminImportPage() {
     try {
       const result = await apply.mutateAsync(params);
       setToast({
-        type: "success",
-        message: `Import applied — ${result.created} created, ${result.updated} updated`,
+        type: result.invalid > 0 ? "error" : "success",
+        message:
+          result.invalid > 0
+            ? `Import incomplete — ${result.invalid} invalid; synchronization checkpoint was not advanced.`
+            : `Import applied — ${result.created} created, ${result.updated} updated`,
       });
       resetState();
     } catch (err) {

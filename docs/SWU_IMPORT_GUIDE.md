@@ -1,8 +1,8 @@
 # Star Wars Unlimited import guide
 
-This guide explains the repository's current Star Wars Unlimited (SWU) import implementation and the roadmap direction that developers should treat as authoritative when the two differ.
+This guide describes the current Star Wars Unlimited (SWU) import paths and their operational guarantees. The implementation, not older roadmap wording, determines what is available today.
 
-If this file conflicts with open SWU roadmap issues, prefer the issues:
+Historical roadmap context:
 
 - #541 — add dedicated `SWUSet`, `SWUCard`, `SWUCardPrinting`, and `SyncLog` models
 - #542 — add DbContext configuration for those SWU entities
@@ -16,10 +16,12 @@ Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/
 ## Who
 
 - **Admin users** run SWU imports through `/api/admin/import/*`.
-- **`AdminImportController`** parses requests, resolves the importer, runs dry-run/apply flows, and records remote sync timestamps.
+- **`AdminImportController`** runs dry-run/apply flows and records checkpoints only for unlimited, error-free remote apply runs.
+- **`AdminSyncController`** runs incremental imports for known SWU sets, records results, and supports full reconciliation.
 - **`SwuDbImporter`** is the current SWU importer implementation.
 - **`ImporterRegistry`** exposes `swu` as a normal source alongside the other games.
-- **Future owners of SWU-specific behavior** are expected to move logic into the roadmap items above, especially a dedicated `SWUApiClient` and SWU-specific data model.
+- **`SWUApiClient`** already handles fetching, pagination, filtering, and rate-limit retries for both persistence paths.
+- **`CardSyncService`** maintains the separate dedicated SWU tables. It is not the persistence path used by the admin sync button.
 
 ## What
 
@@ -42,18 +44,17 @@ The importer writes into the shared tables instead of SWU-specific tables:
 - SWU-only metadata is serialized into `Card.DetailsJson` and `CardPrinting.DetailsJson`
 - successful remote apply runs store last-sync state in `ImportSyncHistory`
 
-### Planned implementation
+### Dedicated persistence and compatibility
 
-The roadmap says SWU should eventually stop being "just another generic importer" and grow into a dedicated import stack:
+Dedicated `SwuSet`, `SwuCard`, `SwuCardPrinting`, and `SyncLog` entities, migrations, DbContext configuration, `SWUApiClient`, and `CardSyncService` already exist.
 
-- SWU-specific EF models (`SWUSet`, `SWUCard`, `SWUCardPrinting`, `SyncLog`) — #541
-- explicit DbContext configuration for those entities — #542
-- a dedicated `SWUApiClient` that owns auth, rate limiting, pagination, and error handling — #544
-- explicit insert/update persistence for cards, sets, and printings — #546
-- real sync validation against the live API, including timestamp tracking — #553
-- final limitations/gotchas documentation once the design settles — #557
+The shared `Card`/`CardPrinting` tables remain authoritative for the application's card browsing, collections, decks, and wishlists. Those features reference shared printing IDs; pointing the admin button at dedicated tables would not update the cards they use.
 
-Treat the current importer as an interim implementation that already proves field mapping and delta-query behavior.
+Treat dedicated SWU persistence as a separate integration path until an explicit, ownership-preserving bridge or migration is designed. Do not delete/recreate shared printings to switch storage paths.
+
+Dedicated synchronization stores its checkpoint under `swu-dedicated`, separate from the admin/shared importer's `swu` history. Existing ambiguous `swu` history is not trusted for dedicated-table coverage, so the first dedicated run after this change performs a full sync. Automatic dedicated deltas overlap by five minutes; an explicit lower bound is used as supplied.
+
+The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upstream relationship targets in nullable `SwuCard.BaseStrapiId`. Apply migrations through the normal deployment workflow. No existing ownership tables or applied migrations are rewritten.
 
 ## When
 
@@ -61,8 +62,9 @@ Treat the current importer as an interim implementation that already proves fiel
 - Use **apply** only after the preview looks correct.
 - Use **remote import** when syncing directly from the official SWU API.
 - Use **file import** when replaying captured Strapi payloads or building deterministic tests.
-- Pass **`UpdatedSince`** for incremental remote imports after a previous successful apply run.
-- Record sync timestamps **only for remote apply runs**. File imports do not represent live API sync state.
+- **Run sync** automatically uses the saved shared checkpoint minus one minute; no manual date is required. A set without history receives a full import.
+- **Full reconciliation** ignores checkpoints and imports every record in each known set. Use it periodically, after suspected upstream changes, and once when upgrading from older releases whose checkpoints could advance after limited or partially failed imports.
+- Record checkpoints **only for complete, error-free remote apply runs**. File imports, dry-runs, limited runs, and failed runs cannot establish full-set coverage.
 - Re-run `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/scripts/test-swu-api-connectivity.sh` whenever the SWU API changes or starts failing unexpectedly.
 
 ## Where
@@ -79,9 +81,9 @@ Treat the current importer as an interim implementation that already proves fiel
 ## Why
 
 - The upstream SWU API is an internal Strapi endpoint and may change without notice.
-- The current generic importer let the project ship SWU support quickly without introducing new SWU-only tables.
+- The shared importer keeps existing collection, deck, wishlist, and pricing references intact.
 - Timestamps (`createdAt`, `updatedAt`, `publishedAt`) make incremental sync possible, so the repository already tracks per-importer/per-set sync times.
-- The roadmap still wants a more explicit SWU architecture because generic `Card`/`CardPrinting` storage and `DetailsJson` are not the final design.
+- Separate storage paths must not share synchronization checkpoints: fetching into dedicated tables does not update shared inventory.
 
 ## How
 
@@ -96,7 +98,8 @@ Treat the current importer as an interim implementation that already proves fiel
    - dry-run/apply mode
 4. If a file is present, the controller routes to `ImportFromFileAsync`.
 5. Otherwise it routes to `ImportFromRemoteAsync`.
-6. Remote apply runs record `ImportSyncHistory(ImporterKey, SetCode, LastSyncedAt)` after success.
+6. Unlimited, error-free remote apply runs record `ImportSyncHistory(ImporterKey, SetCode, LastSyncedAt)` after commit. Remote apply without an explicit limit is not capped to the preview limit.
+7. The sync panel calls `POST /api/admin/sync/star-wars-unlimited`; `?forceFullSync=true` requests reconciliation. Existing routes and response fields are retained. A partially failed run returns `status: "Failed"` even when some sets succeeded; only successful sets advance their checkpoints.
 
 ### 2. Remote import behavior
 
@@ -111,7 +114,9 @@ Current `SwuDbImporter.ImportFromRemoteAsync`:
 - sorts by:
   - `updatedAt:asc`
   - `cardNumber:asc`
+  - `id:asc` as a unique tie-breaker
 - adds `filters[updatedAt][$gt]=<ISO-8601 UTC>` when `UpdatedSince` is supplied
+- rejects malformed, truncated, or inconsistent pagination and repeated upstream IDs instead of treating an incomplete response as a successful sync
 
 ### 3. File import behavior
 
@@ -126,7 +131,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 
 | SWU field | Current repository behavior |
 |---|---|
-| `title` + `subtitle` | Card identity is the combined display name. Subtitle is appended with `—` when present so same-title/different-subtitle cards do not collide. |
+| `title` + `subtitle` | Combined display name; upstream printing identity takes precedence when updating an existing card, so renaming does not replace its owned printing. |
 | `type.data.attributes.name` | Stored as `Card.CardType`. |
 | `text` | Stored as `Card.Description`. |
 | `expansion.data.attributes.code` | Stored as uppercase `CardPrinting.Set`; falls back to `UNK` when missing. |
@@ -135,7 +140,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | `rarity` | Stored as `CardPrinting.Rarity`; falls back to `Unknown`. |
 | `variantTypes[*].foil` | Any `true` value marks the printing style as `Foil`; otherwise `Standard`. |
 | `artFront` / `artBack` | Image preference order is art front original URL, card format URL, thumbnail URL, then art back URL. |
-| `variantOf` | Used to populate `BaseCardId` when the base card is already known. |
+| `variantOf` | Deferred relationship resolution uses upstream identifiers rather than titles, preventing subtitle mismatches and import-order dependence. Self-links are excluded; unresolved metadata is retained for subsequent imports. |
 | `createdAt` / `updatedAt` | Preserved in `CardPrinting.DetailsJson` for sync/debugging. |
 | traits / keywords / aspects / arena / cost / power / health / artist / cardUid / reprint data | Preserved in `DetailsJson`. |
 
@@ -143,10 +148,14 @@ This is the preferred path for unit tests because it avoids live API dependencie
 
 - **English only:** non-`en` records are skipped intentionally.
 - **Set list gap:** the importer requires a set code for remote imports, but SWU does not currently have static set options defined in `AdminImportController`; callers must already know the code.
-- **Roadmap mismatch:** open issues plan dedicated SWU entities and a dedicated API client, but the live code still stores SWU data in generic tables plus JSON blobs.
-- **Sync tracking mismatch:** the roadmap mentions `SyncLog`, while the live code currently uses `ImportSyncHistory`.
-- **Base card linking is opportunistic:** `BaseCardId` is only set when the referenced base card has already been imported.
+- **Two persistence paths:** dedicated SWU tables exist, but the admin import/sync workflows update shared tables for compatibility.
+- **Two tracking purposes:** `SyncLog` audits sync attempts; `ImportSyncHistory` stores reusable coverage checkpoints. A completed attempt is not necessarily a successful synchronization.
+- **Artwork:** image URLs are stored; image files are not downloaded.
+- **Pagination:** pages are fetched before shared database writes begin. A later-page exception cannot advance the checkpoint. Upstream page-number pagination is not a snapshot; overlap and periodic reconciliation remain necessary.
 - **Remote sync state is per importer + set:** each SWU set can have its own `LastSyncedAt`.
+- **Checkpoint timing:** save the run-start time only after all pages and applicable records succeed. A failed checkpoint write causes safe re-fetching, not skipped records. Per-row API timestamps are metadata, not proof of complete set coverage.
+- **Dedicated transaction:** SWU rows, their checkpoint, and the completed audit log commit together. Limited dedicated runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage.
+- **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole set. It is not a guaranteed immutable snapshot of a changing upstream API.
 
 ### 6. API and script examples
 
@@ -185,8 +194,14 @@ Optional auth can be supplied with `SWU_API_IDENTIFIER` + `SWU_API_PASSWORD` or 
 When working on SWU imports:
 
 1. Read this file and `docs/SWUAPI_DOCUMENTATION.txt`.
-2. Check the open SWU roadmap issues before assuming the current code is the target design.
+2. Check which persistence path the caller uses before modifying identity or synchronization.
 3. Use dry-run before apply.
 4. Preserve incremental sync behavior based on `updatedAt`.
 5. Keep `api.Tests/Importing/SwuDbImporterTests.cs` in sync with mapping or query changes.
-6. If you move toward the roadmap design, document whether `ImportSyncHistory` remains temporary or is replaced by the planned `SyncLog`.
+6. Keep checkpoints isolated between shared and dedicated persistence; do not use a dedicated-table sync to advance shared inventory coverage.
+
+## Validation
+
+Use the existing SQLite importer/sync-service tests and admin endpoint tests for repeat imports in fresh contexts, duplicate records, renames with ownership/deck references, relationship ordering, rejected records, limits, and failed later pages. Client sync-panel tests cover incremental/full requests and partial-failure feedback.
+
+A read-only, anonymous one-card connectivity check was attempted on 2026-10-20 using the existing script, but this environment could not resolve `admin.starwarsunlimited.com`. Live upstream compatibility remains unverified here. Re-run the script locally, then preview/apply a small captured response in a disposable database before reconciling a real collection.
