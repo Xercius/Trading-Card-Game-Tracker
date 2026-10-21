@@ -57,6 +57,7 @@ describe("AdminSyncPanel", () => {
 
     const { cleanupClient, unmount } = renderPanel();
 
+    expect(screen.getByRole("status")).toHaveTextContent("Loading sync status…");
     expect(await screen.findByRole("heading", { name: "Star Wars Unlimited sync" })).toBeVisible();
     expect(screen.getByText("Idle")).toBeVisible();
     expect(screen.getByText(/SHD ·/)).toBeVisible();
@@ -122,6 +123,41 @@ describe("AdminSyncPanel", () => {
     cleanupClient();
   });
 
+  it("shows an in-progress status while a sync is running", async () => {
+    vi.spyOn(http, "get").mockResolvedValue({
+      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
+    });
+    const result = {
+      status: "Succeeded",
+      invalid: 0,
+      setCount: 1,
+      created: 0,
+      updated: 0,
+    };
+    let finishSync: () => void = () => {};
+    const pendingSync = new Promise<void>((resolve) => {
+      finishSync = resolve;
+    });
+    const postMock = vi.spyOn(http, "post").mockImplementation(async () => {
+      await pendingSync;
+      return { data: result };
+    });
+    const { cleanupClient, unmount } = renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Sync is running…");
+    expect(screen.getByText("Running")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Running sync…" })).toBeDisabled();
+    expect(postMock).toHaveBeenCalled();
+
+    finishSync();
+    expect(await screen.findByText(/Sync completed —/)).toBeVisible();
+
+    unmount();
+    cleanupClient();
+  });
+
   it("reports partial failure without displaying success", async () => {
     vi.spyOn(http, "get").mockResolvedValue({
       data: { status: "Idle", history: [], historyCount: 0, messages: [] },
@@ -135,6 +171,21 @@ describe("AdminSyncPanel", () => {
 
     expect(await screen.findByText(/Sync incomplete — 1 invalid/)).toBeVisible();
     expect(screen.queryByText(/Sync completed —/)).not.toBeInTheDocument();
+    unmount();
+    cleanupClient();
+  });
+
+  it("shows an error alert when the sync request fails", async () => {
+    vi.spyOn(http, "get").mockResolvedValue({
+      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
+    });
+    vi.spyOn(http, "post").mockRejectedValue(new Error("sync failed"));
+    const { cleanupClient, unmount } = renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("sync failed");
+
     unmount();
     cleanupClient();
   });

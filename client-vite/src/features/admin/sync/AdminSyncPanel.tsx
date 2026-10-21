@@ -31,7 +31,8 @@ export default function AdminSyncPanel() {
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
 
   const latestHistory = useMemo(() => statusQuery.data?.history[0] ?? null, [statusQuery.data]);
-  const isRunning = statusQuery.data?.status === "Running";
+  const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
+  const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
 
   const handleRunSync = async (forceFullSync = false) => {
     setFeedback(null);
@@ -54,7 +55,11 @@ export default function AdminSyncPanel() {
   };
 
   if (statusQuery.isLoading) {
-    return <section className="rounded border p-4">Loading sync status…</section>;
+    return (
+      <section className="rounded border p-4" role="status" aria-live="polite">
+        Loading sync status…
+      </section>
+    );
   }
 
   if (statusQuery.isError || !statusQuery.data) {
@@ -85,8 +90,14 @@ export default function AdminSyncPanel() {
             Sync changes since the last successful run, or reconcile all cards with a full sync.
           </p>
         </div>
-        <Badge variant={isRunning ? "default" : "secondary"}>{statusQuery.data.status}</Badge>
+        <Badge variant={isRunning ? "default" : "secondary"}>{syncStatus}</Badge>
       </div>
+
+      {runSync.isPending && (
+        <div className="rounded border px-3 py-2 text-sm" role="status" aria-live="polite">
+          {runSync.variables ? "Full reconciliation is running…" : "Sync is running…"}
+        </div>
+      )}
 
       <dl className="grid gap-4 md:grid-cols-3">
         <div className="space-y-1">
@@ -128,6 +139,8 @@ export default function AdminSyncPanel() {
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
               : "border-destructive/40 bg-destructive/10 text-destructive"
           }`}
+          role={feedback.tone === "success" ? "status" : "alert"}
+          aria-live={feedback.tone === "success" ? "polite" : "assertive"}
         >
           {feedback.message}
         </div>
