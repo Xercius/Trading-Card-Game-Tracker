@@ -54,7 +54,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
             await _connection.OpenAsync();
             _isInitialized = true;
         }
-        
+
         // Seed the database after the service provider is fully configured
         _ = Server; // ensure host is built
         using var scope = Services.CreateScope();

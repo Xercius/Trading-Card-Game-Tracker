@@ -175,7 +175,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(uppercase);
         Assert.NotNull(mixedcase);
         Assert.NotEmpty(lowercase);
-        
+
         // All case variations should return the same results
         Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
         Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
@@ -194,7 +194,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(uppercase);
         Assert.NotNull(mixedcase);
         Assert.NotEmpty(lowercase);
-        
+
         // All case variations should return the same results
         Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
         Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
@@ -213,7 +213,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(uppercase);
         Assert.NotNull(mixedcase);
         Assert.NotEmpty(lowercase);
-        
+
         // All case variations should return the same results
         Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
         Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
