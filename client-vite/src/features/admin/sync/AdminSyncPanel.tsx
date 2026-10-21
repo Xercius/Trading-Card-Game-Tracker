@@ -33,6 +33,11 @@ export default function AdminSyncPanel() {
   const latestHistory = useMemo(() => statusQuery.data?.history[0] ?? null, [statusQuery.data]);
   const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
   const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
+  const progressMessage = isRunning
+    ? runSync.isPending && runSync.variables
+      ? "Full reconciliation is running…"
+      : "Sync is running…"
+    : "";
 
   const handleRunSync = async (forceFullSync = false) => {
     setFeedback(null);
@@ -93,11 +98,14 @@ export default function AdminSyncPanel() {
         <Badge variant={isRunning ? "default" : "secondary"}>{syncStatus}</Badge>
       </div>
 
-      {runSync.isPending && (
-        <div className="rounded border px-3 py-2 text-sm" role="status" aria-live="polite">
-          {runSync.variables ? "Full reconciliation is running…" : "Sync is running…"}
-        </div>
-      )}
+      <div
+        className={progressMessage ? "rounded border px-3 py-2 text-sm" : "sr-only"}
+        role="status"
+        aria-label="Sync progress"
+        aria-live="polite"
+      >
+        {progressMessage}
+      </div>
 
       <dl className="grid gap-4 md:grid-cols-3">
         <div className="space-y-1">
@@ -132,19 +140,30 @@ export default function AdminSyncPanel() {
         </ul>
       )}
 
-      {feedback && (
-        <div
-          className={`rounded border px-3 py-2 text-sm ${
-            feedback.tone === "success"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
-              : "border-destructive/40 bg-destructive/10 text-destructive"
-          }`}
-          role={feedback.tone === "success" ? "status" : "alert"}
-          aria-live={feedback.tone === "success" ? "polite" : "assertive"}
-        >
-          {feedback.message}
-        </div>
-      )}
+      <div
+        className={
+          feedback?.tone === "success"
+            ? "rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700"
+            : "sr-only"
+        }
+        role="status"
+        aria-label="Sync outcome"
+        aria-live="polite"
+      >
+        {feedback?.tone === "success" ? feedback.message : ""}
+      </div>
+      <div
+        className={
+          feedback?.tone === "error"
+            ? "rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            : "sr-only"
+        }
+        role="alert"
+        aria-label="Sync error"
+        aria-live="assertive"
+      >
+        {feedback?.tone === "error" ? feedback.message : ""}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button

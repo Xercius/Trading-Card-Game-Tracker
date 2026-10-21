@@ -146,13 +146,35 @@ describe("AdminSyncPanel", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Sync is running…");
+    expect(await screen.findByRole("status", { name: "Sync progress" })).toHaveTextContent(
+      "Sync is running…"
+    );
     expect(screen.getByText("Running")).toBeVisible();
     expect(screen.getByRole("button", { name: "Running sync…" })).toBeDisabled();
+    expect(screen.getByRole("status", { name: "Sync outcome" })).toBeEmptyDOMElement();
     expect(postMock).toHaveBeenCalled();
 
     finishSync();
-    expect(await screen.findByText(/Sync completed —/)).toBeVisible();
+    expect(await screen.findByRole("status", { name: "Sync outcome" })).toHaveTextContent(
+      /Sync completed —/
+    );
+    expect(screen.getByRole("status", { name: "Sync progress" })).toBeEmptyDOMElement();
+
+    unmount();
+    cleanupClient();
+  });
+
+  it("shows progress when the status endpoint reports a running sync", async () => {
+    vi.spyOn(http, "get").mockResolvedValue({
+      data: { status: "Running", history: [], historyCount: 0, messages: [] },
+    });
+    const { cleanupClient, unmount } = renderPanel();
+
+    expect(await screen.findByRole("status", { name: "Sync progress" })).toHaveTextContent(
+      "Sync is running…"
+    );
+    expect(screen.getByText("Running")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Run sync" })).toBeDisabled();
 
     unmount();
     cleanupClient();
@@ -184,7 +206,9 @@ describe("AdminSyncPanel", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("sync failed");
+    expect(await screen.findByRole("alert", { name: "Sync error" })).toHaveTextContent(
+      "sync failed"
+    );
 
     unmount();
     cleanupClient();
