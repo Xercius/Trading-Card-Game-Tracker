@@ -235,9 +235,11 @@ internal static class ServiceCollectionExtensions
     }
 
     public static void AddAppServices(
-        this IServiceCollection services)
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
-        services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=app.db"));
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseSqlite(configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db"));
         services.AddHttpClient();
         services.AddSingleton(TimeProvider.System);
 

@@ -88,6 +88,74 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 
 ## How
 
+### Disposable database for local live-sync testing
+
+The API and EF migration tooling read `ConnectionStrings:DefaultConnection` from
+the normal ASP.NET Core configuration providers (JSON settings, user secrets,
+environment variables, or command-line arguments). With no override, both retain
+`Data Source=app.db`. Relative SQLite paths are relative to the process working
+directory, not the settings file; use an absolute path for disposable testing.
+
+Stop any normally running API first so the UI cannot accidentally sync against
+it. From the repository root, in a dedicated Bash terminal, start a subshell with
+a fresh temporary directory:
+
+```bash
+(
+  cd api || exit
+  disposable_dir="$(mktemp -d)"
+  export ConnectionStrings__DefaultConnection="Data Source=$disposable_dir/swu-live.db"
+  printf 'Disposable database: %s/swu-live.db\n' "$disposable_dir"
+  printf 'Connection override: %s\n' "$ConnectionStrings__DefaultConnection"
+
+  dotnet run --project "$PWD/api.csproj" --launch-profile "TradingCardApi (HTTPS)"
+)
+```
+
+Keep this terminal open during testing. Normal startup creates the selected file,
+applies all pending EF migrations, and runs the existing seed routine before
+serving requests. Do **not** use the `Testing` environment for this live workflow:
+it skips startup migrations and seeding. The normal database and its
+`ImportSyncHistory` checkpoints are not copied, reset, or modified. A fresh
+database has no sync checkpoints, so its first live sync requests the full catalog.
+
+If the EF CLI is installed, you can inspect the selected connection and initialize
+the schema explicitly **inside the subshell, after exporting the override and
+before starting the API**:
+
+```bash
+dotnet ef dbcontext info --project "$PWD/api.csproj"
+dotnet ef database update --project "$PWD/api.csproj"
+```
+
+Confirm that `Data source` in `dbcontext info` is the printed absolute disposable
+path before applying migrations or syncing. EF tooling uses the same configuration
+as the API; startup also applies any remaining migrations. With the SQLite CLI,
+you can verify the created file and migration history in another terminal
+(substitute the printed path):
+
+```bash
+sqlite3 -readonly /tmp/your-disposable-directory/swu-live.db \
+  'PRAGMA database_list; SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId;'
+```
+
+For browser sync, provision an administrator using the [admin authentication
+instructions](../ADMIN.md#sync-authentication) before starting the server, in the
+same subshell with the override still exported. Alternatively, provide
+`Authentication__AdminApiToken` only through the server environment for trusted
+script clients. Never commit admin tokens or passwords to settings files or
+browser configuration. Verify the disposable connection first, then dry-run
+before applying imports or using **Run sync**.
+
+To restore normal operation, stop the test API with Ctrl+C and let the subshell
+exit. Its exported override then disappears automatically; restart the API from
+your usual working directory/terminal with your original configuration. If you
+set the override outside a subshell, run `unset ConnectionStrings__DefaultConnection`;
+also remove any disposable override you added to JSON, user secrets, or launch
+arguments. With no override, the original working-directory `app.db` is used again.
+Do not delete or reset that database or its checkpoints. The temporary directory
+may be retained for inspection; switching back requires no database deletion.
+
 ### 1. Request flow
 
 1. An admin calls `POST /api/admin/import/dry-run` or `POST /api/admin/import/apply`.

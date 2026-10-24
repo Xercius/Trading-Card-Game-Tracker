@@ -10,7 +10,7 @@ var filteredArgs = isSeedCommand ? args[1..] : isProvisionAdminCommand ? [] : ar
 var builder = WebApplication.CreateBuilder(filteredArgs);
 
 builder.Services.AddApiBasics(builder.Configuration);
-builder.Services.AddAppServices();
+builder.Services.AddAppServices(builder.Configuration);
 
 var app = builder.Build();
 
