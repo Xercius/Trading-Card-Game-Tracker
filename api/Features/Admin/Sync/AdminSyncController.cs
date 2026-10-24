@@ -22,6 +22,7 @@ public sealed class AdminSyncController(
 {
     private const string SwuImporterKey = "swu";
     private const string CatalogHistoryKey = "swu-catalog";
+    private const string GlobalCatalogScope = "GlobalCatalog";
     private const string SwuGameName = "Star Wars Unlimited";
     private const string SyncRouteKey = "star-wars-unlimited";
 
@@ -82,7 +83,7 @@ public sealed class AdminSyncController(
             .Select(h => (DateTimeOffset?)h.LastSyncedAt)
             .SingleOrDefaultAsync(ct);
         var lastOutcome = (await db.SyncLogs.AsNoTracking()
-            .Where(l => l.SwuSetId == null && l.CompletedAt != null)
+            .Where(l => l.CatalogScope == GlobalCatalogScope && l.CompletedAt != null)
             .Select(l => new { l.StartedAt, l.Status })
             .ToListAsync(ct))
             .OrderByDescending(l => l.StartedAt)
@@ -212,6 +213,7 @@ public sealed class AdminSyncController(
         var syncLog = new SyncLog
         {
             StartedAt = startedAt,
+            CatalogScope = GlobalCatalogScope,
             IsIncremental = updatedSince.HasValue,
             UpdatedSince = updatedSince,
             Status = "Pending"

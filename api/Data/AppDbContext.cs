@@ -277,6 +277,7 @@ namespace api.Data
                 e.HasKey(l => l.Id);
 
                 e.Property(l => l.Status).IsRequired().HasMaxLength(16);
+                e.Property(l => l.CatalogScope).HasMaxLength(32);
 
                 // fast lookup by set + time
                 e.HasIndex(l => new { l.SwuSetId, l.StartedAt });

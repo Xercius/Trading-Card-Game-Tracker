@@ -21,6 +21,12 @@ public sealed class SyncLog
     public int? SwuSetId { get; set; }
 
     /// <summary>
+    /// Catalog scope for the operation. Null for historical or unclassified syncs.
+    /// </summary>
+    [MaxLength(32)]
+    public string? CatalogScope { get; set; }
+
+    /// <summary>
     /// Navigation property to the synced expansion set.
     /// </summary>
     public SwuSet? SwuSet { get; set; }

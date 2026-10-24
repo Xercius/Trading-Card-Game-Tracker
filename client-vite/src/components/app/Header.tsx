@@ -27,6 +27,7 @@ const NAV_LINKS: NavLinkItem[] = [
   { to: paths.wishlist, label: "Wishlist" },
   { to: paths.decks, label: "Decks" },
   { to: paths.value, label: "Value" },
+  { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.users, label: "Users", requiresAdmin: true },
   { to: paths.adminImport, label: "Admin · Import", requiresAdmin: true },
 ];

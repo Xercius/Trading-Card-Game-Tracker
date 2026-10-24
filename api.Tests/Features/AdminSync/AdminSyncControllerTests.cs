@@ -55,6 +55,38 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task GetStarWarsUnlimitedStatus_IgnoresUnclassifiedLegacyOutcomes()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithSyncImporter(factory);
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.SyncLogs.AddRange(
+                new SyncLog
+                {
+                    StartedAt = new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero),
+                    CompletedAt = new DateTimeOffset(2026, 7, 21, 12, 1, 0, TimeSpan.Zero),
+                    Status = "Succeeded"
+                },
+                new SyncLog
+                {
+                    CatalogScope = "GlobalCatalog",
+                    StartedAt = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero),
+                    CompletedAt = new DateTimeOffset(2026, 7, 20, 12, 1, 0, TimeSpan.Zero),
+                    Status = "Failed"
+                });
+            await db.SaveChangesAsync();
+        }
+
+        client.AsAdmin();
+        var response = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>(
+            "/api/admin/sync/star-wars-unlimited/status");
+
+        Assert.Equal("Failed", response!.LastOutcome);
+    }
+
+    [Fact]
     public async Task GetStarWarsUnlimitedStatus_WhenSyncRunning_ReturnsRunningStatus()
     {
         await factory.ResetDatabaseAsync();
@@ -121,6 +153,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal("GlobalCatalog", (await db.SyncLogs.SingleAsync()).CatalogScope);
         var syncHistory = await db.ImportSyncHistories
             .Where(h => h.ImporterKey == "swu")
             .OrderBy(h => h.SetCode)

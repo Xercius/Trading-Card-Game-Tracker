@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "react-router-dom";
 import http, { setHttpAccessToken } from "@/lib/http";
 import { mapUser } from "@/lib/mapUser";
+import { paths } from "@/routes/paths";
 import type { AdminUserApi, ApiUser, UserLite } from "@/types/user";
 import { UserContext } from "./UserContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 type LoginResponse = {
   accessToken: string;
@@ -14,6 +22,7 @@ type LoginResponse = {
 };
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
   const qc = useQueryClient();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userId, setUserIdState] = useState<number | null>(null);
@@ -159,7 +168,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     [userId, users, selectUser, refreshUsers]
   );
 
-  const isLoginModalOpen = !accessToken;
+  const isLoginModalOpen = !accessToken && location.pathname !== `/${paths.adminSync}`;
 
   // Disable body scroll when login modal is open
   useEffect(() => {
@@ -190,7 +199,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
               </DialogDescription>
             </DialogHeader>
             {loginError ? (
-              <div className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+              <div
+                className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+                role="alert"
+              >
                 {loginError}
               </div>
             ) : null}
@@ -229,6 +241,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 {loginLoading ? "Signing in…" : "Sign in"}
               </button>
             </form>
+            <Link className="block text-center text-sm underline" to={`/${paths.adminSync}`}>
+              Sign in to admin sync
+            </Link>
             {import.meta.env.DEV ? (
               <div className="text-xs text-muted-foreground text-center">
                 Use seeded credentials as documented in your environment setup.
