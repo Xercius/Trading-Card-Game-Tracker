@@ -17,7 +17,7 @@ Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/
 
 - **Admin users** run SWU imports through `/api/admin/import/*`.
 - **`AdminImportController`** runs dry-run/apply flows and records checkpoints only for unlimited, error-free remote apply runs.
-- **`AdminSyncController`** bootstraps an empty catalog, runs incremental imports for known SWU sets, records results, and supports full reconciliation.
+- **`AdminSyncController`** bootstraps the full catalog, runs global incremental imports across all expansions, records results, and supports full reconciliation.
 - **`SwuDbImporter`** is the current SWU importer implementation.
 - **`ImporterRegistry`** exposes `swu` as a normal source alongside the other games.
 - **`SWUApiClient`** already handles fetching, pagination, filtering, and rate-limit retries for both persistence paths.
@@ -41,6 +41,7 @@ The importer writes into the shared tables instead of SWU-specific tables:
 
 - logical card data goes into `Card`
 - printing data goes into `CardPrinting`
+- expansion codes and names are upserted into `SwuSet`
 - SWU-only metadata is serialized into `Card.DetailsJson` and `CardPrinting.DetailsJson`
 - successful remote apply runs store last-sync state in `ImportSyncHistory`
 
@@ -62,7 +63,7 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 - Use **apply** only after the preview looks correct.
 - Use **remote import** when syncing directly from the official SWU API.
 - Use **file import** when replaying captured Strapi payloads or building deterministic tests.
-- **Run sync** fetches the unfiltered catalog when no local SWU sets/shared printings or no saved shared coverage exists. Otherwise it uses each set's saved shared checkpoint minus one minute; no manual date is required. A set without history receives a full import.
+- **Run sync** fetches the full catalog when no global checkpoint exists. Later runs fetch all records updated after that checkpoint minus one minute, without expansion filters, so new expansions are discovered automatically.
 - **Full reconciliation** ignores checkpoints and imports the unfiltered catalog, including previously unknown expansions. Use it periodically, after suspected upstream changes, and once when upgrading from older releases whose checkpoints could advance after limited or partially failed imports.
 - Record checkpoints **only for complete, error-free remote apply runs**. File imports, dry-runs, limited runs, and failed runs cannot establish full-set coverage.
 - Re-run `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/scripts/test-swu-api-connectivity.sh` whenever the SWU API changes or starts failing unexpectedly.
@@ -99,7 +100,7 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 4. If a file is present, the controller routes to `ImportFromFileAsync`.
 5. Otherwise it routes to `ImportFromRemoteAsync`.
 6. Unlimited, error-free remote apply runs record `ImportSyncHistory(ImporterKey, SetCode, LastSyncedAt)` after commit. Remote apply without an explicit limit is not capped to the preview limit.
-7. The sync panel calls `POST /api/admin/sync/star-wars-unlimited`; an empty local set list or missing shared coverage automatically requests the full catalog, and `?forceFullSync=true` requests it regardless of local data. Existing routes and response fields are retained. Full-catalog runs omit expansion and timestamp filters, record one set-independent audit log, and advance checkpoints for discovered sets only after an error-free import. A partially failed run returns `status: "Failed"` even when some records succeeded; a failed bootstrap retries the full catalog rather than just its successfully imported sets.
+7. The sync panel calls `POST /api/admin/sync/star-wars-unlimited`. A missing global checkpoint requests the full catalog; subsequent runs use an `updatedAt` filter with a one-minute overlap. Neither run filters by expansion. `?forceFullSync=true` ignores the checkpoint. Only complete, error-free imports advance `ImportSyncHistory(ImporterKey: "swu-catalog", SetCode: "")`, atomically with the successful audit log. Existing `swu` per-set history is neither reused nor modified. Failed runs retain the prior checkpoint, even if some records were upserted; retries safely replay those records. Status reports the last successful global checkpoint and latest global outcome separately.
 
 ### 2. Remote import behavior
 
@@ -136,7 +137,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | `title` + `subtitle` | Combined display name; upstream printing identity takes precedence when updating an existing card, so renaming does not replace its owned printing. |
 | `type.data.attributes.name` | Stored as `Card.CardType`. |
 | `text` | Stored as `Card.Description`. |
-| `expansion.data.attributes.code` | Stored as uppercase `CardPrinting.Set`; falls back to `UNK` when missing. |
+| `expansion.data.attributes.code` / `name` | Stored as uppercase `CardPrinting.Set` and upserted into `SwuSet`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
 | `serialCode` | Preferred printing identity and stored as `CardPrinting.Number` when present. |
 | `cardNumber` | Used as fallback printing number; if missing, record `id` is used. |
 | `rarity` | Stored as `CardPrinting.Rarity`; falls back to `Unknown`. |
@@ -154,7 +155,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 - **Two tracking purposes:** `SyncLog` audits sync attempts; `ImportSyncHistory` stores reusable coverage checkpoints. A completed attempt is not necessarily a successful synchronization.
 - **Artwork:** image URLs are stored; image files are not downloaded.
 - **Pagination:** pages are fetched before shared database writes begin. A later-page exception cannot advance the checkpoint. Upstream page-number pagination is not a snapshot; overlap and periodic reconciliation remain necessary.
-- **Remote sync state is per importer + set:** each SWU set can have its own `LastSyncedAt`.
+- **Checkpoint isolation:** the sync button uses only `swu-catalog` with an empty set code. Legacy `swu` per-set history (including zero-card runs) and `swu-dedicated` history do not establish global coverage.
 - **Checkpoint timing:** save the run-start time only after all pages and applicable records succeed. A failed checkpoint write causes safe re-fetching, not skipped records. Per-row API timestamps are metadata, not proof of complete set coverage.
 - **Dedicated transaction:** SWU rows, their checkpoint, and the completed audit log commit together. Limited dedicated runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage.
 - **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole requested feed (one set or the full catalog). It is not a guaranteed immutable snapshot of a changing upstream API.

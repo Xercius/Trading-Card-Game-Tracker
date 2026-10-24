@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getErrorMessage } from "@/lib/getErrorMessage";
 import {
+  isAdminSyncUnauthorized,
+  useAdminSyncLoginMutation,
+  useAdminSyncLogoutMutation,
   useRunStarWarsUnlimitedSyncMutation,
   useStarWarsUnlimitedSyncStatusQuery,
-  type AdminSyncStatusResponse,
 } from "./api";
 
 type SyncFeedback = {
@@ -14,23 +15,16 @@ type SyncFeedback = {
 };
 
 function formatDateTime(value: string | null) {
-  if (!value) {
-    return "Never";
-  }
-
-  return new Date(value).toLocaleString();
-}
-
-function buildSuccessMessage(result: AdminSyncStatusResponse) {
-  return `Sync completed — ${result.setCount} sets, ${result.created} created, ${result.updated} updated, ${result.invalid} invalid.`;
+  return value ? new Date(value).toLocaleString() : "Never";
 }
 
 export default function AdminSyncPanel() {
   const statusQuery = useStarWarsUnlimitedSyncStatusQuery();
   const runSync = useRunStarWarsUnlimitedSyncMutation();
+  const login = useAdminSyncLoginMutation();
+  const logout = useAdminSyncLogoutMutation();
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
 
-  const latestHistory = useMemo(() => statusQuery.data?.history[0] ?? null, [statusQuery.data]);
   const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
   const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
   const progressMessage = isRunning
@@ -48,16 +42,75 @@ export default function AdminSyncPanel() {
       setFeedback({
         tone: succeeded ? "success" : "error",
         message: succeeded
-          ? buildSuccessMessage(result)
-          : `Sync incomplete — ${result.invalid} invalid. Failed sets retain their previous checkpoints; retry the sync.`,
+          ? `Sync completed — ${result.setCount} sets, ${result.created} created, ${result.updated} updated, ${result.invalid} invalid.`
+          : `Sync incomplete — ${result.invalid} invalid. The last successful global checkpoint is unchanged; retry the sync.`,
       });
-    } catch (error) {
+    } catch {
       setFeedback({
         tone: "error",
-        message: getErrorMessage(error, "Failed to run sync."),
+        message:
+          "Failed to run sync. The last successful global checkpoint is unchanged. Sign in again if your session expired.",
       });
     }
   };
+
+  if (isAdminSyncUnauthorized(statusQuery.error) || isAdminSyncUnauthorized(runSync.error)) {
+    return (
+      <section className="space-y-3 rounded border p-4">
+        <h2 className="text-lg font-semibold">Star Wars Unlimited sync</h2>
+        <p>Sign in with an administrator account to manage sync.</p>
+        <form
+          className="space-y-3"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const data = new FormData(form);
+            try {
+              await login.mutateAsync({
+                username: String(data.get("username") ?? ""),
+                password: String(data.get("password") ?? ""),
+              });
+              form.reset();
+              runSync.reset();
+              setFeedback(null);
+            } catch {
+              form.reset();
+            }
+          }}
+        >
+          <label className="block">
+            Username
+            <input
+              className="block rounded border p-2"
+              name="username"
+              autoComplete="username"
+              required
+              maxLength={200}
+            />
+          </label>
+          <label className="block">
+            Password
+            <input
+              className="block rounded border p-2"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              maxLength={1024}
+            />
+          </label>
+          {login.isError && (
+            <p role="alert">
+              Sign-in failed. Check your administrator credentials or try again later.
+            </p>
+          )}
+          <Button type="submit" disabled={login.isPending}>
+            {login.isPending ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+      </section>
+    );
+  }
 
   if (statusQuery.isLoading) {
     return (
@@ -110,25 +163,15 @@ export default function AdminSyncPanel() {
       <dl className="grid gap-4 md:grid-cols-3">
         <div className="space-y-1">
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Last completed
+            Last successful global sync
           </dt>
           <dd className="text-sm">{formatDateTime(statusQuery.data.lastCompletedAt)}</dd>
         </div>
         <div className="space-y-1">
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Latest set
+            Last outcome
           </dt>
-          <dd className="text-sm">
-            {latestHistory
-              ? `${latestHistory.setCode} · ${formatDateTime(latestHistory.lastSyncedAt)}`
-              : "No sets synced yet"}
-          </dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Tracked sets
-          </dt>
-          <dd className="text-sm">{statusQuery.data.historyCount}</dd>
+          <dd className="text-sm">{statusQuery.data.lastOutcome ?? "Not run yet"}</dd>
         </div>
       </dl>
 
@@ -166,6 +209,15 @@ export default function AdminSyncPanel() {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => logout.mutate()}
+          disabled={logout.isPending || isRunning}
+        >
+          Sign out
+        </Button>
+        {logout.isError && <p role="alert">Sign-out failed. Try again.</p>}
         <Button
           type="button"
           onClick={() => handleRunSync()}

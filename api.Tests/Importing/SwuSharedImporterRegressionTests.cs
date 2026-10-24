@@ -376,7 +376,7 @@ public sealed class SwuSharedImporterRegressionTests
         for (int run = 0; run < 2; run++)
         {
             await using var db = database.Open();
-            Assert.Empty(await db.SwuSets.ToListAsync());
+            Assert.Equal(run == 0 ? 0 : 2, await db.SwuSets.CountAsync());
             var importer = new SwuDbImporter(db, new SWUApiClient(http), NullLogger<SwuDbImporter>.Instance);
             var summary = await importer.ImportFromRemoteAsync(new ImportOptions(DryRun: false));
 
@@ -485,7 +485,7 @@ public sealed class SwuSharedImporterRegressionTests
                 cardUid = $"uid-{id}",
                 cardNumber = id,
                 rarity = "Common",
-                expansion = new { data = new { id = 1, attributes = new { code = set } } },
+                expansion = new { data = new { id = 1, attributes = new { code = set, name = set } } },
                 variantOf = variantId is null ? null : new
                 {
                     data = new

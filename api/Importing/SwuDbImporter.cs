@@ -19,16 +19,19 @@ public sealed class SwuDbImporter : ISourceImporter
     private readonly AppDbContext _db;
     private readonly ISWUApiClient _client;
     private readonly ILogger<SwuDbImporter> _logger;
+    private readonly TimeProvider _timeProvider;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    internal SwuDbImporter(AppDbContext db, ISWUApiClient client, ILogger<SwuDbImporter> logger)
+    internal SwuDbImporter(AppDbContext db, ISWUApiClient client, ILogger<SwuDbImporter> logger,
+        TimeProvider? timeProvider = null)
     {
         _db = db;
         _client = client;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -47,7 +50,7 @@ public sealed class SwuDbImporter : ISourceImporter
         {
             var records = await _client.GetAllCardsAsync(
                 new SWUCardFilter(UpdatedSince: options.UpdatedSince), ct);
-            return await ImportRecordsAsync(records, options, summary, "across all expansions", ct);
+            return await ImportRecordsAsync(records, options, summary, "across all expansions", ct, requireExpansion: true);
         }
 
         var expansionCode = options.SetCode!.Trim().ToUpperInvariant();
@@ -103,7 +106,8 @@ public sealed class SwuDbImporter : ISourceImporter
     }
 
     private async Task<ImportSummary> ImportRecordsAsync(IReadOnlyList<StrapiRecord> records,
-        ImportOptions options, ImportSummary summary, string description, CancellationToken ct)
+        ImportOptions options, ImportSummary summary, string description, CancellationToken ct,
+        bool requireExpansion = false)
     {
         return await _db.WithDryRunAsync(options.DryRun, async () =>
         {
@@ -113,6 +117,7 @@ public sealed class SwuDbImporter : ISourceImporter
                 .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
             var cardChanges = new SwuSharedCardChanges(summary);
+            var expansions = new Dictionary<string, SwuExpansionAttributes>(StringComparer.OrdinalIgnoreCase);
             var autoDetectChangesEnabled = _db.ChangeTracker.AutoDetectChangesEnabled;
             _db.ChangeTracker.AutoDetectChangesEnabled = false;
             try
@@ -127,12 +132,15 @@ public sealed class SwuDbImporter : ISourceImporter
                     var changes = new RecordChanges();
                     try
                     {
-                        var card = Upsert(record, summary, identity, changes);
+                        var card = Upsert(record, summary, identity, changes, requireExpansion);
                         var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
                         // EF rolls back failed writes to a savepoint in the import transaction.
                         await _db.SaveChangesAsync(ct);
                         if (state == EntityState.Added) cardChanges.Created(card!);
                         if (state == EntityState.Modified) cardChanges.Updated(card!);
+                        if (card is not null && record.Attributes?.Expansion?.Data?.Attributes is { Code: not null } expansion
+                            && !string.IsNullOrWhiteSpace(expansion.Code))
+                            expansions[expansion.Code.Trim().ToUpperInvariant()] = expansion;
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -158,6 +166,7 @@ public sealed class SwuDbImporter : ISourceImporter
                         entry.Property(entity => entity.BaseCardId).IsModified = true;
                 }
 
+                await UpsertExpansionsAsync(expansions, ct);
                 await _db.SaveChangesAsync(ct);
                 summary.Messages.Add($"Processed {processed} records {description}.");
                 return summary;
@@ -167,6 +176,26 @@ public sealed class SwuDbImporter : ISourceImporter
                 _db.ChangeTracker.AutoDetectChangesEnabled = autoDetectChangesEnabled;
             }
         });
+    }
+
+    private async Task UpsertExpansionsAsync(
+        Dictionary<string, SwuExpansionAttributes> expansions, CancellationToken ct)
+    {
+        var sets = await _db.SwuSets.ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
+        foreach (var (code, expansion) in expansions)
+        {
+            if (!sets.TryGetValue(code, out var set))
+            {
+                set = new SwuSet { Code = code };
+                _db.SwuSets.Add(set);
+                sets[code] = set;
+            }
+            if (!string.IsNullOrWhiteSpace(expansion.Name))
+                set.Name = expansion.Name.Trim();
+            set.LastSyncedAt = _timeProvider.GetUtcNow();
+            if (_db.Entry(set).State != EntityState.Added)
+                _db.Entry(set).State = EntityState.Modified;
+        }
     }
 
     private void RestoreFailedRecord(RecordChanges changes)
@@ -197,7 +226,8 @@ public sealed class SwuDbImporter : ISourceImporter
         }
     }
 
-    private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity, RecordChanges changes)
+    private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity,
+        RecordChanges changes, bool requireExpansion)
     {
         const string game = "Star Wars Unlimited";
 
@@ -215,12 +245,17 @@ public sealed class SwuDbImporter : ISourceImporter
         if (record.Id <= 0 || string.IsNullOrWhiteSpace(attrs.Title))
             throw new InvalidOperationException("A positive source ID and title are required.");
 
+        var expansion = attrs.Expansion?.Data?.Attributes;
+        if (requireExpansion && (string.IsNullOrWhiteSpace(expansion?.Code) || string.IsNullOrWhiteSpace(expansion.Name))
+            || expansion?.Code?.Trim().Length > 32 || expansion?.Name?.Trim().Length > 256)
+            throw new InvalidOperationException("A valid expansion code and name are required.");
+
         string name = string.IsNullOrWhiteSpace(attrs.Subtitle)
             ? attrs.Title?.Trim() ?? "Unknown"
             : $"{attrs.Title?.Trim()} \u2014 {attrs.Subtitle.Trim()}";
         string type = attrs.Type?.Data?.Attributes?.Name ?? string.Empty;
         string? text = attrs.Text;
-        string set = attrs.Expansion?.Data?.Attributes?.Code?.ToUpperInvariant() ?? "UNK";
+        string set = expansion?.Code?.Trim().ToUpperInvariant() ?? "UNK";
         string number = attrs.CardNumber?.ToString() ?? record.Id.ToString();
         string? serialCode = string.IsNullOrWhiteSpace(attrs.SerialCode) ? null : attrs.SerialCode.Trim();
         string? cardUid = attrs.CardUid;
