@@ -858,15 +858,22 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task ImportFromRemoteAsync_ThrowsArgumentException_When_SetCode_Is_Null_Or_Whitespace(string? setCode)
+    public async Task ImportFromRemoteAsync_WithoutSetCode_UsesUnfilteredFeed(string? setCode)
     {
-        // SetCode is required for the remote import — the importer must throw before any HTTP call.
+        await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var importer = CreateImporter(db);
+        var client = new CapturingSWUApiClient();
+        var importer = CreateImporter(db, client);
 
         var options = new ImportOptions(DryRun: false, SetCode: setCode);
-        await Assert.ThrowsAsync<ArgumentException>(() => importer.ImportFromRemoteAsync(options));
+        var summary = await importer.ImportFromRemoteAsync(options);
+
+        Assert.Equal(0, summary.Errors);
+        Assert.NotNull(client.CapturedFilter);
+        Assert.Null(client.CapturedFilter.ExpansionCode);
+        Assert.Null(client.CapturedFilter.ExpansionId);
+        Assert.Null(client.CapturedFilter.UpdatedSince);
     }
 
     [Fact]

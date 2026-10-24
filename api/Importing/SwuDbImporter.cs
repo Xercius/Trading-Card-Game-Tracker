@@ -32,19 +32,23 @@ public sealed class SwuDbImporter : ISourceImporter
     }
 
     /// <summary>
-    /// Imports all English cards for a given expansion code (e.g. "SOR", "SOTG") from the
-    /// official API, paging through all results automatically.
+    /// Imports all English cards from the official API, paging through all results.
+    /// Omit SetCode for the full catalog, or supply an expansion code for a single set.
     /// </summary>
     public async Task<ImportSummary> ImportFromRemoteAsync(ImportOptions options, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(options.SetCode))
-            throw new ArgumentException("SetCode is required (expansion code, e.g. 'SOR', 'SOTG').", nameof(options));
-
         var summary = new ImportSummary
         {
             Source = Key,
             DryRun = options.DryRun,
         };
+
+        if (string.IsNullOrWhiteSpace(options.SetCode))
+        {
+            var records = await _client.GetAllCardsAsync(
+                new SWUCardFilter(UpdatedSince: options.UpdatedSince), ct);
+            return await ImportRecordsAsync(records, options, summary, "across all expansions", ct);
+        }
 
         var expansionCode = options.SetCode!.Trim().ToUpperInvariant();
         // Numeric expansion IDs are more reliable than code-based API filtering.
