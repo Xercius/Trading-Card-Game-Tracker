@@ -6,7 +6,8 @@
   <NoWarn>$(NoWarn);CS1591</NoWarn>
   <GenerateDocumentationFile>true</GenerateDocumentationFile>
   <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-</PropertyGroup>
+  <UserSecretsId>d82cd744-0399-4796-85a3-e56e3aa66d5c</UserSecretsId>
+  </PropertyGroup>
 
 
   <ItemGroup>
