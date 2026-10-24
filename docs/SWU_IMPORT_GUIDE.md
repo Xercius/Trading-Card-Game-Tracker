@@ -17,7 +17,7 @@ Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/
 
 - **Admin users** run SWU imports through `/api/admin/import/*`.
 - **`AdminImportController`** runs dry-run/apply flows and records checkpoints only for unlimited, error-free remote apply runs.
-- **`AdminSyncController`** runs incremental imports for known SWU sets, records results, and supports full reconciliation.
+- **`AdminSyncController`** bootstraps an empty catalog, runs incremental imports for known SWU sets, records results, and supports full reconciliation.
 - **`SwuDbImporter`** is the current SWU importer implementation.
 - **`ImporterRegistry`** exposes `swu` as a normal source alongside the other games.
 - **`SWUApiClient`** already handles fetching, pagination, filtering, and rate-limit retries for both persistence paths.
@@ -62,8 +62,8 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 - Use **apply** only after the preview looks correct.
 - Use **remote import** when syncing directly from the official SWU API.
 - Use **file import** when replaying captured Strapi payloads or building deterministic tests.
-- **Run sync** automatically uses the saved shared checkpoint minus one minute; no manual date is required. A set without history receives a full import.
-- **Full reconciliation** ignores checkpoints and imports every record in each known set. Use it periodically, after suspected upstream changes, and once when upgrading from older releases whose checkpoints could advance after limited or partially failed imports.
+- **Run sync** fetches the unfiltered catalog when no local SWU sets/shared printings or no saved shared coverage exists. Otherwise it uses each set's saved shared checkpoint minus one minute; no manual date is required. A set without history receives a full import.
+- **Full reconciliation** ignores checkpoints and imports the unfiltered catalog, including previously unknown expansions. Use it periodically, after suspected upstream changes, and once when upgrading from older releases whose checkpoints could advance after limited or partially failed imports.
 - Record checkpoints **only for complete, error-free remote apply runs**. File imports, dry-runs, limited runs, and failed runs cannot establish full-set coverage.
 - Re-run `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/scripts/test-swu-api-connectivity.sh` whenever the SWU API changes or starts failing unexpectedly.
 
@@ -99,16 +99,18 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 4. If a file is present, the controller routes to `ImportFromFileAsync`.
 5. Otherwise it routes to `ImportFromRemoteAsync`.
 6. Unlimited, error-free remote apply runs record `ImportSyncHistory(ImporterKey, SetCode, LastSyncedAt)` after commit. Remote apply without an explicit limit is not capped to the preview limit.
-7. The sync panel calls `POST /api/admin/sync/star-wars-unlimited`; `?forceFullSync=true` requests reconciliation. Existing routes and response fields are retained. A partially failed run returns `status: "Failed"` even when some sets succeeded; only successful sets advance their checkpoints.
+7. The sync panel calls `POST /api/admin/sync/star-wars-unlimited`; an empty local set list or missing shared coverage automatically requests the full catalog, and `?forceFullSync=true` requests it regardless of local data. Existing routes and response fields are retained. Full-catalog runs omit expansion and timestamp filters, record one set-independent audit log, and advance checkpoints for discovered sets only after an error-free import. A partially failed run returns `status: "Failed"` even when some records succeeded; a failed bootstrap retries the full catalog rather than just its successfully imported sets.
 
 ### 2. Remote import behavior
 
 Current `SwuDbImporter.ImportFromRemoteAsync`:
 
-- requires `SetCode`
-- normalizes the set code to uppercase
-- resolves the SWU expansion's numeric Strapi ID first when possible
-- falls back to `filters[expansion][code][$eq]` if ID resolution fails
+- imports the full catalog when `SetCode` is omitted or blank, without an expansion lookup or filter
+- retains single-set imports when `SetCode` is explicitly supplied:
+  - normalizes the set code to uppercase
+  - resolves the SWU expansion's numeric Strapi ID first when possible
+  - falls back to `filters[expansion][code][$eq]` if ID resolution fails
+- derives each printing's set from its record's expansion metadata, including previously unknown expansions
 - always requests `locale=en`
 - pages through `meta.pagination.pageCount`
 - sorts by:
@@ -147,7 +149,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 ### 5. Operational gotchas
 
 - **English only:** non-`en` records are skipped intentionally.
-- **Set list gap:** the importer requires a set code for remote imports, but SWU does not currently have static set options defined in `AdminImportController`; callers must already know the code.
+- **Set discovery:** no pre-populated or hard-coded set list is required for full-catalog imports. Explicit single-set imports still require the caller to supply a code.
 - **Two persistence paths:** dedicated SWU tables exist, but the admin import/sync workflows update shared tables for compatibility.
 - **Two tracking purposes:** `SyncLog` audits sync attempts; `ImportSyncHistory` stores reusable coverage checkpoints. A completed attempt is not necessarily a successful synchronization.
 - **Artwork:** image URLs are stored; image files are not downloaded.
@@ -155,7 +157,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 - **Remote sync state is per importer + set:** each SWU set can have its own `LastSyncedAt`.
 - **Checkpoint timing:** save the run-start time only after all pages and applicable records succeed. A failed checkpoint write causes safe re-fetching, not skipped records. Per-row API timestamps are metadata, not proof of complete set coverage.
 - **Dedicated transaction:** SWU rows, their checkpoint, and the completed audit log commit together. Limited dedicated runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage.
-- **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole set. It is not a guaranteed immutable snapshot of a changing upstream API.
+- **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole requested feed (one set or the full catalog). It is not a guaranteed immutable snapshot of a changing upstream API.
 
 ### 6. API and script examples
 
@@ -171,6 +173,17 @@ POST /api/admin/import/dry-run
 ```
 
 #### Apply remote import
+
+Omit `set` to import the full catalog into shared tables:
+
+```json
+POST /api/admin/import/apply
+{
+  "source": "swu"
+}
+```
+
+Supply `set` to retain the single-expansion behavior:
 
 ```json
 POST /api/admin/import/apply

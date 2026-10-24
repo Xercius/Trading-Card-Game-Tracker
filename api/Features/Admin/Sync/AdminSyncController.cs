@@ -131,21 +131,14 @@ public sealed class AdminSyncController(
             }
 
             setCodes = await ResolveSwuSetCodesAsync(ct);
-            if (setCodes.Length == 0)
-            {
-                return this.CreateValidationProblem(
-                    new Dictionary<string, string[]>
-                    {
-                        ["sets"] = ["At least one Star Wars Unlimited set must be available before a sync can run."]
-                    },
-                    title: "No Star Wars Unlimited sets available.",
-                    detail: ProblemTypes.BadRequest.DefaultDetail);
-            }
+            var needsFullCatalog = forceFullSync || setCodes.Length == 0
+                || !await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == SwuImporterKey, ct);
+            var importScopes = needsFullCatalog ? new string?[] { null } : setCodes;
 
-            foreach (var setCode in setCodes)
+            foreach (var setCode in importScopes)
             {
                 var syncTimestamp = DateTimeOffset.UtcNow;
-                var lastSyncedAt = forceFullSync ? null : await db.ImportSyncHistories
+                var lastSyncedAt = setCode is null ? null : await db.ImportSyncHistories
                     .AsNoTracking()
                     .Where(h => h.ImporterKey == SwuImporterKey && h.SetCode == setCode)
                     .Select(h => (DateTimeOffset?)h.LastSyncedAt)
@@ -165,7 +158,10 @@ public sealed class AdminSyncController(
                     MergeSummary(combined, summary);
                     if (summary.Errors == 0)
                     {
-                        await RecordSyncHistoryAsync(setCode, syncTimestamp, ct);
+                        if (setCode is null)
+                            setCodes = await ResolveSwuSetCodesAsync(ct);
+                        foreach (var coveredSet in setCode is null ? setCodes : [setCode])
+                            await RecordSyncHistoryAsync(coveredSet, syncTimestamp, ct);
                         await UpdateSyncLogSucceededAsync(syncLog, summary, ct);
                     }
                     else
@@ -182,7 +178,7 @@ public sealed class AdminSyncController(
                 {
                     logger.LogError(ex, "Admin sync failed for {Source}/{SetCode}.", SwuImporterKey, setCode);
                     combined.Errors++;
-                    combined.Messages.Add($"Set {setCode} failed. Retry the sync; its checkpoint was not advanced.");
+                    combined.Messages.Add($"{(setCode is null ? "Full catalog" : $"Set {setCode}")} failed. Retry the sync; its checkpoint was not advanced.");
                     await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
                 }
             }
@@ -217,7 +213,7 @@ public sealed class AdminSyncController(
     }
 
     private async Task<SyncLog> CreatePendingSyncLogAsync(
-        string setCode, DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
+        string? setCode, DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
     {
         var swuSetId = await db.SwuSets
             .AsNoTracking()

@@ -366,14 +366,59 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Contains(log.State, item => item.Key == "SourceId" && Equals(item.Value, 71));
     }
 
+    [Fact]
+    public async Task Import_FullCatalog_ImportsAllExpansionsAndPages_Idempotently()
+    {
+        await using var database = await Database.CreateAsync();
+        using var handler = new PageHandler("none");
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        int[] printingIds = [];
+        for (int run = 0; run < 2; run++)
+        {
+            await using var db = database.Open();
+            Assert.Empty(await db.SwuSets.ToListAsync());
+            var importer = new SwuDbImporter(db, new SWUApiClient(http), NullLogger<SwuDbImporter>.Instance);
+            var summary = await importer.ImportFromRemoteAsync(new ImportOptions(DryRun: false));
+
+            Assert.Equal(0, summary.Errors);
+            Assert.Equal(run == 0 ? 2 : 0, summary.CardsCreated);
+            Assert.Equal(run == 0 ? 2 : 0, summary.PrintingsCreated);
+            Assert.Equal(2, await db.Cards.CountAsync());
+            var printings = await db.CardPrintings.OrderBy(p => p.Id).ToArrayAsync();
+            Assert.Equal(["SOR", "NEW"], printings.Select(p => p.Set).ToArray());
+            if (run == 0)
+                printingIds = printings.Select(p => p.Id).ToArray();
+            else
+                Assert.Equal(printingIds, printings.Select(p => p.Id).ToArray());
+            Assert.Empty(await db.SwuCards.ToListAsync());
+            Assert.Empty(await db.SwuCardPrintings.ToListAsync());
+        }
+
+        Assert.Equal([1, 2, 1, 2], handler.Requests
+            .Select(uri => int.Parse(HttpUtility.ParseQueryString(uri.Query)["pagination[page]"]!)).ToArray());
+        Assert.All(handler.Requests, uri =>
+        {
+            Assert.EndsWith("/card-list", uri.AbsolutePath);
+            var query = HttpUtility.ParseQueryString(uri.Query);
+            Assert.Equal("en", query["locale"]);
+            Assert.DoesNotContain(query.AllKeys, key => key?.StartsWith("filters[", StringComparison.Ordinal) == true);
+        });
+    }
+
     [Theory]
-    [InlineData("http")]
-    [InlineData("missing-data")]
-    [InlineData("missing-pagination")]
-    [InlineData("wrong-page")]
-    [InlineData("truncated")]
-    [InlineData("duplicate")]
-    public async Task Import_FailedLaterApiPage_WritesNothing(string failure)
+    [InlineData("http", "SOR")]
+    [InlineData("missing-data", "SOR")]
+    [InlineData("missing-pagination", "SOR")]
+    [InlineData("wrong-page", "SOR")]
+    [InlineData("truncated", "SOR")]
+    [InlineData("duplicate", "SOR")]
+    [InlineData("http", null)]
+    [InlineData("missing-data", null)]
+    [InlineData("missing-pagination", null)]
+    [InlineData("wrong-page", null)]
+    [InlineData("truncated", null)]
+    [InlineData("duplicate", null)]
+    public async Task Import_FailedLaterApiPage_WritesNothing(string failure, string? setCode)
     {
         await using var database = await Database.CreateAsync();
         using var http = new HttpClient(new PageHandler(failure))
@@ -384,7 +429,7 @@ public sealed class SwuSharedImporterRegressionTests
         {
             var importer = new SwuDbImporter(db, new SWUApiClient(http), NullLogger<SwuDbImporter>.Instance);
             await Assert.ThrowsAnyAsync<Exception>(() => importer.ImportFromRemoteAsync(
-                new ImportOptions(DryRun: false, SetCode: "SOR")));
+                new ImportOptions(DryRun: false, SetCode: setCode)));
             Assert.Empty(db.ChangeTracker.Entries());
         }
         await using var verify = database.Open();
@@ -512,15 +557,23 @@ public sealed class SwuSharedImporterRegressionTests
 
     private sealed class PageHandler(string failure) : HttpMessageHandler
     {
+        internal List<Uri> Requests { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            Requests.Add(request.RequestUri!);
             var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
             var page = query["pagination[page]"];
             if (page == "2" && failure == "http")
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway));
             string json = page == "2" ? failure switch
             {
+                "none" => JsonSerializer.Serialize(new
+                {
+                    data = new[] { Record(2, "Second page", "NEW", "two") },
+                    meta = new { pagination = new { page = 2, pageSize = 1, pageCount = 2, total = 2 } }
+                }),
                 "missing-data" => """{"meta":{"pagination":{"page":2,"pageSize":1,"pageCount":2,"total":2}}}""",
                 "missing-pagination" => """{"data":[]}""",
                 "wrong-page" => """{"data":[],"meta":{"pagination":{"page":1,"pageSize":1,"pageCount":2,"total":2}}}""",

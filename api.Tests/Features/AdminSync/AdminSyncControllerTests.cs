@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
+using System.Web;
 using Xunit;
 
 namespace api.Tests.Features.AdminSync;
@@ -57,6 +58,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await factory.ResetDatabaseAsync();
         var (firstClient, services, customizedFactory) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR");
+        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
         SyncTestImporter.SetSummary("SOR", created: 1, updated: 0, invalid: 0, "SOR complete");
         SyncTestImporter.BlockNextImport();
 
@@ -96,6 +98,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await factory.ResetDatabaseAsync();
         var (client, services, _) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR", "SHD");
+        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
         SyncTestImporter.SetSummary("SOR", created: 2, updated: 1, invalid: 0, "SOR complete");
         SyncTestImporter.SetSummary("SHD", created: 1, updated: 3, invalid: 0, "SHD complete");
 
@@ -274,6 +277,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await factory.ResetDatabaseAsync();
         var (firstClient, services, customizedFactory) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR");
+        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
         SyncTestImporter.SetSummary("SOR", created: 1, updated: 0, invalid: 0, "SOR complete");
         SyncTestImporter.BlockNextImport();
 
@@ -329,6 +333,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await factory.ResetDatabaseAsync();
         var (client, services, _) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR");
+        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
         SyncTestImporter.SetSummary("SOR", created: 2, updated: 1, invalid: 0, "SOR complete");
 
         client.AsAdmin();
@@ -373,6 +378,117 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task RunStarWarsUnlimited_WithoutLocalSets_ImportsFullCatalogAndRecordsDiscoveredCoverage()
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http));
+        client.AsAdmin();
+
+        for (int run = 0; run < 2; run++)
+        {
+            var url = "/api/admin/sync/star-wars-unlimited" + (run == 0 ? "" : "?forceFullSync=true");
+            var response = await client.PostAsync(url, content: null);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+            Assert.Equal("Succeeded", payload!.Status);
+            Assert.Equal(2, payload.SetCount);
+            Assert.Equal(run == 0 ? 4 : 0, payload.Created);
+            Assert.Equal(0, payload.Invalid);
+
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(2, await db.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
+            Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
+            Assert.Equal(["NEW", "SOR"], await db.ImportSyncHistories.Where(h => h.ImporterKey == "swu")
+                .OrderBy(h => h.SetCode).Select(h => h.SetCode).ToArrayAsync());
+            Assert.Empty(await db.SwuSets.ToListAsync());
+            Assert.All(await db.SyncLogs.ToListAsync(), log =>
+            {
+                Assert.Equal("Succeeded", log.Status);
+                Assert.False(log.IsIncremental);
+                Assert.Null(log.SwuSetId);
+            });
+        }
+
+        Assert.Equal([1, 2, 1, 2], handler.Pages);
+    }
+
+    [Theory]
+    [InlineData(false, "http")]
+    [InlineData(false, "incomplete")]
+    [InlineData(false, "invalid-record")]
+    [InlineData(true, "http")]
+    [InlineData(true, "incomplete")]
+    [InlineData(true, "invalid-record")]
+    public async Task RunStarWarsUnlimited_FullCatalogFailure_DoesNotRecordCoverage(bool forceFullSync, string failure)
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler(failure);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http));
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        if (forceFullSync)
+        {
+            await SeedSwuSetAsync(services, "SOR");
+            await SeedSyncHistoryAsync(services, "SOR", checkpoint);
+        }
+
+        var response = await client.AsAdmin().PostAsync(
+            $"/api/admin/sync/star-wars-unlimited?forceFullSync={forceFullSync}", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.Equal("Failed", payload!.Status);
+        Assert.True(payload.Invalid > 0);
+        Assert.Equal([1, 2], handler.Pages);
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var history = await db.ImportSyncHistories.Where(h => h.ImporterKey == "swu").ToArrayAsync();
+        if (forceFullSync)
+            Assert.Equal(checkpoint, Assert.Single(history).LastSyncedAt);
+        else
+            Assert.Empty(history);
+        Assert.Equal("Failed", (await db.SyncLogs.SingleAsync()).Status);
+        if (failure != "invalid-record")
+            Assert.Empty(await db.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited").ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task RunStarWarsUnlimited_AfterRejectedBootstrap_RetriesFullCatalog()
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler("invalid-record");
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http));
+        client.AsAdmin();
+        var first = await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
+        Assert.Equal("Failed", (await first.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Single(await db.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync());
+            Assert.Empty(await db.ImportSyncHistories.ToListAsync());
+        }
+
+        handler.Failure = null;
+        var retry = await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        var payload = await retry.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.Equal("Succeeded", payload!.Status);
+        Assert.Equal(2, payload.SetCount);
+        Assert.Equal([1, 2, 1, 2], handler.Pages);
+        using var verifyScope = services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(["NEW", "SOR"], await verifyDb.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited")
+            .OrderBy(p => p.Set).Select(p => p.Set).ToArrayAsync());
+        Assert.Equal(2, await verifyDb.ImportSyncHistories.CountAsync());
+    }
+
+    [Fact]
     public async Task RunStarWarsUnlimited_WithFullReconciliation_IgnoresCheckpoint()
     {
         await factory.ResetDatabaseAsync();
@@ -386,6 +502,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(remoteCards.CapturedFilter);
         Assert.Null(remoteCards.CapturedFilter.UpdatedSince);
+        Assert.Null(remoteCards.CapturedFilter.ExpansionCode);
+        Assert.Null(remoteCards.CapturedFilter.ExpansionId);
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var log = await db.SyncLogs.SingleAsync();
@@ -433,7 +551,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
     private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSwuApiClient(
         CustomWebApplicationFactory factory,
-        RecordingSwuApiClient apiClient)
+        ISWUApiClient apiClient)
     {
         var customized = factory.WithWebHostBuilder(builder =>
         {
@@ -627,6 +745,35 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             Errors = summary.Errors,
             Messages = [.. summary.Messages]
         };
+    }
+
+    private sealed class FullCatalogHandler(string? failure = null) : HttpMessageHandler
+    {
+        internal List<int> Pages { get; } = [];
+        internal string? Failure { get; set; } = failure;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            Assert.DoesNotContain(query.AllKeys, key => key?.StartsWith("filters[", StringComparison.Ordinal) == true);
+            int page = int.Parse(query["pagination[page]"]!);
+            Pages.Add(page);
+            if (page == 2 && Failure == "http")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway));
+            StrapiRecord[] records = page == 2 && Failure == "incomplete" ? [] :
+            [
+                CreateRecord(page, page == 2 && Failure == "invalid-record" ? " " : $"Card {page}",
+                    $"uid-{page}", $"serial-{page}", page == 1 ? "SOR" : "NEW", $"Expansion {page}")
+            ];
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    data = records,
+                    meta = new { pagination = new { page, pageSize = 1, pageCount = 2, total = 2 } }
+                })
+            });
+        }
     }
 
     private sealed class RecordingSwuApiClient(IReadOnlyList<StrapiRecord> records, bool failFetch = false) : ISWUApiClient
