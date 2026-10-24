@@ -193,12 +193,11 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
 
         // Typed HTTP client for the Star Wars: Unlimited API.
-        services.AddHttpClient<SWUApiClient>(client =>
+        services.AddHttpClient<ISWUApiClient, SWUApiClient>(client =>
         {
             client.BaseAddress = new Uri("https://admin.starwarsunlimited.com/api/");
             client.Timeout = TimeSpan.FromMinutes(5);
         });
-        services.AddScoped<ISWUApiClient, SWUApiClient>();
         services.AddScoped<ICardSyncService, CardSyncService>();
 
         services.AddScoped<ISourceImporter, ScryfallImporter>();
