@@ -1,9 +1,11 @@
 using api.Data;
+using api.Features.Admin.Sync;
 using api.Features.Admin.Sync.Dtos;
 using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,72 @@ namespace api.Tests.Features.AdminSync;
 public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory)
     : IClassFixture<CustomWebApplicationFactory>
 {
+    public static IEnumerable<object[]> AuthenticationCases =>
+        from authentication in new[] { "anonymous", "non-admin", "invalid-token", "session", "script" }
+        from endpoint in new[] { "status", "logs", "", "?forceFullSync=true" }
+        select new object[] { authentication, endpoint };
+
+    [Theory]
+    [MemberData(nameof(AuthenticationCases))]
+    public async Task SyncEndpoints_RequireVerifiedAdministrator(string authentication, string endpoint)
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithSyncImporter(factory);
+        using var browser = client;
+        browser.BaseAddress = new Uri("https://localhost");
+
+        if (authentication is "session" or "non-admin")
+        {
+            using (var scope = services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var user = new User { Username = "sync-login", DisplayName = "Sync", IsAdmin = authentication == "session" };
+                user.PasswordHash = new PasswordHasher<User>().HashPassword(user, "test-password");
+                db.Users.Add(user);
+                await db.SaveChangesAsync();
+            }
+
+            const string sessionPath = "/api/admin/sync/session";
+            var session = await browser.GetFromJsonAsync<AdminSessionResponse>(sessionPath);
+            browser.DefaultRequestHeaders.Add("X-Admin-CSRF", session!.CsrfToken);
+            var login = await browser.PostAsJsonAsync(sessionPath,
+                new { username = "sync-login", password = "test-password" });
+            Assert.Equal(authentication == "session" ? HttpStatusCode.NoContent : HttpStatusCode.Unauthorized,
+                login.StatusCode);
+            session = await browser.GetFromJsonAsync<AdminSessionResponse>(sessionPath);
+            browser.DefaultRequestHeaders.Remove("X-Admin-CSRF");
+            browser.DefaultRequestHeaders.Add("X-Admin-CSRF", session!.CsrfToken);
+        }
+
+        if (authentication == "script")
+        {
+            browser.AsAdmin();
+        }
+        else if (authentication is "session" or "invalid-token")
+        {
+            browser.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "unrelated-client-token");
+        }
+
+        var path = "/api/admin/sync/star-wars-unlimited";
+        var response = endpoint is "status" or "logs"
+            ? await browser.GetAsync($"{path}/{endpoint}")
+            : await browser.PostAsync($"{path}{endpoint}", null);
+
+        var authorized = authentication is "session" or "script";
+        Assert.Equal(authorized ? HttpStatusCode.OK : HttpStatusCode.Unauthorized, response.StatusCode);
+        if (authorized && endpoint is not ("status" or "logs"))
+        {
+            var result = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+            Assert.Equal("Succeeded", result!.Status);
+            Assert.Single(SyncTestImporter.RequestedSetCodes);
+        }
+        else
+        {
+            Assert.Empty(SyncTestImporter.RequestedSetCodes);
+        }
+    }
+
     [Fact]
     public async Task GetStarWarsUnlimitedStatus_WhenUnauthenticated_ReturnsUnauthorized()
     {
