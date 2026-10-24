@@ -97,11 +97,12 @@ environment variables, or command-line arguments). With no override, both retain
 directory, not the settings file; use an absolute path for disposable testing.
 
 Stop any normally running API first so the UI cannot accidentally sync against
-it. In a dedicated Bash terminal, start a subshell with a fresh temporary directory:
+it. From the repository root, in a dedicated Bash terminal, start a subshell with
+a fresh temporary directory:
 
 ```bash
 (
-  cd /home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api
+  cd api || exit
   disposable_dir="$(mktemp -d)"
   export ConnectionStrings__DefaultConnection="Data Source=$disposable_dir/swu-live.db"
   printf 'Disposable database: %s/swu-live.db\n' "$disposable_dir"

@@ -12,8 +12,13 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             Args = args,
             ApplicationName = typeof(AppDbContextFactory).Assembly.GetName().Name
         });
+        return CreateDbContext(builder.Configuration);
+    }
+
+    internal static AppDbContext CreateDbContext(IConfiguration configuration)
+    {
         var opts = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db")
+            .UseSqlite(configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db")
             .Options;
         return new AppDbContext(opts);
     }

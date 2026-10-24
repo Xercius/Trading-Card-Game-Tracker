@@ -34,7 +34,8 @@ public sealed class DatabaseConfigurationTests
     [Fact]
     public void CreateDbContext_WithoutOverride_UsesExistingDefault()
     {
-        using var db = new AppDbContextFactory().CreateDbContext([]);
+        var configuration = new ConfigurationBuilder().Build();
+        using var db = AppDbContextFactory.CreateDbContext(configuration);
 
         Assert.Equal("Data Source=app.db", db.Database.GetConnectionString());
     }
