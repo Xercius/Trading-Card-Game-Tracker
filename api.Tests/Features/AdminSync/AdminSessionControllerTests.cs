@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using api.Models;
+using api.Infrastructure.Auth;
 using api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +14,35 @@ namespace api.Tests.Features.AdminSync;
 public sealed class AdminSessionControllerTests
 {
     private const string SessionPath = "/api/admin/sync/session";
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Provisioning_NewOrExistingAccount_CanSignInWithHashedCredentials(bool existingAccount)
+    {
+        using var factory = new TestingWebAppFactory();
+        await factory.ResetStateAsync();
+        if (existingAccount)
+        {
+            await SeedUserAsync(factory, isAdmin: false, hasPassword: false);
+        }
+        await factory.ExecuteScopeAsync(services => services.GetRequiredService<AdminAccountProvisioner>()
+            .ProvisionAsync("session-admin", "provisioned-password"));
+        using var client = CreateClient(factory);
+        await SetCsrfAsync(client);
+
+        var response = await client.PostAsJsonAsync(SessionPath,
+            new { username = "session-admin", password = "provisioned-password" });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await factory.ExecuteDbContextAsync(db =>
+        {
+            var user = Assert.Single(db.Users, user => user.Username == "session-admin");
+            Assert.NotEqual("provisioned-password", user.PasswordHash);
+            Assert.True(user.IsAdmin);
+            return Task.CompletedTask;
+        });
+    }
 
     [Fact]
     public async Task Login_ValidAdministrator_CreatesSecureScopedSessionAndCanLogout()

@@ -55,6 +55,7 @@ afterEach(() => {
 describe("AdminSyncPanel", () => {
   it("shows global checkpoint and last outcome instead of per-set history", async () => {
     renderPanel();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading sync status…");
     expect(await screen.findByRole("heading", { name: "Star Wars Unlimited sync" })).toBeVisible();
     expect(screen.getByText("Last successful global sync")).toBeVisible();
     expect(screen.getByText("Last outcome")).toBeVisible();
@@ -117,6 +118,49 @@ describe("AdminSyncPanel", () => {
         csrfConfig
       )
     );
+  });
+
+  it.each([false, true])(
+    "shows progress while the requested sync is pending (full=%s)",
+    async (full) => {
+      let finishSync: (_result: { data: typeof success }) => void = () => {};
+      const pending = new Promise<{ data: typeof success }>((resolve) => {
+        finishSync = resolve;
+      });
+      vi.spyOn(http, "post").mockReturnValue(pending);
+      renderPanel();
+      await userEvent.click(
+        await screen.findByRole("button", {
+          name: full ? "Full reconciliation" : "Run sync",
+        })
+      );
+      expect(screen.getByRole("status", { name: "Sync progress" })).toHaveTextContent(
+        full ? "Full reconciliation is running…" : "Sync is running…"
+      );
+      expect(screen.getByRole("button", { name: "Running sync…" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Full reconciliation" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
+      expect(screen.getByRole("status", { name: "Sync outcome" })).toBeEmptyDOMElement();
+
+      finishSync({ data: success });
+
+      expect(
+        await screen.findByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
+      ).toBeVisible();
+      expect(screen.getByRole("status", { name: "Sync progress" })).toBeEmptyDOMElement();
+      expect(screen.getByRole("button", { name: "Run sync" })).toBeEnabled();
+    }
+  );
+
+  it("offers a retry after status loading fails without exposing raw errors", async () => {
+    vi.mocked(http.get).mockRejectedValueOnce(
+      new ProblemDetailsError("private detail", { status: 500 })
+    );
+    renderPanel();
+    expect(await screen.findByText("Failed to load sync status.")).toBeVisible();
+    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("button", { name: "Run sync" })).toBeEnabled();
   });
 
   it("preserves the global checkpoint in partial failure feedback", async () => {

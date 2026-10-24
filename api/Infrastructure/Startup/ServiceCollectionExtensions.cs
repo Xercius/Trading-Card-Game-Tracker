@@ -91,6 +91,7 @@ internal static class ServiceCollectionExtensions
         });
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<AdminCredentialVerifier>();
+        services.AddScoped<AdminAccountProvisioner>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -255,7 +256,8 @@ internal static class ServiceCollectionExtensions
             new SwuDbImporter(
                 sp.GetRequiredService<AppDbContext>(),
                 sp.GetRequiredService<ISWUApiClient>(),
-                sp.GetRequiredService<ILogger<SwuDbImporter>>()));
+                sp.GetRequiredService<ILogger<SwuDbImporter>>(),
+                sp.GetRequiredService<TimeProvider>()));
         services.AddScoped<ISourceImporter, PokemonTcgImporter>();
         services.AddScoped<ISourceImporter, FabDbImporter>();
         services.AddScoped<ISourceImporter, GuardiansLocalImporter>();
