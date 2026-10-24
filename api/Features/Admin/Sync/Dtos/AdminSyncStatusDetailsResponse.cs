@@ -11,4 +11,5 @@ public sealed record AdminSyncStatusDetailsResponse(
     DateTimeOffset? LastCompletedAt,
     int HistoryCount,
     IReadOnlyList<AdminSyncSetHistoryEntry> History,
-    IReadOnlyList<string> Messages);
+    IReadOnlyList<string> Messages,
+    string? LastOutcome = null);

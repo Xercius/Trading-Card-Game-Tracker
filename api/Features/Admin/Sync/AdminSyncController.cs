@@ -3,7 +3,6 @@ using api.Data;
 using api.Features.Admin.Sync.Dtos;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
-using api.Infrastructure.Auth;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,15 +11,18 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Features.Admin.Sync;
 
 [ApiController]
-[Authorize(AuthenticationSchemes = AdminTokenAuthenticationHandler.SchemeName)]
+[Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
 [Route("api/admin/sync")]
 public sealed class AdminSyncController(
     ImporterRegistry registry,
     AppDbContext db,
     AdminSyncExecutionTracker executionTracker,
+    TimeProvider timeProvider,
     ILogger<AdminSyncController> logger) : ControllerBase
 {
     private const string SwuImporterKey = "swu";
+    private const string CatalogHistoryKey = "swu-catalog";
+    private const string GlobalCatalogScope = "GlobalCatalog";
     private const string SwuGameName = "Star Wars Unlimited";
     private const string SyncRouteKey = "star-wars-unlimited";
 
@@ -76,19 +78,30 @@ public sealed class AdminSyncController(
             .ToArray();
 
         var isRunning = executionTracker.TryGetStartedAt(SyncRouteKey, out var runningSince);
+        var checkpoint = await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == CatalogHistoryKey && h.SetCode == "")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .SingleOrDefaultAsync(ct);
+        var lastOutcome = (await db.SyncLogs.AsNoTracking()
+            .Where(l => l.CatalogScope == GlobalCatalogScope && l.CompletedAt != null)
+            .Select(l => new { l.StartedAt, l.Status })
+            .ToListAsync(ct))
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefault()?.Status;
         var status = isRunning ? "Running" : "Idle";
-        string[] messages = history.Length == 0
-            ? ["No sync history recorded yet."]
+        string[] messages = checkpoint is null
+            ? ["No successful global sync recorded yet. The next sync will import the full catalog."]
             : Array.Empty<string>();
 
         return Ok(new AdminSyncStatusDetailsResponse(
             Source: SwuImporterKey,
             Status: status,
             RunningSince: isRunning ? runningSince : null,
-            LastCompletedAt: history.FirstOrDefault()?.LastSyncedAt,
+            LastCompletedAt: checkpoint,
             HistoryCount: history.Length,
             History: history,
-            Messages: messages));
+            Messages: messages,
+            LastOutcome: lastOutcome));
     }
 
     [HttpPost("star-wars-unlimited")]
@@ -96,7 +109,7 @@ public sealed class AdminSyncController(
         CancellationToken ct,
         [FromQuery] bool forceFullSync = false)
     {
-        var startedAt = DateTimeOffset.UtcNow;
+        var startedAt = timeProvider.GetUtcNow();
         if (!executionTracker.TryStart(SyncRouteKey, startedAt))
         {
             executionTracker.TryGetStartedAt(SyncRouteKey, out var runningSince);
@@ -130,60 +143,42 @@ public sealed class AdminSyncController(
                     detail: "The Star Wars Unlimited importer is not registered.");
             }
 
-            setCodes = await ResolveSwuSetCodesAsync(ct);
-            var needsFullCatalog = forceFullSync || setCodes.Length == 0
-                || !await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == SwuImporterKey, ct);
-            var importScopes = needsFullCatalog ? new string?[] { null } : setCodes;
-
-            foreach (var setCode in importScopes)
+            var checkpoint = await db.ImportSyncHistories.AsNoTracking()
+                .Where(h => h.ImporterKey == CatalogHistoryKey && h.SetCode == "")
+                .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+                .SingleOrDefaultAsync(ct);
+            var updatedSince = forceFullSync ? null : checkpoint?.AddMinutes(-1);
+            var syncLog = await CreatePendingSyncLogAsync(startedAt, updatedSince, ct);
+            try
             {
-                var syncTimestamp = DateTimeOffset.UtcNow;
-                var lastSyncedAt = setCode is null ? null : await db.ImportSyncHistories
-                    .AsNoTracking()
-                    .Where(h => h.ImporterKey == SwuImporterKey && h.SetCode == setCode)
-                    .Select(h => (DateTimeOffset?)h.LastSyncedAt)
-                    .FirstOrDefaultAsync(ct);
-                var updatedSince = lastSyncedAt?.AddMinutes(-1);
-                var syncLog = await CreatePendingSyncLogAsync(setCode, syncTimestamp, updatedSince, ct);
-                try
-                {
-                    var summary = await importer.ImportFromRemoteAsync(
-                        new ImportOptions(
-                            DryRun: false,
-                            Upsert: true,
-                            SetCode: setCode,
-                            UpdatedSince: updatedSince),
-                        ct);
+                var summary = await importer.ImportFromRemoteAsync(
+                    new ImportOptions(DryRun: false, Upsert: true, UpdatedSince: updatedSince), ct);
 
-                    MergeSummary(combined, summary);
-                    if (summary.Errors == 0)
-                    {
-                        if (setCode is null)
-                            setCodes = await ResolveSwuSetCodesAsync(ct);
-                        foreach (var coveredSet in setCode is null ? setCodes : [setCode])
-                            await RecordSyncHistoryAsync(coveredSet, syncTimestamp, ct);
-                        await UpdateSyncLogSucceededAsync(syncLog, summary, ct);
-                    }
-                    else
-                    {
-                        await UpdateSyncLogFailedAsync(syncLog, "Import contained invalid records; synchronization checkpoint was not advanced.");
-                    }
-                }
-                catch (OperationCanceledException)
+                MergeSummary(combined, summary);
+                setCodes = await ResolveSwuSetCodesAsync(ct);
+                if (summary.Errors == 0)
                 {
-                    await UpdateSyncLogFailedAsync(syncLog, "Sync was cancelled.");
-                    throw;
+                    await RecordSuccessfulSyncAsync(syncLog, summary, startedAt, ct);
                 }
-                catch (Exception ex)
+                else
                 {
-                    logger.LogError(ex, "Admin sync failed for {Source}/{SetCode}.", SwuImporterKey, setCode);
-                    combined.Errors++;
-                    combined.Messages.Add($"{(setCode is null ? "Full catalog" : $"Set {setCode}")} failed. Retry the sync; its checkpoint was not advanced.");
-                    await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
+                    await UpdateSyncLogFailedAsync(syncLog, "Import contained invalid records; synchronization checkpoint was not advanced.");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                await UpdateSyncLogFailedAsync(syncLog, "Sync was cancelled.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Admin catalog sync failed for {Source}.", SwuImporterKey);
+                combined.Errors++;
+                combined.Messages.Add("Catalog sync failed. Retry the sync; its checkpoint was not advanced.");
+                await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
+            }
 
-            var completedAt = DateTimeOffset.UtcNow;
+            var completedAt = timeProvider.GetUtcNow();
             logger.LogInformation(
                 "Admin sync completed for {Source}. SetCount={SetCount}, Created={Created}, Updated={Updated}, Errors={Errors}",
                 SwuImporterKey,
@@ -200,7 +195,7 @@ public sealed class AdminSyncController(
         }
         catch (Exception ex)
         {
-            var completedAt = DateTimeOffset.UtcNow;
+            var completedAt = timeProvider.GetUtcNow();
             logger.LogError(ex, "Admin sync failed for {Source}.", SwuImporterKey);
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
@@ -213,18 +208,12 @@ public sealed class AdminSyncController(
     }
 
     private async Task<SyncLog> CreatePendingSyncLogAsync(
-        string? setCode, DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
+        DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
     {
-        var swuSetId = await db.SwuSets
-            .AsNoTracking()
-            .Where(s => s.Code == setCode)
-            .Select(s => (int?)s.Id)
-            .FirstOrDefaultAsync(ct);
-
         var syncLog = new SyncLog
         {
-            SwuSetId = swuSetId,
             StartedAt = startedAt,
+            CatalogScope = GlobalCatalogScope,
             IsIncremental = updatedSince.HasValue,
             UpdatedSince = updatedSince,
             Status = "Pending"
@@ -234,20 +223,32 @@ public sealed class AdminSyncController(
         return syncLog;
     }
 
-    private async Task UpdateSyncLogSucceededAsync(SyncLog syncLog, ImportSummary summary, CancellationToken ct)
+    private async Task RecordSuccessfulSyncAsync(
+        SyncLog syncLog, ImportSummary summary, DateTimeOffset checkpoint, CancellationToken ct)
     {
-        try
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var entry = await db.ImportSyncHistories
+            .SingleOrDefaultAsync(h => h.ImporterKey == CatalogHistoryKey && h.SetCode == "", ct);
+        if (entry is null)
         {
-            syncLog.Status = "Succeeded";
-            syncLog.CompletedAt = DateTimeOffset.UtcNow;
-            syncLog.CardsUpserted = summary.CardsCreated + summary.PrintingsCreated
-                                    + summary.CardsUpdated + summary.PrintingsUpdated;
-            await db.SaveChangesAsync(ct);
+            db.ImportSyncHistories.Add(new ImportSyncHistory
+            {
+                ImporterKey = CatalogHistoryKey,
+                SetCode = "",
+                LastSyncedAt = checkpoint
+            });
         }
-        catch (Exception ex)
+        else
         {
-            logger.LogWarning(ex, "Failed to persist Succeeded SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+            entry.LastSyncedAt = checkpoint;
         }
+
+        syncLog.Status = "Succeeded";
+        syncLog.CompletedAt = timeProvider.GetUtcNow();
+        syncLog.CardsUpserted = summary.CardsCreated + summary.PrintingsCreated
+                                + summary.CardsUpdated + summary.PrintingsUpdated;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 
     private async Task UpdateSyncLogFailedAsync(SyncLog syncLog, string errorMessage)
@@ -257,7 +258,7 @@ public sealed class AdminSyncController(
             db.ChangeTracker.Clear();
             db.SyncLogs.Attach(syncLog);
             syncLog.Status = "Failed";
-            syncLog.CompletedAt = DateTimeOffset.UtcNow;
+            syncLog.CompletedAt = timeProvider.GetUtcNow();
             syncLog.ErrorMessage = errorMessage;
             await db.SaveChangesAsync(CancellationToken.None);
         }
@@ -285,28 +286,6 @@ public sealed class AdminSyncController(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-    }
-
-    private async Task RecordSyncHistoryAsync(string setCode, DateTimeOffset syncedAt, CancellationToken ct)
-    {
-        var entry = await db.ImportSyncHistories
-            .FirstOrDefaultAsync(h => h.ImporterKey == SwuImporterKey && h.SetCode == setCode, ct);
-
-        if (entry is null)
-        {
-            db.ImportSyncHistories.Add(new ImportSyncHistory
-            {
-                ImporterKey = SwuImporterKey,
-                SetCode = setCode,
-                LastSyncedAt = syncedAt
-            });
-        }
-        else
-        {
-            entry.LastSyncedAt = syncedAt;
-        }
-
-        await db.SaveChangesAsync(ct);
     }
 
     private static AdminSyncStatusResponse BuildResponse(

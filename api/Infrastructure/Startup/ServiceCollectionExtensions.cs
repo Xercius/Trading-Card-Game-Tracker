@@ -3,9 +3,11 @@ using api.Data;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
 using api.Infrastructure.Auth;
+using api.Models;
 using api.Shared.Importing;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.RateLimiting;
 
 namespace api.Infrastructure.Startup;
 
@@ -49,13 +52,59 @@ internal static class ServiceCollectionExtensions
             };
         });
 
-        services.AddControllers()
+        services.AddControllers(options => options.Filters.Add<AdminSyncAntiforgeryFilter>())
             .AddJsonOptions(JsonOptionsConfigurator.Configure);
 
         services.AddAuthentication(AdminTokenAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, AdminTokenAuthenticationHandler>(
                 AdminTokenAuthenticationHandler.SchemeName,
-                _ => { });
+                _ => { })
+            .AddCookie(AdminSession.Scheme, options =>
+            {
+                options.Cookie.Name = "__Secure-AdminSync";
+                options.Cookie.Path = AdminSession.Path;
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
+                options.SlidingExpiration = false;
+                options.Events.OnValidatePrincipal = AdminSession.ValidateAsync;
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return Task.CompletedTask;
+                };
+                options.Events.OnRedirectToAccessDenied = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
+            });
+        services.AddAntiforgery(options =>
+        {
+            options.HeaderName = AdminSession.CsrfHeader;
+            options.Cookie.Name = "__Secure-AdminSyncCsrf";
+            options.Cookie.Path = AdminSession.Path;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+        });
+        services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddSingleton<AdminCredentialVerifier>();
+        services.AddScoped<AdminAccountProvisioner>();
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("admin-login", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(5),
+                        QueueLimit = 0
+                    }));
+        });
         services.AddAuthorization();
 
 
@@ -207,7 +256,8 @@ internal static class ServiceCollectionExtensions
             new SwuDbImporter(
                 sp.GetRequiredService<AppDbContext>(),
                 sp.GetRequiredService<ISWUApiClient>(),
-                sp.GetRequiredService<ILogger<SwuDbImporter>>()));
+                sp.GetRequiredService<ILogger<SwuDbImporter>>(),
+                sp.GetRequiredService<TimeProvider>()));
         services.AddScoped<ISourceImporter, PokemonTcgImporter>();
         services.AddScoped<ISourceImporter, FabDbImporter>();
         services.AddScoped<ISourceImporter, GuardiansLocalImporter>();

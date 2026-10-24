@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import * as httpMod from "@/lib/http";
@@ -43,7 +44,7 @@ async function waitFor(
   }
 }
 
-function renderWithProvider(children: ReactNode) {
+function renderWithProvider(children: ReactNode, initialEntry = "/cards") {
   const client = new QueryClient();
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -57,7 +58,9 @@ function renderWithProvider(children: ReactNode) {
       await act(async () => {
         root.render(
           <QueryClientProvider client={client}>
-            <UserProvider>{children}</UserProvider>
+            <MemoryRouter initialEntries={[initialEntry]}>
+              <UserProvider>{children}</UserProvider>
+            </MemoryRouter>
           </QueryClientProvider>
         );
       });
@@ -126,10 +129,23 @@ describe("UserProvider", () => {
     const username = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-username")}`);
     const password = document.querySelector<HTMLInputElement>(`#${cssEscapeId("login-password")}`);
     const button = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const syncLink = document.querySelector<HTMLAnchorElement>('a[href="/admin/sync"]');
 
     expect(username).not.toBeNull();
     expect(password).not.toBeNull();
     expect(button?.textContent).toContain("Sign in");
+    expect(syncLink?.textContent).toBe("Sign in to admin sync");
+    expect(getMock).not.toHaveBeenCalled();
+
+    await view.cleanup();
+  });
+
+  it("leaves the standalone admin sync sign-in available without legacy login", async () => {
+    const getMock = vi.spyOn(httpMod.default, "get") as unknown as vi.MockedFunction<AxiosGet>;
+    const view = renderWithProvider(<Consumer />, "/admin/sync");
+    await view.render();
+
+    expect(document.querySelector(`#${cssEscapeId("login-username")}`)).toBeNull();
     expect(getMock).not.toHaveBeenCalled();
 
     await view.cleanup();
@@ -212,7 +228,10 @@ describe("UserProvider", () => {
 
     // Wait for login to complete and check HTTP calls
     await waitFor(() => postMock.mock.calls.length > 0);
-    expect(postMock).toHaveBeenCalledWith("auth/login", { username: "alice", password: "Password123!" });
+    expect(postMock).toHaveBeenCalledWith("auth/login", {
+      username: "alice",
+      password: "Password123!",
+    });
     expect(setSpy).toHaveBeenCalledWith("token-1");
     expect(window.localStorage.getItem("authToken")).toBe("token-1");
 

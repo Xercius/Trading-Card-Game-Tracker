@@ -1,237 +1,211 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import http from "@/lib/http";
+import { ProblemDetailsError } from "@/lib/problemDetails";
 import AdminSyncPanel from "../AdminSyncPanel";
 
-function createClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-}
+const statusRoute = "admin/sync/star-wars-unlimited/status";
+const sessionRoute = "admin/sync/session";
+const csrfConfig = { withCredentials: true, headers: { "X-Admin-CSRF": "request-token" } };
+const idle = {
+  source: "swu",
+  status: "Idle",
+  runningSince: null,
+  lastCompletedAt: "2026-07-20T14:15:16Z",
+  lastOutcome: "Succeeded",
+  historyCount: 2,
+  history: [{ setCode: "SHD", lastSyncedAt: "2026-07-20T14:15:16Z" }],
+  messages: [],
+};
+const success = { status: "Succeeded", invalid: 0, setCount: 2, created: 3, updated: 4 };
+let currentStatus: typeof idle;
+let authorized: boolean;
+let client: QueryClient;
 
 function renderPanel() {
-  const client = createClient();
-  const view = render(
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
     <QueryClientProvider client={client}>
       <AdminSyncPanel />
     </QueryClientProvider>
   );
-
-  return {
-    ...view,
-    cleanupClient: () => client.clear(),
-  };
 }
 
+beforeEach(() => {
+  currentStatus = { ...idle };
+  authorized = true;
+  vi.spyOn(http, "get").mockImplementation(async (url: string) => {
+    if (url === sessionRoute)
+      return { data: { authenticated: authorized, csrfToken: "request-token" } };
+    if (url === statusRoute && authorized) return { data: currentStatus };
+    throw new ProblemDetailsError("Unauthorized", { status: 401 });
+  });
+});
+
 afterEach(() => {
+  cleanup();
+  client?.clear();
   vi.restoreAllMocks();
 });
 
 describe("AdminSyncPanel", () => {
-  it("shows the latest sync details", async () => {
-    vi.spyOn(http, "get").mockImplementation((url: string) => {
-      if (url === "admin/sync/star-wars-unlimited/status") {
-        return Promise.resolve({
-          data: {
-            source: "swu",
-            status: "Idle",
-            runningSince: null,
-            lastCompletedAt: "2026-07-20T14:15:16Z",
-            historyCount: 2,
-            history: [
-              { setCode: "SHD", lastSyncedAt: "2026-07-20T14:15:16Z" },
-              { setCode: "SOR", lastSyncedAt: "2026-07-18T09:00:00Z" },
-            ],
-            messages: [],
-          },
-        });
-      }
-
-      return Promise.reject(new Error(`Unexpected URL ${url}`));
-    });
-
-    const { cleanupClient, unmount } = renderPanel();
-
+  it("shows global checkpoint and last outcome instead of per-set history", async () => {
+    renderPanel();
     expect(screen.getByRole("status")).toHaveTextContent("Loading sync status…");
     expect(await screen.findByRole("heading", { name: "Star Wars Unlimited sync" })).toBeVisible();
-    expect(screen.getByText("Idle")).toBeVisible();
-    expect(screen.getByText(/SHD ·/)).toBeVisible();
-    expect(screen.getByText("2")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Run sync" })).toBeEnabled();
-
-    unmount();
-    cleanupClient();
+    expect(screen.getByText("Last successful global sync")).toBeVisible();
+    expect(screen.getByText("Last outcome")).toBeVisible();
+    expect(screen.getByText("Succeeded")).toBeVisible();
+    expect(screen.queryByText("Latest set")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tracked sets")).not.toBeInTheDocument();
+    expect(screen.queryByText(/SHD/)).not.toBeInTheDocument();
+    expect(http.get).toHaveBeenCalledWith(statusRoute, { withCredentials: true });
   });
 
-  it("runs a sync and shows the result summary", async () => {
-    const getMock = vi.spyOn(http, "get").mockImplementation((url: string) => {
-      if (url === "admin/sync/star-wars-unlimited/status") {
-        return Promise.resolve({
-          data: {
-            source: "swu",
-            status: "Idle",
-            runningSince: null,
-            lastCompletedAt: "2026-07-20T14:15:16Z",
-            historyCount: 1,
-            history: [{ setCode: "SHD", lastSyncedAt: "2026-07-20T14:15:16Z" }],
-            messages: [],
-          },
-        });
-      }
-
-      return Promise.reject(new Error(`Unexpected URL ${url}`));
+  it("signs in with credentials and reloads authorized status", async () => {
+    authorized = false;
+    const post = vi.spyOn(http, "post").mockImplementation(async () => {
+      authorized = true;
+      return { data: null };
     });
-    const postMock = vi.spyOn(http, "post").mockImplementation((url: string) => {
-      if (url === "admin/sync/star-wars-unlimited") {
-        return Promise.resolve({
-          data: {
-            source: "swu",
-            status: "Succeeded",
-            startedAt: "2026-07-21T10:00:00Z",
-            completedAt: "2026-07-21T10:05:00Z",
-            setCount: 2,
-            created: 3,
-            updated: 4,
-            invalid: 0,
-            messages: ["Sync complete"],
-          },
-        });
-      }
-
-      return Promise.reject(new Error(`Unexpected URL ${url}`));
-    });
-
-    const user = userEvent.setup();
-    const { cleanupClient, unmount } = renderPanel();
-
-    await user.click(await screen.findByRole("button", { name: "Run sync" }));
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
-      ).toBeVisible()
+    renderPanel();
+    await userEvent.type(await screen.findByRole("textbox", { name: "Username" }), "admin");
+    await userEvent.type(screen.getByLabelText("Password"), "password");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("button", { name: "Run sync" })).toBeEnabled();
+    expect(post).toHaveBeenCalledWith(
+      sessionRoute,
+      { username: "admin", password: "password" },
+      csrfConfig
     );
-    expect(postMock).toHaveBeenCalledWith("admin/sync/star-wars-unlimited", null);
-    await waitFor(() => expect(getMock).toHaveBeenCalledTimes(2));
-
-    unmount();
-    cleanupClient();
+    expect(screen.queryByLabelText(/token/i)).not.toBeInTheDocument();
   });
 
-  it("shows an in-progress status while a sync is running", async () => {
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
-    });
-    const result = {
-      status: "Succeeded",
-      invalid: 0,
-      setCount: 1,
-      created: 0,
-      updated: 0,
-    };
-    let finishSync: () => void = () => {};
-    const pendingSync = new Promise<void>((resolve) => {
-      finishSync = resolve;
-    });
-    const postMock = vi.spyOn(http, "post").mockImplementation(async () => {
-      await pendingSync;
-      return { data: result };
-    });
-    const { cleanupClient, unmount } = renderPanel();
+  it("shows safe sign-in feedback and clears the password after failure", async () => {
+    authorized = false;
+    vi.spyOn(http, "post").mockRejectedValue(new Error("private server detail"));
+    renderPanel();
+    await userEvent.type(await screen.findByRole("textbox", { name: "Username" }), "admin");
+    await userEvent.type(screen.getByLabelText("Password"), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign-in failed.");
+    expect(screen.getByLabelText("Password")).toHaveValue("");
+    expect(screen.queryByText("private server detail")).not.toBeInTheDocument();
+  });
 
+  it("runs sync with cookie credentials and CSRF protection", async () => {
+    const post = vi.spyOn(http, "post").mockResolvedValue({ data: success });
+    renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-
-    expect(await screen.findByRole("status", { name: "Sync progress" })).toHaveTextContent(
-      "Sync is running…"
-    );
-    expect(screen.getByText("Running")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Running sync…" })).toBeDisabled();
-    expect(screen.getByRole("status", { name: "Sync outcome" })).toBeEmptyDOMElement();
-    expect(postMock).toHaveBeenCalled();
-
-    finishSync();
-    expect(await screen.findByRole("status", { name: "Sync outcome" })).toHaveTextContent(
-      /Sync completed —/
-    );
-    expect(screen.getByRole("status", { name: "Sync progress" })).toBeEmptyDOMElement();
-
-    unmount();
-    cleanupClient();
+    expect(
+      await screen.findByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
+    ).toBeVisible();
+    expect(post).toHaveBeenCalledWith("admin/sync/star-wars-unlimited", null, csrfConfig);
   });
 
-  it("shows progress when the status endpoint reports a running sync", async () => {
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: { status: "Running", history: [], historyCount: 0, messages: [] },
-    });
-    const { cleanupClient, unmount } = renderPanel();
-
-    expect(await screen.findByRole("status", { name: "Sync progress" })).toHaveTextContent(
-      "Sync is running…"
-    );
-    expect(screen.getByText("Running")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Run sync" })).toBeDisabled();
-
-    unmount();
-    cleanupClient();
-  });
-
-  it("reports partial failure without displaying success", async () => {
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
-    });
-    vi.spyOn(http, "post").mockResolvedValue({
-      data: { status: "Failed", invalid: 1 },
-    });
-    const { cleanupClient, unmount } = renderPanel();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-
-    expect(await screen.findByText(/Sync incomplete — 1 invalid/)).toBeVisible();
-    expect(screen.queryByText(/Sync completed —/)).not.toBeInTheDocument();
-    unmount();
-    cleanupClient();
-  });
-
-  it("shows an error alert when the sync request fails", async () => {
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
-    });
-    vi.spyOn(http, "post").mockRejectedValue(new Error("sync failed"));
-    const { cleanupClient, unmount } = renderPanel();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-
-    expect(await screen.findByRole("alert", { name: "Sync error" })).toHaveTextContent(
-      "sync failed"
-    );
-
-    unmount();
-    cleanupClient();
-  });
-
-  it("requests a full reconciliation explicitly", async () => {
-    vi.spyOn(http, "get").mockResolvedValue({
-      data: { status: "Idle", history: [], historyCount: 0, messages: [] },
-    });
-    const postMock = vi.spyOn(http, "post").mockResolvedValue({
-      data: { status: "Succeeded", invalid: 0, setCount: 1, created: 0, updated: 0 },
-    });
-    const { cleanupClient, unmount } = renderPanel();
-
+  it("requests full reconciliation explicitly with CSRF protection", async () => {
+    const post = vi.spyOn(http, "post").mockResolvedValue({ data: success });
+    renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: "Full reconciliation" }));
-
     await waitFor(() =>
-      expect(postMock).toHaveBeenCalledWith(
+      expect(post).toHaveBeenCalledWith(
         "admin/sync/star-wars-unlimited?forceFullSync=true",
-        null
+        null,
+        csrfConfig
       )
     );
-    unmount();
-    cleanupClient();
+  });
+
+  it.each([false, true])(
+    "shows progress while the requested sync is pending (full=%s)",
+    async (full) => {
+      let finishSync: (_result: { data: typeof success }) => void = () => {};
+      const pending = new Promise<{ data: typeof success }>((resolve) => {
+        finishSync = resolve;
+      });
+      vi.spyOn(http, "post").mockReturnValue(pending);
+      renderPanel();
+      await userEvent.click(
+        await screen.findByRole("button", {
+          name: full ? "Full reconciliation" : "Run sync",
+        })
+      );
+      expect(screen.getByRole("status", { name: "Sync progress" })).toHaveTextContent(
+        full ? "Full reconciliation is running…" : "Sync is running…"
+      );
+      expect(screen.getByRole("button", { name: "Running sync…" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Full reconciliation" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
+      expect(screen.getByRole("status", { name: "Sync outcome" })).toBeEmptyDOMElement();
+
+      finishSync({ data: success });
+
+      expect(
+        await screen.findByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
+      ).toBeVisible();
+      expect(screen.getByRole("status", { name: "Sync progress" })).toBeEmptyDOMElement();
+      expect(screen.getByRole("button", { name: "Run sync" })).toBeEnabled();
+    }
+  );
+
+  it("offers a retry after status loading fails without exposing raw errors", async () => {
+    vi.mocked(http.get).mockRejectedValueOnce(
+      new ProblemDetailsError("private detail", { status: 500 })
+    );
+    renderPanel();
+    expect(await screen.findByText("Failed to load sync status.")).toBeVisible();
+    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("button", { name: "Run sync" })).toBeEnabled();
+  });
+
+  it("preserves the global checkpoint in partial failure feedback", async () => {
+    vi.spyOn(http, "post").mockResolvedValue({ data: { status: "Failed", invalid: 1 } });
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+    expect(await screen.findByText(/last successful global checkpoint is unchanged/)).toBeVisible();
+    expect(screen.queryByText(/Sync completed —/)).not.toBeInTheDocument();
+  });
+
+  it("does not expose raw sync errors", async () => {
+    vi.spyOn(http, "post").mockRejectedValue(new Error("private backend error"));
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+    expect(await screen.findByRole("alert", { name: "Sync error" })).toHaveTextContent(
+      "Failed to run sync."
+    );
+    expect(screen.queryByText("private backend error")).not.toBeInTheDocument();
+  });
+
+  it("shows login again when a mutation session expires", async () => {
+    vi.spyOn(http, "post").mockRejectedValue(new ProblemDetailsError("expired", { status: 401 }));
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeEnabled();
+  });
+
+  it("disables mutation controls while a sync is running", async () => {
+    currentStatus.status = "Running";
+    renderPanel();
+    expect(await screen.findByRole("status", { name: "Sync progress" })).toHaveTextContent(
+      "Sync is running"
+    );
+    expect(screen.getByRole("button", { name: "Run sync" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Full reconciliation" })).toBeDisabled();
+  });
+
+  it("signs out with CSRF protection and removes cached status", async () => {
+    const remove = vi.spyOn(http, "delete").mockImplementation(async () => {
+      authorized = false;
+      return { data: null };
+    });
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeVisible();
+    expect(remove).toHaveBeenCalledWith(sessionRoute, csrfConfig);
   });
 });

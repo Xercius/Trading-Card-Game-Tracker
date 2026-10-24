@@ -12,6 +12,7 @@ export type AdminSyncStatusDetails = {
   status: string;
   runningSince: string | null;
   lastCompletedAt: string | null;
+  lastOutcome?: string | null;
   historyCount: number;
   history: AdminSyncSetHistoryEntry[];
   messages: string[];
@@ -34,6 +35,49 @@ export const adminSyncKeys = {
   starWarsUnlimitedStatus: () => [...adminSyncKeys.all, "star-wars-unlimited", "status"] as const,
 };
 
+type AdminSession = { authenticated: boolean; csrfToken: string };
+const sessionRoute = "admin/sync/session";
+const credentials = { withCredentials: true };
+
+async function csrfConfig() {
+  const { data } = await http.get<AdminSession>(sessionRoute, credentials);
+  return { ...credentials, headers: { "X-Admin-CSRF": data.csrfToken } };
+}
+
+/** Signs into the sync-only browser session without storing API credentials. */
+export function useAdminSyncLoginMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (login: { username: string; password: string }) => {
+      await http.post(sessionRoute, login, await csrfConfig());
+    },
+    onSuccess: () =>
+      queryClient.resetQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() }),
+  });
+}
+
+/** Clears the sync-only browser session and its cached status. */
+export function useAdminSyncLogoutMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await http.delete(sessionRoute, await csrfConfig());
+    },
+    onSuccess: () =>
+      queryClient.resetQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() }),
+  });
+}
+
+/** Identifies an expired session or an account without administrator access. */
+export function isAdminSyncUnauthorized(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error.status === 401 || error.status === 403)
+  );
+}
+
 /**
  * Loads the current Star Wars Unlimited sync status for the admin tools page.
  */
@@ -43,13 +87,15 @@ export function useStarWarsUnlimitedSyncStatusQuery() {
     queryFn: async () => {
       try {
         const response = await http.get<AdminSyncStatusDetails>(
-          "admin/sync/star-wars-unlimited/status"
+          "admin/sync/star-wars-unlimited/status",
+          credentials
         );
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);
       }
     },
+    retry: false,
   });
 }
 
@@ -66,14 +112,15 @@ export function useRunStarWarsUnlimitedSyncMutation() {
           forceFullSync
             ? "admin/sync/star-wars-unlimited?forceFullSync=true"
             : "admin/sync/star-wars-unlimited",
-          null
+          null,
+          await csrfConfig()
         );
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);
       }
     },
-    onSuccess: async () => {
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() });
     },
   });

@@ -11,6 +11,7 @@ const WishlistPage = lazy(() => import("@/pages/WishlistPage"));
 const DecksPage = lazy(() => import("@/pages/DecksPage"));
 const DeckBuilderPage = lazy(() => import("@/pages/DeckBuilderPage"));
 const AdminImportPage = lazy(() => import("@/pages/AdminImportPage"));
+const AdminSyncPanel = lazy(() => import("@/features/admin/sync/AdminSyncPanel"));
 const UsersPage = lazy(() => import("@/pages/UsersPage"));
 const ValueHubPage = lazy(() => import("@/pages/ValueHubPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -18,7 +19,11 @@ const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppShell />,
+    element: (
+      <UserProvider>
+        <AppShell />
+      </UserProvider>
+    ),
     children: [
       { index: true, element: <Navigate to={paths.cards} replace /> },
       { path: paths.cards, element: <CardsPage /> },
@@ -43,6 +48,7 @@ const router = createBrowserRouter([
           </RequireAdmin>
         ),
       },
+      { path: paths.adminSync, element: <AdminSyncPanel /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
@@ -50,10 +56,8 @@ const router = createBrowserRouter([
 
 export default function AppRouter() {
   return (
-    <UserProvider>
-      <Suspense fallback={<div className="p-4">Loading…</div>}>
-        <RouterProvider router={router} />
-      </Suspense>
-    </UserProvider>
+    <Suspense fallback={<div className="p-4">Loading…</div>}>
+      <RouterProvider router={router} />
+    </Suspense>
   );
 }

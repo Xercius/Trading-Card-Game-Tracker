@@ -5,6 +5,7 @@ using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Collections.Concurrent;
@@ -36,6 +37,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var (client, services, _) = CreateClientWithSyncImporter(factory);
         await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
         await SeedSyncHistoryAsync(services, "SHD", new DateTimeOffset(2026, 7, 21, 11, 30, 0, TimeSpan.Zero));
+        await SeedSyncHistoryAsync(services, "", new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero), "swu-catalog");
 
         client.AsAdmin();
         var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/status");
@@ -46,10 +48,42 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal("swu", payload!.Source);
         Assert.Equal("Idle", payload.Status);
         Assert.Null(payload.RunningSince);
-        Assert.Equal(new DateTimeOffset(2026, 7, 21, 11, 30, 0, TimeSpan.Zero), payload.LastCompletedAt);
+        Assert.Equal(new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero), payload.LastCompletedAt);
         Assert.Equal(2, payload.HistoryCount);
         Assert.Empty(payload.Messages);
         Assert.Equal(["SHD", "SOR"], payload.History.Select(h => h.SetCode).ToArray());
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedStatus_IgnoresUnclassifiedLegacyOutcomes()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services, _) = CreateClientWithSyncImporter(factory);
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.SyncLogs.AddRange(
+                new SyncLog
+                {
+                    StartedAt = new DateTimeOffset(2026, 7, 21, 12, 0, 0, TimeSpan.Zero),
+                    CompletedAt = new DateTimeOffset(2026, 7, 21, 12, 1, 0, TimeSpan.Zero),
+                    Status = "Succeeded"
+                },
+                new SyncLog
+                {
+                    CatalogScope = "GlobalCatalog",
+                    StartedAt = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero),
+                    CompletedAt = new DateTimeOffset(2026, 7, 20, 12, 1, 0, TimeSpan.Zero),
+                    Status = "Failed"
+                });
+            await db.SaveChangesAsync();
+        }
+
+        client.AsAdmin();
+        var response = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>(
+            "/api/admin/sync/star-wars-unlimited/status");
+
+        Assert.Equal("Failed", response!.LastOutcome);
     }
 
     [Fact]
@@ -99,8 +133,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var (client, services, _) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR", "SHD");
         await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
-        SyncTestImporter.SetSummary("SOR", created: 2, updated: 1, invalid: 0, "SOR complete");
-        SyncTestImporter.SetSummary("SHD", created: 1, updated: 3, invalid: 0, "SHD complete");
+        SyncTestImporter.SetSummary("", created: 3, updated: 4, invalid: 0, "Catalog complete");
 
         client.AsAdmin();
         var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
@@ -114,21 +147,21 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal(3, payload.Created);
         Assert.Equal(4, payload.Updated);
         Assert.Equal(0, payload.Invalid);
-        Assert.Contains("SOR complete", payload.Messages);
-        Assert.Contains("SHD complete", payload.Messages);
+        Assert.Contains("Catalog complete", payload.Messages);
 
-        Assert.Equal(["SHD", "SOR"], SyncTestImporter.RequestedSetCodes.OrderBy(x => x).ToArray());
+        Assert.Equal([""], SyncTestImporter.RequestedSetCodes.ToArray());
 
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal("GlobalCatalog", (await db.SyncLogs.SingleAsync()).CatalogScope);
         var syncHistory = await db.ImportSyncHistories
             .Where(h => h.ImporterKey == "swu")
             .OrderBy(h => h.SetCode)
             .ToArrayAsync();
 
-        Assert.Equal(2, syncHistory.Length);
-        Assert.Equal("SHD", syncHistory[0].SetCode);
-        Assert.Equal("SOR", syncHistory[1].SetCode);
+        Assert.Equal("SOR", Assert.Single(syncHistory).SetCode);
+        Assert.Equal(new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero), syncHistory[0].LastSyncedAt);
+        Assert.True(await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == "swu-catalog" && h.SetCode == ""));
     }
 
     [Fact]
@@ -205,8 +238,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             });
             db.ImportSyncHistories.Add(new ImportSyncHistory
             {
-                ImporterKey = "swu",
-                SetCode = "SOR",
+                ImporterKey = "swu-catalog",
+                SetCode = "",
                 LastSyncedAt = new DateTimeOffset(2026, 7, 20, 8, 0, 0, TimeSpan.Zero)
             });
             await db.SaveChangesAsync();
@@ -228,7 +261,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
         Assert.Equal(1, remoteCards.GetAllCardsCallCount);
         Assert.NotNull(remoteCards.CapturedFilter);
-        Assert.Equal(42, remoteCards.CapturedFilter!.ExpansionId);
+        Assert.Null(remoteCards.CapturedFilter!.ExpansionId);
         Assert.Null(remoteCards.CapturedFilter.ExpansionCode);
         Assert.Equal(new DateTimeOffset(2026, 7, 20, 7, 59, 0, TimeSpan.Zero), remoteCards.CapturedFilter.UpdatedSince);
 
@@ -254,7 +287,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal("Rare", newPrinting.Rarity);
 
         var syncHistory = await appDb.ImportSyncHistories
-            .Where(h => h.ImporterKey == "swu" && h.SetCode == "SOR")
+            .Where(h => h.ImporterKey == "swu-catalog" && h.SetCode == "")
             .ToArrayAsync();
         var historyEntry = Assert.Single(syncHistory);
         Assert.True(historyEntry.LastSyncedAt >= payload.StartedAt);
@@ -262,7 +295,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
         var syncLog = await appDb.SyncLogs
             .Include(log => log.SwuSet)
-            .SingleAsync(log => log.SwuSet != null && log.SwuSet.Code == "SOR");
+            .SingleAsync(log => log.SwuSetId == null);
         Assert.Equal("Succeeded", syncLog.Status);
         Assert.True(syncLog.IsIncremental);
         Assert.Equal(remoteCards.CapturedFilter.UpdatedSince, syncLog.UpdatedSince);
@@ -334,7 +367,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var (client, services, _) = CreateClientWithSyncImporter(factory);
         await SeedSwuSetAsync(services, "SOR");
         await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
-        SyncTestImporter.SetSummary("SOR", created: 2, updated: 1, invalid: 0, "SOR complete");
+        SyncTestImporter.SetSummary("", created: 2, updated: 1, invalid: 0, "Catalog complete");
 
         client.AsAdmin();
         await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
@@ -347,7 +380,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal(1, payload!.TotalCount);
         Assert.Single(payload.Logs);
         Assert.Equal("Succeeded", payload.Logs[0].Status);
-        Assert.Equal("SOR", payload.Logs[0].SetCode);
+        Assert.Null(payload.Logs[0].SetCode);
         Assert.Null(payload.Logs[0].ErrorMessage);
     }
 
@@ -359,8 +392,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await SeedSwuSetAsync(services, "SOR", "SHD");
         var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
         await SeedSyncHistoryAsync(services, "SOR", checkpoint);
-        SyncTestImporter.SetSummary("SOR", created: 1, updated: 0, invalid: 1, "Invalid card");
-        SyncTestImporter.SetSummary("SHD", created: 1, updated: 0, invalid: 0, "SHD complete");
+        await SeedSyncHistoryAsync(services, "", checkpoint, "swu-catalog");
+        SyncTestImporter.SetSummary("", created: 1, updated: 0, invalid: 1, "Invalid card");
 
         var response = await client.AsAdmin().PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
 
@@ -371,10 +404,13 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync(h => h.SetCode == "SOR")).LastSyncedAt);
-        Assert.True(await db.ImportSyncHistories.AnyAsync(h => h.SetCode == "SHD"));
+        Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).LastSyncedAt);
+        Assert.False(await db.ImportSyncHistories.AnyAsync(h => h.SetCode == "SHD"));
         var logs = await db.SyncLogs.Include(l => l.SwuSet).ToArrayAsync();
-        Assert.Equal("Failed", logs.Single(l => l.SwuSet!.Code == "SOR").Status);
-        Assert.Equal("Succeeded", logs.Single(l => l.SwuSet!.Code == "SHD").Status);
+        Assert.Equal("Failed", Assert.Single(logs).Status);
+        var status = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>("/api/admin/sync/star-wars-unlimited/status");
+        Assert.Equal(checkpoint, status!.LastCompletedAt);
+        Assert.Equal("Failed", status.LastOutcome);
     }
 
     [Fact]
@@ -401,9 +437,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.Equal(2, await db.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
             Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
-            Assert.Equal(["NEW", "SOR"], await db.ImportSyncHistories.Where(h => h.ImporterKey == "swu")
-                .OrderBy(h => h.SetCode).Select(h => h.SetCode).ToArrayAsync());
-            Assert.Empty(await db.SwuSets.ToListAsync());
+            Assert.Equal("", (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).SetCode);
+            Assert.Equal(["NEW", "SOR"], await db.SwuSets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
             Assert.All(await db.SyncLogs.ToListAsync(), log =>
             {
                 Assert.Equal("Succeeded", log.Status);
@@ -432,7 +467,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         if (forceFullSync)
         {
             await SeedSwuSetAsync(services, "SOR");
-            await SeedSyncHistoryAsync(services, "SOR", checkpoint);
+            await SeedSyncHistoryAsync(services, "", checkpoint, "swu-catalog");
         }
 
         var response = await client.AsAdmin().PostAsync(
@@ -445,7 +480,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal([1, 2], handler.Pages);
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var history = await db.ImportSyncHistories.Where(h => h.ImporterKey == "swu").ToArrayAsync();
+        var history = await db.ImportSyncHistories.Where(h => h.ImporterKey == "swu-catalog").ToArrayAsync();
         if (forceFullSync)
             Assert.Equal(checkpoint, Assert.Single(history).LastSyncedAt);
         else
@@ -485,7 +520,141 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(["NEW", "SOR"], await verifyDb.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited")
             .OrderBy(p => p.Set).Select(p => p.Set).ToArrayAsync());
-        Assert.Equal(2, await verifyDb.ImportSyncHistories.CountAsync());
+        Assert.Equal(1, await verifyDb.ImportSyncHistories.CountAsync());
+    }
+
+    [Fact]
+    public async Task RunStarWarsUnlimited_WithLegacyHistory_BootstrapsThenDiscoversNewExpansionIncrementally()
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http));
+        var legacyCheckpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        await SeedSwuSetAsync(services, "SOR");
+        await SeedSyncHistoryAsync(services, "SOR", legacyCheckpoint);
+        client.AsAdmin();
+
+        var initialStatus = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>("/api/admin/sync/star-wars-unlimited/status");
+        Assert.Null(initialStatus!.LastCompletedAt);
+        var bootstrap = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+        Assert.Equal("Succeeded", (await bootstrap.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+        int[] originalIds;
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var checkpoint = await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog");
+            handler.ExpectedSince = checkpoint.LastSyncedAt.AddMinutes(-1);
+            originalIds = await db.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited")
+                .OrderBy(p => p.Id).Select(p => p.Id).ToArrayAsync();
+        }
+
+        handler.IncludeNewExpansion = true;
+        for (int run = 0; run < 2; run++)
+        {
+            var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("Succeeded", (await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+            using var scope = services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(3, await db.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
+            Assert.Equal(3, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
+            Assert.Equal(originalIds, await db.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited" && p.Set != "NEXT")
+                .OrderBy(p => p.Id).Select(p => p.Id).ToArrayAsync());
+            Assert.Equal("Expansion 3", (await db.SwuSets.SingleAsync(s => s.Code == "NEXT")).Name);
+            Assert.Equal("Corrected expansion", (await db.SwuSets.SingleAsync(s => s.Code == "SOR")).Name);
+            Assert.Equal("Updated text", (await db.Cards.SingleAsync(c => c.Name == "Card 1")).Description);
+            Assert.Equal(legacyCheckpoint, (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu")).LastSyncedAt);
+            var checkpoint = (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).LastSyncedAt;
+            var status = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>("/api/admin/sync/star-wars-unlimited/status");
+            Assert.Equal(checkpoint, status!.LastCompletedAt);
+            Assert.Equal("Succeeded", status.LastOutcome);
+            handler.ExpectedSince = checkpoint.AddMinutes(-1);
+        }
+
+        Assert.Equal([1, 2, 1, 2, 1, 2], handler.Pages);
+    }
+
+    [Theory]
+    [InlineData("http")]
+    [InlineData("incomplete")]
+    [InlineData("invalid-record")]
+    [InlineData("invalid-expansion")]
+    public async Task RunStarWarsUnlimited_IncrementalFailure_RetainsCheckpointAndRetriesIdempotently(string failure)
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http));
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        await SeedSyncHistoryAsync(services, "", checkpoint, "swu-catalog");
+        handler.ExpectedSince = checkpoint.AddMinutes(-1);
+        handler.Failure = failure;
+        client.AsAdmin();
+
+        var failed = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+        Assert.Equal(HttpStatusCode.OK, failed.StatusCode);
+        Assert.Equal("Failed", (await failed.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync()).LastSyncedAt);
+        }
+
+        handler.Failure = null;
+        var retry = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+        Assert.Equal("Succeeded", (await retry.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+        using var verifyScope = services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(2, await verifyDb.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
+        Assert.Equal(2, await verifyDb.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
+        Assert.Equal(["Failed", "Succeeded"], (await verifyDb.SyncLogs.OrderBy(l => l.Id).ToListAsync()).Select(l => l.Status));
+        Assert.Equal([1, 2, 1, 2], handler.Pages);
+    }
+
+    [Fact]
+    public async Task RunStarWarsUnlimited_WhenCheckpointPersistenceFails_RetainsCheckpointAndRetriesUpsertedRecords()
+    {
+        await VerifyPersistenceFailureAsync(failCheckpoint: true);
+    }
+
+    [Fact]
+    public async Task RunStarWarsUnlimited_WhenRecordPersistenceFails_RetainsCheckpointAndRetriesUpsertedRecords()
+    {
+        await VerifyPersistenceFailureAsync(failCheckpoint: false);
+    }
+
+    private async Task VerifyPersistenceFailureAsync(bool failCheckpoint)
+    {
+        await factory.ResetDatabaseAsync();
+        using var handler = new FullCatalogHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/api/") };
+        var interceptor = new FailSyncSaveInterceptor(failCheckpoint);
+        var (client, services, _) = CreateClientWithSwuApiClient(factory, new SWUApiClient(http), interceptor);
+        var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
+        await SeedSyncHistoryAsync(services, "", checkpoint, "swu-catalog");
+        handler.ExpectedSince = checkpoint.AddMinutes(-1);
+        interceptor.Armed = true;
+        client.AsAdmin();
+
+        var failed = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+        Assert.Equal(HttpStatusCode.OK, failed.StatusCode);
+        var payload = await failed.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.Equal("Failed", payload!.Status);
+        Assert.DoesNotContain(payload.Messages, m => m.Contains("internal persistence diagnostics", StringComparison.Ordinal));
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync()).LastSyncedAt);
+            Assert.Equal("Failed", (await db.SyncLogs.SingleAsync()).Status);
+        }
+
+        var retry = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+        Assert.Equal("Succeeded", (await retry.Content.ReadFromJsonAsync<AdminSyncStatusResponse>())!.Status);
+        using var verifyScope = services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(2, await verifyDb.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
+        Assert.Equal(2, await verifyDb.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
     }
 
     [Fact]
@@ -495,7 +664,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var remoteCards = new RecordingSwuApiClient([]);
         var (client, services, _) = CreateClientWithSwuApiClient(factory, remoteCards);
         await SeedSwuSetAsync(services, "SOR");
-        await SeedSyncHistoryAsync(services, "SOR", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero));
+        await SeedSyncHistoryAsync(services, "", new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero), "swu-catalog");
 
         var response = await client.AsAdmin().PostAsync("/api/admin/sync/star-wars-unlimited?forceFullSync=true", content: null);
 
@@ -519,7 +688,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var (client, services, _) = CreateClientWithSwuApiClient(factory, remoteCards);
         await SeedSwuSetAsync(services, "SOR");
         var checkpoint = new DateTimeOffset(2026, 7, 20, 10, 0, 0, TimeSpan.Zero);
-        await SeedSyncHistoryAsync(services, "SOR", checkpoint);
+        await SeedSyncHistoryAsync(services, "", checkpoint, "swu-catalog");
 
         var response = await client.AsAdmin().PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
 
@@ -551,7 +720,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
     private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSwuApiClient(
         CustomWebApplicationFactory factory,
-        ISWUApiClient apiClient)
+        ISWUApiClient apiClient,
+        SaveChangesInterceptor? interceptor = null)
     {
         var customized = factory.WithWebHostBuilder(builder =>
         {
@@ -559,6 +729,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             {
                 services.RemoveAll(typeof(ISWUApiClient));
                 services.AddSingleton<ISWUApiClient>(apiClient);
+                if (interceptor is not null)
+                    services.AddDbContext<AppDbContext>(options => options.AddInterceptors(interceptor));
             });
         });
 
@@ -587,13 +759,14 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         await db.SaveChangesAsync();
     }
 
-    private static async Task SeedSyncHistoryAsync(IServiceProvider services, string setCode, DateTimeOffset syncedAt)
+    private static async Task SeedSyncHistoryAsync(
+        IServiceProvider services, string setCode, DateTimeOffset syncedAt, string importerKey = "swu")
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.ImportSyncHistories.Add(new ImportSyncHistory
         {
-            ImporterKey = "swu",
+            ImporterKey = importerKey,
             SetCode = setCode,
             LastSyncedAt = syncedAt
         });
@@ -747,15 +920,36 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         };
     }
 
+    private sealed class FailSyncSaveInterceptor(bool failCheckpoint) : SaveChangesInterceptor
+    {
+        internal bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            var entries = eventData.Context!.ChangeTracker.Entries();
+            if (Armed && entries.Any(e => e.State is EntityState.Added or EntityState.Modified
+                && (failCheckpoint ? e.Entity is ImportSyncHistory : e.Entity is CardPrinting)))
+            {
+                Armed = false;
+                throw new DbUpdateException("internal persistence diagnostics");
+            }
+            return ValueTask.FromResult(result);
+        }
+    }
+
     private sealed class FullCatalogHandler(string? failure = null) : HttpMessageHandler
     {
         internal List<int> Pages { get; } = [];
         internal string? Failure { get; set; } = failure;
+        internal DateTimeOffset? ExpectedSince { get; set; }
+        internal bool IncludeNewExpansion { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
-            Assert.DoesNotContain(query.AllKeys, key => key?.StartsWith("filters[", StringComparison.Ordinal) == true);
+            Assert.DoesNotContain(query.AllKeys, key => key?.StartsWith("filters[expansion]", StringComparison.Ordinal) == true);
+            Assert.Equal(ExpectedSince?.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), query["filters[updatedAt][$gt]"]);
             int page = int.Parse(query["pagination[page]"]!);
             Pages.Add(page);
             if (page == 2 && Failure == "http")
@@ -763,14 +957,18 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             StrapiRecord[] records = page == 2 && Failure == "incomplete" ? [] :
             [
                 CreateRecord(page, page == 2 && Failure == "invalid-record" ? " " : $"Card {page}",
-                    $"uid-{page}", $"serial-{page}", page == 1 ? "SOR" : "NEW", $"Expansion {page}")
+                    $"uid-{page}", $"serial-{page}", page == 1 ? "SOR" : "NEW",
+                    Failure == "invalid-expansion" && page == 2 ? "" : IncludeNewExpansion && page == 1 ? "Corrected expansion" : $"Expansion {page}",
+                    text: IncludeNewExpansion && page == 1 ? "Updated text" : null)
             ];
+            if (IncludeNewExpansion && page == 2)
+                records = [.. records, CreateRecord(3, "New expansion card", "uid-3", "serial-3", "NEXT", "Expansion 3")];
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = JsonContent.Create(new
                 {
                     data = records,
-                    meta = new { pagination = new { page, pageSize = 1, pageCount = 2, total = 2 } }
+                    meta = new { pagination = new { page, pageSize = IncludeNewExpansion ? 2 : 1, pageCount = 2, total = IncludeNewExpansion ? 3 : 2 } }
                 })
             });
         }

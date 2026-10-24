@@ -4,6 +4,7 @@ export const paths = {
   wishlist: "wishlist",
   decks: "decks",
   adminImport: "admin/import",
+  adminSync: "admin/sync",
   users: "users",
   value: "value",
 } as const;
