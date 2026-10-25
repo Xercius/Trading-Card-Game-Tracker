@@ -115,7 +115,6 @@ describe("FilterDropdown", () => {
   });
 
   it("renders with controlled state", async () => {
-    const user = userEvent.setup();
     let open = false;
     const setOpen = (newOpen: boolean) => {
       open = newOpen;

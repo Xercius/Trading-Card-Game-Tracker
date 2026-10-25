@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type FilterDropdownProps = {
@@ -33,10 +33,13 @@ export default function FilterDropdown({
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
 
-  const handleSetOpen = (value: boolean) => {
-    if (isControlled && onOpenChange) onOpenChange(value);
-    else if (!isControlled) setInternalOpen(value);
-  };
+  const handleSetOpen = useCallback(
+    (value: boolean) => {
+      if (isControlled && onOpenChange) onOpenChange(value);
+      else if (!isControlled) setInternalOpen(value);
+    },
+    [isControlled, onOpenChange]
+  );
 
   const triggerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);

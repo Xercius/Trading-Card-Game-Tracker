@@ -141,7 +141,7 @@ export default function WishlistPage() {
       });
       return response.data;
     },
-    onSuccess: (snapshot, variables) => {
+    onSuccess: (snapshot) => {
       queryClient.setQueryData<Paged<WishlistItemDto>>(wishlistQueryKey, (existing) => {
         if (!existing) return existing;
 
@@ -215,7 +215,6 @@ export default function WishlistPage() {
       const moved = Math.max(0, item.quantityWanted - snapshot.wantedAfter);
       setToast({ type: moved > 0 ? "success" : "info", message: formatMovedMessage(moved) });
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("[WishlistPage] Failed to move to collection", err);
       setToast({ type: "error", message: "Failed to move card to collection." });
     }

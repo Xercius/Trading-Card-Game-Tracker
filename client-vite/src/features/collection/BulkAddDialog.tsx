@@ -110,7 +110,7 @@ export default function BulkAddDialog({ queryKey }: BulkAddDialogProps) {
       await mutation.mutateAsync({ items: payload });
       setResults(parsed.map((row) => ({ ...row, status: "success" as const })));
       setRawInput("");
-    } catch (error) {
+    } catch {
       setResults(parsed.map((row) => ({ ...row, status: "error" as const })));
       setErrors(["Bulk update failed. Please try again."]);
     }

@@ -18,6 +18,7 @@ function formatCurrency(value: number | null): string {
 }
 
 const ESTIMATED_ROW_HEIGHT = 72;
+const EMPTY_VALUE_HISTORY_POINTS: { d: string; v: number | null }[] = [];
 
 export default function CollectionPage() {
   const { userId } = useUser();
@@ -26,7 +27,7 @@ export default function CollectionPage() {
   const [setName, setSetName] = useQueryState("set", "");
   const [rarity, setRarity] = useQueryState("rarity", "");
   const [pageParam, setPageParam] = useQueryState("page", "1");
-  const [pageSizeParam, setPageSizeParam] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
+  const [pageSizeParam] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
 
   const page = useMemo(() => {
@@ -41,7 +42,7 @@ export default function CollectionPage() {
 
   useEffect(() => {
     setPageParam("1");
-  }, [q, game, setName, rarity]);
+  }, [q, game, setName, rarity, setPageParam]);
 
   const queryKey = collectionKeys.list({
     userId,
@@ -63,7 +64,7 @@ export default function CollectionPage() {
   const total = data?.total ?? 0;
 
   const valueHistoryQuery = useCollectionValueHistory(undefined, !!userId);
-  const valueHistoryPoints = valueHistoryQuery.data ?? [];
+  const valueHistoryPoints = valueHistoryQuery.data ?? EMPTY_VALUE_HISTORY_POINTS;
   const collectionLatestValue = useMemo(
     () => latestValue(valueHistoryPoints),
     [valueHistoryPoints]
