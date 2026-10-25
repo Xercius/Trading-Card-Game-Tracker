@@ -16,6 +16,7 @@ import {
   useUpsertWishlist,
   type PrintingSummary,
 } from "../api";
+import CardImages from "./CardImages";
 
 type ToastState = {
   type: "success" | "error";
@@ -87,11 +88,7 @@ export default function CardModal({
     return printings.find((p) => p.printingId === selectedPrintingId) ?? null;
   }, [printings, selectedPrintingId]);
 
-  const resolvedImageUrl = useMemo(() => {
-    const fallback = details?.printings?.find((p) => p.id === selectedPrintingId)?.imageUrl ?? null;
-    const src = selectedPrinting?.imageUrl ?? fallback;
-    return src ? resolveImageUrl(src) : null;
-  }, [details?.printings, selectedPrinting?.imageUrl, selectedPrintingId]);
+  const printingDetail = details?.printings?.find((p) => p.id === selectedPrintingId);
 
   const handleCarouselKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -278,21 +275,18 @@ export default function CardModal({
             aria-label="Selected card image"
             className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 [@media(max-height:500px)]:gap-1"
           >
-            <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-xl border bg-muted p-2 [@media(max-height:500px)]:p-1">
-              {resolvedImageUrl ? (
-                <img
-                  key={resolvedImageUrl}
-                  loading="lazy"
-                  decoding="async"
-                  src={resolvedImageUrl}
-                  alt={details?.name ?? "Selected printing"}
-                  className="max-h-full max-w-full object-contain"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                  No image available
-                </div>
-              )}
+            <div className="min-h-0 w-full flex-1">
+              <CardImages
+                name={details?.name ?? "Selected printing"}
+                imageUrl={selectedPrinting?.imageUrl ?? printingDetail?.imageUrl ?? null}
+                backImageUrl={selectedPrinting?.backImageUrl ?? printingDetail?.backImageUrl}
+                imageOrientation={
+                  selectedPrinting?.imageOrientation ?? printingDetail?.imageOrientation
+                }
+                backImageOrientation={
+                  selectedPrinting?.backImageOrientation ?? printingDetail?.backImageOrientation
+                }
+              />
             </div>
             <div
               className="shrink-0 text-center text-sm text-muted-foreground [@media(max-height:500px)]:text-xs"

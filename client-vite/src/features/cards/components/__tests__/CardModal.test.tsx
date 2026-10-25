@@ -1,8 +1,18 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  vi,
+  type MockInstance,
+} from "vitest";
 import { act } from "react-dom/test-utils";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import CardModal from "../CardModal";
 import { api } from "@/lib/api";
 
@@ -10,8 +20,8 @@ let originalIntersectionObserver: typeof window.IntersectionObserver | undefined
 let container: HTMLDivElement;
 let root: Root;
 let queryClient: QueryClient;
-let getSpy: ReturnType<typeof vi.spyOn>;
-let postSpy: ReturnType<typeof vi.spyOn>;
+let getSpy: MockInstance<(url: string) => Promise<unknown>>;
+let postSpy: MockInstance<(url: string, body: unknown) => Promise<unknown>>;
 
 beforeAll(() => {
   Object.defineProperty(HTMLImageElement.prototype, "loading", {
@@ -74,6 +84,128 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
 }
 
 describe("CardModal", () => {
+  it.each([
+    ["vertical", "vertical", false],
+    ["horizontal", "horizontal", true],
+    ["vertical", "horizontal", false],
+    ["horizontal", "vertical", false],
+    ["horizontal", null, false],
+    [null, "horizontal", false],
+    [null, null, false],
+    ["unknown", "horizontal", false],
+  ])(
+    "orders front/back images with orientations %s/%s (stacked: %s)",
+    async (imageOrientation, backImageOrientation, stacked) => {
+      getSpy.mockImplementation((url: string) =>
+        Promise.resolve({
+          data: url.endsWith("/printings")
+            ? [
+                {
+                  printingId: 1001,
+                  setName: "Alpha",
+                  number: "1",
+                  rarity: "Rare",
+                  imageUrl: "/front.png",
+                  backImageUrl: "/back.png",
+                  imageOrientation,
+                  backImageOrientation,
+                },
+                {
+                  printingId: 1002,
+                  setName: "Beta",
+                  number: "2",
+                  rarity: "Common",
+                  imageUrl: "/single.png",
+                },
+              ]
+            : {
+                cardId: 100,
+                name: "Two-sided Card",
+                game: "Magic",
+                cardType: "Creature",
+                description: null,
+                printings: [],
+              },
+        })
+      );
+
+      await renderModal({ cardId: 100, initialPrintingId: 1001 });
+
+      const group = await screen.findByRole("group", { name: "Card images" });
+      await waitFor(() => expect(within(group).getAllByRole("img")).toHaveLength(2));
+      const images = within(group).getAllByRole("img");
+      expect(images[0].getAttribute("alt")).toBe("Two-sided Card (front)");
+      expect(images[0].getAttribute("src")).toMatch(/\/front.png$/);
+      expect(images[1].getAttribute("alt")).toBe("Two-sided Card (back)");
+      expect(images[1].getAttribute("src")).toMatch(/\/back.png$/);
+      expect(group.classList.contains(stacked ? "grid-rows-2" : "grid-cols-2")).toBe(true);
+
+      await act(async () => {
+        screen.getByRole("option", { name: "Beta #2" }).click();
+      });
+
+      const singleImage = within(group).getAllByRole("img");
+      expect(singleImage).toHaveLength(1);
+      expect(singleImage[0].getAttribute("src")).toMatch(/\/single.png$/);
+      expect(group.classList.contains("grid-cols-1")).toBe(true);
+      expect(group.classList.contains("grid-rows-1")).toBe(true);
+    }
+  );
+
+  it("uses image metadata from card details when printing summaries omit it", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? [{ printingId: 1001, setName: "Alpha", number: "1", rarity: "Rare" }]
+          : {
+              cardId: 100,
+              name: "Two-sided Card",
+              game: "Magic",
+              cardType: "Creature",
+              description: null,
+              printings: [
+                {
+                  id: 1001,
+                  imageUrl: "/front.png",
+                  backImageUrl: "/back.png",
+                  imageOrientation: "horizontal",
+                  backImageOrientation: "horizontal",
+                },
+              ],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 100, initialPrintingId: 1001 });
+
+    const group = await screen.findByRole("group", { name: "Card images" });
+    await waitFor(() => expect(within(group).getAllByRole("img")).toHaveLength(2));
+    expect(group.classList.contains("grid-rows-2")).toBe(true);
+  });
+
+  it("keeps the placeholder when neither image is available", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              cardId: 100,
+              name: "No Image Card",
+              game: "Magic",
+              cardType: "Creature",
+              description: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 100 });
+
+    const group = screen.getByRole("group", { name: "Card images" });
+    expect(within(group).queryByRole("img")).toBeNull();
+    expect(within(group).getByText("No image available")).toBeInTheDocument();
+  });
+
   it("loads details, printings, and shows them inline", async () => {
     getSpy.mockImplementation((url: string) => {
       if (url === "cards/100") {
