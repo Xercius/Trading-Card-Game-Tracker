@@ -56,8 +56,8 @@ async function renderProbe(initialEntry: string) {
 describe("useIncludeProxies", () => {
   it("reads the stored value by default and updates storage when toggled", async () => {
     window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, "1");
-    const getSpy = vi.spyOn(window.localStorage, "getItem");
-    const setSpy = vi.spyOn(window.localStorage, "setItem");
+    const getSpy = vi.spyOn(Storage.prototype, "getItem");
+    const setSpy = vi.spyOn(Storage.prototype, "setItem");
 
     const { cleanup } = await renderProbe("/");
 
@@ -82,8 +82,8 @@ describe("useIncludeProxies", () => {
 
   it("prioritizes the query parameter and keeps storage in sync", async () => {
     window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, "0");
-    const getSpy = vi.spyOn(window.localStorage, "getItem");
-    const setSpy = vi.spyOn(window.localStorage, "setItem");
+    const getSpy = vi.spyOn(Storage.prototype, "getItem");
+    const setSpy = vi.spyOn(Storage.prototype, "setItem");
 
     const { cleanup } = await renderProbe("/?includeProxies=1");
 
@@ -99,8 +99,8 @@ describe("useIncludeProxies", () => {
     expect(latest?.includeProxies).toBe(false);
     expect(latest?.search).toBe("");
     expect(setSpy).toHaveBeenNthCalledWith(2, LS_INCLUDE_PROXIES_KEY, "0");
-    expect(window.localStorage.getItem(LS_INCLUDE_PROXIES_KEY)).toBe("0");
     expect(getSpy).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(LS_INCLUDE_PROXIES_KEY)).toBe("0");
 
     await cleanup();
     getSpy.mockRestore();

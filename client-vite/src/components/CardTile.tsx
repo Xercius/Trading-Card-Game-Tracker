@@ -36,17 +36,17 @@ export default function CardTile({ card, onClick, className }: Props) {
       }}
       aria-label={ariaLabel}
     >
-      <div className="aspect-[63/88] w-full rounded-2xl bg-muted">
+      <div className="w-full overflow-hidden rounded-2xl bg-muted">
         {card.imageUrl ? (
           <img
             loading="lazy"
             decoding="async"
             src={resolveImageUrl(card.imageUrl)} // ← normalize image path here
             alt=""
-            className="h-full w-full object-contain"
+            className="block h-auto w-full object-contain"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+          <div className="aspect-[63/88] flex w-full items-center justify-center text-xs text-muted-foreground">
             No image
           </div>
         )}

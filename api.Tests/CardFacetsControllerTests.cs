@@ -169,6 +169,25 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task GetFacets_SearchesCardTypeUnlessPrintingSearchIsRequested()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var cardSearchResponse = await client.GetAsync("/api/cards/facets?q=Creature");
+        cardSearchResponse.EnsureSuccessStatusCode();
+        var cardSearchFacets = await cardSearchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(cardSearchFacets);
+        Assert.Contains(cardSearchFacets!.Games, facet => facet.Value == "Magic");
+
+        var printingSearchResponse = await client.GetAsync("/api/cards/facets?q=Creature&printingSearch=true");
+        printingSearchResponse.EnsureSuccessStatusCode();
+        var printingSearchFacets = await printingSearchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(printingSearchFacets);
+        Assert.DoesNotContain(printingSearchFacets!.Games, facet => facet.Value == "Magic");
+    }
+
+    [Fact]
     public async Task GetFacets_CombinesMultipleFilters()
     {
         await factory.ResetDatabaseAsync();
