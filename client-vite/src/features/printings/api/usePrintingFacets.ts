@@ -15,6 +15,7 @@ export function usePrintingFacets(filters: CardFilters) {
     sets: filters.sets.length > 0 ? filters.sets : undefined,
     rarities: filters.rarities.length > 0 ? filters.rarities : undefined,
     q: filters.q || undefined,
+    printingSearch: true,
   };
 
   return useQuery({

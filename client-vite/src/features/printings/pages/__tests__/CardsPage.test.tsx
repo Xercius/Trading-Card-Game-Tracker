@@ -198,4 +198,54 @@ describe("CardsPage filter wiring", () => {
 
     expect(screen.getByText("No more printings.")).toBeInTheDocument();
   });
+
+  it("keeps loaded printings and offers a retry after a later page fails", () => {
+    vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: [
+        {
+          printingId: "1",
+          cardId: "1",
+          cardName: "Sample card",
+          game: "Magic",
+          setName: "Alpha",
+          number: "001",
+          rarity: "Common",
+        },
+      ],
+      isLoading: false,
+      isError: true,
+      isFetchNextPageError: true,
+      error: new Error("Failed to load next page"),
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    expect(screen.getByText("1 printings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry loading printings" })).toBeInTheDocument();
+  });
+
+  it("offers a retry when printing facets fail", () => {
+    const retryFacets = vi.fn();
+    vi.spyOn(printingFacetsApi, "usePrintingFacets").mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: retryFacets,
+    } as unknown as ReturnType<typeof printingFacetsApi.usePrintingFacets>);
+    vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    expect(screen.getByText("Unable to load filters.")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Retry filters" }).click();
+    expect(retryFacets).toHaveBeenCalledOnce();
+  });
 });

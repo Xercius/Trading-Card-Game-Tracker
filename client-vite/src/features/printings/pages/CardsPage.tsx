@@ -23,9 +23,15 @@ export default function CardsPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
   } = usePrintings(filters);
   const printings = data ?? [];
-  const { data: facets } = usePrintingFacets(filters);
+  const {
+    data: facets,
+    isLoading: isFacetsLoading,
+    isError: isFacetsError,
+    refetch: refetchFacets,
+  } = usePrintingFacets(filters);
   const availableFacets = facets ?? { games: [], sets: [], rarities: [] };
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
@@ -126,6 +132,15 @@ export default function CardsPage() {
             Clear filters
           </Button>
         </div>
+        {isFacetsLoading && <div className="text-sm text-muted-foreground">Loading filters…</div>}
+        {isFacetsError && (
+          <div className="flex items-center gap-2 text-sm text-destructive">
+            <span>Unable to load filters.</span>
+            <Button variant="outline" size="sm" onClick={() => void refetchFacets()}>
+              Retry filters
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1" role="group" aria-label="View mode">
@@ -174,11 +189,14 @@ export default function CardsPage() {
       )}
 
       {isLoading && <div className="text-sm text-muted-foreground">Loading printings…</div>}
-      {isError && <div className="text-sm text-destructive">Error: {error?.message}</div>}
+      {isError && !data && <div className="text-sm text-destructive">Error: {error?.message}</div>}
 
-      {!isLoading && !isError && (
+      {!isLoading && data && (
         <>
           <div className="text-sm text-muted-foreground">{printings.length} printings</div>
+          {isFetchNextPageError && (
+            <div className="text-sm text-destructive">Unable to load more printings. Please retry.</div>
+          )}
           {viewMode === "grid" ? (
             <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">
               {printings.map(p => (
@@ -192,7 +210,11 @@ export default function CardsPage() {
           )}
           {hasNextPage ? (
             <Button onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-              {isFetchingNextPage ? "Loading more printings…" : "Load more printings"}
+              {isFetchingNextPage
+                ? "Loading more printings…"
+                : isFetchNextPageError
+                  ? "Retry loading printings"
+                  : "Load more printings"}
             </Button>
           ) : (
             <div className="text-sm text-muted-foreground">

@@ -51,6 +51,7 @@ describe("usePrintingFacets", () => {
       sets: undefined,
       rarities: ["Rare"],
       q: "droid",
+      printingSearch: true,
     });
   });
 });

@@ -200,7 +200,7 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
         Assert.NotNull(facets);
         Assert.Contains(facets!.Sets, facet => facet.Value == "ZZ-LATER");
 
-        var searchResponse = await client.GetAsync("/api/cards/facets?q=ZZ-LATER");
+        var searchResponse = await client.GetAsync("/api/cards/facets?q=ZZ-LATER&printingSearch=true");
         searchResponse.EnsureSuccessStatusCode();
         var searchFacets = await searchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(JsonOptions);
         Assert.NotNull(searchFacets);
