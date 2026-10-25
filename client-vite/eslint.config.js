@@ -24,7 +24,10 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { args: "after-used", argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "no-restricted-syntax": [
         "error",
         {
@@ -38,16 +41,9 @@ export default defineConfig([
           message: "Leading '/' bypasses baseURL—use a relative path.",
         },
       ],
-      "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-unused-vars": "off",
       "unused-imports/no-unused-imports": "error",
-      "unused-imports/no-unused-vars": [
-        "error",
-        {
-          args: "after-used",
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
+      "unused-imports/no-unused-vars": "off",
     },
   },
 ]);

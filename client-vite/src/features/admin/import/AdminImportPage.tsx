@@ -20,6 +20,7 @@ import type {
 
 const MODE_REMOTE = "remote";
 const MODE_UPLOAD = "upload";
+const EMPTY_SOURCES: ImportSourceOption[] = [];
 
 function formatBytes(size: number) {
   if (size >= 1_048_576) return `${(size / 1_048_576).toFixed(1)} MB`;
@@ -38,19 +39,20 @@ export default function AdminImportPage() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const { data: options, isLoading, isError } = useImportOptions();
-  const sources = options?.sources ?? [];
+  const sources = options?.sources ?? EMPTY_SOURCES;
   const activeSource = useMemo<ImportSourceOption | undefined>(
     () => sources.find((s) => s.key === sourceKey),
     [sources, sourceKey]
   );
 
   const dryRun = useDryRun(dryRunParams);
+  const refetchDryRun = dryRun.refetch;
   const apply = useApply();
 
   useEffect(() => {
     if (!dryRunParams) return;
-    dryRun.refetch({ throwOnError: false });
-  }, [dryRunParams]);
+    refetchDryRun({ throwOnError: false });
+  }, [dryRunParams, refetchDryRun]);
 
   useEffect(() => {
     if (dryRun.data) {

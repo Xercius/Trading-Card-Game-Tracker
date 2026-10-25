@@ -1,6 +1,7 @@
 import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent } from "@testing-library/react";
 import BulkAddDialog from "../BulkAddDialog";
 
 const mutateAsync = vi.fn();
@@ -31,23 +32,18 @@ describe("BulkAddDialog", () => {
       trigger?.click();
     });
 
-    const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+    const textarea = document.body.querySelector<HTMLTextAreaElement>("textarea");
     expect(textarea).not.toBeNull();
-    const numberInputs = container.querySelectorAll<HTMLInputElement>("input[type='number']");
+    const numberInputs = document.body.querySelectorAll<HTMLInputElement>("input[type='number']");
     expect(numberInputs.length).toBeGreaterThanOrEqual(2);
 
     await act(async () => {
-      if (textarea) textarea.value = "1001,2,0\n1002";
-      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
-
-      numberInputs[0].value = "3";
-      numberInputs[0].dispatchEvent(new Event("input", { bubbles: true }));
-
-      numberInputs[1].value = "1";
-      numberInputs[1].dispatchEvent(new Event("input", { bubbles: true }));
+      if (textarea) fireEvent.change(textarea, { target: { value: "1001,2,0\n1002" } });
+      fireEvent.change(numberInputs[0], { target: { value: "3" } });
+      fireEvent.change(numberInputs[1], { target: { value: "1" } });
     });
 
-    const apply = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+    const apply = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).find(
       (btn) => btn.textContent === "Apply changes"
     );
     expect(apply).not.toBeNull();

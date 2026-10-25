@@ -25,14 +25,14 @@ type UseCardFiltersResult = {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 60;
 
-const emptyFilters: CardFilters = { 
-  q: "", 
-  games: [], 
-  sets: [], 
-  rarities: [], 
-  page: DEFAULT_PAGE, 
+const emptyFilters: CardFilters = {
+  q: "",
+  games: [],
+  sets: [],
+  rarities: [],
+  page: DEFAULT_PAGE,
   pageSize: DEFAULT_PAGE_SIZE,
-  sort: undefined
+  sort: undefined,
 };
 
 function parseCsv(value: string | null): string[] {
@@ -74,13 +74,15 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const games = parseCsv(params.get("game"));
   const sets = parseCsv(params.get("set"));
   const rarities = parseCsv(params.get("rarity"));
-  
+
   const pageStr = params.get("page");
   const page = pageStr ? Math.max(1, parseInt(pageStr, 10) || DEFAULT_PAGE) : DEFAULT_PAGE;
-  
+
   const pageSizeStr = params.get("pageSize");
-  const pageSize = pageSizeStr ? Math.max(1, parseInt(pageSizeStr, 10) || DEFAULT_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
-  
+  const pageSize = pageSizeStr
+    ? Math.max(1, parseInt(pageSizeStr, 10) || DEFAULT_PAGE_SIZE)
+    : DEFAULT_PAGE_SIZE;
+
   const sort = params.get("sort") || undefined;
 
   return sanitizeFilters({ q, games, sets, rarities, page, pageSize, sort });
@@ -104,11 +106,11 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   if (filters.q.length > 0) {
     next.set("q", filters.q);
   }
-  
+
   // Always include page and pageSize
   next.set("page", String(filters.page));
   next.set("pageSize", String(filters.pageSize));
-  
+
   if (filters.sort) {
     next.set("sort", filters.sort);
   }
@@ -120,14 +122,23 @@ export function useCardFilters(): UseCardFiltersResult {
   const [searchParams, setSearchParams] = useSearchParams();
   const serialized = searchParams.toString();
 
-  const filters = useMemo(() => parseFilters(searchParams), [serialized]);
+  const filters = useMemo(() => parseFilters(new URLSearchParams(serialized)), [serialized]);
 
   const gamesKey = filters.games.join("|");
   const setsKey = filters.sets.join("|");
   const raritiesKey = filters.rarities.join("|");
 
   const stableKey = useMemo(
-    () => [filters.q, gamesKey, setsKey, raritiesKey, filters.page, filters.pageSize, filters.sort ?? ""] as const,
+    () =>
+      [
+        filters.q,
+        gamesKey,
+        setsKey,
+        raritiesKey,
+        filters.page,
+        filters.pageSize,
+        filters.sort ?? "",
+      ] as const,
     [filters.q, gamesKey, setsKey, raritiesKey, filters.page, filters.pageSize, filters.sort]
   );
 

@@ -2,10 +2,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { act } from "react-dom/test-utils";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import CardModal from "../CardModal";
 import { api } from "@/lib/api";
-
-const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 let originalIntersectionObserver: typeof window.IntersectionObserver | undefined;
 let container: HTMLDivElement;
@@ -71,7 +70,6 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
         />
       </QueryClientProvider>
     );
-    await flushPromises();
   });
 }
 
@@ -117,18 +115,17 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
-    const label = container.querySelector('[data-testid="selected-printing-label"]');
-    expect(label?.textContent).toContain("Alpha");
+    const label = await screen.findByTestId("selected-printing-label");
+    await waitFor(() => expect(label.textContent).toContain("Alpha"));
 
-    const optionButtons = Array.from(container.querySelectorAll('button[role="option"]'));
+    const optionButtons = screen.getAllByRole("option");
     expect(optionButtons).toHaveLength(2);
 
     await act(async () => {
       optionButtons[1].click();
-      await flushPromises();
     });
 
-    expect(label?.textContent).toContain("Beta");
+    await waitFor(() => expect(label.textContent).toContain("Beta"));
   });
 
   it("posts wishlist quick add with provided quantity", async () => {
@@ -176,29 +173,19 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 200, initialPrintingId: 2001 });
 
-    const input = container.querySelector('input[type="number"]') as HTMLInputElement | null;
-    expect(input).not.toBeNull();
+    const input = await screen.findByRole("spinbutton");
+
+    fireEvent.change(input, { target: { value: "2" } });
+
+    const wishlistButton = screen.getByRole("button", { name: "Add to wishlist" });
 
     await act(async () => {
-      if (!input) return;
-      input.value = "2";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      await flushPromises();
+      wishlistButton.click();
     });
 
-    const wishlistButton = Array.from(container.querySelectorAll("button")).find((btn) =>
-      btn.textContent?.includes("Add to Wishlist")
-    );
-    expect(wishlistButton).not.toBeUndefined();
-
-    await act(async () => {
-      wishlistButton?.click();
-      await flushPromises();
+    await waitFor(() => {
+      const call = postSpy.mock.calls.find((entry) => entry[0] === "wishlist/items");
+      expect(call?.[1]).toEqual({ printingId: 2001, quantity: 2 });
     });
-
-    const call = postSpy.mock.calls.find((entry) => entry[0] === "wishlist/items");
-    expect(call).toBeDefined();
-    expect(call?.[1]).toEqual({ printingId: 2001, quantity: 2 });
   });
 });
