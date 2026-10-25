@@ -183,9 +183,10 @@ HTTP method for all consumer-accessible endpoints: GET
 
 5. KNOWN EXPANSION CODES
 -------------------------
-The following set codes are referenced by current repository validation and
-import documentation. The numeric ID shown is the Strapi relationship ID used in
-filters[expansion][id][$eq].
+The following codes are examples referenced by tests and import documentation,
+not a complete or authoritative set list. Global catalog sync discovers
+expansions from the card records and does not depend on this table. The numeric
+ID shown is the Strapi relationship ID used in filters[expansion][id][$eq].
 
 Code    Name                                   Strapi ID (observed)
 ------  -------------------------------------  --------------------
@@ -317,10 +318,10 @@ prefer client-side exclusion for those cases.
         because it catches both newly added cards and corrections to
         existing cards (text, artwork, rarity, etc.).
 
-    Full-expansion fallback: if no stored timestamp is available (first
-    run) or if a corruption is suspected, omit `UpdatedSince` and import
-    the full expansion.  The importer's upsert behaviour ensures
-    idempotency.
+    Full-catalog fallback: the admin sync panel omits `UpdatedSince` when no
+    global checkpoint is available, or during full reconciliation, and imports
+    the unfiltered catalog. A direct import may instead specify one expansion.
+    The importer's upsert behaviour ensures idempotency.
 
     The admin sync panel automatically applies a one-minute overlap and
     offers Full reconciliation (?forceFullSync=true). Use full reconciliation
@@ -516,20 +517,22 @@ importer, tests, or smoke-test tooling.
       `api/scripts/test-swu-api-connectivity.sh` in sync whenever the payload
       shape changes.
 
-13.2  Expansion-code imports are caller-driven
-      Limitation: remote imports require a set code up front; the application
-      does not expose a verified live set-picker sourced from SWU.
-      Workaround: discover the code from prior card-list responses or known SWU
-      set abbreviations, then let the importer resolve the numeric Strapi ID
-      dynamically when possible.
+13.2  Single-expansion imports are caller-driven
+      Limitation: direct single-expansion imports require a set code up front.
+      The admin sync workflow does not: it imports the unfiltered catalog and
+      discovers new expansions from the card records.
+      Workaround: use the global admin sync for catalog coverage. For a
+      single-expansion import, supply its code and let the importer resolve
+      the numeric Strapi ID dynamically when possible.
 
 13.3  Numeric expansion ID lookup is best-effort
-      Gotcha: the importer first tries `filters[expansion][code][$eq]=<CODE>`
-      with `pagination[pageSize]=1` to discover the internal expansion ID. If
-      that discovery request fails or returns no cards, imports fall back to the
-      less-reliable code filter.
+      Gotcha: for a direct single-expansion import, the importer first tries
+      `filters[expansion][code][$eq]=<CODE>` with `pagination[pageSize]=1` to
+      discover the internal expansion ID. If that request fails or returns no
+      cards, the import falls back to the code filter. Global admin sync does
+      not resolve or filter by expansion.
       Workaround: prefer `filters[expansion][id][$eq]` once you know the ID;
-      treat code-based filtering as a fallback path.
+      treat code-based filtering as a fallback for single-expansion imports.
 
 13.4  English-only import is enforced twice
       Gotcha: requests always include `locale=en`, but the importer still checks
@@ -579,7 +582,7 @@ importer, tests, or smoke-test tooling.
 14. REFERENCES
 --------------
 - Importer source  : api/Importing/SwuDbImporter.cs
-- Usage guide      : docs/starwarsunlimitedapi.txt
+- Usage guide      : docs/SWU_IMPORT_GUIDE.md
 - Connectivity test: api/scripts/test-swu-api-connectivity.sh
 - Strapi REST API  : https://docs.strapi.io/dev-docs/api/rest
 - Official site    : https://starwarsunlimited.com
