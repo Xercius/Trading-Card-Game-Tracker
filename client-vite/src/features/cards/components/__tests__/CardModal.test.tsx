@@ -86,7 +86,8 @@ describe("CardModal", () => {
             name: "Test Card",
             game: "Magic",
             cardType: "Spell",
-            description: "Deal 3 damage",
+            description:
+              "Deal 3 damage.\nSecond line.\nThird line.\nFourth line.\nFifth line.\nSixth line.\nSeventh line remains readable.",
             printings: [],
           },
         });
@@ -125,6 +126,11 @@ describe("CardModal", () => {
     const detailsSection = dialog?.querySelector('[aria-label="Card details and actions"]');
     const imageSection = dialog?.querySelector('[aria-label="Selected card image"]');
     const printingsSection = dialog?.querySelector('[aria-label="Card printings"]');
+    const rulesText = detailsSection?.querySelector("p.whitespace-pre-line");
+    expect(dialog?.classList.contains("bg-[#242424]")).toBe(true);
+    expect(rulesText?.textContent).toContain("Seventh line remains readable.");
+    expect(rulesText?.classList.contains("line-clamp-6")).toBe(false);
+    expect(rulesText?.closest(".overflow-y-auto")).not.toBeNull();
     expect(detailsSection?.querySelector('input[type="number"]')).not.toBeNull();
     expect(detailsSection?.querySelector('[aria-label="Add to collection"]')).not.toBeNull();
     expect(detailsSection?.querySelector('[aria-label="Add to wishlist"]')).not.toBeNull();

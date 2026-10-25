@@ -139,15 +139,18 @@ export default function CardModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         labelledBy="card-modal-title"
-        className="flex h-[min(90dvh,52rem)] w-[min(96vw,64rem)] max-w-none flex-col overflow-hidden bg-card text-card-foreground"
+        className="flex h-[min(90dvh,52rem)] w-[min(96vw,64rem)] max-w-none flex-col overflow-hidden bg-[#242424] text-card-foreground"
       >
-        <DialogHeader>
+        <DialogHeader className="[@media(max-height:500px)]:px-4 [@media(max-height:500px)]:pb-2 [@media(max-height:500px)]:pt-3">
           <DialogTitle id="card-modal-title">{details?.name ?? "Loading card..."}</DialogTitle>
         </DialogHeader>
         <DialogClose aria-label="Close card dialog" />
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] gap-6 p-6">
-          <section aria-label="Card details and actions" className="flex min-h-0 flex-col gap-4">
-            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] gap-6 p-6 [@media(max-height:500px)]:gap-3 [@media(max-height:500px)]:p-3">
+          <section
+            aria-label="Card details and actions"
+            className="flex min-h-0 flex-col gap-4 [@media(max-height:500px)]:gap-2"
+          >
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto [@media(max-height:500px)]:space-y-2">
               <h2 className="text-lg font-semibold">Details</h2>
               <div className="space-y-3 text-sm" aria-live="polite">
                 {detailsQuery.isLoading && <p>Loading details…</p>}
@@ -162,15 +165,15 @@ export default function CardModal({
                       <span className="font-medium">Type:</span>
                       <span>{details.cardType}</span>
                     </div>
-                    <p className="line-clamp-6 whitespace-pre-line text-sm leading-relaxed">
+                    <p className="whitespace-pre-line text-sm leading-relaxed">
                       {details.description?.trim() || "No rules text available."}
                     </p>
                   </>
                 )}
               </div>
             </div>
-            <div className="flex shrink-0 flex-col gap-3 border-t pt-4">
-              <label className="flex items-center gap-2 text-sm">
+            <div className="flex shrink-0 flex-col gap-3 border-t pt-4 [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:pt-2">
+              <label className="flex items-center gap-2 text-sm [@media(max-height:500px)]:gap-1 [@media(max-height:500px)]:text-xs">
                 Quantity
                 <Input
                   type="number"
@@ -179,14 +182,15 @@ export default function CardModal({
                   onChange={(event) =>
                     setQuantity(clampQuantity(Number(event.currentTarget.value)))
                   }
-                  className="w-20"
+                  className="w-20 [@media(max-height:500px)]:h-8 [@media(max-height:500px)]:w-16"
                 />
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 [@media(max-height:500px)]:gap-1">
                 <Button
                   onClick={() => onAdd("collection")}
                   disabled={!selectedPrintingId || collectionMutation.isPending}
                   aria-label="Add to collection"
+                  className="[@media(max-height:500px)]:h-7 [@media(max-height:500px)]:px-2 [@media(max-height:500px)]:text-xs"
                 >
                   {collectionMutation.isPending ? "Adding…" : "Add to Collection"}
                 </Button>
@@ -195,6 +199,7 @@ export default function CardModal({
                   onClick={() => onAdd("wishlist")}
                   disabled={!selectedPrintingId || wishlistMutation.isPending}
                   aria-label="Add to wishlist"
+                  className="[@media(max-height:500px)]:h-7 [@media(max-height:500px)]:px-2 [@media(max-height:500px)]:text-xs"
                 >
                   {wishlistMutation.isPending ? "Adding…" : "Add to Wishlist"}
                 </Button>
@@ -204,9 +209,9 @@ export default function CardModal({
 
           <section
             aria-label="Selected card image"
-            className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-3"
+            className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 [@media(max-height:500px)]:gap-1"
           >
-            <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-xl border bg-muted p-2">
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-xl border bg-muted p-2 [@media(max-height:500px)]:p-1">
               {resolvedImageUrl ? (
                 <img
                   key={resolvedImageUrl}
@@ -223,7 +228,7 @@ export default function CardModal({
               )}
             </div>
             <div
-              className="shrink-0 text-center text-sm text-muted-foreground"
+              className="shrink-0 text-center text-sm text-muted-foreground [@media(max-height:500px)]:text-xs"
               data-testid="selected-printing-label"
             >
               {selectedPrinting ? (
@@ -239,9 +244,12 @@ export default function CardModal({
           </section>
         </div>
 
-        <section aria-label="Card printings" className="shrink-0 space-y-3 border-t px-6 py-3">
-          <h2 className="text-lg font-semibold">Printings</h2>
-          <div className="space-y-3" aria-live="polite">
+        <section
+          aria-label="Card printings"
+          className="shrink-0 space-y-3 border-t px-6 py-3 [@media(max-height:500px)]:space-y-1 [@media(max-height:500px)]:px-3 [@media(max-height:500px)]:py-2"
+        >
+          <h2 className="text-lg font-semibold [@media(max-height:500px)]:text-sm">Printings</h2>
+          <div className="space-y-3 [@media(max-height:500px)]:space-y-1" aria-live="polite">
             {printingsQuery.isLoading && <p>Loading printings…</p>}
             {printingsQuery.isError && (
               <p className="text-destructive">Failed to load printings.</p>
@@ -251,7 +259,7 @@ export default function CardModal({
                 role="listbox"
                 tabIndex={0}
                 onKeyDown={handleCarouselKeyDown}
-                className="flex gap-3 overflow-x-auto pb-1"
+                className="flex gap-3 overflow-x-auto pb-1 [@media(max-height:500px)]:gap-2"
                 aria-label="Card printing options"
               >
                 {printings.map((printing) => {
@@ -263,14 +271,14 @@ export default function CardModal({
                       role="option"
                       aria-selected={isActive}
                       aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
-                      className={`flex w-24 shrink-0 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary ${
+                      className={`flex w-24 shrink-0 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary [@media(max-height:500px)]:w-16 [@media(max-height:500px)]:gap-1 [@media(max-height:500px)]:rounded-lg [@media(max-height:500px)]:p-1 ${
                         isActive
                           ? "border-primary bg-primary/10"
                           : "border-border hover:border-primary"
                       }`}
                       onClick={() => setSelectedPrintingId(printing.printingId)}
                     >
-                      <div className="h-24 w-full rounded-lg bg-muted">
+                      <div className="h-24 w-full rounded-lg bg-muted [@media(max-height:500px)]:h-10">
                         {printing.imageUrl ? (
                           <img
                             src={resolveImageUrl(printing.imageUrl)}
