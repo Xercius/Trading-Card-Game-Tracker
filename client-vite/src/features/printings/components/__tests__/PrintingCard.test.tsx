@@ -88,6 +88,26 @@ describe("PrintingCard", () => {
     container.remove();
   });
 
+  it("lets landscape images fill the card width without a fixed height", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PrintingCard p={mockPrinting} />);
+    });
+
+    const img = container.querySelector("img");
+    expect(img?.classList.contains("w-full")).toBe(true);
+    expect(img?.classList.contains("h-auto")).toBe(true);
+    expect(img?.parentElement?.classList.contains("aspect-[63/88]")).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("shows 'No image' text when imageUrl is not provided", async () => {
     const printingWithoutImage = { ...mockPrinting, imageUrl: null };
     const container = document.createElement("div");
