@@ -123,6 +123,9 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Rarity]))", true);
 
+                    b.Property<DateOnly?>("ReleasedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Set")
                         .IsRequired()
                         .HasMaxLength(64)

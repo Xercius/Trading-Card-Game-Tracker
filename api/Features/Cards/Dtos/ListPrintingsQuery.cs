@@ -8,7 +8,7 @@ namespace api.Features.Cards.Dtos;
 /// This DTO provides a comprehensive set of filters for querying card printings:
 /// - Game/Set/Rarity/Style: Exact match filters (case-insensitive)
 /// - Number: Exact match filter for collector numbers
-/// - Q: Free-text search across card name, printing number, and set name (case-insensitive LIKE)
+/// - Q: Free-text search across card name, type, printing number, and set name (case-insensitive LIKE)
 /// - Page/PageSize: Standard pagination parameters
 /// 
 /// All filters are optional and can be combined. When multiple filters are specified,
@@ -54,7 +54,7 @@ public sealed class ListPrintingsQuery
     public string? Style { get; init; }
 
     /// <summary>
-    /// Optional free-text search term for finding printings by card name, collector number, or set name.
+    /// Optional free-text search term for finding printings by card name, type, collector number, or set name.
     /// Performs case-insensitive LIKE match (substring search). Null to disable text search.
     /// Example: "elsa" would match "Elsa - Snow Queen" in any set.
     /// </summary>
@@ -73,6 +73,8 @@ public sealed class ListPrintingsQuery
 
     /// <summary>
     /// Whether to return only the oldest printing for each card while applying filters across all printings.
+    /// Known release dates sort before unknown dates; ties and undated printings use the lowest ID.
+    /// Reimport Scryfall sets to populate release dates for existing printings.
     /// </summary>
     public bool UniqueCards { get; init; }
 }

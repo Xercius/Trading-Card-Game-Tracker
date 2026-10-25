@@ -9,6 +9,25 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
+    public async Task Get_with_card_type_search_matches_facet_results()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.GetAsync("/api/cards/printings?q=cReAtUrE&uniqueCards=true");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>();
+        var facets = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=cReAtUrE");
+
+        Assert.NotNull(printings);
+        var printing = Assert.Single(printings);
+        Assert.Equal(TestDataSeeder.GoblinGuidePrintingId, printing.PrintingId);
+        Assert.NotNull(facets);
+        Assert.Equal(printing.Game, Assert.Single(facets.Games).Value);
+        Assert.Equal(printing.SetName, Assert.Single(facets.Sets).Value);
+        Assert.Equal(printing.Rarity, Assert.Single(facets.Rarities).Value);
+    }
+
+    [Fact]
     public async Task Get_with_number_filters_to_exact_match()
     {
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);

@@ -131,6 +131,7 @@ public sealed class ScryfallImporter : ISourceImporter
                 Number = number,
                 Rarity = rarity,
                 Style = style,
+                ReleasedAt = c.ReleasedAt,
                 ImageUrl = imageUrl
             };
             _db.CardPrintings.Add(printing);
@@ -142,6 +143,7 @@ public sealed class ScryfallImporter : ISourceImporter
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
             if (printing.Style != style) { printing.Style = style; changed = true; }
+            if (c.ReleasedAt is not null && printing.ReleasedAt != c.ReleasedAt) { printing.ReleasedAt = c.ReleasedAt; changed = true; }
             if (printing.ImageUrl != imageUrl && imageUrl is not null) { printing.ImageUrl = imageUrl; changed = true; }
             if (changed) summary.PrintingsUpdated++;
         }
@@ -161,7 +163,10 @@ public sealed class ScryfallImporter : ISourceImporter
     }
 
     // --- Scryfall DTOs + fetch ---
-    private static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
 
     private async Task<ScryPage> GetPageAsync(string relativeOrAbsolute, CancellationToken ct)
     {
@@ -192,7 +197,10 @@ public sealed class ScryfallImporter : ISourceImporter
         List<string>? Finishes,
         ScryImages? ImageUris,
         List<ScryFace>? CardFaces
-    );
+    )
+    {
+        public DateOnly? ReleasedAt { get; init; }
+    }
 
     private sealed record ScryFace(
         string? Name,
