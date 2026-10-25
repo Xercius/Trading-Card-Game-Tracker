@@ -40,7 +40,7 @@ public sealed class PrintingsController : ControllerBase
     /// - Uses EF.Functions.Collate with NOCASE for case-insensitive filtering that leverages SQLite collation indices
     /// - Projects to PrintingDto to minimize payload size and prevent N+1 queries by including Card navigation
     /// - Pagination defaults to page 1, page size 100 (clamped to max 500)
-    /// - Search term (Q) performs LIKE match against card name, printing number, and set name
+    /// - Search term (Q) performs LIKE match against card name, type, printing number, and set name
     /// </remarks>
     [HttpGet]
     // Suggest: rename 'qp' → 'queryParams'
@@ -99,7 +99,7 @@ public sealed class PrintingsController : ControllerBase
                 normalizedStyles.Contains(EF.Property<string>(p, "StyleNorm")));
         }
 
-        // Free-text search across card name, printing number, and set name
+        // Free-text search across card name, type, printing number, and set name
         if (!string.IsNullOrWhiteSpace(qp.Q))
         {
             var term = qp.Q.Trim(); // Suggest: rename 'term' → 'searchTerm'
@@ -109,8 +109,25 @@ public sealed class PrintingsController : ControllerBase
             // Use normalized columns where available for index-friendly case-insensitive wildcard search
             query = query.Where(p =>
                 (p.Card.Name != null && EF.Functions.Like(EF.Functions.Collate(p.Card.Name, "NOCASE"), pattern)) ||
+                (p.Card.CardType != null && EF.Functions.Like(EF.Functions.Collate(p.Card.CardType, "NOCASE"), pattern)) ||
                 (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
                 (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)));
+        }
+
+        if (qp.UniqueCards)
+        {
+            var matchingCardIds = query.Select(p => p.CardId).Distinct();
+            query = _db.Set<CardPrinting>()
+                .AsNoTracking()
+                .Include(p => p.Card)
+                .Where(p => matchingCardIds.Contains(p.CardId))
+                .Where(p => p.Id == _db.Set<CardPrinting>()
+                    .Where(candidate => candidate.CardId == p.CardId)
+                    .OrderBy(candidate => candidate.ReleasedAt == null)
+                    .ThenBy(candidate => candidate.ReleasedAt)
+                    .ThenBy(candidate => candidate.Id)
+                    .Select(candidate => candidate.Id)
+                    .FirstOrDefault());
         }
 
         // Apply default ordering: set, then number, then card name

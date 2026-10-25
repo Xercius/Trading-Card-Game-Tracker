@@ -1,10 +1,13 @@
 using api.Data;
+using api.Features.Cards.Dtos;
 using api.Importing;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections;
 using System.Reflection;
+using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 
@@ -27,6 +30,69 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
     private static readonly Type ScryImagesType = typeof(ScryfallImporter)
         .GetNestedType("ScryImages", BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Missing ScryImages type.");
+
+    [Theory]
+    [InlineData("1973-10-04", "1973-08-05", "LEA")]
+    [InlineData("1973-08-05", "1973-08-05", "LEB")]
+    [InlineData(null, "1973-08-05", "LEA")]
+    [InlineData("1973-10-04", null, "LEB")]
+    [InlineData(null, null, "LEB")]
+    public async Task ScryfallImporter_ImportNewerSetFirst_SelectsOldestReleasedPrinting(
+        string? betaRelease, string? alphaRelease, string expectedSet)
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using var httpFactory = new StubHttpClientFactory(new ScryfallHandler(
+            ("leb", betaRelease), ("lea", alphaRelease)));
+        var importer = new ScryfallImporter(db, httpFactory);
+
+        foreach (var set in new[] { "leb", "lea" })
+        {
+            var summary = await importer.ImportFromRemoteAsync(new ImportOptions(DryRun: false, SetCode: set));
+            Assert.Equal(0, summary.Errors);
+            Assert.Equal(1, summary.PrintingsCreated);
+        }
+
+        db.ChangeTracker.Clear();
+        var imported = await db.CardPrintings.Where(p => p.Card.Name == "Chronology Test Card")
+            .OrderBy(p => p.Id).ToListAsync();
+        Assert.Equal(new[] { "LEB", "LEA" }, imported.Select(p => p.Set));
+        Assert.Equal(betaRelease is null ? (DateOnly?)null : DateOnly.Parse(betaRelease), imported[0].ReleasedAt);
+        Assert.Equal(alphaRelease is null ? (DateOnly?)null : DateOnly.Parse(alphaRelease), imported[1].ReleasedAt);
+
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync("/api/cards/printings?uniqueCards=true&set=LEB&pageSize=1");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>();
+        Assert.NotNull(printings);
+        Assert.Equal(expectedSet, Assert.Single(printings).SetName);
+    }
+
+    [Fact]
+    public async Task ScryfallImporter_Reimport_BackfillsReleaseDateWithoutDuplicatingPrinting()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using var httpFactory = new StubHttpClientFactory(new ScryfallHandler(
+            ("leb", null), ("leb", "1973-10-04"), ("leb", null)));
+        var importer = new ScryfallImporter(db, httpFactory);
+        var options = new ImportOptions(DryRun: false, SetCode: "leb");
+
+        await importer.ImportFromRemoteAsync(options);
+        var updated = await importer.ImportFromRemoteAsync(options);
+        var unchanged = await importer.ImportFromRemoteAsync(options);
+
+        Assert.Equal(0, updated.Errors);
+        Assert.Equal(0, updated.PrintingsCreated);
+        Assert.Equal(1, updated.PrintingsUpdated);
+        Assert.Equal(0, unchanged.Errors);
+        Assert.Equal(0, unchanged.PrintingsUpdated);
+        db.ChangeTracker.Clear();
+        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "LEB");
+        Assert.Equal(new DateOnly(1973, 10, 4), printing.ReleasedAt);
+    }
 
     [Fact]
     public async Task ScryfallImporter_Upsert_CreatesAndUpdatesEntitiesCorrectly()
@@ -159,9 +225,28 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         return list;
     }
 
-    private sealed class StubHttpClientFactory : IHttpClientFactory, IDisposable
+    private sealed class ScryfallHandler(params (string Set, string? ReleasedAt)[] responses) : HttpMessageHandler
     {
-        private readonly HttpClient _client = new();
+        private readonly Queue<(string Set, string? ReleasedAt)> _responses = new(responses);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var (set, releasedAt) = _responses.Dequeue();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    data = new[] { new { id = set, name = "Chronology Test Card", type_line = "Instant",
+                        collector_number = "1", set, released_at = releasedAt, rarity = "common" } },
+                    has_more = false
+                })
+            });
+        }
+    }
+
+    private sealed class StubHttpClientFactory(HttpMessageHandler? handler = null) : IHttpClientFactory, IDisposable
+    {
+        private readonly HttpClient _client = handler is null ? new() : new(handler);
 
         public HttpClient CreateClient(string name) => _client;
 

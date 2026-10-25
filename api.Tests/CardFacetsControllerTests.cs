@@ -169,7 +169,22 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task GetFacets_SearchesCardTypeUnlessPrintingSearchIsRequested()
+    public async Task GetFacets_SearchesPrintingSetAndNumber()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var setResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=Beta&printingSearch=true", Options);
+        var numberResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=B2&printingSearch=true", Options);
+
+        Assert.NotNull(setResponse);
+        Assert.Contains(setResponse.Sets, facet => facet.Value == "Beta");
+        Assert.NotNull(numberResponse);
+        Assert.Contains(numberResponse.Sets, facet => facet.Value == "Beta");
+    }
+
+    [Fact]
+    public async Task GetFacets_SearchesCardTypeInBothSearchModes()
     {
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
@@ -184,7 +199,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
         printingSearchResponse.EnsureSuccessStatusCode();
         var printingSearchFacets = await printingSearchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
         Assert.NotNull(printingSearchFacets);
-        Assert.DoesNotContain(printingSearchFacets!.Games, facet => facet.Value == "Magic");
+        Assert.Contains(printingSearchFacets!.Games, facet => facet.Value == "Magic");
     }
 
     [Fact]

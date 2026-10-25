@@ -11,6 +11,7 @@ namespace api.Models
         public required string Style { get; set; } // Standard, Foil, Hyperspace, Showcase etc..
         public string? ImageUrl { get; set; } // url to card image
         public string? DetailsJson { get; set; } // Source-specific payload
+        public DateOnly? ReleasedAt { get; set; } // Release date when supplied by the source
         public ICollection<DeckCard> DeckCards { get; set; } = new List<DeckCard>();
     }
 }

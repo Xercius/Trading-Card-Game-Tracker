@@ -35,7 +35,7 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="set">Optional comma-separated list of set names to filter by.</param>
     /// <param name="rarity">Optional comma-separated list of rarity values to filter by.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
-    /// <param name="printingSearch">Whether to match printing name, number, and set instead of card name and type.</param>
+    /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
     /// <returns>
     /// An HTTP 200 OK response with a <see cref="CardsFacetResponse"/> containing
@@ -75,6 +75,7 @@ public sealed class CardFacetsController : ControllerBase
                 var normalizedPattern = $"%{normalizedTerm}%";
                 baseQuery = baseQuery.Where(cp =>
                     EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
+                    EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern) ||
                     (cp.Number != null && EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern)) ||
                     (cp.Set != null && EF.Functions.Like(EF.Property<string>(cp, "SetNorm"), normalizedPattern)));
             }
