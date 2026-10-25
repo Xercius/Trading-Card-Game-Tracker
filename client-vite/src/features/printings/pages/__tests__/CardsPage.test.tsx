@@ -7,6 +7,10 @@ import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
 import * as printingFacetsApi from "../../api/usePrintingFacets";
 
+vi.mock("../../api/usePrintingFacets", () => ({
+  usePrintingFacets: () => ({ data: { games: [], sets: [], rarities: [] } }),
+}));
+
 // Define a strongly-typed mock result for usePrintings
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
 
@@ -249,7 +253,7 @@ describe("CardsPage filter wiring", () => {
 
     render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
 
-    expect(screen.getByText("1 printings")).toBeInTheDocument();
+    expect(screen.getByText("1 cards")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry loading printings" })).toBeInTheDocument();
   });
 

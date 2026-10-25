@@ -11,6 +11,7 @@ export function usePrintings(filters: CardFilters) {
     set: filters.sets.length > 0 ? filters.sets : undefined,
     rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
     pageSize,
+    uniqueCards: true,
   };
 
   return useInfiniteQuery<

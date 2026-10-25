@@ -75,6 +75,7 @@ describe("usePrintings pagination", () => {
       rarity: ["Rare"],
       pageSize: 2,
       page: 1,
+      uniqueCards: true,
     });
     expect(fetchPrintingsMock).toHaveBeenNthCalledWith(2, {
       q: "droid",
@@ -83,6 +84,7 @@ describe("usePrintings pagination", () => {
       rarity: ["Rare"],
       pageSize: 2,
       page: 2,
+      uniqueCards: true,
     });
     expect(fetchPrintingsMock).toHaveBeenNthCalledWith(3, {
       q: "droid",
@@ -91,6 +93,7 @@ describe("usePrintings pagination", () => {
       rarity: ["Rare"],
       pageSize: 2,
       page: 3,
+      uniqueCards: true,
     });
   });
 

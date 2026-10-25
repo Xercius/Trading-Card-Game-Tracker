@@ -9,6 +9,25 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     : IClassFixture<CustomWebApplicationFactory>
 {
     [Fact]
+    public async Task Get_with_card_type_search_matches_facet_results()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.GetAsync("/api/cards/printings?q=cReAtUrE&uniqueCards=true");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>();
+        var facets = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=cReAtUrE&printingSearch=true");
+
+        Assert.NotNull(printings);
+        var printing = Assert.Single(printings);
+        Assert.Equal(TestDataSeeder.GoblinGuidePrintingId, printing.PrintingId);
+        Assert.NotNull(facets);
+        Assert.Equal(printing.Game, Assert.Single(facets.Games).Value);
+        Assert.Equal(printing.SetName, Assert.Single(facets.Sets).Value);
+        Assert.Equal(printing.Rarity, Assert.Single(facets.Rarities).Value);
+    }
+
+    [Fact]
     public async Task Get_with_number_filters_to_exact_match()
     {
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
@@ -94,6 +113,36 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(printings);
         var printing = Assert.Single(printings);
         Assert.Equal("Alpha", printing.SetName);
+    }
+
+    [Fact]
+    public async Task Get_with_unique_cards_returns_oldest_printing_for_each_card()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true");
+
+        Assert.NotNull(printings);
+        Assert.Equal(4, printings.Count);
+        var lightningBolt = Assert.Single(printings, p => p.CardId == TestDataSeeder.LightningBoltCardId);
+        Assert.Equal(TestDataSeeder.LightningBoltAlphaPrintingId, lightningBolt.PrintingId);
+        Assert.Equal("Alpha", lightningBolt.SetName);
+    }
+
+    [Fact]
+    public async Task Get_with_unique_cards_set_filter_matches_later_printing_but_returns_oldest()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true&set=Beta");
+        var noMatch = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true&set=Unknown");
+
+        Assert.NotNull(printings);
+        var printing = Assert.Single(printings);
+        Assert.Equal(TestDataSeeder.LightningBoltAlphaPrintingId, printing.PrintingId);
+        Assert.Equal("Alpha", printing.SetName);
+        Assert.NotNull(noMatch);
+        Assert.Empty(noMatch);
     }
 
     [Fact]

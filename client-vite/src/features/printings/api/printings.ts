@@ -19,6 +19,7 @@ export type PrintingQuery = {
   rarity?: string[];
   page?: number;
   pageSize?: number;
+  uniqueCards?: boolean;
 };
 
 export async function fetchPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
@@ -29,6 +30,7 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   if (query.rarity?.length) params.set("rarity", query.rarity.join(","));
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
+  if (query.uniqueCards) params.set("uniqueCards", "true");
 
   const paramString = params.toString();
   const res = await api.get<PrintingListItem[]>(`cards/printings${paramString ? `?${paramString}` : ""}`);
