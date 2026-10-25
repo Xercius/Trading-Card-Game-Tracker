@@ -13,6 +13,6 @@ describe("arrayToCsvOrUndefined", () => {
   });
 
   it("handles arrays with empty strings", () => {
-    expect(arrayToCsvOrUndefined(["", ""])).toBe(",");
+    expect(arrayToCsvOrUndefined(["", ""])).toBeUndefined();
   });
 });

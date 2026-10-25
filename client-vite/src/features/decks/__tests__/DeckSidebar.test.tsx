@@ -239,7 +239,7 @@ describe("StickyDeckSidebar", () => {
       imageUrl: null,
       quantityInDeck: 1,
       availability: 0,
-      availabilityWithProxies: 2,
+      availabilityWithProxies: 0,
     };
 
     function Harness() {
@@ -261,6 +261,8 @@ describe("StickyDeckSidebar", () => {
             ]);
           }}
           onAdjustQuantity={() => {}}
+          valueHistory={defaultValueHistory}
+          formatCurrency={formatCurrency}
         />
       );
     }

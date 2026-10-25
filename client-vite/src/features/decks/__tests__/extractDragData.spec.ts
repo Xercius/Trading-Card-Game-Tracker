@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractDragData } from "../StickyDeckSidebar";
+import { extractDragData } from "../dragData";
 import {
   AVAILABILITY_DATA,
   AVAILABILITY_PROXY_DATA,

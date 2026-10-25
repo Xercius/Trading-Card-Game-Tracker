@@ -29,6 +29,8 @@ type CardModalProps = {
   initialPrintingId?: number;
 };
 
+const EMPTY_PRINTINGS: PrintingSummary[] = [];
+
 function clampQuantity(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 1;
   return Math.min(999, Math.floor(value));
@@ -52,7 +54,7 @@ export default function CardModal({
   const collectionMutation = useUpsertCollection();
   const wishlistMutation = useUpsertWishlist();
 
-  const printings = printingsQuery.data ?? [];
+  const printings = printingsQuery.data ?? EMPTY_PRINTINGS;
   const details = detailsQuery.data;
 
   useEffect(() => {
