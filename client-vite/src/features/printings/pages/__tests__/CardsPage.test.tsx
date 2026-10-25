@@ -101,7 +101,7 @@ describe("CardsPage filter wiring", () => {
     const gridButton = screen.getByRole("button", { name: "Grid" });
     const tableButton = screen.getByRole("button", { name: "Table" });
     expect(gridButton).toHaveAttribute("aria-pressed", "true");
-    expect(gridButton).toHaveClass("border-sky-400", "bg-sky-600");
+    expect(gridButton).toHaveClass("border-sky-400", "bg-sky-700");
     expect(tableButton).toHaveAttribute("aria-pressed", "false");
     expect(tableButton).toHaveClass("border-white/30", "bg-transparent");
 
@@ -110,7 +110,7 @@ describe("CardsPage filter wiring", () => {
     expect(gridButton).toHaveAttribute("aria-pressed", "false");
     expect(gridButton).toHaveClass("border-white/30", "bg-transparent");
     expect(tableButton).toHaveAttribute("aria-pressed", "true");
-    expect(tableButton).toHaveClass("border-sky-400", "bg-sky-600");
+    expect(tableButton).toHaveClass("border-sky-400", "bg-sky-700");
   });
 
   it("displays active filters badges when filters are present", () => {
