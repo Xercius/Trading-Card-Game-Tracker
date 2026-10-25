@@ -59,31 +59,29 @@ export default function CardsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-3">
-          <MultiSelect
-            label="Game"
-            values={filters.games ?? []}
-            options={facets.games}
-            onChange={vals => setFilters(prev => ({ ...prev, games: vals, page: 1 }))}
-          />
-          <MultiSelect
-            label="Set"
-            values={filters.sets ?? []}
-            options={facets.sets}
-            placeholder="Search sets…"
-            onChange={vals => setFilters(prev => ({ ...prev, sets: vals, page: 1 }))}
-          />
-          <MultiSelect
-            label="Rarity"
-            values={filters.rarities ?? []}
-            options={facets.rarities}
-            onChange={vals => setFilters(prev => ({ ...prev, rarities: vals, page: 1 }))}
-          />
-          <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
-            Clear filters
-          </Button>
-        </div>
+      <div className="flex flex-wrap gap-3">
+        <MultiSelect
+          label="Game"
+          values={filters.games ?? []}
+          options={facets.games}
+          onChange={vals => setFilters(prev => ({ ...prev, games: vals, page: 1 }))}
+        />
+        <MultiSelect
+          label="Set"
+          values={filters.sets ?? []}
+          options={facets.sets}
+          placeholder="Search sets…"
+          onChange={vals => setFilters(prev => ({ ...prev, sets: vals, page: 1 }))}
+        />
+        <MultiSelect
+          label="Rarity"
+          values={filters.rarities ?? []}
+          options={facets.rarities}
+          onChange={vals => setFilters(prev => ({ ...prev, rarities: vals, page: 1 }))}
+        />
+        <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
+          Clear filters
+        </Button>
       </div>
 
       <div className="flex items-center gap-1" role="group" aria-label="View mode">
