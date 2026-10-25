@@ -18,7 +18,6 @@ import CardsPage from "./CardsPage";
 import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
-  let usePrintingsMock: ReturnType<typeof vi.spyOn>;
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
 
@@ -31,7 +30,7 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    } as ReturnType<typeof printingsApi.usePrintings>));
   });
 
   afterEach(async () => {

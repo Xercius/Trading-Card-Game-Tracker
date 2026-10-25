@@ -2,6 +2,7 @@ import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, waitFor } from "@testing-library/react";
 import UsersAdminPage from "../UsersAdminPage";
 import { UserContext, type Ctx } from "@/state/UserContext";
 import type { AdminUserApi } from "@/types/user";
@@ -23,7 +24,7 @@ type RenderResult = {
   cleanup: () => Promise<void>;
 };
 
-async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<RenderResult> {
+async function renderWithProviders(initialUsers: AdminUserApi[]): Promise<RenderResult> {
   const client = new QueryClient();
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -31,7 +32,7 @@ async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<Rende
 
   const ctx: Ctx = {
     userId: 1,
-    users: baseUsers.map((u) => ({
+    users: initialUsers.map((u) => ({
       id: u.id,
       name: u.name ?? u.username ?? "User",
       isAdmin: Boolean(u.isAdmin),
@@ -48,8 +49,8 @@ async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<Rende
     );
   });
 
-  await act(async () => {
-    await Promise.resolve();
+  await waitFor(() => {
+    expect(container.querySelector("tbody")).not.toBeNull();
   });
 
   return {
@@ -98,29 +99,23 @@ describe("UsersAdminPage", () => {
 
     const { container, cleanup } = await renderWithProviders(users);
 
-    await act(async () => {
-      await Promise.resolve();
-    });
-
     const toggles = container.querySelectorAll<HTMLInputElement>("input[type='checkbox']");
     expect(toggles).toHaveLength(2);
     const aliceToggle = toggles[1];
     expect(aliceToggle.checked).toBe(false);
 
-    await act(async () => {
-      aliceToggle.checked = true;
-      aliceToggle.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    fireEvent.click(aliceToggle);
 
-    expect(aliceToggle.checked).toBe(true);
+    await waitFor(() => expect(aliceToggle.checked).toBe(true));
 
     await act(async () => {
       rejectToggle?.(new Error("toggle failed"));
-      await Promise.resolve();
     });
 
-    expect(aliceToggle.checked).toBe(false);
-    expect(container.textContent ?? "").toContain("toggle failed");
+    await waitFor(() => {
+      expect(aliceToggle.checked).toBe(false);
+      expect(container.textContent ?? "").toContain("toggle failed");
+    });
     await cleanup();
   });
 
@@ -140,10 +135,6 @@ describe("UsersAdminPage", () => {
     vi.spyOn(http, "get").mockResolvedValue({ data: users });
 
     const { container, cleanup } = await renderWithProviders(users);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
 
     const deleteButton = container.querySelector<HTMLButtonElement>("button[data-user-id='1']");
     expect(deleteButton).not.toBeNull();
@@ -172,26 +163,16 @@ describe("UsersAdminPage", () => {
 
     const { container, cleanup } = await renderWithProviders(users);
 
-    await act(async () => {
-      await Promise.resolve();
-    });
-
     const input = container.querySelector<HTMLInputElement>("form input[type='text']");
     const form = container.querySelector<HTMLFormElement>("form");
     expect(input).not.toBeNull();
     expect(form).not.toBeNull();
 
-    await act(async () => {
-      input!.value = "Alice";
-      input!.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    fireEvent.change(input!, { target: { value: "Alice" } });
 
-    await act(async () => {
-      form!.dispatchEvent(new Event("submit", { bubbles: true }));
-      await Promise.resolve();
-    });
+    fireEvent.submit(form!);
 
-    expect(container.textContent ?? "").toContain("Name already exists.");
+    await waitFor(() => expect(container.textContent ?? "").toContain("Name already exists."));
 
     await cleanup();
   });
@@ -225,10 +206,6 @@ describe("UsersAdminPage", () => {
     globalThis.confirm = confirmMock;
 
     const { container, cleanup } = await renderWithProviders(users);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
 
     const deleteButton = container.querySelector<HTMLButtonElement>("button[data-user-id='2']");
     expect(deleteButton).not.toBeNull();

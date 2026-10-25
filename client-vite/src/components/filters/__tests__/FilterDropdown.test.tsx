@@ -249,7 +249,7 @@ describe("FilterDropdown", () => {
       </>
     );
 
-    const triggers = container.querySelectorAll('[role="button"][aria-haspopup="menu"]');
+    const triggers = container.querySelectorAll('button[aria-haspopup="menu"]');
     expect(triggers).toHaveLength(2);
 
     const trigger1 = triggers[0];
