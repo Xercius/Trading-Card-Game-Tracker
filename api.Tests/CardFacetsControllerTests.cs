@@ -169,6 +169,21 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task GetFacets_SearchesPrintingSetAndNumber()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var setResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=Beta", Options);
+        var numberResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=B2", Options);
+
+        Assert.NotNull(setResponse);
+        Assert.Contains(setResponse.Sets, facet => facet.Value == "Beta");
+        Assert.NotNull(numberResponse);
+        Assert.Contains(numberResponse.Sets, facet => facet.Value == "Beta");
+    }
+
+    [Fact]
     public async Task GetFacets_CombinesMultipleFilters()
     {
         await factory.ResetDatabaseAsync();

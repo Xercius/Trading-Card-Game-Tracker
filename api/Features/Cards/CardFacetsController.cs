@@ -34,7 +34,7 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="game">Optional comma-separated list of game names to filter by.</param>
     /// <param name="set">Optional comma-separated list of set names to filter by.</param>
     /// <param name="rarity">Optional comma-separated list of rarity values to filter by.</param>
-    /// <param name="q">Optional search term to filter cards by name or type.</param>
+    /// <param name="q">Optional search term to filter by card name, type, printing number, or set.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
     /// <returns>
     /// An HTTP 200 OK response with a <see cref="CardsFacetResponse"/> containing
@@ -69,7 +69,9 @@ public sealed class CardFacetsController : ControllerBase
             var pattern = $"%{term}%";
             baseQuery = baseQuery.Where(cp =>
                 EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
-                EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern));
+                EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern) ||
+                EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern) ||
+                EF.Functions.Like(EF.Functions.Collate(cp.Set, "NOCASE"), pattern));
         }
 
         // Compute game facets (with set, rarity filters applied)

@@ -113,6 +113,20 @@ public sealed class PrintingsController : ControllerBase
                 (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)));
         }
 
+        if (qp.UniqueCards)
+        {
+            var matchingCardIds = query.Select(p => p.CardId).Distinct();
+            query = _db.Set<CardPrinting>()
+                .AsNoTracking()
+                .Include(p => p.Card)
+                .Where(p => matchingCardIds.Contains(p.CardId))
+                .Where(p => p.Id == _db.Set<CardPrinting>()
+                    .Where(candidate => candidate.CardId == p.CardId)
+                    .OrderBy(candidate => candidate.Id)
+                    .Select(candidate => candidate.Id)
+                    .FirstOrDefault());
+        }
+
         // Apply default ordering: set, then number, then card name
         query = query
             .OrderBy(p => p.Set)

@@ -70,4 +70,9 @@ public sealed class ListPrintingsQuery
     /// Server may enforce a maximum limit (e.g., 500) to prevent excessive load.
     /// </summary>
     public int PageSize { get; init; } = 100;
+
+    /// <summary>
+    /// Whether to return only the oldest printing for each card while applying filters across all printings.
+    /// </summary>
+    public bool UniqueCards { get; init; }
 }

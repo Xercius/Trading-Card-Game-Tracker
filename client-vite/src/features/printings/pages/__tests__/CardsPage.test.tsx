@@ -6,6 +6,10 @@ import type { ReactElement } from "react";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
 
+vi.mock("../../api/usePrintingFacets", () => ({
+  usePrintingFacets: () => ({ data: { games: [], sets: [], rarities: [] } }),
+}));
+
 // Define a strongly-typed mock result for usePrintings
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
 

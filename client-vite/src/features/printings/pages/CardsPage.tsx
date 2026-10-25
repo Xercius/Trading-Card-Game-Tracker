@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "use-debounce";
 import { MultiSelect } from "../components/MultiSelect";
 import { usePrintings } from "../api/usePrintings";
-import { deriveFacets } from "../api/usePrintingFacets";
+import { usePrintingFacets } from "../api/usePrintingFacets";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { PrintingCard } from "../components/PrintingCard";
 import { PrintingTableView } from "../components/PrintingTableView";
@@ -17,7 +17,7 @@ export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
   const { data, isLoading, isError, error } = usePrintings(filters);
   const printings = data ?? [];
-  const facets = React.useMemo(() => deriveFacets(printings), [printings]);
+  const { data: facets = { games: [], sets: [], rarities: [] } } = usePrintingFacets(filters);
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
 
@@ -169,7 +169,7 @@ export default function CardsPage() {
 
       {!isLoading && !isError && (
         <>
-          <div className="text-sm text-muted-foreground">{printings.length} printings</div>
+          <div className="text-sm text-muted-foreground">{printings.length} cards</div>
           {viewMode === "grid" ? (
             <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">
               {printings.map(p => (

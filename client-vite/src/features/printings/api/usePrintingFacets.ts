@@ -1,4 +1,7 @@
-import type { PrintingListItem } from "./printings";
+import { useQuery } from "@tanstack/react-query";
+import { fetchCardFacets } from "@/features/cards/api/list";
+import { cardsQueryKeys } from "@/features/cards/queryKeys";
+import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 
 export type PrintingFacets = {
   games: string[];
@@ -6,25 +9,15 @@ export type PrintingFacets = {
   rarities: string[];
 };
 
-const sortStrings = (values: string[]): string[] =>
-  [...values].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-const uniqueStrings = (values: Array<string | null | undefined>): string[] => {
-  const seen = new Set<string>();
-  values.forEach((value) => {
-    const trimmed = value?.trim();
-    if (!trimmed) return;
-    if (!seen.has(trimmed)) {
-      seen.add(trimmed);
-    }
+export function usePrintingFacets(filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities">) {
+  return useQuery({
+    queryKey: cardsQueryKeys.facetOptions(filters),
+    queryFn: () => fetchCardFacets(filters),
+    select: (facets): PrintingFacets => ({
+      games: facets.games.map((facet) => facet.value),
+      sets: facets.sets.map((facet) => facet.value),
+      rarities: facets.rarities.map((facet) => facet.value),
+    }),
+    staleTime: 60_000,
   });
-  return sortStrings(Array.from(seen));
-};
-
-// TODO: Replace derived facets with backend-provided printings facet endpoints when available.
-export function deriveFacets(printings: PrintingListItem[]): PrintingFacets {
-  const games = uniqueStrings(printings.map((printing) => printing.game));
-  const sets = uniqueStrings(printings.map((printing) => printing.setName));
-  const rarities = uniqueStrings(printings.map((printing) => printing.rarity));
-  return { games, sets, rarities };
 }

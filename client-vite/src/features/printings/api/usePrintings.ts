@@ -11,6 +11,7 @@ export function usePrintings(filters: CardFilters) {
     rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
     page: filters.page,
     pageSize: filters.pageSize,
+    uniqueCards: true,
   };
 
   return useQuery<PrintingListItem[], Error>({

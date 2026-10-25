@@ -23,6 +23,9 @@ export const cardsQueryKeys = {
     ] as const,
   
   facets: () => [...cardsQueryKeys.all, "facets"] as const,
+
+  facetOptions: (filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities">) =>
+    [...cardsQueryKeys.facets(), filters] as const,
   
   facetGames: () => [...cardsQueryKeys.facets(), "games"] as const,
   

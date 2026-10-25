@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 const usePrintingsMock = vi.fn();
+const usePrintingFacetsMock = vi.fn(() => ({ games: [], sets: [], rarities: [] }));
 const CardModalMock = vi.fn(() => null);
 
 vi.mock("../api/usePrintings", () => ({
   usePrintings: (query: unknown) => usePrintingsMock(query),
+}));
+
+vi.mock("../api/usePrintingFacets", () => ({
+  usePrintingFacets: () => usePrintingFacetsMock(),
 }));
 
 vi.mock("@/features/cards/components/CardModal", () => ({
@@ -18,7 +23,6 @@ import CardsPage from "./CardsPage";
 import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
-  let usePrintingsMock: ReturnType<typeof vi.spyOn>;
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
 
@@ -31,7 +35,7 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    } as ReturnType<typeof printingsApi.usePrintings>));
   });
 
   afterEach(async () => {
