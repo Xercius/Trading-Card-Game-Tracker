@@ -253,7 +253,7 @@ describe("CardsPage filter wiring", () => {
 
     render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
 
-    expect(screen.getByText("1 printings")).toBeInTheDocument();
+    expect(screen.getByText("1 cards")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry loading printings" })).toBeInTheDocument();
   });
 

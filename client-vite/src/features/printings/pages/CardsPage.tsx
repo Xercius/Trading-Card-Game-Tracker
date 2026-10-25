@@ -206,7 +206,9 @@ export default function CardsPage() {
         <>
           <div className="text-sm text-muted-foreground">{printings.length} cards</div>
           {isFetchNextPageError && (
-            <div className="text-sm text-destructive">Unable to load more printings. Please retry.</div>
+            <div className="text-sm text-destructive">
+              Unable to load more printings. Please retry.
+            </div>
           )}
           {viewMode === "grid" ? (
             <ul className="grid gap-1 grid-cols-[repeat(auto-fill,minmax(200px,320px))]">

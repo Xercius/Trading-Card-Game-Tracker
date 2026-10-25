@@ -21,7 +21,6 @@ const filters: CardFilters = {
   sets: ["SOR"],
   rarities: ["Rare"],
   page: 1,
-  uniqueCards: true,
   pageSize: 2,
 };
 
@@ -76,6 +75,7 @@ describe("usePrintings pagination", () => {
       rarity: ["Rare"],
       pageSize: 2,
       page: 1,
+      uniqueCards: true,
     });
     expect(fetchPrintingsMock).toHaveBeenNthCalledWith(2, {
       q: "droid",
