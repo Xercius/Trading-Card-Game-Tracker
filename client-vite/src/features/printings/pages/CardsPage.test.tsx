@@ -81,7 +81,7 @@ describe("CardsPage", () => {
     });
   });
 
-  it("preserves search input value while typing", async () => {
+  it("does not render a redundant page-level search input", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
     usePrintingsMock.mockReturnValue({
@@ -99,38 +99,10 @@ describe("CardsPage", () => {
       root!.render(<RouterProvider router={router} />);
     });
 
-    const input = container.querySelector<HTMLInputElement>("input[type='search']");
-    expect(input).not.toBeNull();
-
-    if (input) {
-      // Type "Pikachu" and verify input value is preserved
-      await act(async () => {
-        input.value = "Pikachu";
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-
-      // Input value should remain "Pikachu" immediately after typing
-      expect(input.value).toBe("Pikachu");
-
-      // Advance time by 100ms (less than debounce delay)
-      await act(async () => {
-        vi.advanceTimersByTime(100);
-      });
-
-      // Input value should still be "Pikachu" during debounce period
-      expect(input.value).toBe("Pikachu");
-
-      // Advance time past debounce delay
-      await act(async () => {
-        vi.advanceTimersByTime(200);
-      });
-
-      // Input value should STILL be "Pikachu" after debounce completes
-      expect(input.value).toBe("Pikachu");
-    }
+    expect(container.querySelector("input[type='search']")).toBeNull();
   });
 
-  it("renders printing tiles and updates the query when searching", async () => {
+  it("renders printing tiles without a page-level search input", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
     usePrintingsMock.mockReturnValue({
@@ -164,25 +136,7 @@ describe("CardsPage", () => {
     const cardButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
     expect(cardButton).not.toBeNull();
     expect(cardButton?.getAttribute("aria-label")).toBe("Sample Card — Set A #001");
-
-    const input = container.querySelector<HTMLInputElement>("input[type='search']");
-    expect(input).not.toBeNull();
-
-    if (input) {
-      await act(async () => {
-        input.value = "Pikachu";
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        // Immediately advance timers to trigger the debounced callback
-        vi.advanceTimersByTime(300);
-      });
-    }
-
-    // The search input should still display "Pikachu"
-    expect(input?.value).toBe("Pikachu");
-
-    // The filter state should eventually be updated via URL params
-    // Since this test involves complex async URL state management via router,
-    // we verify that the input preserves the typed value which is the key behavior
+    expect(container.querySelector("input[type='search']")).toBeNull();
   });
 
   it("ensures cleanup occurs even if DOM elements are created", async () => {
