@@ -132,7 +132,10 @@ describe("CardModal", () => {
     expect(detailsSection?.querySelector('[aria-label="Add to collection"]')).not.toBeNull();
     expect(detailsSection?.querySelector('[aria-label="Add to wishlist"]')).not.toBeNull();
     expect(detailsSection?.nextElementSibling).toBe(imageSection);
-    expect(detailsSection?.parentElement?.nextElementSibling).toBe(printingsSection);
+    expect(detailsSection?.contains(printingsSection)).toBe(true);
+    expect(printingsSection?.previousElementSibling?.textContent).toContain(
+      "Seventh line remains readable."
+    );
 
     const optionButtons = screen.getAllByRole("option");
     expect(optionButtons).toHaveLength(2);
