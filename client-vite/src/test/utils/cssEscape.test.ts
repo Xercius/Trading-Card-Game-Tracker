@@ -1,25 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cssEscapeId } from "./cssEscape";
 
+type CssGlobal = { escape?: (selector: string) => string };
+
+function getCssGlobal(): CssGlobal | undefined {
+  return Reflect.get(globalThis, "CSS") as CssGlobal | undefined;
+}
+
 describe("cssEscapeId", () => {
-  let originalCSSEscape: typeof CSS.escape | undefined;
+  let originalCSSEscape: CssGlobal["escape"];
 
   beforeEach(() => {
     // Store original CSS.escape
-    originalCSSEscape = (globalThis as any).CSS?.escape;
+    originalCSSEscape = getCssGlobal()?.escape;
   });
 
   afterEach(() => {
     // Restore original CSS.escape
     if (originalCSSEscape) {
-      if (!(globalThis as any).CSS) {
-        (globalThis as any).CSS = {};
-      }
-      (globalThis as any).CSS.escape = originalCSSEscape;
+      const css = getCssGlobal();
+      if (css) css.escape = originalCSSEscape;
+      else Reflect.set(globalThis, "CSS", { escape: originalCSSEscape });
     } else {
-      if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
-        delete (globalThis as any).CSS.escape;
-      }
+      const css = getCssGlobal();
+      if (css && "escape" in css) delete css.escape;
     }
   });
 
@@ -29,11 +33,9 @@ describe("cssEscapeId", () => {
 
   it("uses native CSS.escape when available", () => {
     // Stub CSS.escape with a deterministic mock
-    const mockEscape = vi.fn(s => `__escaped__${s}`);
-    if (!(globalThis as any).CSS) {
-      (globalThis as any).CSS = {};
-    }
-    (globalThis as any).CSS.escape = mockEscape;
+    const mockEscape = vi.fn((selector: string) => `__escaped__${selector}`);
+    if (!getCssGlobal()) Reflect.set(globalThis, "CSS", {});
+    getCssGlobal()!.escape = mockEscape;
     const result = cssEscapeId("item:123");
     expect(result).toBe("__escaped__item:123");
     expect(mockEscape).toHaveBeenCalledWith("item:123");
@@ -41,18 +43,16 @@ describe("cssEscapeId", () => {
 
   it("escapes colons using fallback when CSS.escape is not available", () => {
     // Remove CSS.escape to test fallback
-    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
-      delete (globalThis as any).CSS.escape;
-    }
+    const css = getCssGlobal();
+    if (css && "escape" in css) delete css.escape;
     const result = cssEscapeId("item:123");
     expect(result).toBe("item\\:123");
   });
 
   it("escapes leading digits using fallback when CSS.escape is not available", () => {
     // Remove CSS.escape to test fallback
-    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
-      delete (globalThis as any).CSS.escape;
-    }
+    const css = getCssGlobal();
+    if (css && "escape" in css) delete css.escape;
     const result = cssEscapeId("123abc");
     // Fallback escapes the first digit: \31 23abc
     expect(result).toMatch(/^\\3[0-9]/);
@@ -60,9 +60,8 @@ describe("cssEscapeId", () => {
 
   it("handles IDs with both leading digits and colons using fallback", () => {
     // Remove CSS.escape to test fallback
-    if ((globalThis as any).CSS && 'escape' in (globalThis as any).CSS) {
-      delete (globalThis as any).CSS.escape;
-    }
+    const css = getCssGlobal();
+    if (css && "escape" in css) delete css.escape;
     const result = cssEscapeId("5item:123");
     // Fallback escapes leading digit and colons
     expect(result).toMatch(/^\\3[0-9]/);

@@ -130,14 +130,14 @@ export function MultiSelect({
           <ChevronDownIcon className={open ? "-rotate-180 transition-transform" : "transition-transform"} />
         </Button>
         {open && (
-          <div className="absolute left-0 z-50 mt-2 w-72 rounded-md border border-input bg-background shadow-lg">
+          <div className="absolute left-0 z-50 mt-2 w-72 rounded-lg border border-white/20 bg-[#242424] shadow-xl">
             <div className="border-b border-input px-3 py-2">
               <input
                 ref={inputRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={placeholder}
-                className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-md border border-input bg-[#242424] px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 type="search"
               />
             </div>

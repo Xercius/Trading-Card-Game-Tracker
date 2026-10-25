@@ -608,7 +608,7 @@ public class DecksController : ControllerBase
 
         // When the target quantity reaches 0 the card is removed from the deck view,
         // even if the underlying row persists for proxy tracking purposes.
-        if (targetQty == 0) return Ok((DeckCardWithAvailabilityResponse?)null);
+        if (targetQty == 0) return new JsonResult(null) { StatusCode = StatusCodes.Status200OK };
 
         var row = await LoadDeckCardAvailabilityAsync(deckEntity, cardPrintingId, includeProxies, ct);
         return Ok(row);

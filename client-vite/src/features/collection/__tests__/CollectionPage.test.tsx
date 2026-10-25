@@ -2,6 +2,7 @@ import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { fireEvent, getByRole, waitFor } from "@testing-library/react";
 import CollectionPage from "../CollectionPage";
 
 const mockData = {
@@ -37,10 +38,19 @@ const mockData = {
 vi.mock("../api", () => ({
   collectionKeys: { list: vi.fn(() => ["collection", { userId: 1 }]) },
   useCollectionQuery: vi.fn(() => mockData),
+  useBulkUpdateMutation: vi.fn(() => ({ mutateAsync: vi.fn() })),
+  useSetOwnedProxyMutation: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
 }));
 
 vi.mock("@/state/useUser", () => ({
   useUser: () => ({ userId: 1 }),
+}));
+
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: () => ({
+    getTotalSize: () => 72,
+    getVirtualItems: () => [{ index: 0, start: 0 }],
+  }),
 }));
 
 vi.mock("../useCollectionValueHistory", () => ({
@@ -68,21 +78,44 @@ describe("CollectionPage", () => {
 
     expect(container.textContent).toContain("Proxies excluded.");
 
-    const badgeLabel = () => container.querySelector<HTMLSpanElement>("span.font-semibold");
+    const badgeLabel = () =>
+      Array.from(container.querySelectorAll<HTMLSpanElement>("span")).find((span) =>
+        ["A", "A+P"].includes(span.textContent ?? "")
+      );
     expect(badgeLabel()?.textContent).toBe("A");
 
     const checkbox = container.querySelector<HTMLInputElement>("input[type='checkbox']");
     expect(checkbox).not.toBeNull();
 
-    await act(async () => {
-      checkbox!.checked = true;
-      checkbox!.dispatchEvent(new Event("change", { bubbles: true }));
-      await Promise.resolve();
-    });
+    fireEvent.click(checkbox!);
 
-    expect(badgeLabel()?.textContent).toBe("A+P");
+    await waitFor(() => expect(badgeLabel()?.textContent).toBe("A+P"));
     const valueSpan = badgeLabel()?.nextElementSibling;
     expect(valueSpan?.textContent).toBe("5");
+
+    await act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps the selected page when pagination changes the URL", async () => {
+    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }], {
+      initialEntries: ["/?pageSize=1"],
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    expect(container.textContent).toContain("Page 1 ·");
+    fireEvent.click(getByRole(container, "button", { name: "Next" }));
+
+    await waitFor(() => expect(container.textContent).toContain("Page 2 ·"));
 
     await act(() => {
       root.unmount();
