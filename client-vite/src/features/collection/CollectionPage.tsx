@@ -30,6 +30,8 @@ export default function CollectionPage() {
   const [pageSizeParam] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
 
+  const previousFilters = useRef({ q, game, setName, rarity });
+
   const page = useMemo(() => {
     const parsed = Number(pageParam);
     return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
@@ -41,7 +43,14 @@ export default function CollectionPage() {
   }, [pageSizeParam]);
 
   useEffect(() => {
-    setPageParam("1");
+    const filtersChanged =
+      previousFilters.current.q !== q ||
+      previousFilters.current.game !== game ||
+      previousFilters.current.setName !== setName ||
+      previousFilters.current.rarity !== rarity;
+    previousFilters.current = { q, game, setName, rarity };
+
+    if (filtersChanged) setPageParam("1");
   }, [q, game, setName, rarity, setPageParam]);
 
   const queryKey = collectionKeys.list({

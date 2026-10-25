@@ -2,7 +2,7 @@ import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, getByRole, waitFor } from "@testing-library/react";
 import CollectionPage from "../CollectionPage";
 
 const mockData = {
@@ -92,6 +92,30 @@ describe("CollectionPage", () => {
     await waitFor(() => expect(badgeLabel()?.textContent).toBe("A+P"));
     const valueSpan = badgeLabel()?.nextElementSibling;
     expect(valueSpan?.textContent).toBe("5");
+
+    await act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps the selected page when pagination changes the URL", async () => {
+    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }], {
+      initialEntries: ["/?pageSize=1"],
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    expect(container.textContent).toContain("Page 1 ·");
+    fireEvent.click(getByRole(container, "button", { name: "Next" }));
+
+    await waitFor(() => expect(container.textContent).toContain("Page 2 ·"));
 
     await act(() => {
       root.unmount();
