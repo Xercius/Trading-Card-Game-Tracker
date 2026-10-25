@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useDebouncedCallback } from "use-debounce";
 import { MultiSelect } from "../components/MultiSelect";
 import { usePrintings } from "../api/usePrintings";
-import { deriveFacets } from "../api/usePrintingFacets";
+import { usePrintingFacets } from "../api/usePrintingFacets";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { PrintingCard } from "../components/PrintingCard";
 import { PrintingTableView } from "../components/PrintingTableView";
@@ -15,9 +15,18 @@ type ViewMode = "grid" | "table";
 
 export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
-  const { data, isLoading, isError, error } = usePrintings(filters);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePrintings(filters);
   const printings = data ?? [];
-  const facets = React.useMemo(() => deriveFacets(printings), [printings]);
+  const { data: facets } = usePrintingFacets(filters);
+  const availableFacets = facets ?? { games: [], sets: [], rarities: [] };
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
 
@@ -97,20 +106,20 @@ export default function CardsPage() {
           <MultiSelect
             label="Game"
             values={filters.games ?? []}
-            options={facets.games}
+            options={availableFacets.games}
             onChange={vals => setFilters(prev => ({ ...prev, games: vals, page: 1 }))}
           />
           <MultiSelect
             label="Set"
             values={filters.sets ?? []}
-            options={facets.sets}
+            options={availableFacets.sets}
             placeholder="Search sets…"
             onChange={vals => setFilters(prev => ({ ...prev, sets: vals, page: 1 }))}
           />
           <MultiSelect
             label="Rarity"
             values={filters.rarities ?? []}
-            options={facets.rarities}
+            options={availableFacets.rarities}
             onChange={vals => setFilters(prev => ({ ...prev, rarities: vals, page: 1 }))}
           />
           <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
@@ -180,6 +189,15 @@ export default function CardsPage() {
             </ul>
           ) : (
             <PrintingTableView printings={printings} onRowClick={handlePrintingClick} />
+          )}
+          {hasNextPage ? (
+            <Button onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
+              {isFetchingNextPage ? "Loading more printings…" : "Load more printings"}
+            </Button>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              {printings.length === 0 ? "No printings found." : "No more printings."}
+            </div>
           )}
         </>
       )}

@@ -2,9 +2,10 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { ReactElement } from "react";
+import type { ReactNode } from "react";
 import CardsPage from "../CardsPage";
 import * as printingsApi from "../../api/usePrintings";
+import * as printingFacetsApi from "../../api/usePrintingFacets";
 
 // Define a strongly-typed mock result for usePrintings
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
@@ -17,7 +18,7 @@ function createTestWrapper(initialEntries: string[] = ["/"]) {
     },
   });
 
-  return function Wrapper({ children }: { children: ReactElement }) {
+  return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -29,6 +30,9 @@ function createTestWrapper(initialEntries: string[] = ["/"]) {
 describe("CardsPage filter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(printingFacetsApi, "usePrintingFacets").mockReturnValue({
+      data: { games: [], sets: [], rarities: [] },
+    } as unknown as ReturnType<typeof printingFacetsApi.usePrintingFacets>);
   });
 
   afterEach(() => {
@@ -42,7 +46,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as UsePrintingsResult;
+    } as unknown as UsePrintingsResult;
     mockUsePrintings.mockReturnValue(mockPrintingsResult);
 
     render(<CardsPage />, {
@@ -71,7 +75,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as UsePrintingsResult);
+    } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
@@ -94,7 +98,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as UsePrintingsResult);
+    } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards?game=Magic&rarity=Rare"]),
@@ -112,7 +116,7 @@ describe("CardsPage filter wiring", () => {
       isLoading: true,
       isError: false,
       error: null,
-    } as UsePrintingsResult);
+    } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
@@ -128,12 +132,70 @@ describe("CardsPage filter wiring", () => {
       isLoading: false,
       isError: true,
       error: new Error("Failed to load"),
-    } as UsePrintingsResult);
+    } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, {
       wrapper: createTestWrapper(["/cards"]),
     });
 
     expect(screen.getByText("Error: Failed to load")).toBeInTheDocument();
+  });
+
+  it("offers a load-more action when another page is available", () => {
+    vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    expect(screen.getByRole("button", { name: "Load more printings" })).toBeInTheDocument();
+  });
+
+  it("shows loading feedback while requesting another page", () => {
+    vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+      hasNextPage: true,
+      isFetchingNextPage: true,
+      fetchNextPage: vi.fn(),
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    expect(screen.getByRole("button", { name: "Loading more printings…" })).toBeDisabled();
+  });
+
+  it("shows when no more printing pages remain", () => {
+    vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: [
+        {
+          printingId: "1",
+          cardId: "1",
+          cardName: "Sample card",
+          game: "Magic",
+          setName: "Alpha",
+          number: "001",
+          rarity: "Common",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    expect(screen.getByText("No more printings.")).toBeInTheDocument();
   });
 });

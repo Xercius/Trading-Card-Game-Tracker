@@ -66,10 +66,13 @@ public sealed class CardFacetsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
+            var normalizedTerm = SqliteCaseNormalizer.Normalize(term);
+            var normalizedPattern = $"%{normalizedTerm}%";
             var pattern = $"%{term}%";
             baseQuery = baseQuery.Where(cp =>
                 EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
-                EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern));
+                (cp.Number != null && EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern)) ||
+                (cp.Set != null && EF.Functions.Like(EF.Property<string>(cp, "SetNorm"), normalizedPattern)));
         }
 
         // Compute game facets (with set, rarity filters applied)

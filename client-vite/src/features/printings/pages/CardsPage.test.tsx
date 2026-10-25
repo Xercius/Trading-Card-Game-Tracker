@@ -3,11 +3,18 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
-const usePrintingsMock = vi.fn();
-const CardModalMock = vi.fn(() => null);
+const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
+const usePrintingFacetsMock = vi.fn(() => ({
+  data: { games: [], sets: [], rarities: [] },
+}));
+const CardModalMock = vi.fn((_props: unknown) => null);
 
 vi.mock("../api/usePrintings", () => ({
   usePrintings: (query: unknown) => usePrintingsMock(query),
+}));
+
+vi.mock("../api/usePrintingFacets", () => ({
+  usePrintingFacets: () => usePrintingFacetsMock(),
 }));
 
 vi.mock("@/features/cards/components/CardModal", () => ({
@@ -18,7 +25,6 @@ import CardsPage from "./CardsPage";
 import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
-  let usePrintingsMock: ReturnType<typeof vi.spyOn>;
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
 
@@ -31,13 +37,13 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    } as unknown as ReturnType<typeof printingsApi.usePrintings>));
   });
 
   afterEach(async () => {
     if (root) {
       await act(async () => {
-        root.unmount();
+        root!.unmount();
       });
       root = null;
     }
@@ -80,7 +86,7 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    } as unknown as ReturnType<typeof printingsApi.usePrintings>);
 
     container = document.createElement("div");
     document.body.appendChild(container);

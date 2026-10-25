@@ -177,4 +177,33 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
         Assert.Contains(result!.Sets, f => f.Value == "SHD");
         Assert.Contains(result.Games, f => f.Value == SwuGame);
     }
+
+    [Fact]
+    public async Task GetFacets_IncludesSetBeyondFirstPrintingPage()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await SeedSwuPrintingAsync(db, "First Set Card", "AA-FIRST", "001");
+        await SeedSwuPrintingAsync(db, "Later Set Card", "ZZ-LATER", "001");
+
+        using var client = AuthenticatedClient();
+        var firstPage = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?game=Star+Wars+Unlimited&page=1&pageSize=1");
+        Assert.NotNull(firstPage);
+        Assert.Equal("AA-FIRST", Assert.Single(firstPage!).SetName);
+
+        var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+Unlimited");
+        response.EnsureSuccessStatusCode();
+        var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(JsonOptions);
+
+        Assert.NotNull(facets);
+        Assert.Contains(facets!.Sets, facet => facet.Value == "ZZ-LATER");
+
+        var searchResponse = await client.GetAsync("/api/cards/facets?q=ZZ-LATER");
+        searchResponse.EnsureSuccessStatusCode();
+        var searchFacets = await searchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(JsonOptions);
+        Assert.NotNull(searchFacets);
+        Assert.Contains(searchFacets!.Sets, facet => facet.Value == "ZZ-LATER");
+    }
 }
