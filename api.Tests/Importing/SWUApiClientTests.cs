@@ -148,6 +148,92 @@ public sealed class SWUApiClientTests
 
     // ─── GetAllCardsAsync – query-string building ────────────────────────────
 
+    [Theory]
+    [InlineData("""{"rarity":{"data":{"id":22,"attributes":{"name":"Special","description":"Extra metadata"}}}}""", "Special")]
+    [InlineData("""{"rarity":"Rare"}""", "Rare")]
+    [InlineData("{}", null)]
+    [InlineData("""{"rarity":null}""", null)]
+    [InlineData("""{"rarity":{"data":null}}""", null)]
+    [InlineData("""{"rarity":{"data":{"id":22,"attributes":{"name":null}}}}""", null)]
+    public async Task GetAllCardsAsync_WithRarity_DeserializesName(string attributesJson, string? expected)
+    {
+        var json = $$$$"""
+            {
+              "data": [{"id": 1, "attributes": {{{{attributesJson}}}}}],
+              "meta": {"pagination": {"page": 1, "pageSize": 100, "pageCount": 1, "total": 1}}
+            }
+            """;
+        var client = CreateClient(new CapturingHandler(json));
+
+        var record = Assert.Single(await client.GetAllCardsAsync(new SWUCardFilter()));
+
+        Assert.NotNull(record.Attributes);
+        Assert.Equal(expected, record.Attributes.Rarity);
+    }
+
+    [Fact]
+    public async Task GetAllCardsAsync_WithMalformedRarity_ThrowsJsonException()
+    {
+        const string json = """
+            {
+              "data": [{"id": 1, "attributes": {"rarity": {"data": {"id": 22, "attributes": {"name": 42}}}}}],
+              "meta": {"pagination": {"page": 1, "pageSize": 100, "pageCount": 1, "total": 1}}
+            }
+            """;
+        var client = CreateClient(new CapturingHandler(json));
+
+        await Assert.ThrowsAsync<JsonException>(() => client.GetAllCardsAsync(new SWUCardFilter()));
+    }
+
+    [Theory]
+    [InlineData("""{"data":[{"id":2,"attributes":{"name":"Vigilance"}},{"id":22,"attributes":{"name":"Heroism"}}]}""",
+        new[] { "Vigilance", "Heroism" })]
+    [InlineData("""{"data":[]}""", new string[0])]
+    [InlineData("""{"data":null}""", null)]
+    [InlineData("null", null)]
+    [InlineData("""["Vigilance","Heroism"]""", new[] { "Vigilance", "Heroism" })]
+    public async Task GetAllCardsAsync_WithNameLists_DeserializesNames(string namesJson, string[]? expected)
+    {
+        var json = $$$$"""
+            {
+              "data": [{"id": 1, "attributes": {
+                "aspects": {{{{namesJson}}}}, "traits": {{{{namesJson}}}}, "keywords": {{{{namesJson}}}}
+              }}],
+              "meta": {"pagination": {"page": 1, "pageSize": 100, "pageCount": 1, "total": 1}}
+            }
+            """;
+        var client = CreateClient(new CapturingHandler(json));
+
+        var record = Assert.Single(await client.GetAllCardsAsync(new SWUCardFilter()));
+
+        Assert.NotNull(record.Attributes);
+        Assert.Equal(expected, record.Attributes.Aspects);
+        Assert.Equal(expected, record.Attributes.Traits);
+        Assert.Equal(expected, record.Attributes.Keywords);
+    }
+
+    [Theory]
+    [InlineData("aspects", """{"id":2,"attributes":{"name":42}}""")]
+    [InlineData("traits", """{"id":2,"attributes":{"name":42}}""")]
+    [InlineData("keywords", """{"id":2,"attributes":{"name":42}}""")]
+    [InlineData("aspects", """{"id":2,"attributes":{}}""")]
+    [InlineData("traits", """{"id":2}""")]
+    [InlineData("keywords", "null")]
+    public async Task GetAllCardsAsync_WithMalformedRelationship_ThrowsJsonException(string field, string entryJson)
+    {
+        var json = $$$$"""
+            {
+              "data": [{"id": 1, "attributes": {
+                "{{{{field}}}}": {"data": [{{{{entryJson}}}}]}
+              }}],
+              "meta": {"pagination": {"page": 1, "pageSize": 100, "pageCount": 1, "total": 1}}
+            }
+            """;
+        var client = CreateClient(new CapturingHandler(json));
+
+        await Assert.ThrowsAsync<JsonException>(() => client.GetAllCardsAsync(new SWUCardFilter()));
+    }
+
     [Fact]
     public async Task GetAllCardsAsync_WithExpansionCode_IncludesCodeFilter()
     {

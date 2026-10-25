@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 import { toProblemDetailsError } from "./problemDetails";
 
 // ------------------------------------
@@ -10,10 +10,8 @@ const envBase =
 
 if (import.meta.env.DEV) {
   if (!envBase) {
-    // eslint-disable-next-line no-console
     console.warn("[http] No VITE_API_BASE or VITE_API_BASE_URL set; defaulting to '/api'.");
   } else if (!import.meta.env.VITE_API_BASE && import.meta.env.VITE_API_BASE_URL) {
-    // eslint-disable-next-line no-console
     console.warn("[http] VITE_API_BASE_URL is deprecated; please migrate to VITE_API_BASE.");
   }
 }
@@ -32,30 +30,11 @@ const basePath: string | null = (() => {
     return `${normalized}/`;
   } catch (error) {
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.warn("[http] Failed to derive base path from baseURL", error);
     }
     return null;
   }
 })();
-
-// ------------------------------------
-// Authorization management
-// ------------------------------------
-let currentAccessToken: string | null = null;
-
-type MutableCommonHeaders = Record<string, string>;
-
-export function setHttpAccessToken(token: string | null) {
-  currentAccessToken = token ?? null;
-
-  const common = http.defaults.headers.common as unknown as MutableCommonHeaders;
-  if (currentAccessToken == null) {
-    delete common["Authorization"];
-  } else {
-    common["Authorization"] = `Bearer ${currentAccessToken}`;
-  }
-}
 
 // ------------------------------------
 // Dev absolute-path warning allowlist
@@ -88,7 +67,6 @@ http.interceptors.request.use((cfg: Cfg) => {
       const base = http.defaults.baseURL ?? "";
       const key = `${base} -> ${url}`;
       if (!warnedOnce.has(key)) {
-        // eslint-disable-next-line no-console
         console.warn(
           `[http] Absolute same-origin path "${url}" bypasses axios baseURL "${base}". ` +
             'Use "cards" instead of "/cards", ' +
@@ -108,15 +86,6 @@ http.interceptors.request.use((cfg: Cfg) => {
     }
   }
 
-  const headers = AxiosHeaders.from(cfg.headers);
-
-  if (currentAccessToken != null) {
-    headers.set("Authorization", `Bearer ${currentAccessToken}`);
-  } else {
-    headers.delete("Authorization");
-  }
-
-  cfg.headers = headers;
   return cfg;
 });
 
@@ -144,7 +113,3 @@ export function resolveImageUrl(path: string): string {
 // Exports
 // ------------------------------------
 export default http;
-
-export function __debugGetCurrentAccessToken() {
-  return import.meta.env.DEV ? currentAccessToken : null;
-}

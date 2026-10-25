@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { createRoot } from "react-dom/client";
@@ -13,10 +14,8 @@ import {
 
 vi.mock("@/state/useUser", () => ({
   useUser: () => ({
-    userId: 42,
-    setUserId: () => {},
-    users: [],
-    refreshUsers: () => Promise.resolve(),
+    userId: 1,
+    users: [{ id: 1, name: "Owner", isAdmin: false }],
   }),
 }));
 
@@ -40,7 +39,7 @@ type WishlistPaged = {
   pageSize: number;
 };
 
-const wishlistQueryKey = ["wishlist", 42, 1, 50, "", ""] as const;
+const wishlistQueryKey = ["wishlist", 1, 1, 50, "", ""] as const;
 
 function createClient() {
   return new QueryClient({
@@ -98,7 +97,7 @@ describe("WishlistPage", () => {
     const { cleanup } = await renderPage(client, ["/wishlist?q=bolt&game=Magic"]);
 
     expect(getMock).toHaveBeenCalledWith(
-      "user/42/wishlist",
+      "user/1/wishlist",
       expect.objectContaining({
         params: expect.objectContaining({ name: "bolt", game: "Magic" }),
       })
@@ -154,7 +153,7 @@ describe("WishlistPage", () => {
 
     const client = createClient();
     const collectionKey = collectionKeys.list({
-      userId: 42,
+      userId: 1,
       page: 1,
       pageSize: 50,
       filters: { q: "", game: "", set: "", rarity: "" },
@@ -169,6 +168,13 @@ describe("WishlistPage", () => {
 
     const { container, cleanup } = await renderPage(client);
 
+    await waitFor(() =>
+      expect(
+        Array.from(container.querySelectorAll("button")).some((button) =>
+          button.textContent?.includes("Move to collection")
+        )
+      ).toBe(true)
+    );
     const button = Array.from(container.querySelectorAll("button")).find((b) =>
       b.textContent?.includes("Move to collection")
     );
@@ -234,6 +240,13 @@ describe("WishlistPage", () => {
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
 
+    await waitFor(() =>
+      expect(
+        Array.from(container.querySelectorAll("button")).some((candidate) =>
+          candidate.textContent?.includes("Move to collection")
+        )
+      ).toBe(true)
+    );
     const button = Array.from(container.querySelectorAll("button")).find((b) =>
       b.textContent?.includes("Move to collection")
     );
@@ -313,12 +326,22 @@ describe("WishlistPage", () => {
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
 
+    await waitFor(() =>
+      expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(2)
+    );
     const checkboxes = Array.from(
       container.querySelectorAll<HTMLInputElement>("input[type=checkbox]")
     );
     checkboxes.forEach((box) => box.click());
     await flush();
 
+    await waitFor(() =>
+      expect(
+        Array.from(container.querySelectorAll("button")).some((button) =>
+          button.textContent?.includes("Move selected")
+        )
+      ).toBe(true)
+    );
     const bulkButton = Array.from(container.querySelectorAll("button")).find((b) =>
       b.textContent?.includes("Move selected")
     );

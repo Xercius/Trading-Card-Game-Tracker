@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Web;
 using Xunit;
 
@@ -505,6 +506,20 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.Equal(2, await db.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
             Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
+            var card = await db.Cards.SingleAsync(c => c.Name == "Card 1");
+            using var details = JsonDocument.Parse(card.DetailsJson!);
+            Assert.Equal(new[] { "Vigilance" },
+                details.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
+            Assert.Equal(new[] { "Rebel" },
+                details.RootElement.GetProperty("traits").EnumerateArray().Select(value => value.GetString()));
+            Assert.Equal(new[] { "Sentinel" },
+                details.RootElement.GetProperty("keywords").EnumerateArray().Select(value => value.GetString()));
+            var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+            Assert.Equal("Special", printing.Rarity);
+            using var printingDetails = JsonDocument.Parse(printing.DetailsJson!);
+            Assert.Equal("Special", printingDetails.RootElement.GetProperty("rarity").GetString());
+            Assert.Equal(new[] { "Vigilance" },
+                printingDetails.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
             Assert.Equal("", (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).SetCode);
             Assert.Equal(["NEW", "SOR"], await db.SwuSets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
             Assert.All(await db.SyncLogs.ToListAsync(), log =>
@@ -522,9 +537,13 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     [InlineData(false, "http")]
     [InlineData(false, "incomplete")]
     [InlineData(false, "invalid-record")]
+    [InlineData(false, "invalid-relationship")]
+    [InlineData(false, "invalid-rarity")]
     [InlineData(true, "http")]
     [InlineData(true, "incomplete")]
     [InlineData(true, "invalid-record")]
+    [InlineData(true, "invalid-relationship")]
+    [InlineData(true, "invalid-rarity")]
     public async Task RunStarWarsUnlimited_FullCatalogFailure_DoesNotRecordCoverage(bool forceFullSync, string failure)
     {
         await factory.ResetDatabaseAsync();
@@ -648,6 +667,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     [InlineData("incomplete")]
     [InlineData("invalid-record")]
     [InlineData("invalid-expansion")]
+    [InlineData("invalid-relationship")]
+    [InlineData("invalid-rarity")]
     public async Task RunStarWarsUnlimited_IncrementalFailure_RetainsCheckpointAndRetriesIdempotently(string failure)
     {
         await factory.ResetDatabaseAsync();
@@ -1031,13 +1052,38 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             ];
             if (IncludeNewExpansion && page == 2)
                 records = [.. records, CreateRecord(3, "New expansion card", "uid-3", "serial-3", "NEXT", "Expansion 3")];
+            var response = JsonSerializer.SerializeToNode(new
+            {
+                data = records,
+                meta = new { pagination = new { page, pageSize = IncludeNewExpansion ? 2 : 1, pageCount = 2, total = IncludeNewExpansion ? 3 : 2 } }
+            })!;
+            foreach (var record in response["data"]!.AsArray())
+            {
+                var attributes = record!["attributes"]!;
+                attributes["rarity"] = JsonSerializer.SerializeToNode(new
+                {
+                    data = new { id = 22, attributes = new { name = "Special" } }
+                });
+                attributes["aspects"] = JsonSerializer.SerializeToNode(new
+                {
+                    data = new[] { new { id = 2, attributes = new { name = "Vigilance" } } }
+                });
+                attributes["traits"] = JsonSerializer.SerializeToNode(new
+                {
+                    data = new[] { new { id = 37, attributes = new { name = "Rebel" } } }
+                });
+                attributes["keywords"] = JsonSerializer.SerializeToNode(new
+                {
+                    data = new[] { new { id = 7, attributes = new { name = "Sentinel" } } }
+                });
+                if (page == 2 && Failure == "invalid-relationship")
+                    attributes["aspects"]!["data"]![0]!["attributes"]!["name"] = 42;
+                if (page == 2 && Failure == "invalid-rarity")
+                    attributes["rarity"]!["data"]!["attributes"]!["name"] = 42;
+            }
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = JsonContent.Create(new
-                {
-                    data = records,
-                    meta = new { pagination = new { page, pageSize = IncludeNewExpansion ? 2 : 1, pageCount = 2, total = IncludeNewExpansion ? 3 : 2 } }
-                })
+                Content = JsonContent.Create(response)
             });
         }
     }

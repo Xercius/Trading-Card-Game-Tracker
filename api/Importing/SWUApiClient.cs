@@ -220,6 +220,7 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("serialCode")] string? SerialCode,
     [property: JsonPropertyName("locale")] string? Locale,
     [property: JsonPropertyName("cardNumber")] int? CardNumber,
+    [property: JsonConverter(typeof(SwuNameConverter))]
     [property: JsonPropertyName("rarity")] string? Rarity,
     [property: JsonPropertyName("text")] string? Text,
     [property: JsonPropertyName("artist")] string? Artist,
@@ -227,8 +228,11 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("power")] int? Power,
     [property: JsonPropertyName("health")] int? Health,
     [property: JsonPropertyName("arena")] string? Arena,
+    [property: JsonConverter(typeof(SwuNameListConverter))]
     [property: JsonPropertyName("aspects")] string[]? Aspects,
+    [property: JsonConverter(typeof(SwuNameListConverter))]
     [property: JsonPropertyName("traits")] string[]? Traits,
+    [property: JsonConverter(typeof(SwuNameListConverter))]
     [property: JsonPropertyName("keywords")] string[]? Keywords,
     [property: JsonPropertyName("createdAt")] DateTimeOffset? CreatedAt,
     [property: JsonPropertyName("updatedAt")] DateTimeOffset? UpdatedAt,
@@ -250,6 +254,46 @@ internal sealed record StrapiRelationList<T>(
 internal sealed record StrapiRelationData<T>(
     [property: JsonPropertyName("id")] int Id,
     [property: JsonPropertyName("attributes")] T? Attributes);
+
+internal sealed record SwuNameAttributes(
+    [property: JsonPropertyName("name")] string? Name);
+
+/// <summary>Normalizes a live Strapi relationship or legacy string to its name.</summary>
+internal sealed class SwuNameConverter : JsonConverter<string>
+{
+    /// <inheritdoc/>
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+            return reader.GetString();
+
+        var relationship = JsonSerializer.Deserialize<StrapiRelation<SwuNameAttributes>>(ref reader, options);
+        return relationship?.Data?.Attributes?.Name;
+    }
+
+    /// <inheritdoc/>
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
+        => writer.WriteStringValue(value);
+}
+
+/// <summary>Normalizes live Strapi relationships and legacy file arrays to names.</summary>
+internal sealed class SwuNameListConverter : JsonConverter<string[]>
+{
+    /// <inheritdoc/>
+    public override string[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.StartArray)
+            return JsonSerializer.Deserialize<string[]>(ref reader, options);
+
+        var relationship = JsonSerializer.Deserialize<StrapiRelationList<SwuNameAttributes>>(ref reader, options);
+        return relationship?.Data?.Select(item => item?.Attributes?.Name
+            ?? throw new JsonException("SWU relationship entry is missing its name.")).ToArray();
+    }
+
+    /// <inheritdoc/>
+    public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, value, options);
+}
 
 internal sealed record SwuTypeAttributes(
     [property: JsonPropertyName("name")] string? Name,

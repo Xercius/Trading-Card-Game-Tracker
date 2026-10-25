@@ -21,7 +21,6 @@ const baseUsers: AdminUserApi[] = [
 type RenderResult = {
   container: HTMLDivElement;
   cleanup: () => Promise<void>;
-  refreshUsers: ReturnType<typeof vi.fn<[], Promise<void>>>;
 };
 
 async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<RenderResult> {
@@ -30,16 +29,13 @@ async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<Rende
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  const refreshUsers = vi.fn<[], Promise<void>>(async () => {});
   const ctx: Ctx = {
     userId: 1,
-    setUserId: () => {},
     users: baseUsers.map((u) => ({
       id: u.id,
       name: u.name ?? u.username ?? "User",
       isAdmin: Boolean(u.isAdmin),
     })),
-    refreshUsers,
   };
 
   await act(async () => {
@@ -58,7 +54,6 @@ async function renderWithProviders(_initialUsers: AdminUserApi[]): Promise<Rende
 
   return {
     container,
-    refreshUsers,
     cleanup: async () => {
       await act(async () => {
         root.unmount();
@@ -93,7 +88,7 @@ describe("UsersAdminPage", () => {
 
     vi.spyOn(http, "get").mockResolvedValue({ data: users });
 
-    let rejectToggle: ((reason?: unknown) => void) | undefined;
+    let rejectToggle: ((_reason?: unknown) => void) | undefined;
     vi.spyOn(http, "put").mockImplementation(
       () =>
         new Promise((_, reject) => {
@@ -101,7 +96,7 @@ describe("UsersAdminPage", () => {
         }) as Promise<{ data: AdminUserApi }>
     );
 
-    const { container, cleanup, refreshUsers } = await renderWithProviders(users);
+    const { container, cleanup } = await renderWithProviders(users);
 
     await act(async () => {
       await Promise.resolve();
@@ -126,8 +121,6 @@ describe("UsersAdminPage", () => {
 
     expect(aliceToggle.checked).toBe(false);
     expect(container.textContent ?? "").toContain("toggle failed");
-    expect(refreshUsers).not.toHaveBeenCalled();
-
     await cleanup();
   });
 
@@ -231,7 +224,7 @@ describe("UsersAdminPage", () => {
     // @ts-expect-error jsdom does not define confirm by default
     globalThis.confirm = confirmMock;
 
-    const { container, cleanup, refreshUsers } = await renderWithProviders(users);
+    const { container, cleanup } = await renderWithProviders(users);
 
     await act(async () => {
       await Promise.resolve();
@@ -247,8 +240,6 @@ describe("UsersAdminPage", () => {
 
     expect(confirmMock).toHaveBeenCalled();
     expect(container.textContent ?? "").toContain("At least one administrator must remain.");
-    expect(refreshUsers).not.toHaveBeenCalled();
-
     await cleanup();
   });
 });

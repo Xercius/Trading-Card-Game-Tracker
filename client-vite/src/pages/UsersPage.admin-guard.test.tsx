@@ -38,9 +38,7 @@ describe("UsersPage admin guard", () => {
     const getSpy = vi.spyOn(http, "get");
     const ctx: Ctx = {
       userId: 1,
-      setUserId: () => {},
       users: [{ id: 1, name: "Test User", isAdmin: false }],
-      refreshUsers: async () => {},
     };
 
     const { cleanup, container } = renderWithProviders(<UsersPage />, ctx);

@@ -10,7 +10,7 @@ import { useUser } from "@/state/useUser";
 import type { AdminUser } from "@/types/user";
 
 export default function UsersAdminPage() {
-  const { users, userId, refreshUsers } = useUser();
+  const { users, userId } = useUser();
   const currentUser = users.find((u) => u.id === userId);
   const isAdmin = currentUser?.isAdmin ?? false;
 
@@ -57,10 +57,9 @@ export default function UsersAdminPage() {
 
     setError(null);
     createUser.mutate(trimmed, {
-      onSuccess: async () => {
+      onSuccess: () => {
         setNewName("");
         setError(null);
-        await refreshUsers();
       },
       onError: (err) => {
         setError(getErrorMessage(err));
@@ -92,12 +91,11 @@ export default function UsersAdminPage() {
     updateUser.mutate(
       { id: editingId, updates: { name: trimmed } },
       {
-        onSuccess: async () => {
+        onSuccess: () => {
           setError(null);
           setEditingId(null);
           setDraftName("");
           setPendingId(null);
-          await refreshUsers();
         },
         onError: (err) => {
           setError(getErrorMessage(err));
@@ -116,10 +114,9 @@ export default function UsersAdminPage() {
     updateUser.mutate(
       { id: user.id, updates: { isAdmin: nextValue } },
       {
-        onSuccess: async () => {
+        onSuccess: () => {
           setError(null);
           setPendingId(null);
-          await refreshUsers();
         },
         onError: (err) => {
           setError(getErrorMessage(err));
@@ -138,10 +135,9 @@ export default function UsersAdminPage() {
 
     setPendingDeleteId(user.id);
     deleteUser.mutate(user.id, {
-      onSuccess: async () => {
+      onSuccess: () => {
         setError(null);
         setPendingDeleteId(null);
-        await refreshUsers();
       },
       onError: (err) => {
         setError(getErrorMessage(err));

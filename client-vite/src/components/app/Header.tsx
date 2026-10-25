@@ -2,13 +2,6 @@ import { NavLink, useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/state/useUser";
 import { useQueryState } from "@/hooks/useQueryState";
@@ -29,7 +22,7 @@ const NAV_LINKS: NavLinkItem[] = [
   { to: paths.value, label: "Value" },
   { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.users, label: "Users", requiresAdmin: true },
-  { to: paths.adminImport, label: "Admin · Import", requiresAdmin: true },
+  { to: paths.adminImport, label: "Admin · Import" },
 ];
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -38,7 +31,7 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export default function Header() {
-  const { users, userId, setUserId } = useUser();
+  const { users, userId } = useUser();
   const [q, setQ] = useQueryState("q", "");
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -82,7 +75,7 @@ export default function Header() {
   return (
     <header className="w-full border-b bg-background/60 backdrop-blur">
       <div className="w-full px-4 sm:px-6 py-4 space-y-3">
-        {/* Top row: brand, nav, user */}
+        {/* Top row: brand, nav, owner */}
         <div className="flex items-center gap-3">
           <div className="text-xl font-semibold">TCG Tracker</div>
 
@@ -113,26 +106,7 @@ export default function Header() {
                 />
               </svg>
             </button>
-            <Select
-              value={userId ? String(userId) : ""}
-              onValueChange={(v) => setUserId(Number(v))}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select user" />
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {import.meta.env.DEV && userId != null && (
-              <span className="text-xs text-muted-foreground" aria-hidden="true">
-                UserId={userId}
-              </span>
-            )}
+            <span className="text-sm text-muted-foreground">Owner</span>
           </div>
         </div>
 

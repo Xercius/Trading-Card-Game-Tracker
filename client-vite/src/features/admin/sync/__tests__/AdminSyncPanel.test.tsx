@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import http, { setHttpAccessToken } from "@/lib/http";
+import http from "@/lib/http";
 import { ProblemDetailsError } from "@/lib/problemDetails";
 import AdminSyncPanel from "../AdminSyncPanel";
 
@@ -53,12 +53,17 @@ afterEach(() => {
 });
 
 describe("AdminSyncPanel", () => {
-  it("uses the admin session without replacing the shared client token or storing credentials", async () => {
+  it("uses the admin cookie session without bearer tokens or storing credentials", async () => {
     vi.mocked(http.get).mockRestore();
     const originalAdapter = http.defaults.adapter;
-    const requests: { url?: string; authorization: unknown; csrf: unknown; data: unknown }[] = [];
+    const requests: {
+      url?: string;
+      authorization: unknown;
+      csrf: unknown;
+      data: unknown;
+      withCredentials?: boolean;
+    }[] = [];
     const storage = vi.spyOn(Storage.prototype, "setItem");
-    setHttpAccessToken("unrelated-client-token");
     let signedIn = false;
     http.defaults.adapter = async (config) => {
       requests.push({
@@ -66,6 +71,7 @@ describe("AdminSyncPanel", () => {
         authorization: config.headers.get("Authorization"),
         csrf: config.headers.get("X-Admin-CSRF"),
         data: config.data,
+        withCredentials: config.withCredentials,
       });
       let data;
       if (config.url === sessionRoute) {
@@ -93,11 +99,8 @@ describe("AdminSyncPanel", () => {
         expect(requests.some((request) => request.url?.endsWith("?forceFullSync=true"))).toBe(true)
       );
 
-      expect(
-        requests.every(
-          (request) => request.authorization === ["Bearer", "unrelated-client-token"].join(" ")
-        )
-      ).toBe(true);
+      expect(requests.every((request) => !request.authorization)).toBe(true);
+      expect(requests.every((request) => request.withCredentials)).toBe(true);
       const mutations = requests.filter((request) => request.csrf);
       expect(mutations).toHaveLength(3);
       expect(mutations.every((request) => request.csrf === "request-token")).toBe(true);
@@ -107,7 +110,6 @@ describe("AdminSyncPanel", () => {
       expect(screen.queryByLabelText(/token/i)).not.toBeInTheDocument();
     } finally {
       http.defaults.adapter = originalAdapter;
-      setHttpAccessToken(null);
     }
   });
 

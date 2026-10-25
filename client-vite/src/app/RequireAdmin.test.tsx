@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { waitFor } from "@testing-library/react";
 import { createRoot } from "react-dom/client";
 import { act } from "react-dom/test-utils";
 import type { ReactElement } from "react";
@@ -28,9 +29,7 @@ describe("RequireAdmin", () => {
   it("redirects non-admin users to /cards", async () => {
     const ctx: Ctx = {
       userId: 1,
-      setUserId: () => {},
       users: [{ id: 1, name: "Test", isAdmin: false }],
-      refreshUsers: async () => {},
     };
 
     const { container, cleanup } = render(
@@ -51,12 +50,36 @@ describe("RequireAdmin", () => {
       </UserContext.Provider>
     );
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await waitFor(() => expect(container.textContent).toContain("cards"));
 
-    expect(container.textContent).toContain("cards");
+    cleanup();
+  });
 
+  it("allows the single owner to access the import page", () => {
+    const ctx: Ctx = {
+      userId: 1,
+      users: [{ id: 1, name: "Owner", isAdmin: false }],
+    };
+
+    const { container, cleanup } = render(
+      <UserContext.Provider value={ctx}>
+        <MemoryRouter initialEntries={["/admin/import"]}>
+          <Routes>
+            <Route
+              path="/admin/import"
+              element={
+                <RequireAdmin allowOwner>
+                  <div>import</div>
+                </RequireAdmin>
+              }
+            />
+            <Route path="/cards" element={<div>cards</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UserContext.Provider>
+    );
+
+    expect(container.textContent).toContain("import");
     cleanup();
   });
 });

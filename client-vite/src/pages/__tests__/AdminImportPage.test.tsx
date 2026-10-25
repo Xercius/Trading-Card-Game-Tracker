@@ -10,9 +10,7 @@ import { UPLOAD_MAX_SIZE_MB } from "@/constants";
 vi.mock("@/state/useUser", () => ({
   useUser: () => ({
     userId: 1,
-    setUserId: () => {},
-    users: [],
-    refreshUsers: () => Promise.resolve(),
+    users: [{ id: 1, name: "Owner", isAdmin: false }],
   }),
 }));
 
