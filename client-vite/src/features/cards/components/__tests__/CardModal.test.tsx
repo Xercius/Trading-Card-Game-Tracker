@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import { waitFor } from "@testing-library/react";
 import { act } from "react-dom/test-utils";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -117,10 +118,20 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
-    const label = container.querySelector('[data-testid="selected-printing-label"]');
-    expect(label?.textContent).toContain("Alpha");
+    const dialog = document.body.querySelector('[role="dialog"]');
+    const label = dialog?.querySelector('[data-testid="selected-printing-label"]');
+    await waitFor(() => expect(label?.textContent).toContain("Alpha"));
 
-    const optionButtons = Array.from(container.querySelectorAll('button[role="option"]'));
+    const detailsSection = dialog?.querySelector('[aria-label="Card details and actions"]');
+    const imageSection = dialog?.querySelector('[aria-label="Selected card image"]');
+    const printingsSection = dialog?.querySelector('[aria-label="Card printings"]');
+    expect(detailsSection?.querySelector('input[type="number"]')).not.toBeNull();
+    expect(detailsSection?.querySelector('[aria-label="Add to collection"]')).not.toBeNull();
+    expect(detailsSection?.querySelector('[aria-label="Add to wishlist"]')).not.toBeNull();
+    expect(detailsSection?.nextElementSibling).toBe(imageSection);
+    expect(detailsSection?.parentElement?.nextElementSibling).toBe(printingsSection);
+
+    const optionButtons = Array.from(dialog?.querySelectorAll('button[role="option"]') ?? []);
     expect(optionButtons).toHaveLength(2);
 
     await act(async () => {
@@ -176,18 +187,19 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 200, initialPrintingId: 2001 });
 
-    const input = container.querySelector('input[type="number"]') as HTMLInputElement | null;
+    const input = document.body.querySelector('input[type="number"]') as HTMLInputElement | null;
     expect(input).not.toBeNull();
 
     await act(async () => {
       if (!input) return;
-      input.value = "2";
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      valueSetter?.call(input, "2");
       input.dispatchEvent(new Event("input", { bubbles: true }));
       input.dispatchEvent(new Event("change", { bubbles: true }));
       await flushPromises();
     });
 
-    const wishlistButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+    const wishlistButton = Array.from(document.body.querySelectorAll("button")).find((btn) =>
       btn.textContent?.includes("Add to Wishlist")
     );
     expect(wishlistButton).not.toBeUndefined();
