@@ -117,7 +117,8 @@ public sealed class PrintingsController : ControllerBase
         query = query
             .OrderBy(p => p.Set)
             .ThenBy(p => p.Number)
-            .ThenBy(p => p.Card.Name);
+            .ThenBy(p => p.Card.Name)
+            .ThenBy(p => p.Id);
 
         // Apply pagination with bounds checking
         var page = Math.Max(1, qp.Page);
