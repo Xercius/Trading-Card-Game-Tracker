@@ -50,7 +50,7 @@ export default function QtyField({
 
       try {
         await mutation.mutateAsync({ printingId, ownedQty, proxyQty });
-      } catch (err) {
+      } catch {
         setError("Update failed");
         setDraft(String(current));
       }

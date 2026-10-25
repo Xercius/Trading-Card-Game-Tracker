@@ -27,6 +27,7 @@ import {
 } from "./constants";
 
 const PAGE_SIZE = pageSizeForDevice(60, 96);
+const EMPTY_DECK_VALUE_POINTS: { d: string; v: number | null }[] = [];
 
 const normalizePrintingId = (printingId: CardSummary["primaryPrintingId"]): number | null => {
   if (printingId == null) return null;
@@ -81,7 +82,7 @@ export default function DeckBuilderPage({ deckId }: Props) {
   const deckCardsQuery = useDeckCardsWithAvailability(deckId, includeProxies);
   const deckQuantityMutation = useDeckQuantityMutation(deckId, includeProxies);
   const deckValueHistoryQuery = useDeckValueHistory(deckId);
-  const deckValuePoints = deckValueHistoryQuery.data ?? [];
+  const deckValuePoints = deckValueHistoryQuery.data ?? EMPTY_DECK_VALUE_POINTS;
   const deckLatestValue = useMemo(() => latestValue(deckValuePoints), [deckValuePoints]);
 
   const handleCardDragStart = useCallback(

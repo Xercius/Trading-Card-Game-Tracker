@@ -255,17 +255,20 @@ export async function fetchCardFacets({
   sets,
   rarities,
   q,
+  printingSearch,
 }: {
   games?: string[];
   sets?: string[];
   rarities?: string[];
   q?: string;
+  printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
   const params = new URLSearchParams();
   if (games?.length) params.set("game", games.join(","));
   if (sets?.length) params.set("set", sets.join(","));
   if (rarities?.length) params.set("rarity", rarities.join(","));
   if (q) params.set("q", q);
+  if (printingSearch) params.set("printingSearch", "true");
   
   const res = await api.get<CardsFacetResponse>("cards/facets", { params });
   return res.data ?? { games: [], sets: [], rarities: [] };

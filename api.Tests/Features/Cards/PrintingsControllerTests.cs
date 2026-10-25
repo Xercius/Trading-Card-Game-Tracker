@@ -16,7 +16,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         var response = await client.GetAsync("/api/cards/printings?q=cReAtUrE&uniqueCards=true");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>();
-        var facets = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=cReAtUrE");
+        var facets = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=cReAtUrE&printingSearch=true");
 
         Assert.NotNull(printings);
         var printing = Assert.Single(printings);
@@ -266,5 +266,31 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         // All case variations should return the same results
         Assert.Equal(lowercase.Select(p => p.PrintingId), uppercase.Select(p => p.PrintingId));
         Assert.Equal(lowercase.Select(p => p.PrintingId), mixedcase.Select(p => p.PrintingId));
+    }
+
+    [Fact]
+    public async Task Get_pages_return_all_printings_in_stable_order_without_duplicates()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var allPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?page=1&pageSize=500");
+        Assert.NotNull(allPrintings);
+        Assert.True(allPrintings!.Count > 2);
+
+        var pagedPrintings = new List<PrintingDto>();
+        for (var page = 1; page <= allPrintings.Count; page++)
+        {
+            var pagePrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
+                $"/api/cards/printings?page={page}&pageSize=2");
+            Assert.NotNull(pagePrintings);
+            pagedPrintings.AddRange(pagePrintings!);
+            if (pagePrintings.Count < 2)
+            {
+                break;
+            }
+        }
+
+        Assert.Equal(allPrintings.Select(p => p.PrintingId), pagedPrintings.Select(p => p.PrintingId));
+        Assert.Equal(pagedPrintings.Count, pagedPrintings.Select(p => p.PrintingId).Distinct().Count());
     }
 }

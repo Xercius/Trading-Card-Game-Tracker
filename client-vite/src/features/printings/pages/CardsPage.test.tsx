@@ -3,9 +3,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
-const usePrintingsMock = vi.fn();
-const usePrintingFacetsMock = vi.fn(() => ({ games: [], sets: [], rarities: [] }));
-const CardModalMock = vi.fn(() => null);
+const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
+const usePrintingFacetsMock = vi.fn(() => ({
+  data: { games: [], sets: [], rarities: [] },
+}));
+const CardModalMock = vi.fn((_props: unknown) => null);
 
 vi.mock("../api/usePrintings", () => ({
   usePrintings: (query: unknown) => usePrintingsMock(query),
@@ -30,18 +32,21 @@ describe("CardsPage", () => {
     vi.useFakeTimers();
     usePrintingsMock.mockReset();
     CardModalMock.mockReset();
-    usePrintingsMock.mockImplementation(() => ({
-      data: [],
-      isLoading: false,
-      isError: false,
-      error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>));
+    usePrintingsMock.mockImplementation(
+      () =>
+        ({
+          data: [],
+          isLoading: false,
+          isError: false,
+          error: null,
+        }) as ReturnType<typeof printingsApi.usePrintings>
+    );
   });
 
   afterEach(async () => {
     if (root) {
       await act(async () => {
-        root.unmount();
+        root!.unmount();
       });
       root = null;
     }
@@ -84,7 +89,7 @@ describe("CardsPage", () => {
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    } as unknown as ReturnType<typeof printingsApi.usePrintings>);
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -174,7 +179,7 @@ describe("CardsPage", () => {
 
     // The search input should still display "Pikachu"
     expect(input?.value).toBe("Pikachu");
-    
+
     // The filter state should eventually be updated via URL params
     // Since this test involves complex async URL state management via router,
     // we verify that the input preserves the typed value which is the key behavior

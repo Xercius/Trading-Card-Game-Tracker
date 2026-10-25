@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchCardFacets } from "@/features/cards/api/list";
-import { cardsQueryKeys } from "@/features/cards/queryKeys";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
+import { cardsQueryKeys } from "@/features/cards/queryKeys";
 
 export type PrintingFacets = {
   games: string[];
@@ -9,10 +9,18 @@ export type PrintingFacets = {
   rarities: string[];
 };
 
-export function usePrintingFacets(filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities">) {
+export function usePrintingFacets(filters: CardFilters) {
+  const facetFilters = {
+    games: filters.games.length > 0 ? filters.games : undefined,
+    sets: filters.sets.length > 0 ? filters.sets : undefined,
+    rarities: filters.rarities.length > 0 ? filters.rarities : undefined,
+    q: filters.q || undefined,
+    printingSearch: true,
+  };
+
   return useQuery({
-    queryKey: cardsQueryKeys.facetOptions(filters),
-    queryFn: () => fetchCardFacets(filters),
+    queryKey: cardsQueryKeys.printingFacets(filters),
+    queryFn: () => fetchCardFacets(facetFilters),
     select: (facets): PrintingFacets => ({
       games: facets.games.map((facet) => facet.value),
       sets: facets.sets.map((facet) => facet.value),

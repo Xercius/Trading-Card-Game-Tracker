@@ -174,13 +174,32 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
         await factory.ResetDatabaseAsync();
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
 
-        var setResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=Beta", Options);
-        var numberResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=B2", Options);
+        var setResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=Beta&printingSearch=true", Options);
+        var numberResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=B2&printingSearch=true", Options);
 
         Assert.NotNull(setResponse);
         Assert.Contains(setResponse.Sets, facet => facet.Value == "Beta");
         Assert.NotNull(numberResponse);
         Assert.Contains(numberResponse.Sets, facet => facet.Value == "Beta");
+    }
+
+    [Fact]
+    public async Task GetFacets_SearchesCardTypeInBothSearchModes()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var cardSearchResponse = await client.GetAsync("/api/cards/facets?q=Creature");
+        cardSearchResponse.EnsureSuccessStatusCode();
+        var cardSearchFacets = await cardSearchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(cardSearchFacets);
+        Assert.Contains(cardSearchFacets!.Games, facet => facet.Value == "Magic");
+
+        var printingSearchResponse = await client.GetAsync("/api/cards/facets?q=Creature&printingSearch=true");
+        printingSearchResponse.EnsureSuccessStatusCode();
+        var printingSearchFacets = await printingSearchResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(printingSearchFacets);
+        Assert.Contains(printingSearchFacets!.Games, facet => facet.Value == "Magic");
     }
 
     [Fact]

@@ -34,4 +34,7 @@ export const cardsQueryKeys = {
   
   facetRarities: (games: string[]) => 
     [...cardsQueryKeys.facets(), "rarities", games.join("|")] as const,
+
+  printingFacets: (filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities">) =>
+    [...cardsQueryKeys.facets(), "printings", filters] as const,
 };
