@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 type SelectContextValue = {
@@ -349,5 +358,3 @@ export function SelectItem({ value, className = "", children, ...props }: Select
     </button>
   );
 }
-
-export { useSelectContext };
