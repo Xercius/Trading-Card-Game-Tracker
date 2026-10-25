@@ -121,18 +121,28 @@ export default function CardsPage() {
 
       <div className="flex items-center gap-1" role="group" aria-label="View mode">
         <Button
-          variant={viewMode === "grid" ? "default" : "outline"}
+          variant="outline"
           size="sm"
           onClick={() => setViewMode("grid")}
           aria-pressed={viewMode === "grid"}
+          className={
+            viewMode === "grid"
+              ? "border-sky-400 bg-sky-600 text-white shadow-sm hover:bg-sky-700 hover:text-white"
+              : "border-white/30 bg-transparent text-white/80 hover:border-white/50 hover:bg-white/10 hover:text-white"
+          }
         >
           Grid
         </Button>
         <Button
-          variant={viewMode === "table" ? "default" : "outline"}
+          variant="outline"
           size="sm"
           onClick={() => setViewMode("table")}
           aria-pressed={viewMode === "table"}
+          className={
+            viewMode === "table"
+              ? "border-sky-400 bg-sky-600 text-white shadow-sm hover:bg-sky-700 hover:text-white"
+              : "border-white/30 bg-transparent text-white/80 hover:border-white/50 hover:bg-white/10 hover:text-white"
+          }
         >
           Table
         </Button>
