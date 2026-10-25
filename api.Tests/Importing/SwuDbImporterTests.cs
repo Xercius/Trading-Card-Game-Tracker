@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace api.Tests.Importing;
@@ -98,6 +99,64 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         => new(db, client ?? new StubSWUApiClient(), NullLogger<SwuDbImporter>.Instance);
 
     // ─── tests ──────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("""{"data":{"id":22,"attributes":{"name":"Special"}}}""", "Special")]
+    [InlineData("\"Rare\"", "Rare")]
+    [InlineData(null, "Unknown")]
+    [InlineData("null", "Unknown")]
+    [InlineData("""{"data":null}""", "Unknown")]
+    [InlineData("""{"data":{"id":22,"attributes":{"name":null}}}""", "Unknown")]
+    public async Task ImportFromFileAsync_WithRarity_PersistsNameAndPreservesDetails(string? rarityJson, string expected)
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+        var json = BuildStrapiJson(39380, "Rarity Card", "06010001", "1020365882", 1,
+            "SOR", "Leader", "Common", false, "https://example.invalid/card.png", text: "Card text.");
+        var page = JsonNode.Parse(json)!;
+        var attributes = page["data"]![0]!["attributes"]!.AsObject();
+        if (rarityJson is null)
+            attributes.Remove("rarity");
+        else
+            attributes["rarity"] = JsonNode.Parse(rarityJson);
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+
+        var created = await importer.ImportFromFileAsync(ToStream(page.ToJsonString()), options);
+
+        Assert.Equal(0, created.Errors);
+        Assert.Equal(1, created.CardsCreated);
+        Assert.Equal(1, created.PrintingsCreated);
+        var card = await db.Cards.SingleAsync(c => c.Game == Game);
+        var originalCardDetails = card.DetailsJson;
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+        Assert.Equal(expected, printing.Rarity);
+        using (var details = JsonDocument.Parse(printing.DetailsJson!))
+            Assert.Equal(expected, details.RootElement.GetProperty("rarity").GetString());
+
+        attributes["rarity"] = JsonNode.Parse("""{"data":{"id":23,"attributes":{"name":"Legendary"}}}""");
+        var updated = await importer.ImportFromFileAsync(ToStream(page.ToJsonString()), options);
+
+        Assert.Equal(0, updated.Errors);
+        Assert.Equal(0, updated.CardsCreated);
+        Assert.Equal(0, updated.CardsUpdated);
+        Assert.Equal(0, updated.PrintingsCreated);
+        Assert.Equal(1, updated.PrintingsUpdated);
+        db.ChangeTracker.Clear();
+        card = await db.Cards.SingleAsync(c => c.Game == Game);
+        printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+        Assert.Equal(originalCardDetails, card.DetailsJson);
+        Assert.Equal("Leader", card.CardType);
+        Assert.Equal("Card text.", card.Description);
+        Assert.Equal("Legendary", printing.Rarity);
+        Assert.Equal("SOR", printing.Set);
+        Assert.Equal("06010001", printing.Number);
+        Assert.Equal("Standard", printing.Style);
+        Assert.Equal("https://example.invalid/card.png", printing.ImageUrl);
+        using var updatedDetails = JsonDocument.Parse(printing.DetailsJson!);
+        Assert.Equal("Legendary", updatedDetails.RootElement.GetProperty("rarity").GetString());
+    }
 
     [Fact]
     public async Task ImportFromFileAsync_Creates_Card_And_Printing_From_Strapi_Json()
@@ -590,8 +649,10 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("UNK", printing.Set);
     }
 
-    [Fact]
-    public async Task ImportFromFileAsync_Stores_Rich_Attributes_In_DetailsJson()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportFromFileAsync_Stores_Rich_Attributes_In_DetailsJson(bool relationships)
     {
         // The importer stores optional game-specific fields (aspects, traits, keywords,
         // subtitle, arena, cost, power, health, artist) in the Card's DetailsJson blob
@@ -619,9 +680,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
                 power = (int?)3,
                 health = (int?)7,
                 arena = "Ground",
-                aspects = new[] { "Aggression", "Command" },
-                traits = new[] { "Imperial", "Clone Trooper" },
-                keywords = new[] { "Sentinel", "Grit" },
+                aspects = NameList("Aggression", "Command"),
+                traits = NameList("Imperial", "Clone Trooper"),
+                keywords = NameList("Sentinel", "Grit"),
                 updatedAt = "2025-11-10T00:00:00.000Z",
                 type = new { data = new { id = 3, attributes = new { name = "Unit", value = "Unit" } } },
                 expansion = new { data = new { id = 2, attributes = new { name = "Spark of Rebellion", code = "SOR" } } },
@@ -654,9 +715,21 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains("\"health\":7", card.DetailsJson);
         Assert.Contains("\"cost\":5", card.DetailsJson);
         Assert.Contains("\"arena\":\"Ground\"", card.DetailsJson);
-        Assert.Contains("Aggression", card.DetailsJson);
-        Assert.Contains("Imperial", card.DetailsJson);
-        Assert.Contains("Sentinel", card.DetailsJson);
+        using var details = JsonDocument.Parse(card.DetailsJson);
+        Assert.Equal(new[] { "Aggression", "Command" },
+            details.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(new[] { "Imperial", "Clone Trooper" },
+            details.RootElement.GetProperty("traits").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(new[] { "Sentinel", "Grit" },
+            details.RootElement.GetProperty("keywords").EnumerateArray().Select(value => value.GetString()));
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+        using var printingDetails = JsonDocument.Parse(printing.DetailsJson!);
+        Assert.Equal(new[] { "Aggression", "Command" },
+            printingDetails.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
+
+        object NameList(params string[] names) => relationships
+            ? new { data = names.Select((name, index) => new { id = index + 1, attributes = new { name } }).ToArray() }
+            : names;
     }
 
     [Fact]

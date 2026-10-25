@@ -57,13 +57,8 @@ To verify the API is reachable, access the health endpoint:
 curl -k https://localhost:7226/api/health
 ```
 
-### JWT configuration
-- In production (or any deployed environment), provide a 256-bit or longer signing key via the `JWT__KEY` environment variable. The API refuses to start if the key is missing or too short.
-- For local development you can optionally store a key with `dotnet user-secrets`:
-  ```bash
-  dotnet user-secrets set "Jwt:Key" "DevOnly_Minimum_32_Chars_Key_For_Local_Use_1234" --project ./api/api.csproj
-  ```
-  When no key is supplied in Development/Testing the API falls back to a deterministic development key and logs a warning on startup.
+### Single-owner local access
+The local web app opens directly as the seeded owner (`owner`, `DbSeeder.DefaultUserId`); no regular site login or owner password is required. Collection, deck, wishlist, and value views always use this owner. SWU Sync has a separate administrator sign-in and authorization flow.
 
 ### Minimal developer seed data
 - Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
@@ -85,18 +80,18 @@ curl -k https://localhost:7226/api/health
 - `GET /api/cards/facets/rarities` – distinct rarity values.
 
 ### Collection
-- `GET /api/collection` – list the authenticated user's owned cards.
-- `POST /api/collection/items` – quick-add endpoint that increments the owned quantity for the authenticated user.
+- `GET /api/collection` – list the owner's owned cards.
+- `POST /api/collection/items` – quick-add endpoint that increments the owner's quantity.
 - `POST /api/collection` – add a card to the collection.
 - `PUT /api/collection/{cardPrintingId}` – replace quantity for a collection entry.
 - `PATCH /api/collection/{cardPrintingId}` – partially update a collection entry.
 - `PATCH /api/collection/bulk` – bulk-update quantities for multiple entries.
 - `POST /api/collection/delta` – apply a quantity delta to a collection entry.
 - `DELETE /api/collection/{cardPrintingId}` – remove a card from the collection.
-- `GET /api/collection/value/history?days=90` – produces daily totals for the authenticated user's collection with proxies excluded.
+- `GET /api/collection/value/history?days=90` – produces daily totals for the owner's collection with proxies excluded.
 
 ### Decks
-- `GET /api/decks` – list decks for the authenticated user.
+- `GET /api/decks` – list the owner's decks.
 - `POST /api/deck` – create a new deck.
 - `GET /api/deck/{deckId}` – retrieve a specific deck.
 - `PATCH /api/deck/{deckId}` – partially update a deck (e.g. rename).
@@ -115,8 +110,8 @@ curl -k https://localhost:7226/api/health
 - `GET /api/decks/{deckId}/value/history?days=90` – daily deck values across owned printings with proxies excluded.
 
 ### Wishlist
-- `GET /api/wishlist` – list the authenticated user's wishlist entries.
-- `POST /api/wishlist/items` – quick-add endpoint that increments the desired quantity for the authenticated user.
+- `GET /api/wishlist` – list the owner's wishlist entries.
+- `POST /api/wishlist/items` – quick-add endpoint that increments the owner's desired quantity.
 - `POST /api/wishlist` – add a card to the wishlist.
 - `PUT /api/wishlist` – update a wishlist entry.
 - `POST /api/wishlist/move-to-collection` – move a wishlist entry into the collection.
@@ -124,7 +119,7 @@ curl -k https://localhost:7226/api/health
 
 ### Prices & values
 - `GET /api/prices/{printingId}/history` – price history for a specific printing.
-- `GET /api/value/collection/summary` – aggregated collection value summary for the authenticated user.
+- `GET /api/value/collection/summary` – aggregated collection value summary for the owner.
 - `GET /api/value/cardprinting/{id}` – current value for a specific card printing.
 - `GET /api/value/deck/{deckId}` – current value for a specific deck.
 - `POST /api/value/refresh` – trigger a value recalculation.
