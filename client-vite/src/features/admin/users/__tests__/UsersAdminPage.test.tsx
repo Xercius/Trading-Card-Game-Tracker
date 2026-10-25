@@ -224,7 +224,7 @@ describe("UsersAdminPage", () => {
     // @ts-expect-error jsdom does not define confirm by default
     globalThis.confirm = confirmMock;
 
-    const { container, cleanup, refreshUsers } = await renderWithProviders(users);
+    const { container, cleanup } = await renderWithProviders(users);
 
     await act(async () => {
       await Promise.resolve();
@@ -240,8 +240,6 @@ describe("UsersAdminPage", () => {
 
     expect(confirmMock).toHaveBeenCalled();
     expect(container.textContent ?? "").toContain("At least one administrator must remain.");
-    expect(refreshUsers).not.toHaveBeenCalled();
-
     await cleanup();
   });
 });

@@ -54,4 +54,32 @@ describe("RequireAdmin", () => {
 
     cleanup();
   });
+
+  it("allows the single owner to access the import page", () => {
+    const ctx: Ctx = {
+      userId: 1,
+      users: [{ id: 1, name: "Owner", isAdmin: false }],
+    };
+
+    const { container, cleanup } = render(
+      <UserContext.Provider value={ctx}>
+        <MemoryRouter initialEntries={["/admin/import"]}>
+          <Routes>
+            <Route
+              path="/admin/import"
+              element={
+                <RequireAdmin allowOwner>
+                  <div>import</div>
+                </RequireAdmin>
+              }
+            />
+            <Route path="/cards" element={<div>cards</div>} />
+          </Routes>
+        </MemoryRouter>
+      </UserContext.Provider>
+    );
+
+    expect(container.textContent).toContain("import");
+    cleanup();
+  });
 });

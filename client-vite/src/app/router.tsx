@@ -43,7 +43,7 @@ const router = createBrowserRouter([
       {
         path: paths.adminImport,
         element: (
-          <RequireAdmin>
+          <RequireAdmin allowOwner>
             <AdminImportPage />
           </RequireAdmin>
         ),

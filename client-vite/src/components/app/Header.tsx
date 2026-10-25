@@ -22,7 +22,7 @@ const NAV_LINKS: NavLinkItem[] = [
   { to: paths.value, label: "Value" },
   { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.users, label: "Users", requiresAdmin: true },
-  { to: paths.adminImport, label: "Admin · Import", requiresAdmin: true },
+  { to: paths.adminImport, label: "Admin · Import" },
 ];
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
