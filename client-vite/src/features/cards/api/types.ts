@@ -1,10 +1,17 @@
-export type CardPrintingDetail = {
+export type CardPrintingImages = {
+  /** The existing image URL represents the front face. */
+  imageUrl: string | null;
+  backImageUrl?: string | null;
+  imageOrientation?: "horizontal" | "vertical" | null;
+  backImageOrientation?: "horizontal" | "vertical" | null;
+};
+
+export type CardPrintingDetail = CardPrintingImages & {
   id: number;
   set: string;
   number: string;
   rarity: string;
   style: string;
-  imageUrl: string | null;
 };
 
 export type CardDetail = {
@@ -16,7 +23,7 @@ export type CardDetail = {
   printings: CardPrintingDetail[];
 };
 
-export type PrintingSummary = {
+export type PrintingSummary = CardPrintingImages & {
   printingId: number;
   setName: string;
   setCode?: string | null;
