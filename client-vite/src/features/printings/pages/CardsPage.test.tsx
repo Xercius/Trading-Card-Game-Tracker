@@ -32,12 +32,15 @@ describe("CardsPage", () => {
     vi.useFakeTimers();
     usePrintingsMock.mockReset();
     CardModalMock.mockReset();
-    usePrintingsMock.mockImplementation(() => ({
-      data: [],
-      isLoading: false,
-      isError: false,
-      error: null,
-    } as unknown as ReturnType<typeof printingsApi.usePrintings>));
+    usePrintingsMock.mockImplementation(
+      () =>
+        ({
+          data: [],
+          isLoading: false,
+          isError: false,
+          error: null,
+        }) as ReturnType<typeof printingsApi.usePrintings>
+    );
   });
 
   afterEach(async () => {
@@ -176,7 +179,7 @@ describe("CardsPage", () => {
 
     // The search input should still display "Pikachu"
     expect(input?.value).toBe("Pikachu");
-    
+
     // The filter state should eventually be updated via URL params
     // Since this test involves complex async URL state management via router,
     // we verify that the input preserves the typed value which is the key behavior

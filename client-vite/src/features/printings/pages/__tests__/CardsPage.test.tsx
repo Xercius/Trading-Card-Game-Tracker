@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -89,6 +89,32 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.q).toBe("");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
+  });
+
+  it("clearly styles and updates the selected view mode button", () => {
+    const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
+    mockUsePrintings.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"]) });
+
+    const gridButton = screen.getByRole("button", { name: "Grid" });
+    const tableButton = screen.getByRole("button", { name: "Table" });
+    expect(gridButton).toHaveAttribute("aria-pressed", "true");
+    expect(gridButton).toHaveClass("border-sky-400", "bg-sky-700");
+    expect(tableButton).toHaveAttribute("aria-pressed", "false");
+    expect(tableButton).toHaveClass("border-white/30", "bg-transparent");
+
+    fireEvent.click(tableButton);
+
+    expect(gridButton).toHaveAttribute("aria-pressed", "false");
+    expect(gridButton).toHaveClass("border-white/30", "bg-transparent");
+    expect(tableButton).toHaveAttribute("aria-pressed", "true");
+    expect(tableButton).toHaveClass("border-sky-400", "bg-sky-700");
   });
 
   it("displays active filters badges when filters are present", () => {

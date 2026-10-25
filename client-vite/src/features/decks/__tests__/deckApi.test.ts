@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import api from "@/lib/api";
+import { api } from "@/lib/api";
 import { postDeckQuantityDelta } from "../api";
 
 describe("deck API helpers", () => {
