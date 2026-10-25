@@ -147,7 +147,7 @@ export default function CardModal({
           <DialogTitle id="card-modal-title">{details?.name ?? "Loading card..."}</DialogTitle>
         </DialogHeader>
         <DialogClose aria-label="Close card dialog" />
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] gap-6 p-6 [@media(max-height:500px)]:gap-3 [@media(max-height:500px)]:p-3">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-6 p-6 [@media(max-height:500px)]:gap-3 [@media(max-height:500px)]:p-3">
           <section
             aria-label="Card details and actions"
             className="flex min-h-0 flex-col gap-4 [@media(max-height:500px)]:gap-2"
@@ -173,6 +173,71 @@ export default function CardModal({
                   </>
                 )}
               </div>
+              <section
+                aria-label="Card printings"
+                className="shrink-0 space-y-3 border-t pt-3 [@media(max-height:500px)]:space-y-1 [@media(max-height:500px)]:pt-2"
+              >
+                <h2 className="text-lg font-semibold [@media(max-height:500px)]:text-sm">
+                  Printings
+                </h2>
+                <div className="space-y-3 [@media(max-height:500px)]:space-y-1" aria-live="polite">
+                  {printingsQuery.isLoading && <p>Loading printings…</p>}
+                  {printingsQuery.isError && (
+                    <p className="text-destructive">Failed to load printings.</p>
+                  )}
+                  {printings.length > 0 ? (
+                    <div
+                      role="listbox"
+                      tabIndex={0}
+                      onKeyDown={handleCarouselKeyDown}
+                      className="flex gap-3 overflow-x-auto pb-1 [@media(max-height:500px)]:gap-2"
+                      aria-label="Card printing options"
+                    >
+                      {printings.map((printing) => {
+                        const isActive = printing.printingId === selectedPrintingId;
+                        return (
+                          <button
+                            key={printing.printingId}
+                            type="button"
+                            role="option"
+                            aria-selected={isActive}
+                            aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
+                            className={`flex w-24 shrink-0 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary [@media(max-height:500px)]:w-16 [@media(max-height:500px)]:gap-1 [@media(max-height:500px)]:rounded-lg [@media(max-height:500px)]:p-1 ${
+                              isActive
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary"
+                            }`}
+                            onClick={() => setSelectedPrintingId(printing.printingId)}
+                          >
+                            <div className="h-24 w-full rounded-lg bg-muted [@media(max-height:500px)]:h-10">
+                              {printing.imageUrl ? (
+                                <img
+                                  src={resolveImageUrl(printing.imageUrl)}
+                                  alt={printing.setName}
+                                  loading="lazy"
+                                  className="h-full w-full object-contain"
+                                />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                                  No image
+                                </span>
+                              )}
+                            </div>
+                            <span className="line-clamp-2 text-center font-medium">
+                              {printing.setName}
+                            </span>
+                            {printing.number && (
+                              <span className="text-muted-foreground">#{printing.number}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p>No alternate printings found.</p>
+                  )}
+                </div>
+              </section>
             </div>
             <div className="flex shrink-0 flex-col gap-3 border-t pt-4 [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:pt-2">
               <label className="flex items-center gap-2 text-sm [@media(max-height:500px)]:gap-1 [@media(max-height:500px)]:text-xs">
@@ -245,70 +310,6 @@ export default function CardModal({
             </div>
           </section>
         </div>
-
-        <section
-          aria-label="Card printings"
-          className="shrink-0 space-y-3 border-t px-6 py-3 [@media(max-height:500px)]:space-y-1 [@media(max-height:500px)]:px-3 [@media(max-height:500px)]:py-2"
-        >
-          <h2 className="text-lg font-semibold [@media(max-height:500px)]:text-sm">Printings</h2>
-          <div className="space-y-3 [@media(max-height:500px)]:space-y-1" aria-live="polite">
-            {printingsQuery.isLoading && <p>Loading printings…</p>}
-            {printingsQuery.isError && (
-              <p className="text-destructive">Failed to load printings.</p>
-            )}
-            {printings.length > 0 ? (
-              <div
-                role="listbox"
-                tabIndex={0}
-                onKeyDown={handleCarouselKeyDown}
-                className="flex gap-3 overflow-x-auto pb-1 [@media(max-height:500px)]:gap-2"
-                aria-label="Card printing options"
-              >
-                {printings.map((printing) => {
-                  const isActive = printing.printingId === selectedPrintingId;
-                  return (
-                    <button
-                      key={printing.printingId}
-                      type="button"
-                      role="option"
-                      aria-selected={isActive}
-                      aria-label={`${printing.setName} ${printing.number ? `#${printing.number}` : ""}`.trim()}
-                      className={`flex w-24 shrink-0 flex-col items-center gap-2 rounded-xl border p-2 text-xs transition focus:outline-none focus:ring-2 focus:ring-primary [@media(max-height:500px)]:w-16 [@media(max-height:500px)]:gap-1 [@media(max-height:500px)]:rounded-lg [@media(max-height:500px)]:p-1 ${
-                        isActive
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-primary"
-                      }`}
-                      onClick={() => setSelectedPrintingId(printing.printingId)}
-                    >
-                      <div className="h-24 w-full rounded-lg bg-muted [@media(max-height:500px)]:h-10">
-                        {printing.imageUrl ? (
-                          <img
-                            src={resolveImageUrl(printing.imageUrl)}
-                            alt={printing.setName}
-                            loading="lazy"
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <span className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                            No image
-                          </span>
-                        )}
-                      </div>
-                      <span className="line-clamp-2 text-center font-medium">
-                        {printing.setName}
-                      </span>
-                      {printing.number && (
-                        <span className="text-muted-foreground">#{printing.number}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p>No alternate printings found.</p>
-            )}
-          </div>
-        </section>
 
         {toast && (
           <div
