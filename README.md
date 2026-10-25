@@ -139,6 +139,8 @@ curl -k https://localhost:7226/api/health
 - `/api/admin/import/options` – returns the available importers, supported games, and known set codes.
 - `/api/admin/import/dry-run` – preview an import without persisting changes (JSON payload or `multipart/form-data`).
 - `/api/admin/import/apply` – commit an import. Mirrors the dry-run payloads.
+- `POST /api/admin/sync/star-wars-unlimited` – sync the SWU catalog incrementally; the first run imports the full catalog. Add `?forceFullSync=true` for full reconciliation.
 - `/api/admin/prices/ingest` – ingest per-printing price snapshots; upserts on `(cardPrintingId, capturedAt)`.
 
 See [ADMIN.md](ADMIN.md) for the full admin import guide including file formats and the example workflow.
+The SWU admin import and sync workflows update the shared `Card` and `CardPrinting` tables used by collections, decks, and wishlists. See the [SWU import guide](docs/SWU_IMPORT_GUIDE.md) for details.

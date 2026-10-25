@@ -1,3 +1,5 @@
+Status: supplemental API exploration notes. For behavior used by this repository's importer, see `SWUAPI_DOCUMENTATION.txt`; for current import and sync workflows, see `SWU_IMPORT_GUIDE.md`. The example filters below are not all used or verified by the application.
+
 Below is a practical guide based on the JSON structure you retrieved and the Strapi-style filtering used by the official card-list service.
 
 Guide to the Star Wars: Unlimited Card-List API

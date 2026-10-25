@@ -17,11 +17,11 @@ Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/
 
 - **Admin users** run SWU imports through `/api/admin/import/*`.
 - **`AdminImportController`** runs dry-run/apply flows and records checkpoints only for unlimited, error-free remote apply runs.
-- **`AdminSyncController`** bootstraps the full catalog, runs global incremental imports across all expansions, records results, and supports full reconciliation.
+- **`AdminSyncController`** orchestrates full-catalog and incremental imports by delegating to `SwuDbImporter`, manages the global `swu-catalog` checkpoint, records sync results, and supports full reconciliation.
 - **`SwuDbImporter`** is the current SWU importer implementation.
 - **`ImporterRegistry`** exposes `swu` as a normal source alongside the other games.
-- **`SWUApiClient`** already handles fetching, pagination, filtering, and rate-limit retries for both persistence paths.
-- **`CardSyncService`** maintains the separate dedicated SWU tables. It is not the persistence path used by the admin sync button.
+- **`SWUApiClient`** handles fetching, pagination, filtering, and rate-limit retries for the shared importer and the dedicated service implementation.
+- **`CardSyncService`** is registered for the dedicated SWU tables, but no current admin import or sync workflow invokes it.
 
 ## What
 
@@ -47,13 +47,13 @@ The importer writes into the shared tables instead of SWU-specific tables:
 
 ### Dedicated persistence and compatibility
 
-Dedicated `SwuSet`, `SwuCard`, `SwuCardPrinting`, and `SyncLog` entities, migrations, DbContext configuration, `SWUApiClient`, and `CardSyncService` already exist.
+Dedicated `SwuSet`, `SwuCard`, `SwuCardPrinting`, and `SyncLog` entities, migrations, DbContext configuration, `SWUApiClient`, and `CardSyncService` implementation already exist. The dedicated service is registered but is not connected to a current admin route or UI workflow.
 
 The shared `Card`/`CardPrinting` tables remain authoritative for the application's card browsing, collections, decks, and wishlists. Those features reference shared printing IDs; pointing the admin button at dedicated tables would not update the cards they use.
 
-Treat dedicated SWU persistence as a separate integration path until an explicit, ownership-preserving bridge or migration is designed. Do not delete/recreate shared printings to switch storage paths.
+The active admin import and sync workflows use `SwuDbImporter` and the shared tables. Do not delete or recreate shared printings to switch storage paths; any future dedicated-table workflow needs an explicit, ownership-preserving bridge or migration.
 
-Dedicated synchronization stores its checkpoint under `swu-dedicated`, separate from the admin/shared importer's `swu` history. Existing ambiguous `swu` history is not trusted for dedicated-table coverage, so the first dedicated run after this change performs a full sync. Automatic dedicated deltas overlap by five minutes; an explicit lower bound is used as supplied.
+The dedicated service implementation stores per-set checkpoints under `swu-dedicated`, with a five-minute overlap for automatic deltas. The admin sync panel does not use this key: it uses the global `swu-catalog` checkpoint, separate from the generic importer's per-set `swu` history. Existing `swu` history is not used to establish global catalog coverage.
 
 The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upstream relationship targets in nullable `SwuCard.BaseStrapiId`. Apply migrations through the normal deployment workflow. No existing ownership tables or applied migrations are rewritten.
 
@@ -219,13 +219,13 @@ This is the preferred path for unit tests because it avoids live API dependencie
 
 - **English only:** non-`en` records are skipped intentionally.
 - **Set discovery:** no pre-populated or hard-coded set list is required for full-catalog imports. Explicit single-set imports still require the caller to supply a code.
-- **Two persistence paths:** dedicated SWU tables exist, but the admin import/sync workflows update shared tables for compatibility.
+- **Persistence paths:** the dedicated SWU entities and service implementation exist, but current admin import/sync workflows update shared tables.
 - **Two tracking purposes:** `SyncLog` audits sync attempts; `ImportSyncHistory` stores reusable coverage checkpoints. A completed attempt is not necessarily a successful synchronization.
 - **Artwork:** image URLs are stored; image files are not downloaded.
 - **Pagination:** pages are fetched before shared database writes begin. A later-page exception cannot advance the checkpoint. Upstream page-number pagination is not a snapshot; overlap and periodic reconciliation remain necessary.
 - **Checkpoint isolation:** the sync button uses only `swu-catalog` with an empty set code. Legacy `swu` per-set history (including zero-card runs) and `swu-dedicated` history do not establish global coverage.
 - **Checkpoint timing:** save the run-start time only after all pages and applicable records succeed. A failed checkpoint write causes safe re-fetching, not skipped records. Per-row API timestamps are metadata, not proof of complete set coverage.
-- **Dedicated transaction:** SWU rows, their checkpoint, and the completed audit log commit together. Limited dedicated runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage.
+- **Dedicated service behavior:** if `CardSyncService` is invoked, SWU rows, their checkpoint, and the completed audit log commit together. Limited runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage. The current admin sync workflow does not invoke this service.
 - **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole requested feed (one set or the full catalog). It is not a guaranteed immutable snapshot of a changing upstream API.
 
 ### 6. API and script examples
@@ -280,7 +280,7 @@ When working on SWU imports:
 3. Use dry-run before apply.
 4. Preserve incremental sync behavior based on `updatedAt`.
 5. Keep `api.Tests/Importing/SwuDbImporterTests.cs` in sync with mapping or query changes.
-6. Keep checkpoints isolated between shared and dedicated persistence; do not use a dedicated-table sync to advance shared inventory coverage.
+6. Keep checkpoints isolated between shared and dedicated persistence; do not use the dedicated service checkpoint to advance shared inventory coverage.
 
 ## Validation
 
