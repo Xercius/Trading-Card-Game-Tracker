@@ -59,9 +59,7 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
 
-    // Verify search input is populated
-    const searchInput = screen.getByRole("searchbox") as HTMLInputElement;
-    expect(searchInput.value).toBe("bolt");
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 
   it("uses default values when no URL parameters are present", () => {

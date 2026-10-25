@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useDebouncedCallback } from "use-debounce";
 import { MultiSelect } from "../components/MultiSelect";
 import { usePrintings } from "../api/usePrintings";
 import { deriveFacets } from "../api/usePrintingFacets";
@@ -32,31 +31,6 @@ export default function CardsPage() {
     setSelectedPrinting({ cardId, printingId });
   }, []);
 
-  const [searchInput, setSearchInput] = React.useState(filters.q ?? "");
-  const lastUserInputRef = React.useRef<string>(filters.q ?? "");
-
-  React.useEffect(() => {
-    // Only sync from filters.q if it's different from what the user last typed
-    // This handles browser back/forward while preserving user input during typing
-    if (filters.q !== lastUserInputRef.current) {
-      setSearchInput(filters.q ?? "");
-      lastUserInputRef.current = filters.q ?? "";
-    }
-  }, [filters.q]);
-
-  const setSearch = useDebouncedCallback((q: string) => {
-    setFilters((prev) => ({ ...prev, q, page: 1 }));
-  }, 250);
-
-  React.useEffect(() => () => setSearch.cancel(), [setSearch]);
-
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setSearchInput(value);
-    lastUserInputRef.current = value;
-    setSearch(value);
-  };
-
   const clearFilters = React.useCallback(() => {
     setFilters((prev) => ({ ...prev, games: [], sets: [], rarities: [], page: 1 }));
   }, [setFilters]);
@@ -86,13 +60,6 @@ export default function CardsPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <input
-          type="search"
-          placeholder="Search name or text…"
-          value={searchInput}
-          onChange={handleSearchChange}
-          className="w-full md:w-80 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
         <div className="flex flex-wrap gap-3">
           <MultiSelect
             label="Game"
