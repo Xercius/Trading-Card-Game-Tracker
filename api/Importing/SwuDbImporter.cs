@@ -132,13 +132,14 @@ public sealed class SwuDbImporter : ISourceImporter
                         summary.PrintingsCreated, summary.PrintingsUpdated);
                     try
                     {
-                        var card = Upsert(record, summary, identity, requireExpansion, catalog);
-                        _db.ChangeTracker.DetectChanges();
+                        var card = Upsert(record, summary, identity, requireExpansion, catalog,
+                            out var associationsChanged);
                         var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
                         // EF rolls back failed writes to a savepoint in the import transaction.
                         await _db.SaveChangesAsync(ct);
                         if (state == EntityState.Added) cardChanges.Created(card!);
-                        if (state == EntityState.Modified) cardChanges.Updated(card!);
+                        if (state == EntityState.Modified || associationsChanged)
+                            cardChanges.Updated(card!);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -160,7 +161,8 @@ public sealed class SwuDbImporter : ISourceImporter
                     }
                 }
 
-                foreach (var card in identity.ResolveRelationships())
+                var relationshipCards = identity.ResolveRelationships(out var changedPrintings);
+                foreach (var card in relationshipCards)
                 {
                     cardChanges.Updated(card);
                     var entry = _db.Entry(card);
@@ -168,7 +170,13 @@ public sealed class SwuDbImporter : ISourceImporter
                         entry.Property(entity => entity.BaseCardId).IsModified = true;
                 }
 
-                _db.ChangeTracker.DetectChanges();
+                foreach (var printing in changedPrintings)
+                {
+                    var entry = _db.Entry(printing);
+                    if (entry.State == EntityState.Added) continue;
+                    entry.Property(entity => entity.VariantOfId).IsModified = true;
+                    entry.Property(entity => entity.ReprintOfId).IsModified = true;
+                }
                 await _db.SaveChangesAsync(ct);
                 summary.Messages.Add($"Processed {processed} records {description}.");
                 return summary;
@@ -181,8 +189,9 @@ public sealed class SwuDbImporter : ISourceImporter
     }
 
     private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity,
-        bool requireExpansion, SwuCatalog catalog)
+        bool requireExpansion, SwuCatalog catalog, out bool associationsChanged)
     {
+        associationsChanged = false;
         const string game = "Star Wars Unlimited";
 
         var attrs = record.Attributes
@@ -343,7 +352,7 @@ public sealed class SwuDbImporter : ISourceImporter
         var updateCounted = !printingCreated && _db.Entry(printing).State == EntityState.Modified;
         var originalPrintingValues = _db.Entry(printing).CurrentValues.Clone();
         var oldCard = printing.Card;
-        printing.Card = card;
+        _db.Entry(printing).Reference(entity => entity.Card).CurrentValue = card;
         printing.StrapiId = sourceId;
         printing.CardUid = cardUid;
         printing.BackImageUrl = attrs.ArtBack?.Data?.Attributes?.Url
@@ -357,10 +366,9 @@ public sealed class SwuDbImporter : ISourceImporter
         printing.ApiCreatedAt = attrs.CreatedAt?.ToUniversalTime();
         printing.ApiUpdatedAt = attrs.UpdatedAt?.ToUniversalTime();
         printing.ApiPublishedAt = attrs.PublishedAt?.ToUniversalTime();
-        catalog.Apply(card, printing, attrs);
+        associationsChanged = catalog.Apply(card, printing, attrs);
         if (oldCard != card)
         {
-            _db.ChangeTracker.DetectChanges();
             if (oldCard.Printings.Count == 0) _db.Cards.Remove(oldCard);
         }
         if (!printingCreated && !updateCounted

@@ -228,6 +228,26 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.True(changedPrinting.Showcase);
     }
 
+    [Fact]
+    public async Task Import_ArenaOnlyChange_CountsCardAsUpdated()
+    {
+        await using var database = await Database.CreateAsync();
+        var original = JsonSerializer.SerializeToNode(Record(1, "Arena card", "SOR", "one"))!;
+        original["attributes"]!["arenas"] =
+            JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Ground"}}]}""");
+        Assert.Equal(0, (await ImportAsync(database, original)).Errors);
+
+        var changed = original.DeepClone();
+        changed["attributes"]!["arenas"] =
+            JsonNode.Parse("""{"data":[{"id":2,"attributes":{"name":"Space"}}]}""");
+        var result = await ImportAsync(database, changed);
+
+        Assert.Equal(1, result.CardsUpdated);
+        await using var db = database.Open();
+        var card = await db.Cards.Include(c => c.CardArenas).ThenInclude(a => a.Arena).SingleAsync();
+        Assert.Equal("Space", Assert.Single(card.CardArenas).Arena.Name);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

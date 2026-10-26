@@ -225,6 +225,9 @@ orientation, foil, publication, and distinct printing relationship fields withou
 replacing existing printing IDs or changing API routes/response shapes.
 `RetainSwuPrintingSourceUid` adds the per-printing UID used for legacy identity
 reconciliation; legacy JSON source identities are adopted on the next sync.
+After upgrading an existing catalog with these migrations, run one full
+reconciliation (`forceFullSync=true`) so unchanged upstream records receive the
+new mappings and legacy identity reconciliation.
 
 ### 5. Operational gotchas
 

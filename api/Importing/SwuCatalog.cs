@@ -29,8 +29,9 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         await db.Set<CardAspect>().LoadAsync(ct);
     }
 
-    internal void Apply(Card card, CardPrinting printing, SwuCardAttributes attrs)
+    internal bool Apply(Card card, CardPrinting printing, SwuCardAttributes attrs)
     {
+        var associationsChanged = false;
         var expansion = attrs.Expansion?.Data?.Attributes;
         var set = db.Sets.Local.SingleOrDefault(s => s.Game == _game && s.Code == printing.Set);
         if (set is null)
@@ -38,27 +39,41 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             set = new Set { Game = _game, Code = printing.Set };
             db.Sets.Add(set);
         }
-        if (!string.IsNullOrWhiteSpace(expansion?.Name)) set.Name = expansion.Name.Trim();
-        if (expansion?.ReleaseDate is { } releaseDate) set.ReleasedAt = releaseDate;
-        set.LastSyncedAt = clock.GetUtcNow();
-        printing.CatalogSet = set;
-        printing.RarityLookup = Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
+        if (!string.IsNullOrWhiteSpace(expansion?.Name) && set.Name != expansion.Name.Trim())
+        {
+            set.Name = expansion.Name.Trim();
+            MarkModified(set, nameof(Set.Name));
+        }
+        if (expansion?.ReleaseDate is { } releaseDate && set.ReleasedAt != releaseDate)
+        {
+            set.ReleasedAt = releaseDate;
+            MarkModified(set, nameof(Set.ReleasedAt));
+        }
+        var lastSyncedAt = clock.GetUtcNow();
+        if (set.LastSyncedAt != lastSyncedAt)
+        {
+            set.LastSyncedAt = lastSyncedAt;
+            MarkModified(set, nameof(Set.LastSyncedAt));
+        }
+        db.Entry(printing).Reference(entity => entity.CatalogSet).CurrentValue = set;
+        db.Entry(printing).Reference(entity => entity.RarityLookup).CurrentValue =
+            Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
 
         var types = new List<CardCardType>();
         AddType(attrs.Type?.Data?.Attributes, "Type");
         AddType(attrs.Type2?.Data?.Attributes, "Type2");
-        Sync(card.CardTypes, types, x => (x.CardType, x.SourceRole));
-        Sync(card.CardTraits, Names(attrs.Traits).Select(name => new CardTrait
+        associationsChanged |= Sync(card.CardTypes, types, x => (x.CardType, x.SourceRole));
+        associationsChanged |= Sync(card.CardTraits, Names(attrs.Traits).Select(name => new CardTrait
         {
             Card = card,
             Trait = Lookup(name, n => new Trait { Game = _game, Name = n })
         }), x => x.Trait);
-        Sync(card.CardKeywords, Names(attrs.Keywords).Select(name => new CardKeyword
+        associationsChanged |= Sync(card.CardKeywords, Names(attrs.Keywords).Select(name => new CardKeyword
         {
             Card = card,
             Keyword = Lookup(name, n => new Keyword { Game = _game, Name = n })
         }), x => x.Keyword);
-        Sync(card.CardArenas, Names(attrs.Arenas ?? (attrs.Arena is null ? [] : [attrs.Arena]))
+        associationsChanged |= Sync(card.CardArenas, Names(attrs.Arenas ?? (attrs.Arena is null ? [] : [attrs.Arena]))
             .Select(name => new CardArena
             {
                 Card = card,
@@ -76,15 +91,25 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         foreach (var aspect in aspects)
         {
             var existing = card.CardAspects.SingleOrDefault(x => x.Aspect == aspect.Aspect);
-            if (existing is not null) existing.Count = aspect.Count;
+            if (existing is not null && existing.Count != aspect.Count)
+            {
+                existing.Count = aspect.Count;
+                MarkModified(existing, nameof(CardAspect.Count));
+                associationsChanged = true;
+            }
         }
-        Sync(card.CardAspects, aspects, x => x.Aspect);
+        associationsChanged |= Sync(card.CardAspects, aspects, x => x.Aspect);
+        return associationsChanged;
 
         void AddType(SwuTypeAttributes? source, string role)
         {
             if (string.IsNullOrWhiteSpace(source?.Name)) return;
             var type = Lookup(source.Name, n => new CardType { Game = _game, Name = n });
-            type.Value = source.Value;
+            if (type.Value != source.Value)
+            {
+                type.Value = source.Value;
+                MarkModified(type, nameof(CardType.Value));
+            }
             types.Add(new CardCardType { Card = card, CardType = type, SourceRole = role });
         }
     }
@@ -102,21 +127,31 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         return entity;
     }
 
-    private void Sync<T, TKey>(ICollection<T> current, IEnumerable<T> desired, Func<T, TKey> key)
+    private void MarkModified<TEntity>(TEntity entity, string propertyName) where TEntity : class
+    {
+        if (db.Entry(entity).State != EntityState.Added)
+            db.Entry(entity).Property(propertyName).IsModified = true;
+    }
+
+    private bool Sync<T, TKey>(ICollection<T> current, IEnumerable<T> desired, Func<T, TKey> key)
         where T : class where TKey : notnull
     {
+        var changed = false;
         var wanted = desired.ToDictionary(key);
         foreach (var item in current.ToList())
         {
             if (wanted.Remove(key(item))) continue;
             current.Remove(item);
             db.Remove(item);
+            changed = true;
         }
         foreach (var item in wanted.Values)
         {
             current.Add(item);
             db.Add(item);
+            changed = true;
         }
+        return changed;
     }
 
     private static IEnumerable<string> Names(string[]? names) => (names ?? [])

@@ -51,9 +51,10 @@ internal sealed class SwuSharedIdentity
         _bySetNumber[(printing.Set, printing.Number)] = printing;
     }
 
-    internal IReadOnlyList<Card> ResolveRelationships()
+    internal IReadOnlyList<Card> ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
     {
         var changed = new List<Card>();
+        var updatedPrintings = new List<CardPrinting>();
         var bySource = _printings
             .Where(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId")) is > 0)
             .GroupBy(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId"))!.Value)
@@ -65,10 +66,14 @@ internal sealed class SwuSharedIdentity
 
         foreach (var printing in _printings)
         {
-            printing.VariantOf = FindTarget(printing, "variantOfSourceId");
-            printing.VariantOfId = printing.VariantOf?.Id;
-            printing.ReprintOf = FindTarget(printing, "reprintOfSourceId");
-            printing.ReprintOfId = printing.ReprintOf?.Id;
+            var variantOf = FindTarget(printing, "variantOfSourceId");
+            var reprintOf = FindTarget(printing, "reprintOfSourceId");
+            if (printing.VariantOfId != variantOf?.Id || printing.ReprintOfId != reprintOf?.Id)
+                updatedPrintings.Add(printing);
+            printing.VariantOf = variantOf;
+            printing.VariantOfId = variantOf?.Id;
+            printing.ReprintOf = reprintOf;
+            printing.ReprintOfId = reprintOf?.Id;
         }
         foreach (var group in _printings.GroupBy(p => p.Card))
         {
@@ -82,6 +87,7 @@ internal sealed class SwuSharedIdentity
             card.BaseCardId = baseCard?.Id;
             changed.Add(card);
         }
+        changedPrintings = updatedPrintings;
         return changed;
     }
 
