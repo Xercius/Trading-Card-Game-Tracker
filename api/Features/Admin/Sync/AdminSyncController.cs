@@ -42,8 +42,8 @@ public sealed class AdminSyncController(
             .AsNoTracking()
             .Select(l => new AdminSyncLogEntry(
                 l.Id,
-                l.SwuSetId,
-                l.SwuSet != null ? l.SwuSet.Code : null,
+                l.SetId,
+                l.Set != null ? l.Set.Code : null,
                 l.StartedAt,
                 l.CompletedAt,
                 l.IsIncremental,
@@ -264,13 +264,14 @@ public sealed class AdminSyncController(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+            logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SetId}.", syncLog.SetId);
         }
     }
 
     private async Task<string[]> ResolveSwuSetCodesAsync(CancellationToken ct)
     {
-        var discoveredCodes = await db.SwuSets
+        var discoveredCodes = await db.Sets
+            .Where(s => s.Game.NameNormalized == "star wars unlimited")
             .AsNoTracking()
             .Select(s => s.Code)
             .Concat(

@@ -17,19 +17,99 @@ namespace api.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
+            modelBuilder.Entity("api.Models.Arena", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Arenas", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.Aspect", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Aspects", (string)null);
+                });
+
             modelBuilder.Entity("api.Models.Card", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTimeOffset?>("ApiCreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("ApiUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Arena")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Artist")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Aspects")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("BaseCardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BaseStrapiId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("CardType")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("CardType2")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CardUid")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Cost")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
@@ -47,6 +127,17 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Game]))", true);
 
+                    b.Property<int?>("Hp")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("Hp");
+
+                    b.Property<string>("Keywords")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSyncedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -57,9 +148,27 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", true);
 
+                    b.Property<int?>("Power")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StrapiId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Traits")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BaseCardId");
+
+                    b.HasIndex("CardUid")
+                        .IsUnique()
+                        .HasFilter("\"CardUid\" IS NOT NULL");
 
                     b.HasIndex("GameNorm");
 
@@ -67,7 +176,84 @@ namespace api.Migrations
 
                     b.HasIndex("Game", "Name");
 
+                    b.HasIndex("Game", "StrapiId")
+                        .IsUnique()
+                        .HasFilter("\"StrapiId\" IS NOT NULL");
+
                     b.ToTable("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.CardArena", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ArenaId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "ArenaId");
+
+                    b.HasIndex("ArenaId");
+
+                    b.ToTable("CardArenas", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.CardAspect", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AspectId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "AspectId");
+
+                    b.HasIndex("AspectId");
+
+                    b.ToTable("CardAspects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CardAspects_Count_Positive", "\"Count\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("api.Models.CardCardType", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CardTypeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceRole")
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("CardId", "CardTypeId", "SourceRole");
+
+                    b.HasIndex("CardTypeId");
+
+                    b.ToTable("CardCardTypes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CardCardTypes_SourceRole", "\"SourceRole\" IN ('Type', 'Type2')");
+                        });
+                });
+
+            modelBuilder.Entity("api.Models.CardKeyword", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("KeywordId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "KeywordId");
+
+                    b.HasIndex("KeywordId");
+
+                    b.ToTable("CardKeywords", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.CardPriceHistory", b =>
@@ -99,6 +285,16 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTimeOffset?>("ApiCreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("ApiUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackImageUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
 
@@ -106,6 +302,9 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ImageUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Number")
@@ -117,6 +316,9 @@ namespace api.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RarityId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RarityNorm")
                         .ValueGeneratedOnAddOrUpdate()
@@ -131,10 +333,16 @@ namespace api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("SetId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("SetNorm")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Set]))", true);
+
+                    b.Property<int?>("StrapiId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Style")
                         .IsRequired()
@@ -150,9 +358,17 @@ namespace api.Migrations
 
                     b.HasIndex("CardId");
 
+                    b.HasIndex("RarityId");
+
                     b.HasIndex("RarityNorm");
 
+                    b.HasIndex("SetId");
+
                     b.HasIndex("SetNorm");
+
+                    b.HasIndex("StrapiId")
+                        .IsUnique()
+                        .HasFilter("\"StrapiId\" IS NOT NULL");
 
                     b.HasIndex("StyleNorm");
 
@@ -162,6 +378,47 @@ namespace api.Migrations
                         .IsUnique();
 
                     b.ToTable("CardPrintings");
+                });
+
+            modelBuilder.Entity("api.Models.CardTrait", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TraitId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "TraitId");
+
+                    b.HasIndex("TraitId");
+
+                    b.ToTable("CardTraits", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.CardType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("CardTypes", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>
@@ -232,6 +489,39 @@ namespace api.Migrations
                     b.ToTable("DeckCards");
                 });
 
+            modelBuilder.Entity("api.Models.Game", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameNormalized")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("TEXT")
+                        .HasComputedColumnSql("LOWER(TRIM([Name]))", true);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameNormalized")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Games_NameNormalized");
+
+                    b.ToTable("Games", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Star Wars Unlimited"
+                        });
+                });
+
             modelBuilder.Entity("api.Models.ImportSyncHistory", b =>
                 {
                     b.Property<int>("Id")
@@ -257,6 +547,91 @@ namespace api.Migrations
                         .IsUnique();
 
                     b.ToTable("ImportSyncHistories");
+                });
+
+            modelBuilder.Entity("api.Models.Keyword", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Keywords", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.Rarity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Character")
+                        .HasMaxLength(1)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Rarities", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.Set", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("LastSyncedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ReleasedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Sets_GameId_Code");
+
+                    b.ToTable("Sets", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.SwuCard", b =>
@@ -317,15 +692,15 @@ namespace api.Migrations
                     b.Property<int?>("Power")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("SetId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("StrapiId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Subtitle")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("SwuSetId")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -347,7 +722,7 @@ namespace api.Migrations
                     b.HasIndex("StrapiId")
                         .IsUnique();
 
-                    b.HasIndex("SwuSetId", "Title", "Subtitle");
+                    b.HasIndex("SetId", "Title", "Subtitle");
 
                     b.ToTable("SwuCards", (string)null);
                 });
@@ -385,6 +760,9 @@ namespace api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("SetId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("StrapiId")
                         .HasColumnType("INTEGER");
 
@@ -396,49 +774,17 @@ namespace api.Migrations
                     b.Property<int>("SwuCardId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("SwuSetId")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.HasIndex("StrapiId")
                         .IsUnique();
 
-                    b.HasIndex("SwuSetId", "Number");
+                    b.HasIndex("SetId", "Number");
 
-                    b.HasIndex("SwuCardId", "SwuSetId", "Number", "Style")
+                    b.HasIndex("SwuCardId", "SetId", "Number", "Style")
                         .IsUnique();
 
                     b.ToTable("SwuCardPrintings", (string)null);
-                });
-
-            modelBuilder.Entity("api.Models.SwuSet", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("LastSyncedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly?>("ReleasedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("SwuSets", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.SyncLog", b =>
@@ -466,6 +812,9 @@ namespace api.Migrations
                     b.Property<bool>("IsIncremental")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("SetId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("TEXT");
 
@@ -474,17 +823,36 @@ namespace api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("SwuSetId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTimeOffset?>("UpdatedSince")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SwuSetId", "StartedAt");
+                    b.HasIndex("SetId", "StartedAt");
 
                     b.ToTable("SyncLogs", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.Trait", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Traits", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.User", b =>
@@ -574,6 +942,28 @@ namespace api.Migrations
                     b.ToTable("ValueHistories");
                 });
 
+            modelBuilder.Entity("api.Models.Arena", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Arenas")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("api.Models.Aspect", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Aspects")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("api.Models.Card", b =>
                 {
                     b.HasOne("api.Models.Card", "BaseCard")
@@ -582,6 +972,82 @@ namespace api.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("BaseCard");
+                });
+
+            modelBuilder.Entity("api.Models.CardArena", b =>
+                {
+                    b.HasOne("api.Models.Arena", "Arena")
+                        .WithMany("Cards")
+                        .HasForeignKey("ArenaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardArenas")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Arena");
+
+                    b.Navigation("Card");
+                });
+
+            modelBuilder.Entity("api.Models.CardAspect", b =>
+                {
+                    b.HasOne("api.Models.Aspect", "Aspect")
+                        .WithMany("Cards")
+                        .HasForeignKey("AspectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardAspects")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Aspect");
+
+                    b.Navigation("Card");
+                });
+
+            modelBuilder.Entity("api.Models.CardCardType", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardTypes")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.CardType", "CardType")
+                        .WithMany("Cards")
+                        .HasForeignKey("CardTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("CardType");
+                });
+
+            modelBuilder.Entity("api.Models.CardKeyword", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardKeywords")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Keyword", "Keyword")
+                        .WithMany("Cards")
+                        .HasForeignKey("KeywordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("Keyword");
                 });
 
             modelBuilder.Entity("api.Models.CardPriceHistory", b =>
@@ -603,7 +1069,51 @@ namespace api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("api.Models.Rarity", "RarityLookup")
+                        .WithMany()
+                        .HasForeignKey("RarityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("api.Models.Set", "CatalogSet")
+                        .WithMany()
+                        .HasForeignKey("SetId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Card");
+
+                    b.Navigation("CatalogSet");
+
+                    b.Navigation("RarityLookup");
+                });
+
+            modelBuilder.Entity("api.Models.CardTrait", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardTraits")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Trait", "Trait")
+                        .WithMany("Cards")
+                        .HasForeignKey("TraitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("Trait");
+                });
+
+            modelBuilder.Entity("api.Models.CardType", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("CardTypes")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("api.Models.Deck", b =>
@@ -636,6 +1146,39 @@ namespace api.Migrations
                     b.Navigation("Deck");
                 });
 
+            modelBuilder.Entity("api.Models.Keyword", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Keywords")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("api.Models.Rarity", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Rarities")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("api.Models.Set", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Sets")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("api.Models.SwuCard", b =>
                 {
                     b.HasOne("api.Models.SwuCard", "BaseCard")
@@ -643,44 +1186,55 @@ namespace api.Migrations
                         .HasForeignKey("BaseCardId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("api.Models.SwuSet", "SwuSet")
+                    b.HasOne("api.Models.Set", "Set")
                         .WithMany("Cards")
-                        .HasForeignKey("SwuSetId")
+                        .HasForeignKey("SetId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("BaseCard");
 
-                    b.Navigation("SwuSet");
+                    b.Navigation("Set");
                 });
 
             modelBuilder.Entity("api.Models.SwuCardPrinting", b =>
                 {
+                    b.HasOne("api.Models.Set", "Set")
+                        .WithMany("Printings")
+                        .HasForeignKey("SetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("api.Models.SwuCard", "SwuCard")
                         .WithMany("Printings")
                         .HasForeignKey("SwuCardId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("api.Models.SwuSet", "SwuSet")
-                        .WithMany("Printings")
-                        .HasForeignKey("SwuSetId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                    b.Navigation("Set");
 
                     b.Navigation("SwuCard");
-
-                    b.Navigation("SwuSet");
                 });
 
             modelBuilder.Entity("api.Models.SyncLog", b =>
                 {
-                    b.HasOne("api.Models.SwuSet", "SwuSet")
+                    b.HasOne("api.Models.Set", "Set")
                         .WithMany("SyncLogs")
-                        .HasForeignKey("SwuSetId")
+                        .HasForeignKey("SetId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("SwuSet");
+                    b.Navigation("Set");
+                });
+
+            modelBuilder.Entity("api.Models.Trait", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Traits")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("api.Models.UserCard", b =>
@@ -702,8 +1256,28 @@ namespace api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("api.Models.Arena", b =>
+                {
+                    b.Navigation("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.Aspect", b =>
+                {
+                    b.Navigation("Cards");
+                });
+
             modelBuilder.Entity("api.Models.Card", b =>
                 {
+                    b.Navigation("CardArenas");
+
+                    b.Navigation("CardAspects");
+
+                    b.Navigation("CardKeywords");
+
+                    b.Navigation("CardTraits");
+
+                    b.Navigation("CardTypes");
+
                     b.Navigation("Printings");
 
                     b.Navigation("Variants");
@@ -714,9 +1288,45 @@ namespace api.Migrations
                     b.Navigation("DeckCards");
                 });
 
+            modelBuilder.Entity("api.Models.CardType", b =>
+                {
+                    b.Navigation("Cards");
+                });
+
             modelBuilder.Entity("api.Models.Deck", b =>
                 {
                     b.Navigation("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.Game", b =>
+                {
+                    b.Navigation("Arenas");
+
+                    b.Navigation("Aspects");
+
+                    b.Navigation("CardTypes");
+
+                    b.Navigation("Keywords");
+
+                    b.Navigation("Rarities");
+
+                    b.Navigation("Sets");
+
+                    b.Navigation("Traits");
+                });
+
+            modelBuilder.Entity("api.Models.Keyword", b =>
+                {
+                    b.Navigation("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.Set", b =>
+                {
+                    b.Navigation("Cards");
+
+                    b.Navigation("Printings");
+
+                    b.Navigation("SyncLogs");
                 });
 
             modelBuilder.Entity("api.Models.SwuCard", b =>
@@ -726,13 +1336,9 @@ namespace api.Migrations
                     b.Navigation("Variants");
                 });
 
-            modelBuilder.Entity("api.Models.SwuSet", b =>
+            modelBuilder.Entity("api.Models.Trait", b =>
                 {
                     b.Navigation("Cards");
-
-                    b.Navigation("Printings");
-
-                    b.Navigation("SyncLogs");
                 });
 
             modelBuilder.Entity("api.Models.User", b =>

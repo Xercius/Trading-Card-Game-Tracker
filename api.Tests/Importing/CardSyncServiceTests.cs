@@ -55,7 +55,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(0, summary.PrintingsUpdated);
         Assert.Equal(0, summary.Errors);
 
-        var set = await db.SwuSets.SingleAsync();
+        var set = await db.Sets.SingleAsync();
         Assert.Equal("SOR", set.Code);
         Assert.Equal("Spark of Rebellion", set.Name);
         Assert.Equal(updatedAt, set.LastSyncedAt);
@@ -75,7 +75,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal("Heroism|Command", card.Aspects);
         Assert.Equal("Rebel|Jedi", card.Traits);
         Assert.Equal("Restore", card.Keywords);
-        Assert.Equal(set.Id, card.SwuSetId);
+        Assert.Equal(set.Id, card.SetId);
         Assert.Equal(createdAt, card.ApiCreatedAt);
         Assert.Equal(updatedAt, card.ApiUpdatedAt);
         Assert.Equal(updatedAt, card.LastSyncedAt);
@@ -83,7 +83,7 @@ public sealed class CardSyncServiceTests
         var printing = await db.SwuCardPrintings.SingleAsync();
         Assert.Equal(1001, printing.StrapiId);
         Assert.Equal(card.Id, printing.SwuCardId);
-        Assert.Equal(set.Id, printing.SwuSetId);
+        Assert.Equal(set.Id, printing.SetId);
         Assert.Equal("SOR-001", printing.Number);
         Assert.Equal("Legendary", printing.Rarity);
         Assert.Equal("Standard", printing.Style);
@@ -108,13 +108,14 @@ public sealed class CardSyncServiceTests
         var updatedAt = new DateTimeOffset(2026, 7, 19, 12, 0, 0, TimeSpan.Zero);
         var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
 
-        var set = new SwuSet
+        var set = new Set
         {
+            GameId = 1,
             Code = "SOR",
             Name = "Spark of Rebellion",
             LastSyncedAt = lastSync
         };
-        db.SwuSets.Add(set);
+        db.Sets.Add(set);
 
         var card = new SwuCard
         {
@@ -132,7 +133,7 @@ public sealed class CardSyncServiceTests
             Aspects = "Heroism|Command",
             Traits = "Rebel|Leader",
             Keywords = "Sentinel",
-            SwuSet = set,
+            Set = set,
             ApiCreatedAt = createdAt,
             ApiUpdatedAt = updatedAt,
             LastSyncedAt = lastSync
@@ -143,7 +144,7 @@ public sealed class CardSyncServiceTests
         {
             StrapiId = 2001,
             SwuCard = card,
-            SwuSet = set,
+            Set = set,
             Number = "SOR-010",
             Rarity = "Rare",
             Style = "Standard",
@@ -210,13 +211,14 @@ public sealed class CardSyncServiceTests
         await using var db = await CreateDbContextAsync();
         var lastSync = new DateTimeOffset(2026, 7, 20, 12, 0, 0, TimeSpan.Zero);
         var syncTime = new DateTimeOffset(2026, 7, 21, 18, 0, 0, TimeSpan.Zero);
-        var set = new SwuSet
+        var set = new Set
         {
+            GameId = 1,
             Code = "SOR",
             Name = "Spark of Rebellion",
             LastSyncedAt = lastSync
         };
-        db.SwuSets.Add(set);
+        db.Sets.Add(set);
 
         var card = new SwuCard
         {
@@ -234,7 +236,7 @@ public sealed class CardSyncServiceTests
             Aspects = "Heroism|Cunning",
             Traits = "Rebel|Smuggler",
             Keywords = "Raid",
-            SwuSet = set,
+            Set = set,
             ApiCreatedAt = new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero),
             ApiUpdatedAt = new DateTimeOffset(2026, 7, 15, 10, 0, 0, TimeSpan.Zero),
             LastSyncedAt = lastSync
@@ -245,7 +247,7 @@ public sealed class CardSyncServiceTests
         {
             StrapiId = 3001,
             SwuCard = card,
-            SwuSet = set,
+            Set = set,
             Number = "SOR-020",
             Rarity = "Common",
             Style = "Standard",
@@ -293,14 +295,14 @@ public sealed class CardSyncServiceTests
         Assert.Equal(1, summary.PrintingsUpdated);
         Assert.Equal(0, summary.Errors);
 
-        var updatedSet = await db.SwuSets.SingleAsync(s => s.Code == "SOR");
+        var updatedSet = await db.Sets.SingleAsync(s => s.Code == "SOR");
         Assert.Equal("Spark of Rebellion Remastered", updatedSet.Name);
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedSet.LastSyncedAt);
 
         var updatedCard = await db.SwuCards.SingleAsync(c => c.StrapiId == 3001);
         Assert.Equal("New text", updatedCard.Description);
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedCard.ApiUpdatedAt);
-        Assert.Equal(updatedSet.Id, updatedCard.SwuSetId);
+        Assert.Equal(updatedSet.Id, updatedCard.SetId);
         Assert.Equal(new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero), updatedCard.LastSyncedAt);
 
         var updatedPrinting = await db.SwuCardPrintings.SingleAsync(p => p.StrapiId == 3001);
@@ -696,7 +698,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(1, failed.Errors);
         Assert.Empty(await db.SwuCards.ToListAsync());
         Assert.Empty(await db.SwuCardPrintings.ToListAsync());
-        Assert.Empty(await db.SwuSets.ToListAsync());
+        Assert.Empty(await db.Sets.ToListAsync());
         Assert.Equal(checkpoint, await service.GetLastSyncTimeAsync("swu", "SOR"));
         var failedLog = await db.SyncLogs.SingleAsync();
         Assert.Equal("Failed", failedLog.Status);
@@ -841,7 +843,7 @@ public sealed class CardSyncServiceTests
         Assert.Equal(cards[1].Id, cards[2].BaseCardId);
         Assert.NotEqual(cards[3].Id, cards[2].BaseCardId);
         Assert.Null(cards[1].BaseCardId);
-        Assert.NotEqual(cards[1].SwuSetId, cards[2].SwuSetId);
+        Assert.NotEqual(cards[1].SetId, cards[2].SetId);
 
         var replay = await firstService.SyncNewAndUpdatedCardsAsync("swu", "SOR");
         Assert.Equal(0, replay.CardsCreated);

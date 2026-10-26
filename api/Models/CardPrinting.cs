@@ -8,10 +8,19 @@ namespace api.Models
         public required string Set { get; set; } // Card set
         public required string Number { get; set; } // Card's set number
         public required string Rarity { get; set; } // Rarity of the card
+        public int? RarityId { get; set; }
+        public Rarity? RarityLookup { get; set; }
         public required string Style { get; set; } // Standard, Foil, Hyperspace, Showcase etc..
         public string? ImageUrl { get; set; } // url to card image
+        public string? BackImageUrl { get; set; }
         public string? DetailsJson { get; set; } // Source-specific payload
         public DateOnly? ReleasedAt { get; set; } // Release date when supplied by the source
+        public int? SetId { get; set; }
+        public Set? CatalogSet { get; set; }
+        public int? StrapiId { get; set; }
+        public DateTimeOffset? ApiCreatedAt { get; set; }
+        public DateTimeOffset? ApiUpdatedAt { get; set; }
+        public DateTimeOffset? LastSyncedAt { get; set; }
         public ICollection<DeckCard> DeckCards { get; set; } = new List<DeckCard>();
     }
 }

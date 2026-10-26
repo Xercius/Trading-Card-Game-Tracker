@@ -8,8 +8,8 @@ namespace api.Models;
 /// One row per unique (SwuCardId, SwuSetId, Number, Style) combination.
 /// </summary>
 [Index(nameof(StrapiId), IsUnique = true)]
-[Index(nameof(SwuCardId), nameof(SwuSetId), nameof(Number), nameof(Style), IsUnique = true)]
-[Index(nameof(SwuSetId), nameof(Number))]
+[Index(nameof(SwuCardId), nameof(SetId), nameof(Number), nameof(Style), IsUnique = true)]
+[Index(nameof(SetId), nameof(Number))]
 public sealed class SwuCardPrinting
 {
     [Key]
@@ -31,14 +31,14 @@ public sealed class SwuCardPrinting
     public SwuCard SwuCard { get; set; } = null!;
 
     /// <summary>
-    /// Foreign key to the <see cref="SwuSet"/> this printing was released in.
+    /// Foreign key to the <see cref="Set"/> this printing was released in.
     /// </summary>
-    public int SwuSetId { get; set; }
+    public int SetId { get; set; }
 
     /// <summary>
     /// Navigation property to the expansion set this printing belongs to.
     /// </summary>
-    public SwuSet SwuSet { get; set; } = null!;
+    public Set Set { get; set; } = null!;
 
     /// <summary>
     /// Collector/set number for this printing (e.g. "SOR-001", "001").

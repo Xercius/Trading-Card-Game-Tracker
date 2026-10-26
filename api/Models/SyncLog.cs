@@ -8,17 +8,17 @@ namespace api.Models;
 /// Distinct from <see cref="ImportSyncHistory"/> which stores only the latest sync
 /// timestamp per importer; <c>SyncLog</c> appends a row for every sync run.
 /// </summary>
-[Index(nameof(SwuSetId), nameof(StartedAt))]
+[Index(nameof(SetId), nameof(StartedAt))]
 public sealed class SyncLog
 {
     [Key]
     public int Id { get; set; }
 
     /// <summary>
-    /// Foreign key to the <see cref="SwuSet"/> that was synced.
+    /// Foreign key to the <see cref="Set"/> that was synced.
     /// Null when the operation targets all sets or is not set-scoped.
     /// </summary>
-    public int? SwuSetId { get; set; }
+    public int? SetId { get; set; }
 
     /// <summary>
     /// Catalog scope for the operation. Null for historical or unclassified syncs.
@@ -29,7 +29,7 @@ public sealed class SyncLog
     /// <summary>
     /// Navigation property to the synced expansion set.
     /// </summary>
-    public SwuSet? SwuSet { get; set; }
+    public Set? Set { get; set; }
 
     /// <summary>
     /// UTC timestamp when this sync operation was initiated.
