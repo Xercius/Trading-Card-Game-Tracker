@@ -95,16 +95,46 @@ public class CardsController : ControllerBase
             total = await query.CountAsync(ct);
         }
 
-        var cards = await query
-            .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
-            .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
-            .Include(card => card.Printings).ThenInclude(printing => printing.CatalogSet)
-            .Include(card => card.Printings).ThenInclude(printing => printing.RarityLookup)
-            .AsSplitQuery()
+        var items = await query
             .Skip(skip)
             .Take(take)
+            .SelectCardSummaries(PlaceholderCardImage)
             .ToListAsync(ct);
-        var items = cards.SelectCardSummaries(PlaceholderCardImage).ToList();
+        var cardIds = items.Select(item => item.CardId).ToList();
+        if (cardIds.Count > 0)
+        {
+            var typeAssociations = await _db.CardCardTypes
+                .AsNoTracking()
+                .Where(association => cardIds.Contains(association.CardId))
+                .Select(association => new { association.CardId, Name = association.CardType.Name })
+                .ToListAsync(ct);
+            var aspectAssociations = await _db.CardAspects
+                .AsNoTracking()
+                .Where(association => cardIds.Contains(association.CardId))
+                .Select(association => new
+                {
+                    association.CardId,
+                    Response = new CardAspectResponse(association.Aspect.Name, association.Count)
+                })
+                .ToListAsync(ct);
+            var cardTypesById = typeAssociations
+                .GroupBy(type => type.CardId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<string>)group.Select(type => type.Name)
+                        .Distinct().OrderBy(name => name).ToList());
+            var aspectsById = aspectAssociations
+                .GroupBy(aspect => aspect.CardId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<CardAspectResponse>)group.Select(aspect => aspect.Response)
+                        .OrderBy(aspect => aspect.Name).ToList());
+            foreach (var item in items)
+            {
+                item.CardTypes = cardTypesById.GetValueOrDefault(item.CardId) ?? Array.Empty<string>();
+                item.Aspects = aspectsById.GetValueOrDefault(item.CardId) ?? Array.Empty<CardAspectResponse>();
+            }
+        }
 
         var nextSkip = items.Count < take ? (int?)null : skip + take;
 
@@ -479,7 +509,7 @@ public class CardsController : ControllerBase
         => await GetCardCore(cardId);
 
     /// <summary>
-    /// Retrieves all printing records for a specific card, ordered by set and number.
+    /// Retrieves all printing records for a specific card in the appropriate set order.
     /// </summary>
     /// <param name="cardId">The unique identifier of the card.</param>
     /// <param name="ct">Cancellation token for async operation.</param>
@@ -489,21 +519,43 @@ public class CardsController : ControllerBase
     [HttpGet("{cardId:int}/printings")]
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId, CancellationToken ct)
     {
-        var exists = await _db.Cards.AsNoTracking().AnyAsync(c => c.Id == cardId, ct);
-        if (!exists)
+        var swuGameIds = await _db.Games
+            .Where(game => game.NameNormalized == "star wars unlimited")
+            .Select(game => game.Id)
+            .ToListAsync(ct);
+        var cardIsSwu = await _db.Cards
+            .AsNoTracking()
+            .Where(card => card.Id == cardId)
+            .Select(card => (bool?)(
+                EF.Property<string>(card, "GameNorm") == "star wars unlimited" ||
+                card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId)) ||
+                card.Printings.Any(printing => printing.CatalogSet != null &&
+                    swuGameIds.Contains(printing.CatalogSet.GameId))))
+            .FirstOrDefaultAsync(ct);
+        if (cardIsSwu is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");
         }
 
-        var printings = await _db.CardPrintings
+        var printingsQuery = _db.CardPrintings
             .AsNoTracking()
             .Where(cp => cp.CardId == cardId)
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
             .Include(cp => cp.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
-            .Include(cp => cp.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
-            .OrderBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
-            .ThenBy(cp => cp.Number)
+            .Include(cp => cp.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect);
+        var orderedPrintings = cardIsSwu.Value
+            ? printingsQuery
+                .OrderBy(cp => cp.CatalogSet == null || cp.CatalogSet.ReleasedAt == null)
+                .ThenBy(cp => cp.CatalogSet == null ? null : cp.CatalogSet.ReleasedAt)
+                .ThenBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
+                .ThenBy(cp => cp.Number)
+                .ThenBy(cp => cp.Id)
+            : printingsQuery
+                .OrderBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
+                .ThenBy(cp => cp.Number)
+                .ThenBy(cp => cp.Id);
+        var printings = await orderedPrintings
             .ToListAsync(ct);
         var rows = printings.Select(ToPrintingDto).ToList();
 

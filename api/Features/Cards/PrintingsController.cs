@@ -142,7 +142,9 @@ public sealed class PrintingsController : ControllerBase
                 (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
                 (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)) ||
                 (p.CatalogSet != null && p.CatalogSet.Name != null &&
-                    EF.Functions.Like(EF.Functions.Collate(p.CatalogSet.Name, "NOCASE"), pattern)));
+                    EF.Functions.Like(EF.Functions.Collate(p.CatalogSet.Name, "NOCASE"), pattern)) ||
+                (p.CatalogSet != null && p.CatalogSet.Code != null &&
+                    EF.Functions.Like(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE"), pattern)));
         }
 
         if (qp.UniqueCards)

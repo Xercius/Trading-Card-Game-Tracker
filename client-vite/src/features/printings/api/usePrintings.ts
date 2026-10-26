@@ -28,7 +28,7 @@ export function usePrintings(filters: CardFilters) {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === pageSize ? filters.page + allPages.length : undefined,
     select: (result) => {
-      const seen = new Set<string>();
+      const seen = new Set<PrintingListItem["printingId"]>();
       return result.pages.flat().filter((printing) => {
         if (seen.has(printing.printingId)) return false;
         seen.add(printing.printingId);

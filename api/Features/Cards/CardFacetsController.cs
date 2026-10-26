@@ -84,7 +84,9 @@ public sealed class CardFacetsController : ControllerBase
                     (cp.Number != null && EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern)) ||
                     (cp.Set != null && EF.Functions.Like(EF.Property<string>(cp, "SetNorm"), normalizedPattern)) ||
                     (cp.CatalogSet != null && cp.CatalogSet.Name != null &&
-                        EF.Functions.Like(EF.Functions.Collate(cp.CatalogSet.Name, "NOCASE"), pattern)));
+                        EF.Functions.Like(EF.Functions.Collate(cp.CatalogSet.Name, "NOCASE"), pattern)) ||
+                    (cp.CatalogSet != null && cp.CatalogSet.Code != null &&
+                        EF.Functions.Like(EF.Functions.Collate(cp.CatalogSet.Code, "NOCASE"), pattern)));
             }
             else
             {

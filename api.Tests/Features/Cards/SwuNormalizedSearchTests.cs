@@ -39,12 +39,24 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Equal(new CardAspectResponse("Heroism", 2), Assert.Single(printing.Aspects));
         Assert.Equal(new DateOnly(2025, 10, 3), printing.ReleaseDate);
 
-        var cards = await client.GetFromJsonAsync<CardListPageResponse>(
+        using var cardsResponse = await client.GetAsync(
             "/api/cards?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit");
+        Assert.True(cardsResponse.IsSuccessStatusCode, await cardsResponse.Content.ReadAsStringAsync());
+        var cards = await cardsResponse.Content.ReadFromJsonAsync<CardListPageResponse>();
         var card = Assert.Single(cards!.Items);
         Assert.Equal(cardId, card.CardId);
         Assert.Contains("Leader Unit", card.CardTypes);
         Assert.Equal(2, Assert.Single(card.Aspects).Count);
+        Assert.Equal(1, card.PrintingsCount);
+        Assert.Equal("SOR", card.Primary!.SetCode);
+        Assert.Equal(new DateOnly(2025, 10, 3), card.Primary.ReleaseDate);
+
+        var codeSearch = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?game=Star+Wars+Unlimited&q=SOR");
+        Assert.Single(codeSearch!);
+        var codeSearchFacets = await client.GetFromJsonAsync<CardsFacetResponse>(
+            "/api/cards/facets?game=Star+Wars+Unlimited&q=SOR&printingSearch=true");
+        Assert.Contains(codeSearchFacets!.Sets, option => option.Value == "SOR");
 
         var facets = await client.GetFromJsonAsync<CardsFacetResponse>(
             "/api/cards/facets?game=Star+Wars+Unlimited");
@@ -106,6 +118,59 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Equal("EARLY", Assert.Single(printings!, item => item.CardName == "Reprinted Card").SetCode);
         Assert.Equal("KNOWN", Assert.Single(printings, item => item.CardName == "Undated Preferred").SetCode);
         Assert.Equal("SET-EARLY", Assert.Single(printings, item => item.CardName == "Set-associated card").SetCode);
+    }
+
+    [Fact]
+    public async Task GetCardPrintings_OrdersBySetReleaseDateAndLeavesUndatedSetsLast()
+    {
+        await factory.ResetDatabaseAsync();
+        int cardId;
+        int legacyCardId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
+            var cardType = new CardType { Game = game, Name = "Unit" };
+            var card = new Card { Game = SwuGame, Name = "Ordered Reprints", CardType = "Unit" };
+            card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
+            db.Cards.Add(card);
+            AddPrinting(card, game, "LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
+            AddPrinting(card, game, "TIE-Z", "Zulu set", new DateOnly(2024, 1, 1), "2010-01-01");
+            AddPrinting(card, game, "EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
+            AddPrinting(card, game, "TIE-A", "Alpha set", new DateOnly(2024, 1, 1), "2010-01-01");
+            AddPrinting(card, game, "UNDATED", "Undated set", null, "2010-01-01");
+
+            var legacyCard = new Card { Game = "Legacy Game", Name = "Legacy Reprints", CardType = "Unit" };
+            legacyCard.Printings.Add(new CardPrinting
+            {
+                Card = legacyCard,
+                Set = "Zulu",
+                Number = "2",
+                Rarity = "Rare",
+                Style = "Standard"
+            });
+            legacyCard.Printings.Add(new CardPrinting
+            {
+                Card = legacyCard,
+                Set = "Alpha",
+                Number = "1",
+                Rarity = "Rare",
+                Style = "Standard"
+            });
+            db.Cards.Add(legacyCard);
+            await db.SaveChangesAsync();
+            cardId = card.Id;
+            legacyCardId = legacyCard.Id;
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>($"/api/cards/{cardId}/printings");
+        var legacyPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
+            $"/api/cards/{legacyCardId}/printings");
+
+        Assert.Equal(["EARLY", "TIE-A", "LATE", "TIE-Z", "UNDATED"],
+            printings!.Select(printing => printing.SetCode));
+        Assert.Equal(["Alpha", "Zulu"], legacyPrintings!.Select(printing => printing.SetName));
     }
 
     private static async Task<int> SeedCardAsync(

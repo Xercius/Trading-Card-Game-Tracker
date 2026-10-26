@@ -133,46 +133,39 @@ internal static class QueryExtensions
         return query;
     }
 
-    internal static IEnumerable<CardListItemResponse> SelectCardSummaries(
-        this IEnumerable<Card> cards,
+    internal static IQueryable<CardListItemResponse> SelectCardSummaries(
+        this IQueryable<Card> query,
         string placeholderImage)
-        => cards.Select(c =>
-        {
-            var primary = c.Printings
-                .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
-                .ThenByDescending(p => p.Style == "Standard")
-                .ThenBy(p => p.CatalogSet == null ? p.Set : p.CatalogSet.Name ?? p.CatalogSet.Code)
-                .ThenBy(p => p.Number)
-                .ThenBy(p => p.Id)
-                .FirstOrDefault();
-
-            return new CardListItemResponse
+        => query.Select(c =>
+            new CardListItemResponse
             {
                 CardId = c.Id,
                 Game = c.Game,
                 Name = c.Name,
                 CardType = c.CardType,
-                CardTypes = c.CardTypes.Select(type => type.CardType.Name)
-                    .Distinct().OrderBy(name => name).ToList(),
-                Aspects = c.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
-                    .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList(),
-                PrintingsCount = c.Printings.Count,
-                Primary = primary is null ? null : new CardListItemResponse.PrimaryPrintingResponse
-                {
-                    Id = primary.Id,
-                    Set = primary.CatalogSet == null
-                        ? primary.Set
-                        : primary.CatalogSet.Name ?? primary.CatalogSet.Code,
-                    SetCode = primary.CatalogSet?.Code,
-                    Number = primary.Number,
-                    Rarity = primary.RarityLookup?.Name ?? primary.Rarity,
-                    Style = primary.Style,
-                    ImageUrl = string.IsNullOrEmpty(primary.ImageUrl) ? placeholderImage : primary.ImageUrl,
-                    ReleaseDate = primary.CatalogSet == null
-                        ? primary.ReleasedAt
-                        : primary.CatalogSet.ReleasedAt
-                }
-            };
-        });
+                PrintingsCount = c.Printings.Count(),
+                Primary = c.Printings
+                    .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
+                    .ThenByDescending(p => p.Style == "Standard")
+                    .ThenBy(p => p.CatalogSet == null
+                        ? p.Set
+                        : p.CatalogSet.Name ?? p.CatalogSet.Code)
+                    .ThenBy(p => p.Number)
+                    .ThenBy(p => p.Id)
+                    .Select(p => new CardListItemResponse.PrimaryPrintingResponse
+                    {
+                        Id = p.Id,
+                        Set = p.CatalogSet == null
+                            ? p.Set
+                            : p.CatalogSet.Name ?? p.CatalogSet.Code,
+                        SetCode = p.CatalogSet == null ? null : p.CatalogSet.Code,
+                        Number = p.Number,
+                        Rarity = p.RarityLookup == null ? p.Rarity : p.RarityLookup.Name,
+                        Style = p.Style,
+                        ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl,
+                        ReleaseDate = p.CatalogSet == null ? p.ReleasedAt : p.CatalogSet.ReleasedAt
+                    })
+                    .FirstOrDefault()
+            });
 
 }
