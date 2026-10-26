@@ -28,7 +28,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var (client, services, _) = CreateClientWithTestImporter(factory);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
+            Content = JsonContent.Create(new { source = "swu", set = "ALP" }),
         };
 
         var response = await client.SendAsync(request);
@@ -51,7 +51,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var (client, _, _) = CreateClientWithTestImporter(factory);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
+            Content = JsonContent.Create(new { source = "swu", set = "ALP" }),
         };
 
         var response = await client.SendAsync(request);
@@ -67,7 +67,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var first = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "BETA" }),
+            Content = JsonContent.Create(new { source = "swu", set = "BETA" }),
         };
         var firstResponse = await client.SendAsync(first);
         firstResponse.EnsureSuccessStatusCode();
@@ -79,7 +79,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var second = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "BETA" }),
+            Content = JsonContent.Create(new { source = "swu", set = "BETA" }),
         };
         var secondResponse = await client.SendAsync(second);
         secondResponse.EnsureSuccessStatusCode();
@@ -99,7 +99,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         client.WithUser(TestDataSeeder.AdminUserId);
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/import/dry-run?limit={limit}")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
+            Content = JsonContent.Create(new { source = "swu", set = "ALP" }),
         };
 
         var response = await client.SendAsync(request);
@@ -118,7 +118,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var (client, _, _) = CreateClientWithTestImporter(factory);
         using var form = new MultipartFormDataContent();
         var csv = "name,set,number\nLightning Bolt,Alpha,1\nLightning Bolt,Alpha,1\n";
-        form.Add(new StringContent("dummy"), "source");
+        form.Add(new StringContent("swu"), "source");
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(csv))), "file", "cards.csv");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run") { Content = form };
@@ -144,7 +144,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             builder.AppendLine($"Lightning Bolt {i},Alpha,{i}");
         }
 
-        form.Add(new StringContent("dummy"), "source");
+        form.Add(new StringContent("swu"), "source");
         form.Add(new StringContent("2"), "limit");
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(builder.ToString()))), "file", "cards.csv");
 
@@ -164,7 +164,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var (client, _, provider) = CreateClientWithTestImporter(factory, loggerProvider);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "ALP" }),
+            Content = JsonContent.Create(new { source = "swu", set = "ALP" }),
         };
 
         var response = await client.SendAsync(request);
@@ -180,7 +180,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         Assert.True(state.TryGetValue("DurationMs", out var durationObj));
         Assert.True(Convert.ToInt64(durationObj) >= 0);
-        Assert.Equal("dummy", state["Source"]);
+        Assert.Equal("swu", state["Source"]);
         Assert.Equal("remote", state["Mode"]);
         Assert.Equal(true, state["Success"]);
         Assert.True(state.ContainsKey("ItemCount"));
@@ -192,7 +192,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var (client, _, _) = CreateClientWithTestImporter(factory);
         using var form = new MultipartFormDataContent();
         var csv = "name,number\nLightning Bolt,1\n";
-        form.Add(new StringContent("dummy"), "source");
+        form.Add(new StringContent("swu"), "source");
         form.Add(new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(csv))), "file", "cards.csv");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run") { Content = form };
@@ -231,7 +231,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "SOR" }),
+            Content = JsonContent.Create(new { source = "swu", set = "SOR" }),
         };
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -239,7 +239,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var history = await db.ImportSyncHistories
-            .FirstOrDefaultAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SOR");
+            .FirstOrDefaultAsync(h => h.ImporterKey == "swu" && h.SetCode == "SOR");
 
         Assert.NotNull(history);
         // The recorded timestamp should be close to now.
@@ -263,14 +263,14 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.ImportSyncHistories.Add(new ImportSyncHistory
             {
-                ImporterKey = "dummy",
+                ImporterKey = "swu",
                 SetCode = "SOR",
                 LastSyncedAt = checkpoint
             });
             await db.SaveChangesAsync();
         }
 
-        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new { source = "dummy", set = "SOR", limit });
+        var response = await client.PostAsJsonAsync("/api/admin/import/apply", new { source = "swu", set = "SOR", limit });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<ImportApplyResponse>();
@@ -303,7 +303,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.ImportSyncHistories.Add(new ImportSyncHistory
             {
-                ImporterKey = "dummy",
+                ImporterKey = "swu",
                 SetCode = "SOR",
                 LastSyncedAt = checkpoint
             });
@@ -312,7 +312,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
         {
-            source = "dummy",
+            source = "swu",
             set = "SOR",
             updatedSince = hasCheckpoint ? checkpoint.AddDays(1) : checkpoint
         });
@@ -338,7 +338,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.ImportSyncHistories.Add(new ImportSyncHistory
             {
-                ImporterKey = "dummy",
+                ImporterKey = "swu",
                 SetCode = "SOR",
                 LastSyncedAt = checkpoint
             });
@@ -347,7 +347,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var response = await client.PostAsJsonAsync("/api/admin/import/apply", new
         {
-            source = "dummy",
+            source = "swu",
             set = "SOR",
             updatedSince = checkpoint.AddDays(-1)
         });
@@ -368,13 +368,13 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
             {
-                Content = JsonContent.Create(new { source = "dummy", set = "SHD" }),
+                Content = JsonContent.Create(new { source = "swu", set = "SHD" }),
             };
             (await client.SendAsync(request)).EnsureSuccessStatusCode();
 
             using var scope = services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var h = await db.ImportSyncHistories.FirstAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+            var h = await db.ImportSyncHistories.FirstAsync(h => h.ImporterKey == "swu" && h.SetCode == "SHD");
             return h.LastSyncedAt;
         }
 
@@ -388,7 +388,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         // There should be exactly one row, not two.
         using var finalScope = services.CreateScope();
         var finalDb = finalScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var count = await finalDb.ImportSyncHistories.CountAsync(h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+        var count = await finalDb.ImportSyncHistories.CountAsync(h => h.ImporterKey == "swu" && h.SetCode == "SHD");
         Assert.Equal(1, count);
     }
 
@@ -402,7 +402,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
             {
-                Content = JsonContent.Create(new { source = "dummy" }),
+                Content = JsonContent.Create(new { source = "swu" }),
             };
             (await client.SendAsync(request)).EnsureSuccessStatusCode();
         }
@@ -413,7 +413,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var history = await db.ImportSyncHistories
-            .Where(h => h.ImporterKey == "dummy")
+            .Where(h => h.ImporterKey == "swu")
             .ToArrayAsync();
 
         Assert.Single(history);
@@ -421,7 +421,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var historyResponse = await client.GetFromJsonAsync<ImportSyncHistoryEntry[]>("/api/admin/import/history");
         Assert.NotNull(historyResponse);
-        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode is null);
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "swu" && h.SetCode is null);
     }
 
     [Fact]
@@ -432,13 +432,13 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "JTL" }),
+            Content = JsonContent.Create(new { source = "swu", set = "JTL" }),
         };
         (await client.SendAsync(request)).EnsureSuccessStatusCode();
 
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var exists = await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == "dummy" && h.SetCode == "JTL");
+        var exists = await db.ImportSyncHistories.AnyAsync(h => h.ImporterKey == "swu" && h.SetCode == "JTL");
         Assert.False(exists);
     }
 
@@ -453,7 +453,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         {
             var req = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
             {
-                Content = JsonContent.Create(new { source = "dummy", set }),
+                Content = JsonContent.Create(new { source = "swu", set }),
             };
             (await client.SendAsync(req)).EnsureSuccessStatusCode();
         }
@@ -463,8 +463,8 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         var historyResponse = await client.GetFromJsonAsync<ImportSyncHistoryEntry[]>("/api/admin/import/history");
         Assert.NotNull(historyResponse);
-        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode == "SOR");
-        Assert.Contains(historyResponse!, h => h.ImporterKey == "dummy" && h.SetCode == "SHD");
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "swu" && h.SetCode == "SOR");
+        Assert.Contains(historyResponse!, h => h.ImporterKey == "swu" && h.SetCode == "SHD");
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var since = new DateTimeOffset(2025, 11, 1, 0, 0, 0, TimeSpan.Zero);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/apply")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "SOR", updatedSince = since }),
+            Content = JsonContent.Create(new { source = "swu", set = "SOR", updatedSince = since }),
         };
         (await client.SendAsync(request)).EnsureSuccessStatusCode();
 
@@ -492,12 +492,44 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         var since = new DateTimeOffset(2025, 6, 15, 12, 0, 0, TimeSpan.Zero);
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
         {
-            Content = JsonContent.Create(new { source = "dummy", set = "SOR", updatedSince = since }),
+            Content = JsonContent.Create(new { source = "swu", set = "SOR", updatedSince = since }),
         };
         (await client.SendAsync(request)).EnsureSuccessStatusCode();
 
         Assert.NotNull(TestImporter.LastUpdatedSince);
         Assert.Equal(since, TestImporter.LastUpdatedSince);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DryRun_NonSwuImporter_ReturnsUnsupportedProblem(bool multipart)
+    {
+        var (client, _, _) = CreateClientWithTestImporter(factory);
+        HttpContent content;
+        if (multipart)
+        {
+            var form = new MultipartFormDataContent();
+            form.Add(new StringContent("scryfall"), "source");
+            content = form;
+        }
+        else
+        {
+            content = JsonContent.Create(new { source = "scryfall" });
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/import/dry-run")
+        {
+            Content = content,
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal("Unsupported importer", problem!.Title);
+        Assert.Contains("Only the Star Wars Unlimited (SWU) importer is currently supported.", problem.Errors["source"]);
     }
 
     private static (HttpClient Client, IServiceProvider Services, TestLoggerProvider LoggerProvider) CreateClientWithTestImporter(CustomWebApplicationFactory factory, TestLoggerProvider? loggerProvider = null)
@@ -529,9 +561,9 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
         public static int? RawLimit { get; private set; }
         public static bool RejectRecord { get; set; }
 
-        public string Key => "dummy";
-        public string DisplayName => "Dummy Importer";
-        public IEnumerable<string> SupportedGames => new[] { "Test Game" };
+        public string Key => "swu";
+        public string DisplayName => "SWU Test Importer";
+        public IEnumerable<string> SupportedGames => new[] { "Star Wars Unlimited" };
 
         public Task<ImportSummary> ImportFromFileAsync(Stream file, ImportOptions options, CancellationToken ct = default)
         {
@@ -606,7 +638,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         private static ImportSummary CreateSummary(ImportOptions options) => new()
         {
-            Source = "dummy",
+            Source = "swu",
             DryRun = options.DryRun,
             CardsCreated = 0,
             CardsUpdated = 0,

@@ -62,9 +62,16 @@ describe("AdminImportPage", () => {
             sources: [
               {
                 key: "dummy",
-                importerKey: "dummy",
-                displayName: "Dummy Importer",
+                importerKey: "scryfall",
+                displayName: "Scryfall",
                 games: ["Test Game"],
+                sets: [],
+              },
+              {
+                key: "SwuDb",
+                importerKey: "swu",
+                displayName: "Star Wars Unlimited",
+                games: ["Star Wars Unlimited"],
                 sets: [
                   { code: "ALP", name: "Alpha" },
                   { code: "BETA", name: "Beta" },
@@ -108,7 +115,8 @@ describe("AdminImportPage", () => {
     const { cleanupClient, user } = renderPage(client);
 
     await user.click((await screen.findAllByRole("combobox"))[0]);
-    await user.click(await screen.findByRole("option", { name: "Dummy Importer" }));
+    expect(screen.queryByRole("option", { name: "Scryfall" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: "Star Wars Unlimited" }));
 
     await user.click(screen.getAllByRole("combobox")[1]);
     await user.click(await screen.findByRole("option", { name: "Alpha (ALP)" }));
@@ -130,10 +138,10 @@ describe("AdminImportPage", () => {
           data: {
             sources: [
               {
-                key: "dummy",
-                importerKey: "dummy",
-                displayName: "Dummy Importer",
-                games: ["Test Game"],
+                key: "SwuDb",
+                importerKey: "swu",
+                displayName: "Star Wars Unlimited",
+                games: ["Star Wars Unlimited"],
                 sets: [],
               },
             ],
@@ -164,7 +172,7 @@ describe("AdminImportPage", () => {
     const { cleanupClient, user } = renderPage(client);
 
     await user.click((await screen.findAllByRole("combobox"))[0]);
-    await user.click(await screen.findByRole("option", { name: "Dummy Importer" }));
+    await user.click(await screen.findByRole("option", { name: "Star Wars Unlimited" }));
 
     await user.click(screen.getByRole("button", { name: "Dry-run" }));
     await screen.findByText("New: 1");

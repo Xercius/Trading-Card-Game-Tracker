@@ -39,7 +39,9 @@ export default function AdminImportPage() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const { data: options, isLoading, isError } = useImportOptions();
-  const sources = options?.sources ?? EMPTY_SOURCES;
+  const sources = (options?.sources ?? EMPTY_SOURCES).filter(
+    (source) => source.importerKey.toLowerCase() === "swu"
+  );
   const activeSource = useMemo<ImportSourceOption | undefined>(
     () => sources.find((s) => s.key === sourceKey),
     [sources, sourceKey]

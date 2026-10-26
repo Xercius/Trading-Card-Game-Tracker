@@ -251,20 +251,12 @@ internal static class ServiceCollectionExtensions
         });
         services.AddScoped<ICardSyncService, CardSyncService>();
 
-        services.AddScoped<ISourceImporter, ScryfallImporter>();
-        services.AddScoped<ISourceImporter, SwccgdbImporter>();
-        services.AddScoped<ISourceImporter, LorcanaJsonImporter>();
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(
                 sp.GetRequiredService<AppDbContext>(),
                 sp.GetRequiredService<ISWUApiClient>(),
                 sp.GetRequiredService<ILogger<SwuDbImporter>>(),
                 sp.GetRequiredService<TimeProvider>()));
-        services.AddScoped<ISourceImporter, PokemonTcgImporter>();
-        services.AddScoped<ISourceImporter, FabDbImporter>();
-        services.AddScoped<ISourceImporter, GuardiansLocalImporter>();
-        services.AddScoped<ISourceImporter, DiceMastersDbImporter>();
-        services.AddScoped<ISourceImporter, TransformersFmImporter>();
         services.AddScoped<ImporterRegistry>();
         services.AddScoped<FileParser>();
         services.AddSingleton<AdminSyncExecutionTracker>();
