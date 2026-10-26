@@ -8,7 +8,7 @@ import type { CardFilters } from "./useCardFilters";
 type ProbeState = {
   search: string;
   filters: CardFilters;
-  queryKey: readonly [string, string, string, string, number, number, string];
+  queryKey: readonly [string, string, string, string, string, number, number, string];
   setFilters: ReturnType<typeof useCardFilters>["setFilters"];
 };
 
@@ -33,7 +33,11 @@ describe("useCardFilters", () => {
 
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/cards?game=Magic,Lorcana&set=Rise&rarity=R,U&q=bolt&page=2&pageSize=30"]}>
+        <MemoryRouter
+          initialEntries={[
+            "/cards?game=Magic,Lorcana&set=Rise&rarity=R,U&type=Leader,Leader%20Unit&q=bolt&page=2&pageSize=30",
+          ]}
+        >
           <FiltersProbe />
         </MemoryRouter>
       );
@@ -42,6 +46,7 @@ describe("useCardFilters", () => {
     expect(latest?.filters.games).toEqual(["Magic", "Lorcana"]);
     expect(latest?.filters.sets).toEqual(["Rise"]);
     expect(latest?.filters.rarities).toEqual(["R", "U"]);
+    expect(latest?.filters.types).toEqual(["Leader", "Leader Unit"]);
     expect(latest?.filters.q).toBe("bolt");
     expect(latest?.filters.page).toBe(2);
     expect(latest?.filters.pageSize).toBe(30);
@@ -50,6 +55,7 @@ describe("useCardFilters", () => {
     expect(decodeURIComponent(searchStr)).toContain("game=Magic,Lorcana");
     expect(decodeURIComponent(searchStr)).toContain("set=Rise");
     expect(decodeURIComponent(searchStr)).toContain("rarity=R,U");
+    expect(new URLSearchParams(searchStr).get("type")).toBe("Leader,Leader Unit");
     expect(decodeURIComponent(searchStr)).toContain("q=bolt");
     expect(searchStr).toContain("page=2");
     expect(searchStr).toContain("pageSize=30");
@@ -60,7 +66,16 @@ describe("useCardFilters", () => {
 
     const finalSearchStr = latest?.search ?? "";
     expect(decodeURIComponent(finalSearchStr)).toContain("game=Magic,Lorcana");
-    expect(latest?.queryKey).toEqual(["bolt", "Magic|Lorcana", "Rise", "R|U", 2, 30, ""]);
+    expect(latest?.queryKey).toEqual([
+      "bolt",
+      "Magic|Lorcana",
+      "Rise",
+      "R|U",
+      "Leader|Leader Unit",
+      2,
+      30,
+      "",
+    ]);
 
     await act(async () => {
       root.unmount();
@@ -89,6 +104,7 @@ describe("useCardFilters", () => {
     expect(latest?.filters.pageSize).toBe(60); // default
     expect(latest?.filters.sets).toEqual([]);
     expect(latest?.filters.rarities).toEqual([]);
+    expect(latest?.filters.types).toEqual([]);
 
     await act(async () => {
       root.unmount();
@@ -115,6 +131,7 @@ describe("useCardFilters", () => {
     expect(latest?.filters.games).toEqual([]);
     expect(latest?.filters.sets).toEqual([]);
     expect(latest?.filters.rarities).toEqual([]);
+    expect(latest?.filters.types).toEqual([]);
     expect(latest?.filters.page).toBe(1);
     expect(latest?.filters.pageSize).toBe(60);
     expect(latest?.filters.sort).toBeUndefined();

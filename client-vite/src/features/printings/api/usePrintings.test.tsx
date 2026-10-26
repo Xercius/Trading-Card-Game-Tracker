@@ -28,6 +28,7 @@ describe("usePrintings", () => {
       games: [],
       sets: [],
       rarities: [],
+      types: [],
       page: 1,
       pageSize: 60,
       sort: undefined,

@@ -7,6 +7,7 @@ export type PrintingFacets = {
   games: string[];
   sets: string[];
   rarities: string[];
+  types: string[];
 };
 
 export function usePrintingFacets(filters: CardFilters) {
@@ -14,6 +15,7 @@ export function usePrintingFacets(filters: CardFilters) {
     games: filters.games.length > 0 ? filters.games : undefined,
     sets: filters.sets.length > 0 ? filters.sets : undefined,
     rarities: filters.rarities.length > 0 ? filters.rarities : undefined,
+    types: filters.types.length > 0 ? filters.types : undefined,
     q: filters.q || undefined,
     printingSearch: true,
   };
@@ -25,6 +27,7 @@ export function usePrintingFacets(filters: CardFilters) {
       games: facets.games.map((facet) => facet.value),
       sets: facets.sets.map((facet) => facet.value),
       rarities: facets.rarities.map((facet) => facet.value),
+      types: facets.types.map((facet) => facet.value),
     }),
     staleTime: 60_000,
   });

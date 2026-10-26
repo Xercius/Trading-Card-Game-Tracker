@@ -57,6 +57,11 @@ export default function CardModal({
 
   const printings = printingsQuery.data ?? EMPTY_PRINTINGS;
   const details = detailsQuery.data;
+  const cardTypes = details?.cardTypes?.length
+    ? details.cardTypes
+    : details
+      ? [details.cardType]
+      : [];
 
   useEffect(() => {
     if (!open) return;
@@ -162,7 +167,17 @@ export default function CardModal({
                       <span className="font-medium">Game:</span>
                       <span>{details.game}</span>
                       <span className="font-medium">Type:</span>
-                      <span>{details.cardType}</span>
+                      <span>{cardTypes.join(", ")}</span>
+                      {details.aspects && details.aspects.length > 0 && (
+                        <>
+                          <span className="font-medium">Aspects:</span>
+                          <span>
+                            {details.aspects
+                              .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
+                              .join(", ")}
+                          </span>
+                        </>
+                      )}
                     </div>
                     <p className="whitespace-pre-line text-sm leading-relaxed">
                       {details.description?.trim() || "No rules text available."}
@@ -295,8 +310,11 @@ export default function CardModal({
               {selectedPrinting ? (
                 <>
                   <span className="font-medium">{selectedPrinting.setName}</span>
+                  {selectedPrinting.setCode ? ` (${selectedPrinting.setCode})` : ""}
                   {selectedPrinting.number ? ` • #${selectedPrinting.number}` : ""}
                   {selectedPrinting.rarity ? ` • ${selectedPrinting.rarity}` : ""}
+                  {selectedPrinting.releaseDate ? ` • ${selectedPrinting.releaseDate}` : ""}
+                  {selectedPrinting.style ? ` • ${selectedPrinting.style}` : ""}
                 </>
               ) : (
                 "Select a printing"

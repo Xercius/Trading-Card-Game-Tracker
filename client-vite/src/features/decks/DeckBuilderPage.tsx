@@ -65,6 +65,7 @@ export default function DeckBuilderPage({ deckId }: Props) {
         games: filters.games,
         sets: filters.sets,
         rarities: filters.rarities,
+        types: filters.types,
         skip: pageParam as number,
         take: PAGE_SIZE,
       }),

@@ -9,16 +9,25 @@ export type CardPrintingImages = {
 export type CardPrintingDetail = CardPrintingImages & {
   id: number;
   set: string;
+  setCode?: string | null;
   number: string;
   rarity: string;
   style: string;
+  releaseDate?: string | null;
+};
+
+export type CardAspect = {
+  name: string;
+  count: number;
 };
 
 export type CardDetail = {
-  cardId: number;
+  id: number;
   name: string;
   game: string;
   cardType: string;
+  cardTypes?: string[];
+  aspects?: CardAspect[];
   description: string | null;
   printings: CardPrintingDetail[];
 };
@@ -29,6 +38,8 @@ export type PrintingSummary = CardPrintingImages & {
   setCode?: string | null;
   number: string;
   rarity: string;
+  style?: string;
+  releaseDate?: string | null;
   imageUrl: string;
 };
 

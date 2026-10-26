@@ -33,12 +33,14 @@ describe("usePrintingFacets", () => {
       games: [{ value: "Star Wars Unlimited", count: 4 }],
       sets: [{ value: "Late Set", count: 1 }],
       rarities: [{ value: "Rare", count: 2 }],
+      types: [{ value: "Leader Unit", count: 2 }],
     } satisfies CardsFacetResponse);
     const filters: CardFilters = {
       q: "droid",
       games: ["Star Wars Unlimited"],
       sets: [],
       rarities: ["Rare"],
+      types: ["Leader Unit"],
       page: 1,
       pageSize: 60,
     };
@@ -50,6 +52,7 @@ describe("usePrintingFacets", () => {
       games: ["Star Wars Unlimited"],
       sets: undefined,
       rarities: ["Rare"],
+      types: ["Leader Unit"],
       q: "droid",
       printingSearch: true,
     });

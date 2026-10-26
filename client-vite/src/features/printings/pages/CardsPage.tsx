@@ -32,7 +32,7 @@ export default function CardsPage() {
     isError: isFacetsError,
     refetch: refetchFacets,
   } = usePrintingFacets(filters);
-  const availableFacets = facets ?? { games: [], sets: [], rarities: [] };
+  const availableFacets = facets ?? { games: [], sets: [], rarities: [], types: [] };
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
 
@@ -48,11 +48,11 @@ export default function CardsPage() {
   }, []);
 
   const clearFilters = React.useCallback(() => {
-    setFilters((prev) => ({ ...prev, games: [], sets: [], rarities: [], page: 1 }));
+    setFilters((prev) => ({ ...prev, games: [], sets: [], rarities: [], types: [], page: 1 }));
   }, [setFilters]);
 
   const removeFilterValue = React.useCallback(
-    (key: "games" | "sets" | "rarities", value: string) => {
+    (key: "games" | "sets" | "rarities" | "types", value: string) => {
       setFilters((prev) => ({
         ...prev,
         [key]: prev[key].filter((item) => item !== value),
@@ -67,8 +67,9 @@ export default function CardsPage() {
       { key: "games" as const, label: "Game", values: filters.games ?? [] },
       { key: "sets" as const, label: "Set", values: filters.sets ?? [] },
       { key: "rarities" as const, label: "Rarity", values: filters.rarities ?? [] },
+      { key: "types" as const, label: "Type", values: filters.types ?? [] },
     ],
-    [filters.games, filters.sets, filters.rarities]
+    [filters.games, filters.sets, filters.rarities, filters.types]
   );
 
   const hasActiveFilters = activeFilters.some((filter) => filter.values.length > 0);
@@ -96,6 +97,14 @@ export default function CardsPage() {
             options={availableFacets.rarities}
             onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
           />
+          {filters.games.some((game) => game.toLowerCase() === "star wars unlimited") && (
+            <MultiSelect
+              label="Type"
+              values={filters.types}
+              options={availableFacets.types ?? []}
+              onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
+            />
+          )}
           <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
             Clear filters
           </Button>

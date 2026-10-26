@@ -10,9 +10,13 @@ export type CardSummary = {
   name: string;
   game: string;
   cardType?: string | null;
+  cardTypes?: string[];
+  aspects?: { name: string; count: number }[];
   setName?: string | null;
+  setCode?: string | null;
   number?: string | null;
   rarity?: string | null;
+  releaseDate?: string | null;
   imageUrl?: string | null;
 };
 
@@ -24,7 +28,7 @@ type Props = {
 
 export default function CardTile({ card, onClick, className }: Props) {
   const ariaLabel = `${card.name}${card.setName ? ` — ${card.setName}` : ""}${card.number ? ` #${card.number}` : ""}`;
-  
+
   return (
     <div
       className={`group rounded-2xl border bg-card shadow-sm transition hover:shadow ${className ?? ""}`}

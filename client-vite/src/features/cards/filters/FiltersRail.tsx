@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  fetchCardFacets,
-  type CardsFacetResponse,
-} from "../api";
+import { fetchCardFacets, type CardsFacetResponse } from "../api";
 import { useCardFilters } from "./useCardFilters";
 
 type FiltersRailProps = {
@@ -108,6 +105,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
       filters.games.join("|"),
       filters.sets.join("|"),
       filters.rarities.join("|"),
+      filters.types.join("|"),
       filters.q,
     ],
     queryFn: () =>
@@ -115,6 +113,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
         games: filters.games,
         sets: filters.sets,
         rarities: filters.rarities,
+        types: filters.types,
         q: filters.q,
       }),
     staleTime: 5 * 60_000,
@@ -132,6 +131,10 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     () => facetsQuery.data?.rarities.map((f) => f.value) ?? [],
     [facetsQuery.data?.rarities]
   );
+  const typeOptions = useMemo(
+    () => facetsQuery.data?.types.map((f) => f.value) ?? [],
+    [facetsQuery.data?.types]
+  );
 
   // Auto-clear invalid selections when facets update
   useEffect(() => {
@@ -140,6 +143,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     const allowedGames = new Set(gameOptions);
     const allowedSets = new Set(setOptions);
     const allowedRarities = new Set(rarityOptions);
+    const allowedTypes = new Set(typeOptions);
 
     const shouldValidateGames = allowedGames.size > 0;
     const shouldValidateSets = allowedSets.size > 0;
@@ -147,12 +151,14 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
 
     const hasInvalidGames =
       shouldValidateGames && filters.games.some((value) => !allowedGames.has(value));
-    const hasInvalidSets = shouldValidateSets && filters.sets.some((value) => !allowedSets.has(value));
+    const hasInvalidSets =
+      shouldValidateSets && filters.sets.some((value) => !allowedSets.has(value));
     const hasInvalidRarities =
-      shouldValidateRarities &&
-      filters.rarities.some((value) => !allowedRarities.has(value));
+      shouldValidateRarities && filters.rarities.some((value) => !allowedRarities.has(value));
+    const hasInvalidTypes =
+      allowedTypes.size > 0 && filters.types.some((value) => !allowedTypes.has(value));
 
-    if (!hasInvalidGames && !hasInvalidSets && !hasInvalidRarities) {
+    if (!hasInvalidGames && !hasInvalidSets && !hasInvalidRarities && !hasInvalidTypes) {
       return;
     }
 
@@ -170,16 +176,19 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
         hasInvalidRarities && shouldValidateRarities
           ? prev.rarities.filter((value) => allowedRarities.has(value))
           : prev.rarities,
+      types: hasInvalidTypes ? prev.types.filter((value) => allowedTypes.has(value)) : prev.types,
     }));
   }, [
     filters.games,
     filters.sets,
     filters.rarities,
+    filters.types,
     setFilters,
     facetsQuery.data,
     gameOptions,
     setOptions,
     rarityOptions,
+    typeOptions,
   ]);
 
   const handleGameToggle = (value: string) => {
@@ -214,7 +223,8 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     filters.q.trim().length === 0 &&
     filters.games.length === 0 &&
     filters.sets.length === 0 &&
-    filters.rarities.length === 0;
+    filters.rarities.length === 0 &&
+    filters.types.length === 0;
 
   const clearAndClose = () => {
     clearAll();
@@ -287,6 +297,23 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           onToggle={handleRarityToggle}
           loading={facetsQuery.isLoading}
         />
+        {filters.games.some((game) => game.toLowerCase() === "star wars unlimited") && (
+          <Checklist
+            idPrefix="card-types"
+            title="Types"
+            options={typeOptions}
+            selected={filters.types}
+            onToggle={(value) =>
+              setFilters((prev) => ({
+                ...prev,
+                types: prev.types.includes(value)
+                  ? prev.types.filter((type) => type !== value)
+                  : [...prev.types, value],
+              }))
+            }
+            loading={facetsQuery.isLoading}
+          />
+        )}
       </div>
 
       <div className="mt-auto flex gap-2">

@@ -56,6 +56,16 @@ export default function PillsBar() {
     });
   });
 
+  filters.types.forEach((type) => {
+    tokens.push({
+      key: `type:${type}`,
+      label: `Type: ${type}`,
+      ariaLabel: `Remove type filter ${type}`,
+      onRemove: () =>
+        setFilters((prev) => ({ ...prev, types: prev.types.filter((value) => value !== type) })),
+    });
+  });
+
   if (tokens.length === 0) {
     return null;
   }

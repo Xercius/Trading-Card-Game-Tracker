@@ -65,7 +65,9 @@ internal static class QueryExtensions
         string? searchTerm,
         IReadOnlyCollection<string> games,
         IReadOnlyCollection<string> sets,
-        IReadOnlyCollection<string> rarities)
+        IReadOnlyCollection<string> rarities,
+        IReadOnlyCollection<string> types,
+        IReadOnlyCollection<int> gameIds)
     {
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -73,7 +75,9 @@ internal static class QueryExtensions
             var pattern = $"%{term}%";
             query = query.Where(c =>
                 EF.Functions.Like(EF.Functions.Collate(c.Name, "NOCASE"), pattern) ||
-                EF.Functions.Like(EF.Functions.Collate(c.CardType, "NOCASE"), pattern));
+                EF.Functions.Like(EF.Functions.Collate(c.CardType, "NOCASE"), pattern) ||
+                c.CardTypes.Any(type => EF.Functions.Like(
+                    EF.Functions.Collate(type.CardType.Name, "NOCASE"), pattern)));
         }
 
         if (games.Count > 0)
@@ -82,8 +86,15 @@ internal static class QueryExtensions
                 .Select(g => g is null ? null : SqliteCaseNormalizer.Normalize(g))
                 .Where(g => !string.IsNullOrEmpty(g))
                 .ToList();
+            var includesSwu = normalizedGames.Remove("star wars unlimited");
             query = query.Where(c =>
-                normalizedGames.Contains(EF.Property<string>(c, "GameNorm")));
+                normalizedGames.Contains(EF.Property<string>(c, "GameNorm")) ||
+                (includesSwu && (
+                    c.CardTypes.Any(type => gameIds.Contains(type.CardType.GameId)) ||
+                    c.Printings.Any(printing => printing.CatalogSet != null &&
+                        gameIds.Contains(printing.CatalogSet.GameId)) ||
+                    (!c.CardTypes.Any() && !c.Printings.Any(printing => printing.CatalogSet != null) &&
+                        EF.Property<string>(c, "GameNorm") == "star wars unlimited"))));
         }
 
         if (sets.Count > 0)
@@ -93,8 +104,11 @@ internal static class QueryExtensions
                 .Where(s => !string.IsNullOrEmpty(s))
                 .ToList();
             query = query.Where(c =>
-                c.Printings.Any(p =>
-                    normalizedSets.Contains(EF.Property<string>(p, "SetNorm"))));
+                c.Printings.Any(p => p.CatalogSet != null
+                    ? normalizedSets.Contains(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE")) ||
+                      (p.CatalogSet.Name != null && normalizedSets.Contains(
+                          EF.Functions.Collate(p.CatalogSet.Name, "NOCASE")))
+                    : normalizedSets.Contains(EF.Property<string>(p, "SetNorm"))));
         }
 
         if (rarities.Count > 0)
@@ -104,8 +118,16 @@ internal static class QueryExtensions
                 .Where(r => !string.IsNullOrEmpty(r))
                 .ToList();
             query = query.Where(c =>
-                c.Printings.Any(p =>
-                    normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm"))));
+                c.Printings.Any(p => p.RarityLookup != null
+                    ? normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))
+                    : normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm"))));
+        }
+
+        if (types.Count > 0)
+        {
+            var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(c => c.CardTypes.Any(type =>
+                normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
         }
 
         return query;
@@ -114,29 +136,36 @@ internal static class QueryExtensions
     internal static IQueryable<CardListItemResponse> SelectCardSummaries(
         this IQueryable<Card> query,
         string placeholderImage)
-        => query.Select(c => new CardListItemResponse
-        {
-            CardId = c.Id,
-            Game = c.Game,
-            Name = c.Name,
-            CardType = c.CardType,
-            PrintingsCount = c.Printings.Count(),
-            Primary = c.Printings
-                .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
-                .ThenByDescending(p => p.Style == "Standard")
-                .ThenBy(p => p.Set)
-                .ThenBy(p => p.Number)
-                .ThenBy(p => p.Id)
-                .Select(p => new CardListItemResponse.PrimaryPrintingResponse
-                {
-                    Id = p.Id,
-                    Set = p.Set,
-                    Number = p.Number,
-                    Rarity = p.Rarity,
-                    Style = p.Style,
-                    ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl
-                })
-                .FirstOrDefault()
-        });
+        => query.Select(c =>
+            new CardListItemResponse
+            {
+                CardId = c.Id,
+                Game = c.Game,
+                Name = c.Name,
+                CardType = c.CardType,
+                PrintingsCount = c.Printings.Count(),
+                Primary = c.Printings
+                    .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
+                    .ThenByDescending(p => p.Style == "Standard")
+                    .ThenBy(p => p.CatalogSet == null
+                        ? p.Set
+                        : p.CatalogSet.Name ?? p.CatalogSet.Code)
+                    .ThenBy(p => p.Number)
+                    .ThenBy(p => p.Id)
+                    .Select(p => new CardListItemResponse.PrimaryPrintingResponse
+                    {
+                        Id = p.Id,
+                        Set = p.CatalogSet == null
+                            ? p.Set
+                            : p.CatalogSet.Name ?? p.CatalogSet.Code,
+                        SetCode = p.CatalogSet == null ? null : p.CatalogSet.Code,
+                        Number = p.Number,
+                        Rarity = p.RarityLookup == null ? p.Rarity : p.RarityLookup.Name,
+                        Style = p.Style,
+                        ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl,
+                        ReleaseDate = p.CatalogSet == null ? p.ReleasedAt : p.CatalogSet.ReleasedAt
+                    })
+                    .FirstOrDefault()
+            });
 
 }

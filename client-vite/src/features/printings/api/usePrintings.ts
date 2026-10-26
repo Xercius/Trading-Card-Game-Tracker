@@ -10,6 +10,7 @@ export function usePrintings(filters: CardFilters) {
     game: filters.games.length > 0 ? filters.games : undefined,
     set: filters.sets.length > 0 ? filters.sets : undefined,
     rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
+    types: filters.types.length > 0 ? filters.types : undefined,
     pageSize,
     uniqueCards: true,
   };
@@ -27,7 +28,7 @@ export function usePrintings(filters: CardFilters) {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === pageSize ? filters.page + allPages.length : undefined,
     select: (result) => {
-      const seen = new Set<string>();
+      const seen = new Set<PrintingListItem["printingId"]>();
       return result.pages.flat().filter((printing) => {
         if (seen.has(printing.printingId)) return false;
         seen.add(printing.printingId);
