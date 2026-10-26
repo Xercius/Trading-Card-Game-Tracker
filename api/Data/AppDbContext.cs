@@ -101,6 +101,7 @@ namespace api.Data
                 e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Style).IsRequired().HasMaxLength(64);
                 e.Property(p => p.BackImageUrl).HasMaxLength(1024);
+                e.Property(p => p.CardUid).HasMaxLength(64);
 
                 // fast FK lookup
                 e.HasIndex(p => p.CardId);

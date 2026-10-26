@@ -203,7 +203,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | SWU field | Current repository behavior |
 |---|---|
 | `title` + `subtitle` | Combined display name; upstream printing identity takes precedence when updating an existing card, so renaming does not replace its owned printing. |
-| `cardUid` | Exact string identity for logical-card matching; never matched by title alone. Numeric record `id` is stored separately as `CardPrinting.StrapiId`. |
+| `cardUid` | Exact string identity for logical-card matching; never matched by title alone. Each printing retains its source `CardUid`; numeric record `id` is stored separately as `CardPrinting.StrapiId`. Legacy title-merged cards are separated by UID while preserving printing IDs. |
 | `type` / `type2` | Game-scoped card types, associated with source roles `Type` / `Type2`; legacy strings remain populated. |
 | `text` / `textStyled` | `Card.Description` / `Card.TextStyled`. |
 | `expansion.data.attributes.code` / `name` | Uppercase `CardPrinting.Set`, shared `Sets` row, and printing `SetId`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
@@ -223,6 +223,8 @@ This is the preferred path for unit tests because it avoids live API dependencie
 The additive `PopulateNormalizedSwuPrintingFields` migration supplies styled text,
 orientation, foil, publication, and distinct printing relationship fields without
 replacing existing printing IDs or changing API routes/response shapes.
+`RetainSwuPrintingSourceUid` adds the per-printing UID used for legacy identity
+reconciliation; legacy JSON source identities are adopted on the next sync.
 
 ### 5. Operational gotchas
 

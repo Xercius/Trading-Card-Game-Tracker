@@ -19,6 +19,66 @@ namespace api.Tests.Importing;
 public sealed class SwuSharedImporterRegressionTests
 {
     [Fact]
+    public async Task Import_LegacyTitleMergedPrintings_SeparatesUidsAndPreservesOwnedPrintingIds()
+    {
+        await using var database = await Database.CreateAsync();
+        int firstId;
+        int secondId;
+        await using (var seed = database.Open())
+        {
+            var card = new Card { Game = "Star Wars Unlimited", Name = "Same title", CardType = "" };
+            var first = new CardPrinting
+            {
+                Card = card,
+                Set = "SOR",
+                Number = "one",
+                Rarity = "Common",
+                Style = "Standard",
+                DetailsJson = """{"sourceId":1,"cardUid":"legacy-1","serialCode":"one"}"""
+            };
+            var second = new CardPrinting
+            {
+                Card = card,
+                Set = "SOR",
+                Number = "two",
+                Rarity = "Common",
+                Style = "Standard",
+                DetailsJson = """{"sourceId":2,"cardUid":"legacy-2","serialCode":"two"}"""
+            };
+            seed.CardPrintings.AddRange(first, second);
+            var user = new User { Username = "owner", DisplayName = "Owner" };
+            seed.UserCards.Add(new UserCard { User = user, CardPrinting = second, QuantityOwned = 3 });
+            seed.DeckCards.Add(new DeckCard
+            {
+                Deck = new Deck { User = user, Name = "Deck", Game = "Star Wars Unlimited" },
+                CardPrinting = first,
+                QuantityInDeck = 2
+            });
+            await seed.SaveChangesAsync();
+            firstId = first.Id;
+            secondId = second.Id;
+        }
+        var records = new[]
+        {
+            Record(1, "Same title", "SOR", "one", uid: "legacy-1"),
+            Record(2, "Same title", "SOR", "two", uid: "legacy-2")
+        };
+        Assert.Equal(0, (await ImportAsync(database, records)).Errors);
+        var replay = await ImportAsync(database, records);
+        Assert.Equal(0, replay.Errors);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
+        await using var db = database.Open();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
+        Assert.Equal(new[] { firstId, secondId }, printings.Select(p => p.Id));
+        Assert.NotEqual(printings[0].CardId, printings[1].CardId);
+        Assert.All(printings, p => Assert.Equal(p.CardUid, p.Card.CardUid));
+        Assert.Equal(secondId, (await db.UserCards.SingleAsync()).CardPrintingId);
+        Assert.Equal(3, (await db.UserCards.SingleAsync()).QuantityOwned);
+        Assert.Equal(firstId, (await db.DeckCards.SingleAsync()).CardPrintingId);
+    }
+
+    [Fact]
     public async Task Import_VariantAndReprintTargets_ResolveIndependentlyAcrossSyncs()
     {
         await using var database = await Database.CreateAsync();

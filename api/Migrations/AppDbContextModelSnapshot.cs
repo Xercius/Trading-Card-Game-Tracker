@@ -328,6 +328,10 @@ namespace api.Migrations
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CardUid")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 

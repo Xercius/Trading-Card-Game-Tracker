@@ -239,6 +239,11 @@ public sealed class SwuDbImporter : ISourceImporter
         var card = (cardUid is null ? null : _db.Cards.Local
             .SingleOrDefault(c => c.Game == game && c.CardUid == cardUid))
             ?? identity.FindCard(cardUid) ?? printing?.Card;
+        // Legacy title matching could put unrelated source UIDs on one Card.
+        // Keep the first identity on that row; move other identities, not printing IDs.
+        if (cardUid is not null && card?.CardUid is { } existingUid && existingUid != cardUid
+            && card.Printings.Any(p => p != printing && SwuSharedIdentity.SourceUid(p) is { } uid && uid != cardUid))
+            card = null;
 
         var printingJson = JsonSerializer.Serialize(new
         {
@@ -335,9 +340,12 @@ public sealed class SwuDbImporter : ISourceImporter
                     _db.Entry(printing).State = EntityState.Modified;
             }
         }
+        var updateCounted = !printingCreated && _db.Entry(printing).State == EntityState.Modified;
         var originalPrintingValues = _db.Entry(printing).CurrentValues.Clone();
+        var oldCard = printing.Card;
         printing.Card = card;
         printing.StrapiId = sourceId;
+        printing.CardUid = cardUid;
         printing.BackImageUrl = attrs.ArtBack?.Data?.Attributes?.Url
             ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Card?.Url
             ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Thumbnail?.Url;
@@ -346,14 +354,19 @@ public sealed class SwuDbImporter : ISourceImporter
         printing.IsFoil = isFoil;
         printing.Hyperspace = attrs.Hyperspace;
         printing.Showcase = attrs.Showcase;
-        printing.ApiCreatedAt = attrs.CreatedAt;
-        printing.ApiUpdatedAt = attrs.UpdatedAt;
-        printing.ApiPublishedAt = attrs.PublishedAt;
+        printing.ApiCreatedAt = attrs.CreatedAt?.ToUniversalTime();
+        printing.ApiUpdatedAt = attrs.UpdatedAt?.ToUniversalTime();
+        printing.ApiPublishedAt = attrs.PublishedAt?.ToUniversalTime();
         catalog.Apply(card, printing, attrs);
-        if (!printingCreated && _db.Entry(printing).State != EntityState.Modified
-            && originalPrintingValues.Properties.Any(p =>
+        if (oldCard != card)
+        {
+            _db.ChangeTracker.DetectChanges();
+            if (oldCard.Printings.Count == 0) _db.Cards.Remove(oldCard);
+        }
+        if (!printingCreated && !updateCounted
+            && (_db.Entry(printing).State == EntityState.Modified || originalPrintingValues.Properties.Any(p =>
                 p.Name != nameof(CardPrinting.LastSyncedAt)
-                && !Equals(originalPrintingValues[p], _db.Entry(printing).CurrentValues[p])))
+                && !Equals(originalPrintingValues[p], _db.Entry(printing).CurrentValues[p]))))
         {
             summary.PrintingsUpdated++;
             _db.Entry(printing).State = EntityState.Modified;

@@ -112,6 +112,8 @@ HTTP method for all consumer-accessible endpoints: GET
         relationship may set a local BaseCardId without replacing CardPrinting.CardId.
         Source ids and relationship ids must never be used as local foreign keys.
         Older DetailsJson source identities remain readable for in-place upgrades.
+        Each printing also retains its own CardUid so a legacy title-merged Card
+        can be separated by source UID without losing printing/ownership/deck IDs.
 
         Independent captured response inspected:
         https://github.com/hdchan/R4-MG/blob/9b5efd11f4b57b2ab45e893dce423e6e2639a86c/SWUApp/starwarsunlimited_com/sample_response.json

@@ -27,6 +27,7 @@ namespace api.Models
         public int? SetId { get; set; }
         public Set? CatalogSet { get; set; }
         public int? StrapiId { get; set; }
+        public string? CardUid { get; set; }
         public DateTimeOffset? ApiCreatedAt { get; set; }
         public DateTimeOffset? ApiUpdatedAt { get; set; }
         public DateTimeOffset? ApiPublishedAt { get; set; }

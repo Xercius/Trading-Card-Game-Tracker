@@ -59,8 +59,8 @@ internal sealed class SwuSharedIdentity
             .GroupBy(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId"))!.Value)
             .ToDictionary(g => g.Key, g => g.First().Card);
         var byUid = _printings
-            .Where(p => !string.IsNullOrWhiteSpace(p.Card.CardUid ?? ReadString(p.DetailsJson, "cardUid")))
-            .GroupBy(p => p.Card.CardUid ?? ReadString(p.DetailsJson, "cardUid")!)
+            .Where(p => !string.IsNullOrWhiteSpace(SourceUid(p)))
+            .GroupBy(p => SourceUid(p)!)
             .ToDictionary(g => g.Key, g => g.First().Card);
 
         foreach (var printing in _printings)
@@ -87,7 +87,10 @@ internal sealed class SwuSharedIdentity
 
     internal Card? FindCard(string? cardUid)
         => string.IsNullOrWhiteSpace(cardUid) ? null : _printings.FirstOrDefault(p =>
-            (p.Card.CardUid ?? ReadString(p.DetailsJson, "cardUid")) == cardUid)?.Card;
+            SourceUid(p) == cardUid && (p.Card.CardUid is null || p.Card.CardUid == cardUid))?.Card;
+
+    internal static string? SourceUid(CardPrinting printing)
+        => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid") ?? printing.Card.CardUid;
 
     private CardPrinting? FindTarget(CardPrinting printing, string field)
     {
