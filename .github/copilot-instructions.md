@@ -1,13 +1,24 @@
 # Copilot Instructions
 
 ## Project Overview
-A local web application for tracking trading card collections, deck building, wishlists, and collection/deck values. Supports **Magic the Gathering**, **Star Wars Unlimited**, **Disney Lorcana**, **Flesh and Blood**, **Star Wars CCG**, **Guardians**, **Dicemasters**, **Pokémon TCG**, and **Transformers**. Cards are imported from external APIs/scrapers via 13 game-specific importers in `api/Importing/`.
+A local web application for tracking trading card collections, deck building, wishlists, and collection/deck values. **Star Wars Unlimited (SWU) is the sole active development focus.** Other game systems may exist in the repository, but are out of scope under the instructions below.
 
 > **Path-specific guidance:** Detailed coding standards live in focused instruction files that Copilot loads automatically when you work in the relevant area:
 > - `api/**/*.cs` → `.github/instructions/api.instructions.md`
 > - `client-vite/src/**/*.{ts,tsx}` → `.github/instructions/client.instructions.md`
 > - `api/Migrations/**`, `api/Data/**`, `api/Models/**` → `.github/instructions/database.instructions.md`
 > - `api.Tests/**`, `**/__tests__/**`, `**/*.test.{ts,tsx}` → `.github/instructions/testing.instructions.md`
+
+## Current Game Scope
+- Implement, fix, and validate application behavior for **Star Wars Unlimited only**.
+- Treat all non-SWU game code, importers, tests, documentation, and references as out of scope. Leave them in place and do not edit, remove, refactor, extend, or otherwise maintain them unless this instruction is updated.
+- The only exception is a non-SWU component that prevents the application from running or functioning for SWU. In that case, make only the smallest necessary change and avoid unrelated changes to that game's behavior.
+- Do not broaden a SWU task to clean up or modernize other game systems.
+
+## Future Multi-Game Design
+- The current implementation focus is SWU, but the application is intended to support additional TCG systems in the future.
+- Keep shared database models, relationships, and application services game-aware and extensible where relevant; do not introduce assumptions that make shared functionality SWU-only.
+- Implement current requirements for SWU without adding or changing other games' behavior. Avoid premature game-specific abstractions that do not support a concrete need.
 
 ## Setup
 - Requires **.NET 10 SDK** (per `global.json`) and **Node.js 20+**.
@@ -145,11 +156,4 @@ A local web application for tracking trading card collections, deck building, wi
 
 ## Card Import System
 
-Each importer lives in `api/Importing/<Game>Importer.cs` and implements `ICardImporter`.
-
-- Importers are registered in `api/Program.cs` and invoked via `POST /api/admin/import`.
-- All imports support **dry-run mode** (`dryRun: true`) — returns a preview without persisting.
-- Upsert logic ensures **idempotency** — re-running an import never creates duplicates.
-- See `ADMIN.md` for expected file formats and import workflow.
-
-**Existing importers:** MTG (Scryfall), Pokémon TCG API, Lorcana (LorcanaDB), Flesh and Blood (FABDB), Star Wars Unlimited (SWUDB), Star Wars CCG (SWCCGDB), Guardians, Dicemasters, Transformers, and several others.
+For SWU importer work, follow the existing importer architecture and its established safeguards, including dry-run support and idempotent upserts where applicable. Do not modify or maintain importers for other games; leave their registrations and references alone unless they prevent the application from running or functioning for SWU, as described in Current Game Scope.
