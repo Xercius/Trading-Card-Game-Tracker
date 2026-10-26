@@ -10,6 +10,7 @@ export function usePrintings(filters: CardFilters) {
     game: filters.games.length > 0 ? filters.games : undefined,
     set: filters.sets.length > 0 ? filters.sets : undefined,
     rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
+    types: filters.types.length > 0 ? filters.types : undefined,
     pageSize,
     uniqueCards: true,
   };

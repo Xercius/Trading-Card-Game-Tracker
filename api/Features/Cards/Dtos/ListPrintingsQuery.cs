@@ -48,6 +48,11 @@ public sealed class ListPrintingsQuery
     public string? Rarity { get; init; }
 
     /// <summary>
+    /// Optional filter by any associated card type, including a secondary SWU type.
+    /// </summary>
+    public string? Type { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

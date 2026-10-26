@@ -25,10 +25,20 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Rarity">Rarity classification for this printing (e.g., "Common", "Rare", "Super Rare", "Legendary").</param>
 /// <param name="Style">Print style or finish of this card (e.g., "Standard", "Foil", "Hyperspace", "Showcase").</param>
 /// <param name="ImageUrl">Optional URL to the card's image for this specific printing. Null if no image is available.</param>
+/// <param name="SetCode">Normalized set code when available.</param>
+/// <param name="ReleaseDate">Release date of the normalized set.</param>
+/// <param name="BackImageUrl">Optional URL to the back-face art.</param>
+/// <param name="ImageOrientation">Orientation of the front art.</param>
+/// <param name="BackImageOrientation">Orientation of the back art.</param>
 public sealed record CardPrintingResponse(
     int Id,
     string Set,
     string Number,
     string Rarity,
     string Style,
-    string? ImageUrl);
+    string? ImageUrl,
+    string? SetCode = null,
+    DateOnly? ReleaseDate = null,
+    string? BackImageUrl = null,
+    string? ImageOrientation = null,
+    string? BackImageOrientation = null);

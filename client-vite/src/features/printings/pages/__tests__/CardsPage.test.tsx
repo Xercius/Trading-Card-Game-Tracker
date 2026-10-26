@@ -8,7 +8,7 @@ import * as printingsApi from "../../api/usePrintings";
 import * as printingFacetsApi from "../../api/usePrintingFacets";
 
 vi.mock("../../api/usePrintingFacets", () => ({
-  usePrintingFacets: () => ({ data: { games: [], sets: [], rarities: [] } }),
+  usePrintingFacets: () => ({ data: { games: [], sets: [], rarities: [], types: [] } }),
 }));
 
 // Define a strongly-typed mock result for usePrintings
@@ -35,7 +35,7 @@ describe("CardsPage filter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(printingFacetsApi, "usePrintingFacets").mockReturnValue({
-      data: { games: [], sets: [], rarities: [] },
+      data: { games: [], sets: [], rarities: [], types: [] },
     } as unknown as ReturnType<typeof printingFacetsApi.usePrintingFacets>);
   });
 
@@ -54,7 +54,9 @@ describe("CardsPage filter wiring", () => {
     mockUsePrintings.mockReturnValue(mockPrintingsResult);
 
     render(<CardsPage />, {
-      wrapper: createTestWrapper(["/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&q=bolt"]),
+      wrapper: createTestWrapper([
+        "/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&type=Leader+Unit&q=bolt",
+      ]),
     });
 
     // Verify usePrintings was called with correct filters from URL
@@ -63,6 +65,7 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.games).toEqual(["Magic", "Lorcana"]); // order preserved from URL
     expect(callArgs.sets).toEqual(["TestSet"]);
     expect(callArgs.rarities).toEqual(["Rare"]);
+    expect(callArgs.types).toEqual(["Leader Unit"]);
     expect(callArgs.q).toBe("bolt");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
@@ -88,6 +91,7 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.games).toEqual([]);
     expect(callArgs.sets).toEqual([]);
     expect(callArgs.rarities).toEqual([]);
+    expect(callArgs.types).toEqual([]);
     expect(callArgs.q).toBe("");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);

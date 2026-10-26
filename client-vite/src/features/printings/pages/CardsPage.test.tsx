@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
 const usePrintingFacetsMock = vi.fn(() => ({
-  data: { games: [], sets: [], rarities: [] },
+  data: { games: [], sets: [], rarities: [], types: [] },
 }));
 const CardModalMock = vi.fn((_props: unknown) => null);
 
@@ -75,6 +75,7 @@ describe("CardsPage", () => {
       games: [],
       sets: [],
       rarities: [],
+      types: [],
       page: 1,
       pageSize: 60,
       sort: undefined,

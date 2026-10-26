@@ -84,6 +84,44 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
 }
 
 describe("CardModal", () => {
+  it("renders normalized types, aspect multiplicity, set, rarity, and release date", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? [
+              {
+                printingId: 1001,
+                setName: "Spark of Rebellion",
+                setCode: "SOR",
+                number: "SOR-001",
+                rarity: "Rare",
+                style: "Standard",
+                releaseDate: "2025-10-03",
+                imageUrl: "/front.png",
+              },
+            ]
+          : {
+              id: 100,
+              name: "Luke Skywalker",
+              game: "Star Wars Unlimited",
+              cardType: "Leader",
+              cardTypes: ["Leader", "Leader Unit"],
+              aspects: [{ name: "Heroism", count: 2 }],
+              description: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 100, initialPrintingId: 1001 });
+
+    expect(await screen.findByText("Leader, Leader Unit")).toBeInTheDocument();
+    expect(screen.getByText("Heroism ×2")).toBeInTheDocument();
+    expect(screen.getByTestId("selected-printing-label").textContent).toContain(
+      "Spark of Rebellion (SOR) • #SOR-001 • Rare • 2025-10-03 • Standard"
+    );
+  });
+
   it.each([
     ["vertical", "vertical", false],
     ["horizontal", "horizontal", true],

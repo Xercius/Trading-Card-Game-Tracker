@@ -49,6 +49,11 @@ public sealed record CardsFacetResponse
     /// Empty array if no rarities match the current filter criteria.
     /// </summary>
     public IReadOnlyList<FacetOption> Rarities { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of normalized SWU card-type facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Types { get; init; } = Array.Empty<FacetOption>();
 }
 
 /// <summary>

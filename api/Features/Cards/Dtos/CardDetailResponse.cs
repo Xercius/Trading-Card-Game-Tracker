@@ -20,10 +20,16 @@ namespace api.Features.Cards.Dtos;
 /// <param name="CardType">Type classification of the card (e.g., "Unit", "Instant", "Sorcery", "Upgrade", "Enchantment").</param>
 /// <param name="Description">Optional rules text or description of the card's abilities and effects.</param>
 /// <param name="Printings">Read-only collection of all printing variations for this card, including different sets, rarities, and styles.</param>
+/// <param name="CardTypes">Normalized type associations, including both primary and secondary types.</param>
+/// <param name="Aspects">Normalized aspect associations with their occurrence counts.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
     string Game,
     string CardType,
     string? Description,
-    IReadOnlyList<CardPrintingResponse> Printings);
+    IReadOnlyList<CardPrintingResponse> Printings,
+    IReadOnlyList<string>? CardTypes = null,
+    IReadOnlyList<CardAspectResponse>? Aspects = null);
+
+public sealed record CardAspectResponse(string Name, int Count);

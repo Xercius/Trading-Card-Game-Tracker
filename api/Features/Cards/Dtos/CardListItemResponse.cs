@@ -39,6 +39,16 @@ public sealed class CardListItemResponse
     public required string CardType { get; set; }
 
     /// <summary>
+    /// Normalized type associations, including secondary types when present.
+    /// </summary>
+    public IReadOnlyList<string> CardTypes { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Normalized aspect associations with occurrence counts.
+    /// </summary>
+    public IReadOnlyList<CardAspectResponse> Aspects { get; set; } = Array.Empty<CardAspectResponse>();
+
+    /// <summary>
     /// The primary or representative printing for this card to display in list views.
     /// Null if the card has no printings. Typically the first or most common printing.
     /// </summary>
@@ -67,6 +77,11 @@ public sealed class CardListItemResponse
         public required string Set { get; set; }
 
         /// <summary>
+        /// Normalized expansion code when available.
+        /// </summary>
+        public string? SetCode { get; set; }
+
+        /// <summary>
         /// Collector or card number within the set (e.g., "001", "147/204", "TFC-001").
         /// </summary>
         public required string Number { get; set; }
@@ -85,5 +100,10 @@ public sealed class CardListItemResponse
         /// Optional URL to the card's image. Null if no image is available.
         /// </summary>
         public string? ImageUrl { get; set; }
+
+        /// <summary>
+        /// Release date of the normalized set when available.
+        /// </summary>
+        public DateOnly? ReleaseDate { get; set; }
     }
 }

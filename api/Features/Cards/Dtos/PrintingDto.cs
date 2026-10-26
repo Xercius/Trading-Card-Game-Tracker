@@ -39,5 +39,13 @@ public sealed record PrintingDto(
     string? ImageUrl,
     int CardId,
     string CardName,
-    string Game
-);
+    string Game)
+{
+    public string? Style { get; init; }
+    public DateOnly? ReleaseDate { get; init; }
+    public string? BackImageUrl { get; init; }
+    public string? ImageOrientation { get; init; }
+    public string? BackImageOrientation { get; init; }
+    public IReadOnlyList<string> CardTypes { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<CardAspectResponse> Aspects { get; init; } = Array.Empty<CardAspectResponse>();
+}

@@ -15,6 +15,9 @@ describe("PrintingCard", () => {
     number: "001",
     rarity: "Rare",
     imageUrl: "https://example.com/card.jpg",
+    cardTypes: ["Leader", "Leader Unit"],
+    aspects: [{ name: "Heroism", count: 2 }],
+    releaseDate: "2025-10-03",
   };
 
   afterEach(() => {
@@ -60,7 +63,7 @@ describe("PrintingCard", () => {
     container.remove();
   });
 
-  it("does not display visible text for card details", async () => {
+  it("displays normalized card details and aspect counts", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -74,13 +77,14 @@ describe("PrintingCard", () => {
     expect(img).not.toBeNull();
     expect(img?.getAttribute("alt")).toBe("");
 
-    // No visible text elements should exist (except "No image" placeholder)
-    // Card name, set, number, and rarity should not be visible
     const textContent = container.textContent || "";
-    expect(textContent).not.toContain("Sample Card");
-    expect(textContent).not.toContain("Test Set");
-    expect(textContent).not.toContain("001");
-    expect(textContent).not.toContain("Rare");
+    expect(textContent).toContain("Sample Card");
+    expect(textContent).toContain("Test Set");
+    expect(textContent).toContain("001");
+    expect(textContent).toContain("Rare");
+    expect(textContent).toContain("Leader, Leader Unit");
+    expect(textContent).toContain("Heroism ×2");
+    expect(textContent).toContain("2025-10-03");
 
     await act(async () => {
       root.unmount();
