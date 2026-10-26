@@ -17,6 +17,8 @@ namespace api.Features.Admin.Import;
 [Route("api/admin/import")]
 public sealed class AdminImportController : ControllerBase
 {
+    private const string SupportedImporterKey = "swu";
+
     private readonly ImporterRegistry _registry;
     private readonly FileParser _fileParser;
     private readonly AppDbContext _db;
@@ -105,6 +107,7 @@ public sealed class AdminImportController : ControllerBase
         var sw = RequestTiming.Start();
 
         var sources = _registry.All
+            .Where(importer => string.Equals(importer.Key, SupportedImporterKey, StringComparison.OrdinalIgnoreCase))
             .Select(importer =>
             {
                 var canonical = GetCanonicalSource(importer.Key);
@@ -528,7 +531,9 @@ public sealed class AdminImportController : ControllerBase
             var form = await Request.ReadFormAsync(ct);
             var source = form["source"].ToString();
             if (!TryResolveImporter(source, out var importer))
-                return new ParseRequestResult(null, null);
+                return new ParseRequestResult(
+                    null,
+                    string.IsNullOrWhiteSpace(source) ? null : CreateUnsupportedImporterProblem());
 
             var formLimitRaw = form.TryGetValue("limit", out var limitValues)
                 ? limitValues.ToString()
@@ -589,7 +594,7 @@ public sealed class AdminImportController : ControllerBase
                 return new ParseRequestResult(null, null);
 
             if (!TryResolveImporter(payload.Source, out var importer))
-                return new ParseRequestResult(null, null);
+                return new ParseRequestResult(null, CreateUnsupportedImporterProblem());
 
             var limit = payload.Limit ?? queryLimit;
 
@@ -623,8 +628,18 @@ public sealed class AdminImportController : ControllerBase
         var canonical = GetCanonicalSource(source);
         var importerKey = CanonicalToImporterKey.TryGetValue(canonical, out var mapped) ? mapped : canonical;
 
-        return _registry.TryGet(importerKey, out importer);
+        return string.Equals(importerKey, SupportedImporterKey, StringComparison.OrdinalIgnoreCase)
+            && _registry.TryGet(importerKey, out importer);
     }
+
+    private ObjectResult CreateUnsupportedImporterProblem() =>
+        this.CreateValidationProblem(
+            new Dictionary<string, string[]>
+            {
+                ["source"] = new[] { "Only the Star Wars Unlimited (SWU) importer is currently supported." }
+            },
+            title: "Unsupported importer",
+            detail: ProblemTypes.BadRequest.DefaultDetail);
 
     private static string GetCanonicalSource(string source)
     {

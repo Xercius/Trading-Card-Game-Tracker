@@ -2,6 +2,7 @@ using api.Data;
 using api.Features.Admin.Import;
 using api.Importing;
 using api.Shared.Importing;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,21 +13,26 @@ namespace api.Tests.Features.AdminImport;
 
 public sealed class AdminImportControllerSourceResolutionTests
 {
-    private static readonly (string Source, string ExpectedKey)[] KnownSourceMappings =
+    private static readonly (string Source, string ExpectedKey)[] SupportedSourceMappings =
     [
-        ("lorcanajson", "lorcanajson"),
-        ("fabdb", "fabdb"),
-        ("scryfall", "scryfall"),
-        ("swccgdb", "swccgdb"),
         ("swu", "swu"),
-        ("pokemon", "pokemon"),
-        ("guardians", "guardians"),
-        ("dicemasters", "dicemasters"),
-        ("tftcg", "tftcg"),
-        ("dummy", "dummy"),
+        ("swudb", "swu"),
     ];
 
-    public static IEnumerable<object[]> SourceMappings => KnownSourceMappings
+    private static readonly string[] UnsupportedSources =
+    [
+        "scryfall",
+        "swccgdb",
+        "lorcanajson",
+        "pokemon",
+        "fabdb",
+        "guardians",
+        "dicemasters",
+        "transformers",
+        "dummy",
+    ];
+
+    public static IEnumerable<object[]> SourceMappings => SupportedSourceMappings
         .Select(mapping => new object[] { mapping.Source, mapping.ExpectedKey });
 
     private static readonly MethodInfo TryResolveImporterMethod = typeof(AdminImportController)
@@ -47,10 +53,38 @@ public sealed class AdminImportControllerSourceResolutionTests
         Assert.Equal(expectedKey, importer.Key);
     }
 
+    [Theory]
+    [MemberData(nameof(UnsupportedSourceNames))]
+    public void TryResolveImporter_WithUnsupportedSources_RejectsEvenWhenRegistered(string source)
+    {
+        var controller = CreateController();
+        var parameters = new object?[] { source, null };
+
+        var resolved = (bool)TryResolveImporterMethod.Invoke(controller, parameters)!;
+
+        Assert.False(resolved);
+    }
+
+    [Fact]
+    public void GetOptions_OnlyReturnsSwu_WhenOtherImportersAreRegistered()
+    {
+        var response = CreateController().GetOptions();
+        var result = Assert.IsType<OkObjectResult>(response.Result);
+        var options = Assert.IsType<ImportOptionsResponse>(result.Value);
+
+        var source = Assert.Single(options.Sources);
+        Assert.Equal("swu", source.ImporterKey);
+    }
+
+    public static IEnumerable<object[]> UnsupportedSourceNames => UnsupportedSources
+        .Select(source => new object[] { source });
+
     private static AdminImportController CreateController()
     {
-        var importers = KnownSourceMappings
-            .Select(mapping => (ISourceImporter)new StubImporter(mapping.ExpectedKey))
+        var importers = SupportedSourceMappings.Select(mapping => mapping.ExpectedKey)
+            .Concat(UnsupportedSources)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(key => (ISourceImporter)new StubImporter(key))
             .ToArray();
         var registry = new ImporterRegistry(importers);
         var connection = new SqliteConnection("DataSource=:memory:");
