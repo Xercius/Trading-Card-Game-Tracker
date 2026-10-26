@@ -67,8 +67,12 @@ public sealed class AppDbContextSwuConfigurationTests
             VALUES (5, 41, '2026-01-01T00:00:00+00:00', 0, 1, 1, 'Succeeded');
             INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
             VALUES (3, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
+            VALUES (4, 'Pokémon', 'Pikachu', 'Pokémon');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
+            VALUES (8, 4, 'sor', 'SVP-001', 'Promo', 'Standard');
             """);
 
         await migrator.MigrateAsync();
@@ -76,7 +80,8 @@ public sealed class AppDbContextSwuConfigurationTests
         var game = await db.Games.SingleAsync();
         var set = await db.Sets.SingleAsync();
         var syncLog = await db.SyncLogs.Include(log => log.Set).SingleAsync();
-        var printing = await db.CardPrintings.SingleAsync();
+        var printing = await db.CardPrintings.SingleAsync(item => item.Id == 7);
+        var otherGamePrinting = await db.CardPrintings.SingleAsync(item => item.Id == 8);
         Assert.Equal("Star Wars Unlimited", game.Name);
         Assert.Equal("star wars unlimited", game.NameNormalized);
         Assert.Equal(41, set.Id);
@@ -85,6 +90,7 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal(set.Id, syncLog.SetId);
         Assert.Equal(set.Id, syncLog.Set!.Id);
         Assert.Equal(set.Id, printing.SetId);
+        Assert.Null(otherGamePrinting.SetId);
     }
 
     [Fact]

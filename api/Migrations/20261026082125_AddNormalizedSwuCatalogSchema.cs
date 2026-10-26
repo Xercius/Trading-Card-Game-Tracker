@@ -366,6 +366,12 @@ namespace api.Migrations
                     FROM "Sets"
                     WHERE "Sets"."GameId" = 1
                       AND "Sets"."Code" = "CardPrintings"."Set" COLLATE NOCASE
+                )
+                  AND EXISTS (
+                    SELECT 1
+                    FROM "Cards"
+                    WHERE "Cards"."Id" = "CardPrintings"."CardId"
+                      AND "Cards"."GameNorm" = 'star wars unlimited'
                 );
                 """);
 
