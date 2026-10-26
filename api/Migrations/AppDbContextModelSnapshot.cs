@@ -15,7 +15,7 @@ namespace api.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("api.Models.Arena", b =>
                 {
@@ -111,10 +111,22 @@ namespace api.Migrations
                     b.Property<int?>("Cost")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DeployBox")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeployBoxStyled")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DetailsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EpicAction")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EpicActionStyled")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Game")
@@ -151,11 +163,20 @@ namespace api.Migrations
                     b.Property<int?>("Power")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Rules")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RulesStyled")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("StrapiId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Subtitle")
                         .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TextStyled")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Traits")
@@ -288,8 +309,17 @@ namespace api.Migrations
                     b.Property<DateTimeOffset?>("ApiCreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset?>("ApiPublishedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset?>("ApiUpdatedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool?>("ArtBackHorizontal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("ArtFrontHorizontal")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("BackImageUrl")
                         .HasMaxLength(1024)
@@ -298,11 +328,21 @@ namespace api.Migrations
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CardUid")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("Hyperspace")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsFoil")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
@@ -328,6 +368,9 @@ namespace api.Migrations
                     b.Property<DateOnly?>("ReleasedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ReprintOfId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Set")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -340,6 +383,9 @@ namespace api.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Set]))", true);
+
+                    b.Property<bool?>("Showcase")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("StrapiId")
                         .HasColumnType("INTEGER");
@@ -354,6 +400,9 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Style]))", true);
 
+                    b.Property<int?>("VariantOfId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CardId");
@@ -361,6 +410,8 @@ namespace api.Migrations
                     b.HasIndex("RarityId");
 
                     b.HasIndex("RarityNorm");
+
+                    b.HasIndex("ReprintOfId");
 
                     b.HasIndex("SetId");
 
@@ -371,6 +422,8 @@ namespace api.Migrations
                         .HasFilter("\"StrapiId\" IS NOT NULL");
 
                     b.HasIndex("StyleNorm");
+
+                    b.HasIndex("VariantOfId");
 
                     b.HasIndex("Set", "Number");
 
@@ -1074,16 +1127,30 @@ namespace api.Migrations
                         .HasForeignKey("RarityId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("api.Models.CardPrinting", "ReprintOf")
+                        .WithMany()
+                        .HasForeignKey("ReprintOfId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("api.Models.Set", "CatalogSet")
                         .WithMany()
                         .HasForeignKey("SetId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("api.Models.CardPrinting", "VariantOf")
+                        .WithMany()
+                        .HasForeignKey("VariantOfId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Card");
 
                     b.Navigation("CatalogSet");
 
                     b.Navigation("RarityLookup");
+
+                    b.Navigation("ReprintOf");
+
+                    b.Navigation("VariantOf");
                 });
 
             modelBuilder.Entity("api.Models.CardTrait", b =>

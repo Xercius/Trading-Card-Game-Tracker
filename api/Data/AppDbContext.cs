@@ -101,6 +101,7 @@ namespace api.Data
                 e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Style).IsRequired().HasMaxLength(64);
                 e.Property(p => p.BackImageUrl).HasMaxLength(1024);
+                e.Property(p => p.CardUid).HasMaxLength(64);
 
                 // fast FK lookup
                 e.HasIndex(p => p.CardId);
@@ -143,6 +144,10 @@ namespace api.Data
                 e.HasIndex(p => p.StrapiId)
                     .IsUnique()
                     .HasFilter("\"StrapiId\" IS NOT NULL");
+                e.HasOne(p => p.VariantOf).WithMany().HasForeignKey(p => p.VariantOfId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(p => p.ReprintOf).WithMany().HasForeignKey(p => p.ReprintOfId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // --- Deck / DeckCard ---

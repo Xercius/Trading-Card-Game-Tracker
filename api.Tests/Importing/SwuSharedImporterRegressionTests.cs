@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Web;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,236 @@ namespace api.Tests.Importing;
 
 public sealed class SwuSharedImporterRegressionTests
 {
+    [Fact]
+    public async Task Import_LegacyTitleMergedPrintings_SeparatesUidsAndPreservesOwnedPrintingIds()
+    {
+        await using var database = await Database.CreateAsync();
+        int firstId;
+        int secondId;
+        await using (var seed = database.Open())
+        {
+            var card = new Card { Game = "Star Wars Unlimited", Name = "Same title", CardType = "" };
+            var first = new CardPrinting
+            {
+                Card = card,
+                Set = "SOR",
+                Number = "one",
+                Rarity = "Common",
+                Style = "Standard",
+                DetailsJson = """{"sourceId":1,"cardUid":"legacy-1","serialCode":"one"}"""
+            };
+            var second = new CardPrinting
+            {
+                Card = card,
+                Set = "SOR",
+                Number = "two",
+                Rarity = "Common",
+                Style = "Standard",
+                DetailsJson = """{"sourceId":2,"cardUid":"legacy-2","serialCode":"two"}"""
+            };
+            seed.CardPrintings.AddRange(first, second);
+            var user = new User { Username = "owner", DisplayName = "Owner" };
+            seed.UserCards.Add(new UserCard { User = user, CardPrinting = second, QuantityOwned = 3 });
+            seed.DeckCards.Add(new DeckCard
+            {
+                Deck = new Deck { User = user, Name = "Deck", Game = "Star Wars Unlimited" },
+                CardPrinting = first,
+                QuantityInDeck = 2
+            });
+            await seed.SaveChangesAsync();
+            firstId = first.Id;
+            secondId = second.Id;
+        }
+        var records = new[]
+        {
+            Record(1, "Same title", "SOR", "one", uid: "legacy-1"),
+            Record(2, "Same title", "SOR", "two", uid: "legacy-2")
+        };
+        Assert.Equal(0, (await ImportAsync(database, records)).Errors);
+        var replay = await ImportAsync(database, records);
+        Assert.Equal(0, replay.Errors);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
+        await using var db = database.Open();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
+        Assert.Equal(new[] { firstId, secondId }, printings.Select(p => p.Id));
+        Assert.NotEqual(printings[0].CardId, printings[1].CardId);
+        Assert.All(printings, p => Assert.Equal(p.CardUid, p.Card.CardUid));
+        Assert.Equal(secondId, (await db.UserCards.SingleAsync()).CardPrintingId);
+        Assert.Equal(3, (await db.UserCards.SingleAsync()).QuantityOwned);
+        Assert.Equal(firstId, (await db.DeckCards.SingleAsync()).CardPrintingId);
+    }
+
+    [Fact]
+    public async Task Import_VariantAndReprintTargets_ResolveIndependentlyAcrossSyncs()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(200, "Variant", "SOR", "variant", variantId: 100, reprintId: 300));
+        await using (var unresolved = database.Open())
+        {
+            var printing = await unresolved.CardPrintings.SingleAsync();
+            Assert.Null(printing.VariantOfId);
+            Assert.Null(printing.ReprintOfId);
+            using var details = JsonDocument.Parse(printing.DetailsJson!);
+            Assert.Equal(100, details.RootElement.GetProperty("variantOfSourceId").GetInt32());
+            Assert.Equal(300, details.RootElement.GetProperty("reprintOfSourceId").GetInt32());
+        }
+        await ImportAsync(database, Record(300, "Reprint target", "SHD", "reprint"));
+        await using (var partial = database.Open())
+        {
+            var printing = await partial.CardPrintings.Include(p => p.ReprintOf)
+                .SingleAsync(p => p.StrapiId == 200);
+            Assert.Null(printing.VariantOfId);
+            Assert.Equal(300, printing.ReprintOf!.StrapiId);
+        }
+        await ImportAsync(database, Record(100, "Variant target", "SOR", "base"));
+        await using var db = database.Open();
+        var resolved = await db.CardPrintings.Include(p => p.Card)
+            .Include(p => p.VariantOf).Include(p => p.ReprintOf).SingleAsync(p => p.StrapiId == 200);
+        Assert.Equal(100, resolved.VariantOf!.StrapiId);
+        Assert.Equal(300, resolved.ReprintOf!.StrapiId);
+        Assert.NotEqual(resolved.VariantOfId, resolved.ReprintOfId);
+        Assert.Equal(resolved.VariantOf.CardId, resolved.Card.BaseCardId);
+        Assert.NotEqual(100, resolved.Card.BaseCardId);
+    }
+
+    [Fact]
+    public async Task Import_SourceUid_GroupsRenamedPrintingsButNotIdenticallyNamedCards()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(1, "Original", "SOR", "one", uid: "000-text-uid"));
+        var result = await ImportAsync(database,
+            Record(2, "Renamed", "SHD", "two", uid: "000-text-uid"),
+            Record(3, "Renamed", "SHD", "three", uid: "different"));
+        Assert.Equal(0, result.Errors);
+        Assert.Equal(1, result.CardsCreated);
+        await using var db = database.Open();
+        var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
+        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.Equal(printings[0].CardId, printings[1].CardId);
+        Assert.NotEqual(printings[0].CardId, printings[2].CardId);
+        Assert.Equal("000-text-uid", printings[0].Card.CardUid);
+        Assert.Equal("Renamed", printings[0].Card.Name);
+        Assert.Equal(new int?[] { 1, 2, 3 }, printings.Select(p => p.StrapiId));
+    }
+
+    [Fact]
+    public async Task Import_NormalizedFields_ReplaysAndReplacesAssociationsWithoutDuplicates()
+    {
+        await using var database = await Database.CreateAsync();
+        var record = JsonSerializer.SerializeToNode(Record(1, "Double aspect", "SOR", "one"))!;
+        var attrs = record["attributes"]!;
+        attrs["text"] = "Rules";
+        attrs["textStyled"] = "<p>Rules</p>";
+        attrs["deployBox"] = "On Attack";
+        attrs["deployBoxStyled"] = "<p>On Attack</p>";
+        attrs["epicAction"] = "Deploy";
+        attrs["epicActionStyled"] = "<p>Deploy</p>";
+        attrs["rules"] = "Reminder";
+        attrs["rulesStyled"] = "<p>Reminder</p>";
+        attrs["health"] = 7;
+        attrs["type"] = JsonNode.Parse("""{"data":{"id":1,"attributes":{"name":"Leader","value":"leader"}}}""");
+        attrs["type2"] = JsonNode.Parse("""{"data":{"id":2,"attributes":{"name":"Unit","value":"unit"}}}""");
+        attrs["aspects"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Command"}}]}""");
+        attrs["aspectDuplicates"] = attrs["aspects"]!.DeepClone();
+        attrs["traits"] = JsonNode.Parse("""["Imperial","Imperial"]""");
+        attrs["keywords"] = JsonNode.Parse("""["Sentinel"]""");
+        attrs["arenas"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Ground"}}]}""");
+        attrs["variantTypes"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Hyperspace","variantId":"03","foil":false}}]}""");
+        attrs["artFront"] = JsonNode.Parse("""{"data":{"id":1,"attributes":{"url":"https://example.invalid/front.png"}}}""");
+        attrs["artBack"] = JsonNode.Parse("""{"data":{"id":2,"attributes":{"url":"https://example.invalid/back.png"}}}""");
+        attrs["artFrontHorizontal"] = true;
+        attrs["artBackHorizontal"] = false;
+        attrs["createdAt"] = "2024-01-01T01:00:00Z";
+        attrs["updatedAt"] = "2024-02-01T01:00:00Z";
+        attrs["publishedAt"] = "2024-03-01T01:00:00Z";
+        attrs["expansion"]!["data"]!["attributes"]!["releaseDate"] = "2024-03-08";
+
+        Assert.Equal(0, (await ImportAsync(database, record)).Errors);
+        var replay = await ImportAsync(database, record);
+        Assert.Equal(0, replay.Errors);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
+        await using (var db = database.Open())
+        {
+            var card = await db.Cards.Include(c => c.CardTypes).ThenInclude(t => t.CardType)
+                .Include(c => c.CardAspects).SingleAsync();
+            Assert.Equal("Rules", card.Description);
+            Assert.Equal("<p>Rules</p>", card.TextStyled);
+            Assert.Equal("On Attack", card.DeployBox);
+            Assert.Equal("<p>On Attack</p>", card.DeployBoxStyled);
+            Assert.Equal("Deploy", card.EpicAction);
+            Assert.Equal("<p>Deploy</p>", card.EpicActionStyled);
+            Assert.Equal("Reminder", card.Rules);
+            Assert.Equal("<p>Reminder</p>", card.RulesStyled);
+            Assert.Equal(7, card.Hp);
+            Assert.Equal(new[] { ("Leader", "Type"), ("Unit", "Type2") },
+                card.CardTypes.OrderBy(t => t.SourceRole).Select(t => (t.CardType.Name, t.SourceRole)));
+            Assert.Equal(2, Assert.Single(card.CardAspects).Count);
+            Assert.Single(await db.Set<CardTrait>().ToListAsync());
+            Assert.Single(await db.Set<CardKeyword>().ToListAsync());
+            Assert.Single(await db.Set<CardArena>().ToListAsync());
+            var printing = await db.CardPrintings.Include(p => p.CatalogSet).SingleAsync();
+            Assert.Equal("Hyperspace", printing.Style);
+            Assert.False(printing.IsFoil);
+            Assert.Equal("https://example.invalid/front.png", printing.ImageUrl);
+            Assert.Equal("https://example.invalid/back.png", printing.BackImageUrl);
+            Assert.True(printing.ArtFrontHorizontal);
+            Assert.False(printing.ArtBackHorizontal);
+            Assert.Equal(DateTimeOffset.Parse("2024-01-01T01:00:00Z"), printing.ApiCreatedAt);
+            Assert.Equal(DateTimeOffset.Parse("2024-02-01T01:00:00Z"), printing.ApiUpdatedAt);
+            Assert.Equal(DateTimeOffset.Parse("2024-03-01T01:00:00Z"), printing.ApiPublishedAt);
+            Assert.Equal(new DateOnly(2024, 3, 8), printing.CatalogSet!.ReleasedAt);
+            Assert.Null(printing.ReleasedAt);
+            Assert.Empty(await db.SwuCards.ToListAsync());
+            Assert.Empty(await db.SwuCardPrintings.ToListAsync());
+        }
+
+        attrs["aspectDuplicates"] = null;
+        attrs["type2"] = null;
+        attrs["traits"] = JsonNode.Parse("""["Rebel"]""");
+        attrs["keywords"] = null;
+        attrs["arenas"] = null;
+        attrs["artFront"] = null;
+        attrs["health"] = null;
+        attrs["hp"] = 8;
+        attrs["hyperspace"] = true;
+        attrs["showcase"] = true;
+        Assert.Equal(0, (await ImportAsync(database, record)).Errors);
+        await using var verify = database.Open();
+        Assert.Single(await verify.CardTypes.ToListAsync(), t => t.Name == "Leader");
+        Assert.Single(await verify.Set<CardCardType>().ToListAsync());
+        Assert.Equal(1, (await verify.Set<CardAspect>().SingleAsync()).Count);
+        Assert.Equal("Rebel", (await verify.Set<CardTrait>().Include(t => t.Trait).SingleAsync()).Trait.Name);
+        Assert.Empty(await verify.Set<CardKeyword>().ToListAsync());
+        Assert.Empty(await verify.Set<CardArena>().ToListAsync());
+        Assert.Null((await verify.CardPrintings.SingleAsync()).ImageUrl);
+        Assert.Equal(8, (await verify.Cards.SingleAsync()).Hp);
+        var changedPrinting = await verify.CardPrintings.SingleAsync();
+        Assert.Equal("Hyperspace, Showcase", changedPrinting.Style);
+        Assert.True(changedPrinting.Hyperspace);
+        Assert.True(changedPrinting.Showcase);
+    }
+
+    [Fact]
+    public async Task Import_ArenaOnlyChange_CountsCardAsUpdated()
+    {
+        await using var database = await Database.CreateAsync();
+        var original = JsonSerializer.SerializeToNode(Record(1, "Arena card", "SOR", "one"))!;
+        original["attributes"]!["arenas"] =
+            JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Ground"}}]}""");
+        Assert.Equal(0, (await ImportAsync(database, original)).Errors);
+
+        var changed = original.DeepClone();
+        changed["attributes"]!["arenas"] =
+            JsonNode.Parse("""{"data":[{"id":2,"attributes":{"name":"Space"}}]}""");
+        var result = await ImportAsync(database, changed);
+
+        Assert.Equal(1, result.CardsUpdated);
+        await using var db = database.Open();
+        var card = await db.Cards.Include(c => c.CardArenas).ThenInclude(a => a.Arena).SingleAsync();
+        Assert.Equal("Space", Assert.Single(card.CardArenas).Arena.Name);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -97,7 +328,7 @@ public sealed class SwuSharedImporterRegressionTests
     {
         await using var database = await Database.CreateAsync();
         var first = Record(1, "Han Solo", "SOR", "standard");
-        var variant = Record(2, "Han Solo", "SHD", "showcase", variantId: 1);
+        var variant = Record(2, "Han Solo", "SHD", "showcase", variantId: 1, uid: "uid-1");
         var summary = await ImportAsync(database, first, first, variant, variant);
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
@@ -184,7 +415,7 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database,
             Record(2, "Leia", "SHD", "variant", subtitle: "Showcase", variantId: 1));
         await ImportAsync(database,
-            Record(3, "Leia", "TWI", "another-printing", subtitle: "Showcase"));
+            Record(3, "Leia", "TWI", "another-printing", subtitle: "Showcase", uid: "uid-2"));
         await ImportAsync(database,
             Record(1, "Leia", "SOR", "base", subtitle: "Rebel"));
 
@@ -261,10 +492,10 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database,
             Record(1, "Base", "SOR", "one"),
             Record(2, "Variant", "SHD", "two", variantId: 1),
-            Record(3, "Variant", "TWI", "three", variantId: 1));
+            Record(3, "Variant", "TWI", "three", variantId: 1, uid: "uid-2"));
         await ImportAsync(database, Record(2, "Variant", "SHD", "two"));
         await AssertBaseAsync(database, "Variant", "Base");
-        await ImportAsync(database, Record(3, "Variant", "TWI", "three"));
+        await ImportAsync(database, Record(3, "Variant", "TWI", "three", uid: "uid-2"));
         await AssertBaseAsync(database, "Variant", null);
     }
 
@@ -310,7 +541,7 @@ public sealed class SwuSharedImporterRegressionTests
         await using var database = await Database.CreateAsync();
         await ImportAsync(database,
             Record(1, "Shared", "SOR", "one"),
-            Record(2, "Shared", "SOR", "two"));
+            Record(2, "Shared", "SOR", "two", uid: "uid-1"));
         var failed = newCard
             ? Record(3, "New", "SOR", "three")
             : Record(1, "Changed", "SOR", "two");
@@ -472,7 +703,7 @@ public sealed class SwuSharedImporterRegressionTests
 
     private static object Record(int id, string title, string set, string serial,
         string? subtitle = null, int? variantId = null, string? variantUid = null,
-        int? reprintId = null, string? locale = "en")
+        int? reprintId = null, string? locale = "en", string? uid = null)
         => new
         {
             id,
@@ -482,7 +713,7 @@ public sealed class SwuSharedImporterRegressionTests
                 subtitle,
                 locale,
                 serialCode = serial,
-                cardUid = $"uid-{id}",
+                cardUid = uid ?? $"uid-{id}",
                 cardNumber = id,
                 rarity = "Common",
                 expansion = new { data = new { id = 1, attributes = new { code = set, name = set } } },

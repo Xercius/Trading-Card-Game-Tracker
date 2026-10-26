@@ -340,7 +340,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             .Include(c => c.Printings)
             .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
         Assert.Equal("Updated text.", updatedCard.Description);
-        Assert.Contains("\"Updated text.\"", updatedCard.DetailsJson, StringComparison.Ordinal);
+        Assert.Null(updatedCard.DetailsJson);
 
         var updatedPrinting = Assert.Single(updatedCard.Printings);
         Assert.Equal("Legendary", updatedPrinting.Rarity);
@@ -506,20 +506,21 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.Equal(2, await db.Cards.CountAsync(c => c.Game == "Star Wars Unlimited"));
             Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
-            var card = await db.Cards.SingleAsync(c => c.Name == "Card 1");
-            using var details = JsonDocument.Parse(card.DetailsJson!);
+            var card = await db.Cards
+                .Include(c => c.CardAspects).ThenInclude(x => x.Aspect)
+                .Include(c => c.CardTraits).ThenInclude(x => x.Trait)
+                .Include(c => c.CardKeywords).ThenInclude(x => x.Keyword)
+                .SingleAsync(c => c.Name == "Card 1");
             Assert.Equal(new[] { "Vigilance" },
-                details.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
+                card.CardAspects.Select(x => x.Aspect.Name));
             Assert.Equal(new[] { "Rebel" },
-                details.RootElement.GetProperty("traits").EnumerateArray().Select(value => value.GetString()));
+                card.CardTraits.Select(x => x.Trait.Name));
             Assert.Equal(new[] { "Sentinel" },
-                details.RootElement.GetProperty("keywords").EnumerateArray().Select(value => value.GetString()));
-            var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+                card.CardKeywords.Select(x => x.Keyword.Name));
+            var printing = await db.CardPrintings.Include(p => p.RarityLookup).SingleAsync(p => p.CardId == card.Id);
             Assert.Equal("Special", printing.Rarity);
-            using var printingDetails = JsonDocument.Parse(printing.DetailsJson!);
-            Assert.Equal("Special", printingDetails.RootElement.GetProperty("rarity").GetString());
-            Assert.Equal(new[] { "Vigilance" },
-                printingDetails.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
+            Assert.Equal("Special", printing.RarityLookup!.Name);
+            Assert.NotNull(printing.SetId);
             Assert.Equal("", (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).SetCode);
             Assert.Equal(["NEW", "SOR"], await db.Sets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
             Assert.All(await db.SyncLogs.ToListAsync(), log =>
