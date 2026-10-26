@@ -16,7 +16,19 @@ namespace api.Data
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();
         public DbSet<CardPriceHistory> CardPriceHistories => Set<CardPriceHistory>();
         public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
-        public DbSet<SwuSet> SwuSets => Set<SwuSet>();
+        public DbSet<Game> Games => Set<Game>();
+        public DbSet<Set> Sets => Set<Set>();
+        public DbSet<CardType> CardTypes => Set<CardType>();
+        public DbSet<Trait> Traits => Set<Trait>();
+        public DbSet<Keyword> Keywords => Set<Keyword>();
+        public DbSet<Arena> Arenas => Set<Arena>();
+        public DbSet<Aspect> Aspects => Set<Aspect>();
+        public DbSet<Rarity> Rarities => Set<Rarity>();
+        public DbSet<CardCardType> CardCardTypes => Set<CardCardType>();
+        public DbSet<CardTrait> CardTraits => Set<CardTrait>();
+        public DbSet<CardKeyword> CardKeywords => Set<CardKeyword>();
+        public DbSet<CardArena> CardArenas => Set<CardArena>();
+        public DbSet<CardAspect> CardAspects => Set<CardAspect>();
         public DbSet<SwuCard> SwuCards => Set<SwuCard>();
         public DbSet<SwuCardPrinting> SwuCardPrintings => Set<SwuCardPrinting>();
         public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
@@ -34,6 +46,15 @@ namespace api.Data
                 e.Property(c => c.Game).IsRequired().HasMaxLength(64);
                 e.Property(c => c.Name).IsRequired().HasMaxLength(256);
                 e.Property(c => c.CardType).IsRequired().HasMaxLength(128);
+                e.Property(c => c.Subtitle).HasMaxLength(256);
+                e.Property(c => c.CardType2).HasMaxLength(64);
+                e.Property(c => c.CardUid).HasMaxLength(64);
+                e.Property(c => c.Arena).HasMaxLength(32);
+                e.Property(c => c.Artist).HasMaxLength(128);
+                e.Property(c => c.Aspects).HasMaxLength(256);
+                e.Property(c => c.Traits).HasMaxLength(512);
+                e.Property(c => c.Keywords).HasMaxLength(512);
+                e.Property(c => c.Hp).HasColumnName("Hp");
 
                 // useful lookup index for list/search
                 e.HasIndex(c => new { c.Game, c.Name });
@@ -56,6 +77,12 @@ namespace api.Data
                  .OnDelete(DeleteBehavior.SetNull);
 
                 e.HasIndex(c => c.BaseCardId);
+                e.HasIndex(c => new { c.Game, c.StrapiId })
+                    .IsUnique()
+                    .HasFilter("\"StrapiId\" IS NOT NULL");
+                e.HasIndex(c => c.CardUid)
+                    .IsUnique()
+                    .HasFilter("\"CardUid\" IS NOT NULL");
 
                 // relationship to printings
                 e.HasMany(c => c.Printings)
@@ -73,6 +100,7 @@ namespace api.Data
                 e.Property(p => p.Number).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Style).IsRequired().HasMaxLength(64);
+                e.Property(p => p.BackImageUrl).HasMaxLength(1024);
 
                 // fast FK lookup
                 e.HasIndex(p => p.CardId);
@@ -98,6 +126,23 @@ namespace api.Data
                 // one logical printing per (Card, Set, Number, Style)
                 e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })
                  .IsUnique();
+
+                e.HasOne(p => p.CatalogSet)
+                    .WithMany()
+                    .HasForeignKey(p => p.SetId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(p => p.SetId);
+
+                e.HasOne(p => p.RarityLookup)
+                    .WithMany()
+                    .HasForeignKey(p => p.RarityId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(p => p.RarityId);
+                e.HasIndex(p => p.StrapiId)
+                    .IsUnique()
+                    .HasFilter("\"StrapiId\" IS NOT NULL");
             });
 
             // --- Deck / DeckCard ---
@@ -179,17 +224,105 @@ namespace api.Data
                  .IsUnique();
             });
 
-            // --- SwuSet (SWU expansion set catalogue) ---
-            b.Entity<SwuSet>(e =>
+            b.Entity<Game>(e =>
             {
-                e.ToTable("SwuSets");
-                e.HasKey(s => s.Id);
+                e.ToTable("Games");
+                e.HasKey(g => g.Id);
+                e.Property(g => g.Name).IsRequired().HasMaxLength(128);
+                e.Property(g => g.NameNormalized)
+                    .HasComputedColumnSql("LOWER(TRIM([Name]))", stored: true);
+                e.HasIndex(g => g.NameNormalized)
+                    .IsUnique()
+                    .HasDatabaseName("UX_Games_NameNormalized");
+                e.HasData(new Game { Id = 1, Name = "Star Wars Unlimited" });
+            });
 
+            b.Entity<Set>(e =>
+            {
+                e.ToTable("Sets");
+                e.HasKey(s => s.Id);
                 e.Property(s => s.Code).IsRequired().HasMaxLength(32);
                 e.Property(s => s.Name).HasMaxLength(256);
+                e.HasIndex(s => new { s.GameId, s.Code })
+                    .IsUnique()
+                    .HasDatabaseName("UX_Sets_GameId_Code");
+                e.HasOne(s => s.Game)
+                    .WithMany(g => g.Sets)
+                    .HasForeignKey(s => s.GameId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
-                // one row per expansion code (enforced at DB level)
-                e.HasIndex(s => s.Code).IsUnique();
+            ConfigureLookup(b.Entity<CardType>(), "CardTypes", "CardTypes");
+            ConfigureLookup(b.Entity<Trait>(), "Traits", "Traits");
+            ConfigureLookup(b.Entity<Keyword>(), "Keywords", "Keywords");
+            ConfigureLookup(b.Entity<Arena>(), "Arenas", "Arenas");
+            ConfigureLookup(b.Entity<Aspect>(), "Aspects", "Aspects");
+            ConfigureLookup(b.Entity<Rarity>(), "Rarities", "Rarities");
+
+            b.Entity<CardType>().Property(t => t.Value).HasMaxLength(64);
+            b.Entity<Aspect>().Property(a => a.Color).HasMaxLength(32);
+            b.Entity<Rarity>(e =>
+            {
+                e.Property(r => r.Character).HasMaxLength(1);
+                e.Property(r => r.Color).HasMaxLength(32);
+            });
+
+            b.Entity<CardCardType>(e =>
+            {
+                e.ToTable("CardCardTypes", t => t.HasCheckConstraint(
+                    "CK_CardCardTypes_SourceRole", "\"SourceRole\" IN ('Type', 'Type2')"));
+                e.HasKey(x => new { x.CardId, x.CardTypeId, x.SourceRole });
+                e.Property(x => x.SourceRole).IsRequired().HasMaxLength(5);
+                e.HasOne(x => x.Card).WithMany(c => c.CardTypes)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.CardType).WithMany(t => t.Cards)
+                    .HasForeignKey(x => x.CardTypeId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.CardTypeId);
+            });
+
+            b.Entity<CardTrait>(e =>
+            {
+                e.ToTable("CardTraits");
+                e.HasKey(x => new { x.CardId, x.TraitId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardTraits)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Trait).WithMany(t => t.Cards)
+                    .HasForeignKey(x => x.TraitId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.TraitId);
+            });
+
+            b.Entity<CardKeyword>(e =>
+            {
+                e.ToTable("CardKeywords");
+                e.HasKey(x => new { x.CardId, x.KeywordId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardKeywords)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Keyword).WithMany(k => k.Cards)
+                    .HasForeignKey(x => x.KeywordId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.KeywordId);
+            });
+
+            b.Entity<CardArena>(e =>
+            {
+                e.ToTable("CardArenas");
+                e.HasKey(x => new { x.CardId, x.ArenaId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardArenas)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Arena).WithMany(a => a.Cards)
+                    .HasForeignKey(x => x.ArenaId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.ArenaId);
+            });
+
+            b.Entity<CardAspect>(e =>
+            {
+                e.ToTable("CardAspects", t => t.HasCheckConstraint(
+                    "CK_CardAspects_Count_Positive", "\"Count\" > 0"));
+                e.HasKey(x => new { x.CardId, x.AspectId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardAspects)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Aspect).WithMany(a => a.Cards)
+                    .HasForeignKey(x => x.AspectId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.AspectId);
             });
 
             // --- SwuCard (SWU-specific logical card) ---
@@ -217,12 +350,12 @@ namespace api.Data
                  .HasFilter("\"CardUid\" IS NOT NULL");
 
                 // fast lookup by set + title
-                e.HasIndex(c => new { c.SwuSetId, c.Title, c.Subtitle });
+                e.HasIndex(c => new { c.SetId, c.Title, c.Subtitle });
 
-                // FK to SwuSet (primary set that introduced this card)
-                e.HasOne(c => c.SwuSet)
+                // FK to the primary set that introduced this card
+                e.HasOne(c => c.Set)
                  .WithMany(s => s.Cards)
-                 .HasForeignKey(c => c.SwuSetId)
+                 .HasForeignKey(c => c.SetId)
                  .OnDelete(DeleteBehavior.Restrict);
 
                 // self-referencing FK for variant cards
@@ -251,11 +384,11 @@ namespace api.Data
                 e.HasIndex(p => p.StrapiId).IsUnique();
 
                 // uniqueness: one printing per (card, set, number, style)
-                e.HasIndex(p => new { p.SwuCardId, p.SwuSetId, p.Number, p.Style })
+                e.HasIndex(p => new { p.SwuCardId, p.SetId, p.Number, p.Style })
                  .IsUnique();
 
                 // fast lookup by set + number
-                e.HasIndex(p => new { p.SwuSetId, p.Number });
+                e.HasIndex(p => new { p.SetId, p.Number });
 
                 // FK to SwuCard
                 e.HasOne(p => p.SwuCard)
@@ -263,10 +396,10 @@ namespace api.Data
                  .HasForeignKey(p => p.SwuCardId)
                  .OnDelete(DeleteBehavior.Cascade);
 
-                // FK to SwuSet
-                e.HasOne(p => p.SwuSet)
+                // FK to shared Set
+                e.HasOne(p => p.Set)
                  .WithMany(s => s.Printings)
-                 .HasForeignKey(p => p.SwuSetId)
+                 .HasForeignKey(p => p.SetId)
                  .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -280,15 +413,32 @@ namespace api.Data
                 e.Property(l => l.CatalogScope).HasMaxLength(32);
 
                 // fast lookup by set + time
-                e.HasIndex(l => new { l.SwuSetId, l.StartedAt });
+                e.HasIndex(l => new { l.SetId, l.StartedAt });
 
-                // nullable FK to SwuSet
-                e.HasOne(l => l.SwuSet)
+                // nullable FK to shared Set
+                e.HasOne(l => l.Set)
                  .WithMany(s => s.SyncLogs)
-                 .HasForeignKey(l => l.SwuSetId)
+                 .HasForeignKey(l => l.SetId)
                  .IsRequired(false)
                  .OnDelete(DeleteBehavior.SetNull);
             });
+        }
+
+        private static void ConfigureLookup<TEntity>(
+            Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> e,
+            string table,
+            string gameCollection)
+            where TEntity : class
+        {
+            e.ToTable(table);
+            e.HasKey("Id");
+            e.Property<int>("GameId").IsRequired();
+            e.Property<string>("Name").IsRequired().HasMaxLength(128);
+            e.HasIndex("GameId", "Name").IsUnique();
+            e.HasOne<Game>("Game")
+                .WithMany(gameCollection)
+                .HasForeignKey("GameId")
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

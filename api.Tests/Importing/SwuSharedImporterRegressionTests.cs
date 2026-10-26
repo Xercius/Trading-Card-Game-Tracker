@@ -376,7 +376,7 @@ public sealed class SwuSharedImporterRegressionTests
         for (int run = 0; run < 2; run++)
         {
             await using var db = database.Open();
-            Assert.Equal(run == 0 ? 0 : 2, await db.SwuSets.CountAsync());
+            Assert.Equal(run == 0 ? 0 : 2, await db.Sets.CountAsync());
             var importer = new SwuDbImporter(db, new SWUApiClient(http), NullLogger<SwuDbImporter>.Instance);
             var summary = await importer.ImportFromRemoteAsync(new ImportOptions(DryRun: false));
 

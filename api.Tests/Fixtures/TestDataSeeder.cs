@@ -34,6 +34,7 @@ public static class TestDataSeeder
     {
         await ClearDatabaseAsync(db);
 
+        db.Games.Add(new Game { Id = 1, Name = "Star Wars Unlimited" });
         db.Users.Add(new User { Id = UserId, Username = "owner", DisplayName = "Owner" });
 
         var lightningBolt = new Card

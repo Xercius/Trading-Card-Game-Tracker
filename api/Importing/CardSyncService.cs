@@ -158,15 +158,15 @@ internal sealed class CardSyncService : ICardSyncService
         CancellationToken ct)
     {
         var normalizedCode = NormalizeSetCode(setCode).ToUpperInvariant();
-        var swuSetId = await _db.SwuSets
+        var setId = await _db.Sets
             .AsNoTracking()
-            .Where(s => s.Code == normalizedCode)
+            .Where(s => s.Code == normalizedCode && s.Game.NameNormalized == "star wars unlimited")
             .Select(s => (int?)s.Id)
             .FirstOrDefaultAsync(ct);
 
         var syncLog = new SyncLog
         {
-            SwuSetId = swuSetId,
+            SetId = setId,
             StartedAt = syncStartedAt,
             IsIncremental = effectiveUpdatedSince.HasValue,
             UpdatedSince = effectiveUpdatedSince,
@@ -208,7 +208,7 @@ internal sealed class CardSyncService : ICardSyncService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SwuSetId}.", syncLog.SwuSetId);
+            _logger.LogWarning(ex, "Failed to persist Failed SyncLog entry for set {SetId}.", syncLog.SetId);
         }
     }
 
@@ -312,22 +312,26 @@ internal sealed class CardSyncService : ICardSyncService
             .Select(r => r.CardStrapiId)
             .Distinct()
             .ToArray();
-        var setsByCode = await _db.SwuSets
-            .Where(s => setCodes.Contains(s.Code))
+        var gameId = await _db.Games
+            .Where(g => g.NameNormalized == "star wars unlimited")
+            .Select(g => g.Id)
+            .SingleAsync(ct);
+        var setsByCode = await _db.Sets
+            .Where(s => s.GameId == gameId && setCodes.Contains(s.Code))
             .ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
         var printingsByStrapiId = await _db.SwuCardPrintings
             .Include(p => p.SwuCard)
-            .Include(p => p.SwuSet)
+            .Include(p => p.Set)
             .Where(p => printingIds.Contains(p.StrapiId))
             .ToDictionaryAsync(p => p.StrapiId, ct);
         var cardsByStrapiId = await _db.SwuCards
-            .Include(c => c.SwuSet)
+            .Include(c => c.Set)
             .Where(c => cardStrapiIds.Contains(c.StrapiId))
             .ToDictionaryAsync(c => c.StrapiId, ct);
         foreach (var record in comparableRecords)
         {
             var rowSyncTime = record.ApiUpdatedAt ?? record.ApiCreatedAt ?? fallbackSyncTime;
-            var swuSet = UpsertSet(record, rowSyncTime, setsByCode);
+            var swuSet = UpsertSet(record, rowSyncTime, gameId, setsByCode);
             var existingPrinting = printingsByStrapiId.GetValueOrDefault(record.PrintingStrapiId);
             var existingCard = existingPrinting?.SwuCard ?? cardsByStrapiId.GetValueOrDefault(record.CardStrapiId);
 
@@ -435,10 +439,11 @@ internal sealed class CardSyncService : ICardSyncService
         return true;
     }
 
-    private SwuSet UpsertSet(
+    private Set UpsertSet(
         MappedRecord record,
         DateTimeOffset rowSyncTime,
-        IDictionary<string, SwuSet> setsByCode)
+        int gameId,
+        IDictionary<string, Set> setsByCode)
     {
         if (setsByCode.TryGetValue(record.SetCode, out var existingSet))
         {
@@ -451,18 +456,19 @@ internal sealed class CardSyncService : ICardSyncService
             return existingSet;
         }
 
-        var swuSet = new SwuSet
+        var swuSet = new Set
         {
+            GameId = gameId,
             Code = record.SetCode,
             Name = record.SetName,
             LastSyncedAt = rowSyncTime
         };
-        _db.SwuSets.Add(swuSet);
+        _db.Sets.Add(swuSet);
         setsByCode[record.SetCode] = swuSet;
         return swuSet;
     }
 
-    private static SwuCard CreateCard(MappedRecord record, SwuSet swuSet, DateTimeOffset rowSyncTime) =>
+    private static SwuCard CreateCard(MappedRecord record, Set swuSet, DateTimeOffset rowSyncTime) =>
         new()
         {
             StrapiId = record.CardStrapiId,
@@ -480,13 +486,13 @@ internal sealed class CardSyncService : ICardSyncService
             Aspects = record.Aspects,
             Traits = record.Traits,
             Keywords = record.Keywords,
-            SwuSet = swuSet,
+            Set = swuSet,
             ApiCreatedAt = record.ApiCreatedAt,
             ApiUpdatedAt = record.ApiUpdatedAt,
             LastSyncedAt = rowSyncTime
         };
 
-    private static bool UpdateCard(SwuCard existingCard, SwuSet swuSet, MappedRecord record, DateTimeOffset rowSyncTime)
+    private static bool UpdateCard(SwuCard existingCard, Set swuSet, MappedRecord record, DateTimeOffset rowSyncTime)
     {
         var changed = false;
 
@@ -515,9 +521,9 @@ internal sealed class CardSyncService : ICardSyncService
         if (existingCard.Keywords != record.Keywords) { existingCard.Keywords = record.Keywords; changed = true; }
         if (existingCard.ApiCreatedAt != record.ApiCreatedAt) { existingCard.ApiCreatedAt = record.ApiCreatedAt; changed = true; }
         if (existingCard.ApiUpdatedAt != record.ApiUpdatedAt) { existingCard.ApiUpdatedAt = record.ApiUpdatedAt; changed = true; }
-        if (existingCard.SwuSetId != swuSet.Id || !ReferenceEquals(existingCard.SwuSet, swuSet))
+        if (existingCard.SetId != swuSet.Id || !ReferenceEquals(existingCard.Set, swuSet))
         {
-            existingCard.SwuSet = swuSet;
+            existingCard.Set = swuSet;
             changed = true;
         }
 
@@ -532,13 +538,13 @@ internal sealed class CardSyncService : ICardSyncService
     private static SwuCardPrinting CreatePrinting(
         MappedRecord record,
         SwuCard swuCard,
-        SwuSet swuSet,
+        Set swuSet,
         DateTimeOffset rowSyncTime) =>
         new()
         {
             StrapiId = record.PrintingStrapiId,
             SwuCard = swuCard,
-            SwuSet = swuSet,
+            Set = swuSet,
             Number = record.Number,
             Rarity = record.Rarity,
             Style = record.Style,
@@ -552,7 +558,7 @@ internal sealed class CardSyncService : ICardSyncService
     private static bool UpdatePrinting(
         SwuCardPrinting existingPrinting,
         SwuCard swuCard,
-        SwuSet swuSet,
+        Set swuSet,
         MappedRecord record,
         DateTimeOffset rowSyncTime)
     {
@@ -564,9 +570,9 @@ internal sealed class CardSyncService : ICardSyncService
             changed = true;
         }
 
-        if (existingPrinting.SwuSetId != swuSet.Id || !ReferenceEquals(existingPrinting.SwuSet, swuSet))
+        if (existingPrinting.SetId != swuSet.Id || !ReferenceEquals(existingPrinting.Set, swuSet))
         {
-            existingPrinting.SwuSet = swuSet;
+            existingPrinting.Set = swuSet;
             changed = true;
         }
 

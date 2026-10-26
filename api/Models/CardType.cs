@@ -11,8 +11,11 @@ public sealed class CardType
     public Game Game { get; set; } = null!;
 
     [Required]
-    [MaxLength(64)]
+    [MaxLength(128)]
     public required string Name { get; set; }
+
+    [MaxLength(64)]
+    public string? Value { get; set; }
 
     public ICollection<CardCardType> Cards { get; set; } = new List<CardCardType>();
 }

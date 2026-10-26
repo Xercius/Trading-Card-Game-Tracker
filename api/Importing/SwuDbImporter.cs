@@ -181,13 +181,19 @@ public sealed class SwuDbImporter : ISourceImporter
     private async Task UpsertExpansionsAsync(
         Dictionary<string, SwuExpansionAttributes> expansions, CancellationToken ct)
     {
-        var sets = await _db.SwuSets.ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
+        var gameId = await _db.Games
+            .Where(g => g.NameNormalized == "star wars unlimited")
+            .Select(g => g.Id)
+            .SingleAsync(ct);
+        var sets = await _db.Sets
+            .Where(s => s.GameId == gameId)
+            .ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
         foreach (var (code, expansion) in expansions)
         {
             if (!sets.TryGetValue(code, out var set))
             {
-                set = new SwuSet { Code = code };
-                _db.SwuSets.Add(set);
+                set = new Set { GameId = gameId, Code = code };
+                _db.Sets.Add(set);
                 sets[code] = set;
             }
             if (!string.IsNullOrWhiteSpace(expansion.Name))

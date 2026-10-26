@@ -363,8 +363,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.True(historyEntry.LastSyncedAt <= payload.CompletedAt);
 
         var syncLog = await appDb.SyncLogs
-            .Include(log => log.SwuSet)
-            .SingleAsync(log => log.SwuSetId == null);
+            .Include(log => log.Set)
+            .SingleAsync(log => log.SetId == null);
         Assert.Equal("Succeeded", syncLog.Status);
         Assert.True(syncLog.IsIncremental);
         Assert.Equal(remoteCards.CapturedFilter.UpdatedSince, syncLog.UpdatedSince);
@@ -475,7 +475,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync(h => h.SetCode == "SOR")).LastSyncedAt);
         Assert.Equal(checkpoint, (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).LastSyncedAt);
         Assert.False(await db.ImportSyncHistories.AnyAsync(h => h.SetCode == "SHD"));
-        var logs = await db.SyncLogs.Include(l => l.SwuSet).ToArrayAsync();
+        var logs = await db.SyncLogs.Include(l => l.Set).ToArrayAsync();
         Assert.Equal("Failed", Assert.Single(logs).Status);
         var status = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>("/api/admin/sync/star-wars-unlimited/status");
         Assert.Equal(checkpoint, status!.LastCompletedAt);
@@ -521,12 +521,12 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             Assert.Equal(new[] { "Vigilance" },
                 printingDetails.RootElement.GetProperty("aspects").EnumerateArray().Select(value => value.GetString()));
             Assert.Equal("", (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).SetCode);
-            Assert.Equal(["NEW", "SOR"], await db.SwuSets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
+            Assert.Equal(["NEW", "SOR"], await db.Sets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
             Assert.All(await db.SyncLogs.ToListAsync(), log =>
             {
                 Assert.Equal("Succeeded", log.Status);
                 Assert.False(log.IsIncremental);
-                Assert.Null(log.SwuSetId);
+                Assert.Null(log.SetId);
             });
         }
 
@@ -648,8 +648,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             Assert.Equal(3, await db.CardPrintings.CountAsync(p => p.Card.Game == "Star Wars Unlimited"));
             Assert.Equal(originalIds, await db.CardPrintings.Where(p => p.Card.Game == "Star Wars Unlimited" && p.Set != "NEXT")
                 .OrderBy(p => p.Id).Select(p => p.Id).ToArrayAsync());
-            Assert.Equal("Expansion 3", (await db.SwuSets.SingleAsync(s => s.Code == "NEXT")).Name);
-            Assert.Equal("Corrected expansion", (await db.SwuSets.SingleAsync(s => s.Code == "SOR")).Name);
+            Assert.Equal("Expansion 3", (await db.Sets.SingleAsync(s => s.Code == "NEXT")).Name);
+            Assert.Equal("Corrected expansion", (await db.Sets.SingleAsync(s => s.Code == "SOR")).Name);
             Assert.Equal("Updated text", (await db.Cards.SingleAsync(c => c.Name == "Card 1")).Description);
             Assert.Equal(legacyCheckpoint, (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu")).LastSyncedAt);
             var checkpoint = (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).LastSyncedAt;
@@ -832,13 +832,14 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         foreach (var code in codes)
         {
-            if (await db.SwuSets.AnyAsync(s => s.Code == code))
+            if (await db.Sets.AnyAsync(s => s.GameId == 1 && s.Code == code))
             {
                 continue;
             }
 
-            db.SwuSets.Add(new SwuSet
+            db.Sets.Add(new Set
             {
+                GameId = 1,
                 Code = code,
                 Name = code,
                 LastSyncedAt = DateTimeOffset.UtcNow

@@ -9,7 +9,7 @@ namespace api.Models;
 /// </summary>
 [Index(nameof(StrapiId), IsUnique = true)]
 [Index(nameof(CardUid), IsUnique = true)]
-[Index(nameof(SwuSetId), nameof(Title), nameof(Subtitle))]
+[Index(nameof(SetId), nameof(Title), nameof(Subtitle))]
 public sealed class SwuCard
 {
     [Key]
@@ -101,14 +101,14 @@ public sealed class SwuCard
     public string? Keywords { get; set; }
 
     /// <summary>
-    /// Foreign key to the primary <see cref="SwuSet"/> that introduced this card.
+    /// Foreign key to the primary <see cref="Set"/> that introduced this card.
     /// </summary>
-    public int SwuSetId { get; set; }
+    public int SetId { get; set; }
 
     /// <summary>
     /// Navigation property to the primary expansion set that introduced this card.
     /// </summary>
-    public SwuSet SwuSet { get; set; } = null!;
+    public Set Set { get; set; } = null!;
 
     /// <summary>
     /// Foreign key to the base/canonical card when this is a variant (alternate art, hyperspace, etc.).
