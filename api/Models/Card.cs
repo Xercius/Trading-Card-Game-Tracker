@@ -10,6 +10,13 @@ public sealed class Card
     public required string Name { get; set; } // Name of card
     public required string CardType { get; set; } // Unit, Instant, Sorcery, Upgrade, Enchantment etc..
     public string? Description { get; set; } // Optional rules text
+    public string? TextStyled { get; set; }
+    public string? DeployBox { get; set; }
+    public string? DeployBoxStyled { get; set; }
+    public string? EpicAction { get; set; }
+    public string? EpicActionStyled { get; set; }
+    public string? Rules { get; set; }
+    public string? RulesStyled { get; set; }
     public string? DetailsJson { get; set; } // Source-specific payload
     public int? StrapiId { get; set; }
     public string? CardUid { get; set; }

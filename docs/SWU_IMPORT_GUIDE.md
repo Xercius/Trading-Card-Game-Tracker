@@ -203,17 +203,26 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | SWU field | Current repository behavior |
 |---|---|
 | `title` + `subtitle` | Combined display name; upstream printing identity takes precedence when updating an existing card, so renaming does not replace its owned printing. |
-| `type.data.attributes.name` | Stored as `Card.CardType`. |
-| `text` | Stored as `Card.Description`. |
-| `expansion.data.attributes.code` / `name` | Stored as uppercase `CardPrinting.Set` and upserted into `SwuSet`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
+| `cardUid` | Exact string identity for logical-card matching; never matched by title alone. Numeric record `id` is stored separately as `CardPrinting.StrapiId`. |
+| `type` / `type2` | Game-scoped card types, associated with source roles `Type` / `Type2`; legacy strings remain populated. |
+| `text` / `textStyled` | `Card.Description` / `Card.TextStyled`. |
+| `expansion.data.attributes.code` / `name` | Uppercase `CardPrinting.Set`, shared `Sets` row, and printing `SetId`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
+| `expansion.data.attributes.releaseDate` | Optional date-only set release value; never inferred from CMS publication timestamps. This optional contract is tested synthetically; see the evidence limitations in `SWUAPI_DOCUMENTATION.txt`. |
 | `serialCode` | Preferred printing identity and stored as `CardPrinting.Number` when present. |
 | `cardNumber` | Used as fallback printing number; if missing, record `id` is used. |
-| `rarity` | Stored as `CardPrinting.Rarity`; falls back to `Unknown`. |
-| `variantTypes[*].foil` | Any `true` value marks the printing style as `Foil`; otherwise `Standard`. |
-| `artFront` / `artBack` | Image preference order is art front original URL, card format URL, thumbnail URL, then art back URL. |
-| `variantOf` | Deferred relationship resolution uses upstream identifiers rather than titles, preventing subtitle mismatches and import-order dependence. Self-links are excluded; unresolved metadata is retained for subsequent imports. |
-| `createdAt` / `updatedAt` | Preserved in `CardPrinting.DetailsJson` for sync/debugging. |
-| traits / keywords / aspects / arena / cost / power / health / artist / cardUid / reprint data | Preserved in `DetailsJson`. |
+| `rarity` | Game-scoped rarity and printing `RarityId`; legacy name falls back to `Unknown`. |
+| `variantTypes` | Sorted source names form `Style`; any source `foil: true` sets `IsFoil`. Variant IDs remain in diagnostic JSON. |
+| `artFront` / `artBack` | Separate `ImageUrl` / `BackImageUrl`; each uses its original URL, card format, then thumbnail. Back art never substitutes for front art. |
+| `artFrontHorizontal` / `artBackHorizontal` | Nullable boolean printing columns. |
+| `variantOf` / `reprintOf` | Distinct printing relationships `VariantOfId` / `ReprintOfId` resolved by source record ID. Unresolved upstream IDs/UIDs remain in printing JSON for subsequent syncs. An optional `Card.BaseCardId` links known, distinct local logical cards, never upstream IDs. |
+| `createdAt` / `updatedAt` / `publishedAt` | Printing `ApiCreatedAt` / `ApiUpdatedAt` / `ApiPublishedAt`; CMS lifecycle dates, not printing or set release dates. |
+| traits / keywords / arenas | Game-scoped lookups and unique card associations. |
+| aspects / aspectDuplicates | Concatenated source occurrences grouped by aspect with an explicit positive `Count`, including double aspects. |
+| cost / power / health / artist | Typed card columns, with upstream `health` mapped to `Hp`. |
+
+The additive `PopulateNormalizedSwuPrintingFields` migration supplies styled text,
+orientation, foil, publication, and distinct printing relationship fields without
+replacing existing printing IDs or changing API routes/response shapes.
 
 ### 5. Operational gotchas
 

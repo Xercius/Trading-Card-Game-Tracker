@@ -143,6 +143,10 @@ namespace api.Data
                 e.HasIndex(p => p.StrapiId)
                     .IsUnique()
                     .HasFilter("\"StrapiId\" IS NOT NULL");
+                e.HasOne(p => p.VariantOf).WithMany().HasForeignKey(p => p.VariantOfId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(p => p.ReprintOf).WithMany().HasForeignKey(p => p.ReprintOfId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // --- Deck / DeckCard ---
