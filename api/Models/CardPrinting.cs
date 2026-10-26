@@ -13,13 +13,24 @@ namespace api.Models
         public required string Style { get; set; } // Standard, Foil, Hyperspace, Showcase etc..
         public string? ImageUrl { get; set; } // url to card image
         public string? BackImageUrl { get; set; }
+        public bool? ArtFrontHorizontal { get; set; }
+        public bool? ArtBackHorizontal { get; set; }
+        public bool IsFoil { get; set; }
+        public bool? Hyperspace { get; set; }
+        public bool? Showcase { get; set; }
+        public int? VariantOfId { get; set; }
+        public CardPrinting? VariantOf { get; set; }
+        public int? ReprintOfId { get; set; }
+        public CardPrinting? ReprintOf { get; set; }
         public string? DetailsJson { get; set; } // Source-specific payload
         public DateOnly? ReleasedAt { get; set; } // Release date when supplied by the source
         public int? SetId { get; set; }
         public Set? CatalogSet { get; set; }
         public int? StrapiId { get; set; }
+        public string? CardUid { get; set; }
         public DateTimeOffset? ApiCreatedAt { get; set; }
         public DateTimeOffset? ApiUpdatedAt { get; set; }
+        public DateTimeOffset? ApiPublishedAt { get; set; }
         public DateTimeOffset? LastSyncedAt { get; set; }
         public ICollection<DeckCard> DeckCards { get; set; } = new List<DeckCard>();
     }

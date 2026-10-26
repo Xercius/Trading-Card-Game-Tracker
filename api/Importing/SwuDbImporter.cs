@@ -116,8 +116,9 @@ public sealed class SwuDbImporter : ISourceImporter
                 .Include(p => p.Card)
                 .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
+            var catalog = new SwuCatalog(_db, _timeProvider);
+            await catalog.LoadAsync(ct);
             var cardChanges = new SwuSharedCardChanges(summary);
-            var expansions = new Dictionary<string, SwuExpansionAttributes>(StringComparer.OrdinalIgnoreCase);
             var autoDetectChangesEnabled = _db.ChangeTracker.AutoDetectChangesEnabled;
             _db.ChangeTracker.AutoDetectChangesEnabled = false;
             try
@@ -129,26 +130,28 @@ public sealed class SwuDbImporter : ISourceImporter
                     processed++;
                     var counts = (summary.CardsCreated, summary.CardsUpdated,
                         summary.PrintingsCreated, summary.PrintingsUpdated);
-                    var changes = new RecordChanges();
                     try
                     {
-                        var card = Upsert(record, summary, identity, changes, requireExpansion);
+                        var card = Upsert(record, summary, identity, requireExpansion, catalog,
+                            out var associationsChanged);
                         var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
                         // EF rolls back failed writes to a savepoint in the import transaction.
                         await _db.SaveChangesAsync(ct);
                         if (state == EntityState.Added) cardChanges.Created(card!);
-                        if (state == EntityState.Modified) cardChanges.Updated(card!);
-                        if (card is not null && record.Attributes?.Expansion?.Data?.Attributes is { Code: not null } expansion
-                            && !string.IsNullOrWhiteSpace(expansion.Code))
-                            expansions[expansion.Code.Trim().ToUpperInvariant()] = expansion;
+                        if (state == EntityState.Modified || associationsChanged)
+                            cardChanges.Updated(card!);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _logger.LogError(ex, "Failed to import SWU card record {SourceId}.", record?.Id);
-                        _db.ChangeTracker.DetectChanges();
-                        RestoreFailedRecord(changes);
-                        identity = new SwuSharedIdentity(_db.CardPrintings.Local
-                            .Where(p => p.Card.Game == "Star Wars Unlimited"));
+                        // A failed record can include lookup/association changes as well as scalars.
+                        // Discard all unsaved tracked changes; committed records remain in the transaction.
+                        _db.ChangeTracker.Clear();
+                        await _db.Cards.Where(c => c.Game == "Star Wars Unlimited").LoadAsync(ct);
+                        printings = await _db.CardPrintings.Include(p => p.Card)
+                            .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
+                        identity = new SwuSharedIdentity(printings);
+                        await catalog.LoadAsync(ct);
                         (summary.CardsCreated, summary.CardsUpdated,
                             summary.PrintingsCreated, summary.PrintingsUpdated) = counts;
                         summary.Errors++;
@@ -158,7 +161,8 @@ public sealed class SwuDbImporter : ISourceImporter
                     }
                 }
 
-                foreach (var card in identity.ResolveRelationships())
+                var relationshipCards = identity.ResolveRelationships(out var changedPrintings);
+                foreach (var card in relationshipCards)
                 {
                     cardChanges.Updated(card);
                     var entry = _db.Entry(card);
@@ -166,7 +170,13 @@ public sealed class SwuDbImporter : ISourceImporter
                         entry.Property(entity => entity.BaseCardId).IsModified = true;
                 }
 
-                await UpsertExpansionsAsync(expansions, ct);
+                foreach (var printing in changedPrintings)
+                {
+                    var entry = _db.Entry(printing);
+                    if (entry.State == EntityState.Added) continue;
+                    entry.Property(entity => entity.VariantOfId).IsModified = true;
+                    entry.Property(entity => entity.ReprintOfId).IsModified = true;
+                }
                 await _db.SaveChangesAsync(ct);
                 summary.Messages.Add($"Processed {processed} records {description}.");
                 return summary;
@@ -178,63 +188,10 @@ public sealed class SwuDbImporter : ISourceImporter
         });
     }
 
-    private async Task UpsertExpansionsAsync(
-        Dictionary<string, SwuExpansionAttributes> expansions, CancellationToken ct)
-    {
-        var gameId = await _db.Games
-            .Where(g => g.NameNormalized == "star wars unlimited")
-            .Select(g => g.Id)
-            .SingleAsync(ct);
-        var sets = await _db.Sets
-            .Where(s => s.GameId == gameId)
-            .ToDictionaryAsync(s => s.Code, StringComparer.OrdinalIgnoreCase, ct);
-        foreach (var (code, expansion) in expansions)
-        {
-            if (!sets.TryGetValue(code, out var set))
-            {
-                set = new Set { GameId = gameId, Code = code };
-                _db.Sets.Add(set);
-                sets[code] = set;
-            }
-            if (!string.IsNullOrWhiteSpace(expansion.Name))
-                set.Name = expansion.Name.Trim();
-            set.LastSyncedAt = _timeProvider.GetUtcNow();
-            if (_db.Entry(set).State != EntityState.Added)
-                _db.Entry(set).State = EntityState.Modified;
-        }
-    }
-
-    private void RestoreFailedRecord(RecordChanges changes)
-    {
-        if (changes.Printing is { } printing)
-        {
-            var entry = _db.Entry(printing);
-            if (changes.PrintingCreated)
-            {
-                printing.Card.Printings.Remove(printing);
-                entry.State = EntityState.Detached;
-            }
-            else if (entry.State == EntityState.Modified)
-            {
-                entry.CurrentValues.SetValues(entry.OriginalValues);
-                entry.State = EntityState.Unchanged;
-            }
-        }
-
-        if (changes.Card is not { } card) return;
-        var cardEntry = _db.Entry(card);
-        if (changes.CardCreated)
-            cardEntry.State = EntityState.Detached;
-        else if (cardEntry.State == EntityState.Modified)
-        {
-            cardEntry.CurrentValues.SetValues(cardEntry.OriginalValues);
-            cardEntry.State = EntityState.Unchanged;
-        }
-    }
-
     private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity,
-        RecordChanges changes, bool requireExpansion)
+        bool requireExpansion, SwuCatalog catalog, out bool associationsChanged)
     {
+        associationsChanged = false;
         const string game = "Star Wars Unlimited";
 
         var attrs = record.Attributes
@@ -264,7 +221,7 @@ public sealed class SwuDbImporter : ISourceImporter
         string set = expansion?.Code?.Trim().ToUpperInvariant() ?? "UNK";
         string number = attrs.CardNumber?.ToString() ?? record.Id.ToString();
         string? serialCode = string.IsNullOrWhiteSpace(attrs.SerialCode) ? null : attrs.SerialCode.Trim();
-        string? cardUid = attrs.CardUid;
+        string? cardUid = string.IsNullOrWhiteSpace(attrs.CardUid) ? null : attrs.CardUid.Trim();
         int sourceId = record.Id;
         string rarity = attrs.Rarity ?? "Unknown";
 
@@ -274,53 +231,39 @@ public sealed class SwuDbImporter : ISourceImporter
         string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
 
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
-        string style = isFoil ? "Foil" : "Standard";
+        var styles = (attrs.VariantTypes?.Data ?? [])
+            .Select(v => v.Attributes?.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+        if (attrs.Hyperspace == true) styles.Add("Hyperspace");
+        if (attrs.Showcase == true) styles.Add("Showcase");
+        if (styles.Any(n => n != "Standard")) styles.RemoveAll(n => n == "Standard");
+        string style = string.Join(", ", styles.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+        if (string.IsNullOrEmpty(style)) style = isFoil ? "Foil" : "Standard";
 
         string? imageUrl = attrs.ArtFront?.Data?.Attributes?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
-                        ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url
-                        ?? attrs.ArtBack?.Data?.Attributes?.Url;
+                        ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url;
 
         // Source/serial identity takes precedence over names, which can be corrected upstream.
         var printing = identity.FindPrinting(sourceId, serialCode, set, number);
-        var card = printing?.Card
-                   ?? _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name);
-
-        var cardJson = JsonSerializer.Serialize(new
-        {
-            sourceId,
-            cardUid,
-            serialCode,
-            subtitle = attrs.Subtitle,
-            type,
-            traits = attrs.Traits,
-            keywords = attrs.Keywords,
-            aspects = attrs.Aspects,
-            arena = attrs.Arena,
-            power = attrs.Power,
-            health = attrs.Health,
-            cost = attrs.Cost,
-            text,
-            artist = attrs.Artist,
-            variantOfSourceId,
-            variantOfCardUid,
-            reprintOfSourceId,
-            reprintOfCardUid
-        }, JsonOptions);
+        var card = (cardUid is null ? null : _db.Cards.Local
+            .SingleOrDefault(c => c.Game == game && c.CardUid == cardUid))
+            ?? identity.FindCard(cardUid) ?? printing?.Card;
+        // Legacy title matching could put unrelated source UIDs on one Card.
+        // Keep the first identity on that row; move other identities, not printing IDs.
+        if (cardUid is not null && card?.CardUid is { } existingUid && existingUid != cardUid
+            && card.Printings.Any(p => p != printing && SwuSharedIdentity.SourceUid(p) is { } uid && uid != cardUid))
+            card = null;
 
         var printingJson = JsonSerializer.Serialize(new
         {
-            sourceId,
-            cardUid,
             serialCode,
-            set,
-            number,
-            rarity,
-            style,
-            aspects = attrs.Aspects,
-            cost = attrs.Cost,
-            createdAt = attrs.CreatedAt,
-            updatedAt = attrs.UpdatedAt,
+            variantTypes = attrs.VariantTypes?.Data?.Select(v => new
+            {
+                v.Id,
+                v.Attributes?.Name,
+                v.Attributes?.VariantId,
+                v.Attributes?.Foil
+            }).OrderBy(v => v.Id),
             variantOfSourceId,
             variantOfCardUid,
             reprintOfSourceId,
@@ -336,24 +279,44 @@ public sealed class SwuDbImporter : ISourceImporter
                 Name = name,
                 CardType = type,
                 Description = text,
-                DetailsJson = cardJson
+                CardUid = cardUid
             };
             _db.Cards.Add(card);
-            changes.CardCreated = true;
         }
         else
         {
             bool changed = card.Name != name || card.CardType != type
-                || card.Description != text || card.DetailsJson != cardJson;
+                || card.Description != text;
             card.Name = name;
             card.CardType = type;
             card.Description = text;
-            card.DetailsJson = cardJson;
             if (changed && _db.Entry(card).State != EntityState.Added)
                 _db.Entry(card).State = EntityState.Modified;
         }
-        changes.Card = card;
-
+        var originalCardValues = _db.Entry(card).CurrentValues.Clone();
+        card.CardUid = cardUid;
+        card.Subtitle = attrs.Subtitle;
+        card.CardType2 = attrs.Type2?.Data?.Attributes?.Name;
+        card.TextStyled = attrs.TextStyled;
+        card.DeployBox = attrs.DeployBox;
+        card.DeployBoxStyled = attrs.DeployBoxStyled;
+        card.EpicAction = attrs.EpicAction;
+        card.EpicActionStyled = attrs.EpicActionStyled;
+        card.Rules = attrs.Rules;
+        card.RulesStyled = attrs.RulesStyled;
+        card.Arena = attrs.Arena;
+        card.Cost = attrs.Cost;
+        card.Power = attrs.Power;
+        card.Hp = attrs.Health ?? attrs.Hp;
+        card.Artist = attrs.Artist;
+        card.Aspects = JsonSerializer.Serialize((attrs.Aspects ?? []).Concat(attrs.AspectDuplicates ?? []));
+        card.Traits = JsonSerializer.Serialize(attrs.Traits ?? []);
+        card.Keywords = JsonSerializer.Serialize(attrs.Keywords ?? []);
+        card.DetailsJson = null;
+        if (_db.Entry(card).State != EntityState.Added
+            && originalCardValues.Properties.Any(p => !Equals(originalCardValues[p], _db.Entry(card).CurrentValues[p])))
+            _db.Entry(card).State = EntityState.Modified;
+        var printingCreated = printing is null;
         if (printing is null)
         {
             printing = new CardPrinting
@@ -369,7 +332,6 @@ public sealed class SwuDbImporter : ISourceImporter
             };
             _db.CardPrintings.Add(printing);
             summary.PrintingsCreated++;
-            changes.PrintingCreated = true;
         }
         else
         {
@@ -378,7 +340,7 @@ public sealed class SwuDbImporter : ISourceImporter
             if (printing.Number != (serialCode ?? number)) { printing.Number = serialCode ?? number; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
             if (printing.Style != style) { printing.Style = style; changed = true; }
-            if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
+            if (printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed)
             {
@@ -387,16 +349,38 @@ public sealed class SwuDbImporter : ISourceImporter
                     _db.Entry(printing).State = EntityState.Modified;
             }
         }
-        changes.Printing = printing;
+        var updateCounted = !printingCreated && _db.Entry(printing).State == EntityState.Modified;
+        var originalPrintingValues = _db.Entry(printing).CurrentValues.Clone();
+        var oldCard = printing.Card;
+        _db.Entry(printing).Reference(entity => entity.Card).CurrentValue = card;
+        printing.StrapiId = sourceId;
+        printing.CardUid = cardUid;
+        printing.BackImageUrl = attrs.ArtBack?.Data?.Attributes?.Url
+            ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Card?.Url
+            ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Thumbnail?.Url;
+        printing.ArtFrontHorizontal = attrs.ArtFrontHorizontal;
+        printing.ArtBackHorizontal = attrs.ArtBackHorizontal;
+        printing.IsFoil = isFoil;
+        printing.Hyperspace = attrs.Hyperspace;
+        printing.Showcase = attrs.Showcase;
+        printing.ApiCreatedAt = attrs.CreatedAt?.ToUniversalTime();
+        printing.ApiUpdatedAt = attrs.UpdatedAt?.ToUniversalTime();
+        printing.ApiPublishedAt = attrs.PublishedAt?.ToUniversalTime();
+        associationsChanged = catalog.Apply(card, printing, attrs);
+        if (oldCard != card)
+        {
+            if (oldCard.Printings.Count == 0) _db.Cards.Remove(oldCard);
+        }
+        if (!printingCreated && !updateCounted
+            && (_db.Entry(printing).State == EntityState.Modified || originalPrintingValues.Properties.Any(p =>
+                p.Name != nameof(CardPrinting.LastSyncedAt)
+                && !Equals(originalPrintingValues[p], _db.Entry(printing).CurrentValues[p]))))
+        {
+            summary.PrintingsUpdated++;
+            _db.Entry(printing).State = EntityState.Modified;
+        }
+        printing.LastSyncedAt = _timeProvider.GetUtcNow();
         identity.Track(printing);
         return card;
-    }
-
-    private sealed class RecordChanges
-    {
-        internal Card? Card { get; set; }
-        internal CardPrinting? Printing { get; set; }
-        internal bool CardCreated { get; set; }
-        internal bool PrintingCreated { get; set; }
     }
 }

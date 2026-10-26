@@ -243,7 +243,24 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("variantOf")] StrapiRelation<SwuVariantRefAttributes>? VariantOf,
     [property: JsonPropertyName("reprintOf")] StrapiRelation<SwuVariantRefAttributes>? ReprintOf,
     [property: JsonPropertyName("artFront")] StrapiRelation<SwuImageAttributes>? ArtFront,
-    [property: JsonPropertyName("artBack")] StrapiRelation<SwuImageAttributes>? ArtBack);
+    [property: JsonPropertyName("artBack")] StrapiRelation<SwuImageAttributes>? ArtBack,
+    [property: JsonPropertyName("textStyled")] string? TextStyled = null,
+    [property: JsonPropertyName("type2")] StrapiRelation<SwuTypeAttributes>? Type2 = null,
+    [property: JsonConverter(typeof(SwuNameListConverter))]
+    [property: JsonPropertyName("arenas")] string[]? Arenas = null,
+    [property: JsonConverter(typeof(SwuNameListConverter))]
+    [property: JsonPropertyName("aspectDuplicates")] string[]? AspectDuplicates = null,
+    [property: JsonPropertyName("artFrontHorizontal")] bool? ArtFrontHorizontal = null,
+    [property: JsonPropertyName("artBackHorizontal")] bool? ArtBackHorizontal = null,
+    [property: JsonPropertyName("hp")] int? Hp = null,
+    [property: JsonPropertyName("deployBox")] string? DeployBox = null,
+    [property: JsonPropertyName("deployBoxStyled")] string? DeployBoxStyled = null,
+    [property: JsonPropertyName("epicAction")] string? EpicAction = null,
+    [property: JsonPropertyName("epicActionStyled")] string? EpicActionStyled = null,
+    [property: JsonPropertyName("rules")] string? Rules = null,
+    [property: JsonPropertyName("rulesStyled")] string? RulesStyled = null,
+    [property: JsonPropertyName("hyperspace")] bool? Hyperspace = null,
+    [property: JsonPropertyName("showcase")] bool? Showcase = null);
 
 internal sealed record StrapiRelation<T>(
     [property: JsonPropertyName("data")] StrapiRelationData<T>? Data);
@@ -301,7 +318,8 @@ internal sealed record SwuTypeAttributes(
 
 internal sealed record SwuExpansionAttributes(
     [property: JsonPropertyName("name")] string? Name,
-    [property: JsonPropertyName("code")] string? Code);
+    [property: JsonPropertyName("code")] string? Code,
+    [property: JsonPropertyName("releaseDate")] DateOnly? ReleaseDate = null);
 
 internal sealed record SwuVariantTypeAttributes(
     [property: JsonPropertyName("name")] string? Name,

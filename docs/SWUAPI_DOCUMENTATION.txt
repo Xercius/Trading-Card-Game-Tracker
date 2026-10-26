@@ -97,6 +97,46 @@ HTTP method for all consumer-accessible endpoints: GET
     filters[createdAt][$gte]               2025-08-01T00:00:00.000Z  Created on/after date
     filters[updatedAt][$gt]               2026-06-01T00:00:00.000Z  Updated after date
 
+    Catalog identity and mapping evidence (normalized importer)
+        The captured example in starwarsunlimitedapi.txt has record id 39380,
+        cardUid "1020365882", and serialCode "06010001". These are separate
+        identifiers: id identifies the card-list record/printing; cardUid is text,
+        never an integer. The relationship shapes below identify variantOf and
+        reprintOf targets by card-list record id, optionally including cardUid.
+        Both relationships are retained independently at printing level.
+
+        Logical-card matching uses exact cardUid equality (including when the
+        title changes), or the already matched printing's local CardId. Neither
+        title/subtitle equality nor a relationship to a different cardUid proves
+        logical-card equality. Distinct UIDs remain distinct Cards; a resolved
+        relationship may set a local BaseCardId without replacing CardPrinting.CardId.
+        Source ids and relationship ids must never be used as local foreign keys.
+        Older DetailsJson source identities remain readable for in-place upgrades.
+        Each printing also retains its own CardUid so a legacy title-merged Card
+        can be separated by source UID without losing printing/ownership/deck IDs.
+
+        Independent captured response inspected:
+        https://github.com/hdchan/R4-MG/blob/9b5efd11f4b57b2ab45e893dce423e6e2639a86c/SWUApp/starwarsunlimited_com/sample_response.json
+        Record 19531 has cardUid "0766281795", type Leader, type2 Leader Unit,
+        artFrontHorizontal true, hp 6, and separate text/textStyled,
+        deployBox/deployBoxStyled, epicAction/epicActionStyled, rules/rulesStyled.
+        It includes aspectDuplicates, arenas, hyperspace, showcase, and variantTypes
+        with name/variantId/foil. Its JTL expansion contains CMS timestamps but
+        NO releaseDate. The importer accepts legacy health as well as captured hp.
+        The captured records have null variantOf/reprintOf; non-null relationship
+        shapes are evidenced by this repository's documented contract below, not
+        this independent capture. Exact UID equality is a conservative grouping
+        rule, not a claim that every variant shares a UID.
+
+        Evidence limitation: a live request on 2026-10-26 failed DNS resolution,
+        and the referenced workbook is not present in this checkout. The documented
+        response below does not establish an official expansion release-date field.
+        Consequently no expansion publication timestamp is mapped to Sets.ReleasedAt.
+        Record createdAt/updatedAt/publishedAt describe CMS record lifecycle only.
+        Optional expansion.releaseDate support is covered by a synthetic contract
+        test only, not represented as a verified live API property. It accepts only
+        a date explicitly supplied as releaseDate, never another timestamp.
+
     Response shape:
     {
       "data": [

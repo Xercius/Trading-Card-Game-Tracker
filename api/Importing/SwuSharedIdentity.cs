@@ -40,7 +40,7 @@ internal sealed class SwuSharedIdentity
             RemoveIfOwned(_bySetNumber, oldKeys.SetNumber, printing);
         }
 
-        var sourceIdValue = ReadInt(printing.DetailsJson, "sourceId");
+        var sourceIdValue = printing.StrapiId ?? ReadInt(printing.DetailsJson, "sourceId");
         var sourceId = sourceIdValue is > 0 ? sourceIdValue : null;
         var serialCode = ReadString(printing.DetailsJson, "serialCode");
         var keys = new PrintingKeys(sourceId, serialCode, printing.Number, (printing.Set, printing.Number));
@@ -51,18 +51,30 @@ internal sealed class SwuSharedIdentity
         _bySetNumber[(printing.Set, printing.Number)] = printing;
     }
 
-    internal IReadOnlyList<Card> ResolveRelationships()
+    internal IReadOnlyList<Card> ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
     {
         var changed = new List<Card>();
+        var updatedPrintings = new List<CardPrinting>();
         var bySource = _printings
-            .Where(p => ReadInt(p.DetailsJson, "sourceId") is > 0)
-            .GroupBy(p => ReadInt(p.DetailsJson, "sourceId")!.Value)
+            .Where(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId")) is > 0)
+            .GroupBy(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId"))!.Value)
             .ToDictionary(g => g.Key, g => g.First().Card);
         var byUid = _printings
-            .Where(p => !string.IsNullOrWhiteSpace(ReadString(p.DetailsJson, "cardUid")))
-            .GroupBy(p => ReadString(p.DetailsJson, "cardUid")!)
+            .Where(p => !string.IsNullOrWhiteSpace(SourceUid(p)))
+            .GroupBy(p => SourceUid(p)!)
             .ToDictionary(g => g.Key, g => g.First().Card);
 
+        foreach (var printing in _printings)
+        {
+            var variantOf = FindTarget(printing, "variantOfSourceId");
+            var reprintOf = FindTarget(printing, "reprintOfSourceId");
+            if (printing.VariantOfId != variantOf?.Id || printing.ReprintOfId != reprintOf?.Id)
+                updatedPrintings.Add(printing);
+            printing.VariantOf = variantOf;
+            printing.VariantOfId = variantOf?.Id;
+            printing.ReprintOf = reprintOf;
+            printing.ReprintOfId = reprintOf?.Id;
+        }
         foreach (var group in _printings.GroupBy(p => p.Card))
         {
             var card = group.Key;
@@ -75,7 +87,22 @@ internal sealed class SwuSharedIdentity
             card.BaseCardId = baseCard?.Id;
             changed.Add(card);
         }
+        changedPrintings = updatedPrintings;
         return changed;
+    }
+
+    internal Card? FindCard(string? cardUid)
+        => string.IsNullOrWhiteSpace(cardUid) ? null : _printings.FirstOrDefault(p =>
+            SourceUid(p) == cardUid && (p.Card.CardUid is null || p.Card.CardUid == cardUid))?.Card;
+
+    internal static string? SourceUid(CardPrinting printing)
+        => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid") ?? printing.Card.CardUid;
+
+    private CardPrinting? FindTarget(CardPrinting printing, string field)
+    {
+        var id = ReadInt(printing.DetailsJson, field);
+        return id is > 0 && _bySource.TryGetValue(id.Value, out var target)
+            && target != printing ? target : null;
     }
 
     private static Card? ResolveBase(CardPrinting printing,
@@ -140,16 +167,16 @@ internal sealed class SwuSharedIdentity
 
 internal sealed class SwuSharedCardChanges(ImportSummary summary)
 {
-    private readonly HashSet<Card> _created = [];
-    private readonly HashSet<Card> _updated = [];
+    private readonly HashSet<int> _created = [];
+    private readonly HashSet<int> _updated = [];
 
     internal void Created(Card card)
     {
-        if (_created.Add(card)) summary.CardsCreated++;
+        if (_created.Add(card.Id)) summary.CardsCreated++;
     }
 
     internal void Updated(Card card)
     {
-        if (!_created.Contains(card) && _updated.Add(card)) summary.CardsUpdated++;
+        if (!_created.Contains(card.Id) && _updated.Add(card.Id)) summary.CardsUpdated++;
     }
 }

@@ -1,6 +1,9 @@
 using System.Net.Http.Json;
+using api.Data;
 using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace api.Tests.Features.Cards;
@@ -38,6 +41,34 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         var printing = Assert.Single(printings);
         Assert.Equal(TestDataSeeder.LightningBoltAlphaPrintingId, printing.PrintingId);
         Assert.Equal("A1", printing.Number);
+    }
+
+    [Fact]
+    public async Task Get_with_style_filter_matches_individual_values_in_composite_style()
+    {
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var printing = await db.CardPrintings.SingleAsync(
+                p => p.Id == TestDataSeeder.GoblinGuidePrintingId);
+            printing.Style = "Hyperspace, Showcase";
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var hyperspace = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?style=Hyperspace");
+        var showcase = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?style=Showcase");
+        var both = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?style=Hyperspace%2C%20Showcase");
+        var partial = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?style=space");
+
+        Assert.Contains(hyperspace!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
+        Assert.Contains(showcase!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
+        Assert.Contains(both!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
+        Assert.DoesNotContain(partial!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
     }
 
     [Fact]
