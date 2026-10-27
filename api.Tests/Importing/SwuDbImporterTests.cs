@@ -1274,7 +1274,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task ImportFromFileAsync_Populates_AspectColor_RarityCharacterAndColor_And_SetReleasedAtFromPublishedAt()
+    public async Task ImportFromFileAsync_PopulatesCatalogDetails_AndUsesOnlyExplicitSetReleaseDate()
     {
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
@@ -1387,7 +1387,19 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         var set = await db.Sets.SingleAsync(s => s.Code == "SOR");
-        Assert.Equal(new DateOnly(2024, 1, 24), set.ReleasedAt);
+        Assert.Null(set.ReleasedAt);
+
+        var page = JsonNode.Parse(json)!;
+        var expansion = page["data"]![0]!["attributes"]!["expansion"]!["data"]!["attributes"]!;
+        expansion["releaseDate"] = "2024-02-01";
+        await importer.ImportFromFileAsync(ToStream(page.ToJsonString()), new ImportOptions(DryRun: false, SetCode: "SOR"));
+        Assert.Equal(new DateOnly(2024, 2, 1), (await db.Sets.SingleAsync(s => s.Code == "SOR")).ReleasedAt);
+
+        expansion.AsObject().Remove("releaseDate");
+        expansion["publishedAt"] = "2025-02-01T00:00:00.000Z";
+        await importer.ImportFromFileAsync(ToStream(page.ToJsonString()), new ImportOptions(DryRun: false, SetCode: "SOR"));
+        db.ChangeTracker.Clear();
+        Assert.Equal(new DateOnly(2024, 2, 1), (await db.Sets.SingleAsync(s => s.Code == "SOR")).ReleasedAt);
 
         var rarity = await db.Rarities.SingleAsync(r => r.Name == "Common");
         Assert.Equal("C", rarity.Character);

@@ -39,7 +39,6 @@ namespace api.Data
             b.Entity<Card>(e =>
             {
                 e.HasKey(c => c.Id);
-                e.Ignore(c => c.DetailsJson);
 
                 // required columns (don’t rely only on C# 'required' for EF)
                 e.Property(c => c.Game).IsRequired().HasMaxLength(64);

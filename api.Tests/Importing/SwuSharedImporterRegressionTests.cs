@@ -486,6 +486,31 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
+    public async Task Import_RemovedSourceRelationship_TakesPriorityOverStaleResolvedId()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(99, "Target", "TWI", "target"));
+        await ImportAsync(database, Record(1, "Shared", "SOR", "lower", variantId: 99));
+        var originalBase = JsonSerializer.SerializeToNode(Record(2, "Shared", "SHD", "upper"))!;
+        originalBase["attributes"]!["text"] = "original base";
+        await ImportAsync(database, originalBase);
+
+        var lower = JsonSerializer.SerializeToNode(Record(1, "Shared", "SOR", "lower"))!;
+        lower["attributes"]!["text"] = "lower source";
+        var higher = JsonSerializer.SerializeToNode(Record(2, "Shared", "SHD", "upper"))!;
+        higher["attributes"]!["text"] = "higher source";
+        await ImportAsync(database, lower, higher);
+
+        await using (var db = database.Open())
+            Assert.Equal("lower source", (await db.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+
+        var replay = await ImportAsync(database, lower, higher);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
+        await using var verify = database.Open();
+        Assert.Equal("lower source", (await verify.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+    }
+
+    [Fact]
     public async Task Import_RemovedRelationship_PreservesOtherCanonicalPrintingLink()
     {
         await using var database = await Database.CreateAsync();

@@ -123,6 +123,9 @@ namespace api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EpicAction")
                         .HasColumnType("TEXT");
 
@@ -1211,4 +1214,3 @@ namespace api.Migrations
         }
     }
 }
-

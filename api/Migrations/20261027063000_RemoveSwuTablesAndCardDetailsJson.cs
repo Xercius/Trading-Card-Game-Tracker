@@ -22,65 +22,195 @@ namespace api.Migrations
 
             migrationBuilder.Sql(
                 """
+                CREATE TEMP TABLE "_SwuCardConsolidation" AS
+                WITH PrintingPriority AS (
+                    SELECT
+                        p."CardId",
+                        CASE
+                            WHEN json_valid(p."DetailsJson") THEN CASE
+                                WHEN json_type(p."DetailsJson", '$.variantOfSourceId') IS NOT NULL
+                                    OR json_type(p."DetailsJson", '$.variantOfCardUid') IS NOT NULL
+                                    OR json_type(p."DetailsJson", '$.reprintOfSourceId') IS NOT NULL
+                                    OR json_type(p."DetailsJson", '$.reprintOfCardUid') IS NOT NULL
+                                THEN CASE
+                                    WHEN CAST(json_extract(p."DetailsJson", '$.variantOfSourceId') AS INTEGER) > 0
+                                        OR NULLIF(json_extract(p."DetailsJson", '$.variantOfCardUid'), '') IS NOT NULL
+                                        OR CAST(json_extract(p."DetailsJson", '$.reprintOfSourceId') AS INTEGER) > 0
+                                        OR NULLIF(json_extract(p."DetailsJson", '$.reprintOfCardUid'), '') IS NOT NULL
+                                    THEN 0 ELSE 1
+                                END
+                                WHEN p."VariantOfId" IS NOT NULL OR p."ReprintOfId" IS NOT NULL THEN 0
+                                ELSE 1
+                            END
+                            WHEN p."VariantOfId" IS NOT NULL OR p."ReprintOfId" IS NOT NULL THEN 0
+                            ELSE 1
+                        END AS "IsBase",
+                        COALESCE(
+                            p."StrapiId",
+                            CASE WHEN json_valid(p."DetailsJson")
+                                THEN CAST(json_extract(p."DetailsJson", '$.sourceId') AS INTEGER)
+                            END
+                        ) AS "SourceId"
+                    FROM "CardPrintings" p
+                    JOIN "Cards" c ON c."Id" = p."CardId"
+                    WHERE c."GameNorm" = 'star wars unlimited'
+                ),
+                CardPriority AS (
+                    SELECT
+                        c."Id",
+                        c."GameNorm",
+                        c."NameNormalized",
+                        COALESCE(MAX(pp."IsBase"), 0) AS "HasBase",
+                        MIN(CASE WHEN pp."IsBase" = 1 THEN pp."SourceId" END) AS "FirstBaseSourceId",
+                        MIN(pp."SourceId") AS "FirstSourceId"
+                    FROM "Cards" c
+                    LEFT JOIN PrintingPriority pp ON pp."CardId" = c."Id"
+                    WHERE c."GameNorm" = 'star wars unlimited'
+                    GROUP BY c."Id", c."GameNorm", c."NameNormalized"
+                ),
+                RankedCards AS (
+                    SELECT
+                        "Id",
+                        FIRST_VALUE("Id") OVER (
+                            PARTITION BY "GameNorm", "NameNormalized"
+                            ORDER BY "Id"
+                        ) AS "CanonicalCardId",
+                        FIRST_VALUE("Id") OVER (
+                            PARTITION BY "GameNorm", "NameNormalized"
+                            ORDER BY
+                                "HasBase" DESC,
+                                COALESCE(
+                                    CASE WHEN "HasBase" = 1 THEN "FirstBaseSourceId" ELSE "FirstSourceId" END,
+                                    2147483647
+                                ),
+                                "Id"
+                        ) AS "MetadataCardId"
+                    FROM CardPriority
+                )
+                SELECT
+                    "Id" AS "DuplicateCardId",
+                    "CanonicalCardId",
+                    "MetadataCardId"
+                FROM RankedCards;
+
+                UPDATE "Cards"
+                SET (
+                    "Name", "CardType", "Description", "CardUid", "Subtitle", "CardType2",
+                    "TextStyled", "DeployBox", "DeployBoxStyled", "EpicAction", "EpicActionStyled",
+                    "Rules", "RulesStyled", "Arena", "Cost", "Power", "Hp", "Artist", "Aspects",
+                    "Traits", "Keywords"
+                ) = (
+                    SELECT
+                        metadata."Name", metadata."CardType", metadata."Description", metadata."CardUid",
+                        metadata."Subtitle", metadata."CardType2", metadata."TextStyled", metadata."DeployBox",
+                        metadata."DeployBoxStyled", metadata."EpicAction", metadata."EpicActionStyled",
+                        metadata."Rules", metadata."RulesStyled", metadata."Arena", metadata."Cost",
+                        metadata."Power", metadata."Hp", metadata."Artist", metadata."Aspects",
+                        metadata."Traits", metadata."Keywords"
+                    FROM "_SwuCardConsolidation" map
+                    JOIN "Cards" metadata ON metadata."Id" = map."MetadataCardId"
+                    WHERE map."CanonicalCardId" = "Cards"."Id"
+                    LIMIT 1
+                )
+                WHERE "Id" IN (
+                    SELECT "CanonicalCardId"
+                    FROM "_SwuCardConsolidation"
+                    WHERE "CanonicalCardId" <> "MetadataCardId"
+                );
+
+                INSERT OR IGNORE INTO "CardAspects" ("CardId", "AspectId", "Count")
+                SELECT map."CanonicalCardId", association."AspectId", association."Count"
+                FROM "_SwuCardConsolidation" map
+                JOIN "CardAspects" association ON association."CardId" = map."MetadataCardId"
+                WHERE map."CanonicalCardId" <> map."MetadataCardId";
+
+                INSERT OR IGNORE INTO "CardCardTypes" ("CardId", "CardTypeId", "SourceRole")
+                SELECT map."CanonicalCardId", association."CardTypeId", association."SourceRole"
+                FROM "_SwuCardConsolidation" map
+                JOIN "CardCardTypes" association ON association."CardId" = map."MetadataCardId"
+                WHERE map."CanonicalCardId" <> map."MetadataCardId";
+
+                INSERT OR IGNORE INTO "CardTraits" ("CardId", "TraitId")
+                SELECT map."CanonicalCardId", association."TraitId"
+                FROM "_SwuCardConsolidation" map
+                JOIN "CardTraits" association ON association."CardId" = map."MetadataCardId"
+                WHERE map."CanonicalCardId" <> map."MetadataCardId";
+
+                INSERT OR IGNORE INTO "CardKeywords" ("CardId", "KeywordId")
+                SELECT map."CanonicalCardId", association."KeywordId"
+                FROM "_SwuCardConsolidation" map
+                JOIN "CardKeywords" association ON association."CardId" = map."MetadataCardId"
+                WHERE map."CanonicalCardId" <> map."MetadataCardId";
+
+                INSERT OR IGNORE INTO "CardArenas" ("CardId", "ArenaId")
+                SELECT map."CanonicalCardId", association."ArenaId"
+                FROM "_SwuCardConsolidation" map
+                JOIN "CardArenas" association ON association."CardId" = map."MetadataCardId"
+                WHERE map."CanonicalCardId" <> map."MetadataCardId";
+
                 UPDATE "CardPrintings"
                 SET "CardId" = (
-                    SELECT MIN(c2."Id")
-                    FROM "Cards" c1
-                    JOIN "Cards" c2 ON c2."GameNorm" = c1."GameNorm" AND c2."NameNormalized" = c1."NameNormalized"
-                    WHERE c1."Id" = "CardPrintings"."CardId"
+                    SELECT map."CanonicalCardId"
+                    FROM "_SwuCardConsolidation" map
+                    WHERE map."DuplicateCardId" = "CardPrintings"."CardId"
                 )
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM "Cards" c1
-                    JOIN "Cards" c2 ON c2."GameNorm" = c1."GameNorm" AND c2."NameNormalized" = c1."NameNormalized"
-                    WHERE c1."Id" = "CardPrintings"."CardId" AND c2."Id" < c1."Id"
+                WHERE "CardId" IN (
+                    SELECT "DuplicateCardId"
+                    FROM "_SwuCardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId"
                 )
                 AND NOT EXISTS (
                     SELECT 1
-                    FROM "Cards" c1
-                    JOIN "Cards" c2 ON c2."GameNorm" = c1."GameNorm" AND c2."NameNormalized" = c1."NameNormalized"
-                    JOIN "CardPrintings" cp2 ON cp2."CardId" = c2."Id"
-                        AND cp2."Set" = "CardPrintings"."Set"
-                        AND cp2."Number" = "CardPrintings"."Number"
-                        AND cp2."Style" = "CardPrintings"."Style"
-                    WHERE c1."Id" = "CardPrintings"."CardId" AND c2."Id" < c1."Id"
+                    FROM "_SwuCardConsolidation" map
+                    JOIN "CardPrintings" existing
+                        ON existing."CardId" = map."CanonicalCardId"
+                        AND existing."Set" = "CardPrintings"."Set"
+                        AND existing."Number" = "CardPrintings"."Number"
+                        AND existing."Style" = "CardPrintings"."Style"
+                    WHERE map."DuplicateCardId" = "CardPrintings"."CardId"
                 );
 
                 UPDATE "Cards"
                 SET "BaseCardId" = (
-                    SELECT MIN(c2."Id")
-                    FROM "Cards" c1
-                    JOIN "Cards" c2 ON c2."GameNorm" = c1."GameNorm" AND c2."NameNormalized" = c1."NameNormalized"
-                    WHERE c1."Id" = "Cards"."BaseCardId"
+                    SELECT map."CanonicalCardId"
+                    FROM "_SwuCardConsolidation" map
+                    WHERE map."DuplicateCardId" = "Cards"."BaseCardId"
                 )
-                WHERE "BaseCardId" IS NOT NULL;
+                WHERE "GameNorm" = 'star wars unlimited'
+                    AND "BaseCardId" IN (
+                        SELECT "DuplicateCardId"
+                        FROM "_SwuCardConsolidation"
+                        WHERE "DuplicateCardId" <> "CanonicalCardId"
+                    );
 
                 UPDATE "Cards"
                 SET "BaseCardId" = NULL
-                WHERE "BaseCardId" = "Id";
+                WHERE "GameNorm" = 'star wars unlimited'
+                    AND "BaseCardId" = "Id";
 
                 DELETE FROM "Cards"
-                WHERE "Id" NOT IN (
-                    SELECT MIN("Id")
-                    FROM "Cards"
-                    GROUP BY "GameNorm", "NameNormalized"
-                );
-                """);
+                WHERE "GameNorm" = 'star wars unlimited'
+                    AND "Id" IN (
+                        SELECT "DuplicateCardId"
+                        FROM "_SwuCardConsolidation"
+                        WHERE "DuplicateCardId" <> "CanonicalCardId"
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM "CardPrintings"
+                        WHERE "CardPrintings"."CardId" = "Cards"."Id"
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM "Cards" related
+                        WHERE related."BaseCardId" = "Cards"."Id"
+                    );
 
-            migrationBuilder.DropColumn(
-                name: "DetailsJson",
-                table: "Cards");
+                DROP TABLE "_SwuCardConsolidation";
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "DetailsJson",
-                table: "Cards",
-                type: "TEXT",
-                nullable: true);
-
             migrationBuilder.CreateIndex(
                 name: "IX_Cards_CardUid",
                 table: "Cards",

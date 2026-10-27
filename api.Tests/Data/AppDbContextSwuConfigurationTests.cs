@@ -37,7 +37,7 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal("CardPrintings", cardPrinting!.GetTableName());
         Assert.Equal("SyncLogs", syncLog!.GetTableName());
         Assert.DoesNotContain(db.Model.GetEntityTypes(), e => e.GetTableName() is "SwuCards" or "SwuCardPrintings");
-        Assert.Null(card.FindProperty(nameof(Card.DetailsJson)));
+        Assert.NotNull(card.FindProperty(nameof(Card.DetailsJson)));
         Assert.DoesNotContain(card.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Card.CardUid)));
         Assert.Contains(game.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Game.NameNormalized)));
         Assert.Contains(set.GetIndexes(), i => i.IsUnique &&
@@ -62,19 +62,28 @@ public sealed class AppDbContextSwuConfigurationTests
             VALUES (41, 'SOR', 'Spark of Rebellion', NULL, '2026-01-01T00:00:00+00:00');
             INSERT INTO "SyncLogs" ("Id", "SwuSetId", "StartedAt", "IsIncremental", "CardsReturned", "CardsUpserted", "Status")
             VALUES (5, 41, '2026-01-01T00:00:00+00:00', 0, 1, 1, 'Succeeded');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType", "Description")
+            VALUES (3, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit', 'lower priority');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType", "DetailsJson")
+            VALUES (4, 'Pokémon', 'Pikachu', 'Pokémon', '{{"kept":true}}');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType", "Description")
+            VALUES (5, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit', 'higher priority');
             INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
-            VALUES (3, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit');
-            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
-            VALUES (4, 'Pokémon', 'Pikachu', 'Pokémon');
-            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
-            VALUES (5, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit');
-            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
-            VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard');
+            VALUES (10, 'Pokémon', 'Pikachu', 'Pokémon');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style", "DetailsJson")
+            VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard', '{{"sourceId":200,"variantOfSourceId":null,"reprintOfSourceId":null}}');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (8, 4, 'sor', 'SVP-001', 'Promo', 'Standard');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style", "DetailsJson")
+            VALUES (9, 5, 'sor', 'SOR-001', 'Common', 'Hyperspace', '{{"sourceId":100,"variantOfSourceId":null,"reprintOfSourceId":null}}');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
-            VALUES (9, 5, 'sor', 'SOR-001', 'Common', 'Hyperspace');
+            VALUES (11, 10, 'sor', 'SVP-002', 'Promo', 'Standard');
             """);
+        await migrator.MigrateAsync("20261026143906_RetainSwuPrintingSourceUid");
+        var gameEntity = await db.Games.SingleAsync(item => item.Name == "Star Wars Unlimited");
+        var aspect = new Aspect { GameId = gameEntity.Id, Name = "Heroism", Color = "#e5d7b2" };
+        db.CardAspects.Add(new CardAspect { CardId = 5, Aspect = aspect, Count = 2 });
+        await db.SaveChangesAsync();
 
         await migrator.MigrateAsync();
 
@@ -84,6 +93,7 @@ public sealed class AppDbContextSwuConfigurationTests
         var printing = await db.CardPrintings.SingleAsync(item => item.Id == 7);
         var duplicateCardPrinting = await db.CardPrintings.SingleAsync(item => item.Id == 9);
         var otherGamePrinting = await db.CardPrintings.SingleAsync(item => item.Id == 8);
+        var copiedAspect = await db.CardAspects.Include(item => item.Aspect).SingleAsync();
         Assert.Equal("Star Wars Unlimited", game.Name);
         Assert.Equal("star wars unlimited", game.NameNormalized);
         Assert.Equal(41, set.Id);
@@ -93,8 +103,51 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal(set.Id, printing.SetId);
         Assert.Equal(3, printing.CardId);
         Assert.Equal(3, duplicateCardPrinting.CardId);
-        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.Equal(3, await db.Cards.CountAsync());
         Assert.Null(otherGamePrinting.SetId);
+        Assert.Equal(3, copiedAspect.CardId);
+        Assert.Equal(2, copiedAspect.Count);
+        Assert.Equal("Heroism", copiedAspect.Aspect.Name);
+        Assert.Equal("{\"kept\":true}", (await db.Cards.SingleAsync(item => item.Id == 4)).DetailsJson);
+        Assert.Equal(10, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
+        Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Description);
+    }
+
+    [Fact]
+    public async Task Migration_KeepsOwnedPrintingOnDuplicateCard_WhenPrintingIdentityCollides()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261025084027_AddCardPrintingReleaseDate");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
+            VALUES (3, 'Star Wars Unlimited', 'Collision card', 'Unit');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
+            VALUES (5, 'Star Wars Unlimited', 'Collision card', 'Unit');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
+            VALUES (7, 3, 'SOR', '001', 'Common', 'Standard');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
+            VALUES (9, 5, 'SOR', '001', 'Common', 'Standard');
+            """);
+        var user = new User { Username = "owner", DisplayName = "Owner" };
+        db.UserCards.Add(new UserCard { User = user, CardPrintingId = 9, QuantityOwned = 1 });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        await migrator.MigrateAsync();
+
+        var owned = await db.UserCards.SingleAsync();
+        var printing = await db.CardPrintings.SingleAsync(item => item.Id == 9);
+        Assert.Equal(9, owned.CardPrintingId);
+        Assert.Equal(5, printing.CardId);
+        Assert.Contains(await db.Cards.Select(item => item.Id).ToListAsync(), id => id == 5);
     }
 
     [Fact]

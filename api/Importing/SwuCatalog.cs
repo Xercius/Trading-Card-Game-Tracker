@@ -44,9 +44,7 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             set.Name = expansion.Name.Trim();
             MarkModified(set, nameof(Set.Name));
         }
-        var releasedAt = expansion?.ReleaseDate
-            ?? (expansion?.PublishedAt is { } publishedAt ? DateOnly.FromDateTime(publishedAt.UtcDateTime) : null);
-        if (releasedAt is { } releaseDate && set.ReleasedAt != releaseDate)
+        if (expansion?.ReleaseDate is { } releaseDate && set.ReleasedAt != releaseDate)
         {
             set.ReleasedAt = releaseDate;
             MarkModified(set, nameof(Set.ReleasedAt));
