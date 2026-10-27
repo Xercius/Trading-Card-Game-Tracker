@@ -249,7 +249,6 @@ internal static class ServiceCollectionExtensions
             client.BaseAddress = new Uri("https://admin.starwarsunlimited.com/api/");
             client.Timeout = TimeSpan.FromMinutes(5);
         });
-        services.AddScoped<ICardSyncService, CardSyncService>();
 
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(

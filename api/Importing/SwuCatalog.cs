@@ -29,7 +29,7 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         await db.Set<CardAspect>().LoadAsync(ct);
     }
 
-    internal bool Apply(Card card, CardPrinting printing, SwuCardAttributes attrs)
+    internal bool Apply(Card card, CardPrinting printing, SwuCardAttributes attrs, bool includeCardAssociations = true)
     {
         var associationsChanged = false;
         var expansion = attrs.Expansion?.Data?.Attributes;
@@ -56,8 +56,37 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             MarkModified(set, nameof(Set.LastSyncedAt));
         }
         db.Entry(printing).Reference(entity => entity.CatalogSet).CurrentValue = set;
-        db.Entry(printing).Reference(entity => entity.RarityLookup).CurrentValue =
-            Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
+
+        var rarity = Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
+        if (!string.IsNullOrWhiteSpace(attrs.RarityDetails?.Character)
+            && rarity.Character != attrs.RarityDetails.Character.Trim())
+        {
+            rarity.Character = attrs.RarityDetails.Character.Trim();
+            MarkModified(rarity, nameof(Rarity.Character));
+        }
+        if (!string.IsNullOrWhiteSpace(attrs.RarityDetails?.Color)
+            && rarity.Color != attrs.RarityDetails.Color.Trim())
+        {
+            rarity.Color = attrs.RarityDetails.Color.Trim();
+            MarkModified(rarity, nameof(Rarity.Color));
+        }
+        db.Entry(printing).Reference(entity => entity.RarityLookup).CurrentValue = rarity;
+
+        var aspectDetails = (attrs.AspectDetails ?? []).Concat(attrs.AspectDuplicateDetails ?? [])
+            .Where(a => !string.IsNullOrWhiteSpace(a?.Name))
+            .ToList();
+        foreach (var detail in aspectDetails)
+        {
+            var aspectEntity = Lookup(detail.Name!, n => new Aspect { Game = _game, Name = n });
+            if (!string.IsNullOrWhiteSpace(detail.Color) && aspectEntity.Color != detail.Color.Trim())
+            {
+                aspectEntity.Color = detail.Color.Trim();
+                MarkModified(aspectEntity, nameof(Aspect.Color));
+            }
+        }
+
+        if (!includeCardAssociations)
+            return false;
 
         var types = new List<CardCardType>();
         AddType(attrs.Type?.Data?.Attributes, "Type");

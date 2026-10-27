@@ -19,7 +19,7 @@ namespace api.Tests.Importing;
 public sealed class SwuSharedImporterRegressionTests
 {
     [Fact]
-    public async Task Import_LegacyTitleMergedPrintings_SeparatesUidsAndPreservesOwnedPrintingIds()
+    public async Task Import_MultiplePrintingsWithSameTitle_SharesCardAndPreservesOwnedPrintingIds()
     {
         await using var database = await Database.CreateAsync();
         int firstId;
@@ -68,11 +68,13 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(0, replay.Errors);
         Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
         await using var db = database.Open();
-        Assert.Equal(2, await db.Cards.CountAsync());
+        Assert.Equal(1, await db.Cards.CountAsync());
         var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
         Assert.Equal(new[] { firstId, secondId }, printings.Select(p => p.Id));
-        Assert.NotEqual(printings[0].CardId, printings[1].CardId);
-        Assert.All(printings, p => Assert.Equal(p.CardUid, p.Card.CardUid));
+        Assert.Equal(printings[0].CardId, printings[1].CardId);
+        Assert.Equal("legacy-1", printings[0].CardUid);
+        Assert.Equal("legacy-2", printings[1].CardUid);
+        Assert.Equal("legacy-1", printings[0].Card.CardUid);
         Assert.Equal(secondId, (await db.UserCards.SingleAsync()).CardPrintingId);
         Assert.Equal(3, (await db.UserCards.SingleAsync()).QuantityOwned);
         Assert.Equal(firstId, (await db.DeckCards.SingleAsync()).CardPrintingId);
@@ -112,7 +114,7 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
-    public async Task Import_SourceUid_GroupsRenamedPrintingsButNotIdenticallyNamedCards()
+    public async Task Import_LogicalCardKey_GroupsPrintingsByTitleAndSubtitleAcrossPrintings()
     {
         await using var database = await Database.CreateAsync();
         await ImportAsync(database, Record(1, "Original", "SOR", "one", uid: "000-text-uid"));
@@ -124,10 +126,10 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
         Assert.Equal(2, await db.Cards.CountAsync());
-        Assert.Equal(printings[0].CardId, printings[1].CardId);
-        Assert.NotEqual(printings[0].CardId, printings[2].CardId);
-        Assert.Equal("000-text-uid", printings[0].Card.CardUid);
-        Assert.Equal("Renamed", printings[0].Card.Name);
+        Assert.NotEqual(printings[0].CardId, printings[1].CardId);
+        Assert.Equal(printings[1].CardId, printings[2].CardId);
+        Assert.Equal("000-text-uid", printings[1].Card.CardUid);
+        Assert.Equal("Renamed", printings[1].Card.Name);
         Assert.Equal(new int?[] { 1, 2, 3 }, printings.Select(p => p.StrapiId));
     }
 
@@ -198,8 +200,6 @@ public sealed class SwuSharedImporterRegressionTests
             Assert.Equal(DateTimeOffset.Parse("2024-03-01T01:00:00Z"), printing.ApiPublishedAt);
             Assert.Equal(new DateOnly(2024, 3, 8), printing.CatalogSet!.ReleasedAt);
             Assert.Null(printing.ReleasedAt);
-            Assert.Empty(await db.SwuCards.ToListAsync());
-            Assert.Empty(await db.SwuCardPrintings.ToListAsync());
         }
 
         attrs["aspectDuplicates"] = null;
@@ -486,6 +486,31 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
+    public async Task Import_RemovedSourceRelationship_TakesPriorityOverStaleResolvedId()
+    {
+        await using var database = await Database.CreateAsync();
+        await ImportAsync(database, Record(99, "Target", "TWI", "target"));
+        await ImportAsync(database, Record(1, "Shared", "SOR", "lower", variantId: 99));
+        var originalBase = JsonSerializer.SerializeToNode(Record(2, "Shared", "SHD", "upper"))!;
+        originalBase["attributes"]!["text"] = "original base";
+        await ImportAsync(database, originalBase);
+
+        var lower = JsonSerializer.SerializeToNode(Record(1, "Shared", "SOR", "lower"))!;
+        lower["attributes"]!["text"] = "lower source";
+        var higher = JsonSerializer.SerializeToNode(Record(2, "Shared", "SHD", "upper"))!;
+        higher["attributes"]!["text"] = "higher source";
+        await ImportAsync(database, lower, higher);
+
+        await using (var db = database.Open())
+            Assert.Equal("lower source", (await db.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+
+        var replay = await ImportAsync(database, lower, higher);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
+        await using var verify = database.Open();
+        Assert.Equal("lower source", (await verify.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+    }
+
+    [Fact]
     public async Task Import_RemovedRelationship_PreservesOtherCanonicalPrintingLink()
     {
         await using var database = await Database.CreateAsync();
@@ -621,8 +646,6 @@ public sealed class SwuSharedImporterRegressionTests
                 printingIds = printings.Select(p => p.Id).ToArray();
             else
                 Assert.Equal(printingIds, printings.Select(p => p.Id).ToArray());
-            Assert.Empty(await db.SwuCards.ToListAsync());
-            Assert.Empty(await db.SwuCardPrintings.ToListAsync());
         }
 
         Assert.Equal([1, 2, 1, 2], handler.Requests

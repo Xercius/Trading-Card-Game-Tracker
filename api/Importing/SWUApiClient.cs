@@ -213,6 +213,7 @@ internal sealed record StrapiRecord(
     [property: JsonPropertyName("id")] int Id,
     [property: JsonPropertyName("attributes")] SwuCardAttributes? Attributes);
 
+[method: JsonConstructor]
 internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("title")] string? Title,
     [property: JsonPropertyName("subtitle")] string? Subtitle,
@@ -220,16 +221,16 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("serialCode")] string? SerialCode,
     [property: JsonPropertyName("locale")] string? Locale,
     [property: JsonPropertyName("cardNumber")] int? CardNumber,
-    [property: JsonConverter(typeof(SwuNameConverter))]
-    [property: JsonPropertyName("rarity")] string? Rarity,
+    [property: JsonConverter(typeof(SwuRarityConverter))]
+    [property: JsonPropertyName("rarity")] SwuRarityAttributes? RarityDetails,
     [property: JsonPropertyName("text")] string? Text,
     [property: JsonPropertyName("artist")] string? Artist,
     [property: JsonPropertyName("cost")] int? Cost,
     [property: JsonPropertyName("power")] int? Power,
     [property: JsonPropertyName("health")] int? Health,
     [property: JsonPropertyName("arena")] string? Arena,
-    [property: JsonConverter(typeof(SwuNameListConverter))]
-    [property: JsonPropertyName("aspects")] string[]? Aspects,
+    [property: JsonConverter(typeof(SwuAspectListConverter))]
+    [property: JsonPropertyName("aspects")] SwuAspectAttributes[]? AspectDetails,
     [property: JsonConverter(typeof(SwuNameListConverter))]
     [property: JsonPropertyName("traits")] string[]? Traits,
     [property: JsonConverter(typeof(SwuNameListConverter))]
@@ -248,8 +249,8 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("type2")] StrapiRelation<SwuTypeAttributes>? Type2 = null,
     [property: JsonConverter(typeof(SwuNameListConverter))]
     [property: JsonPropertyName("arenas")] string[]? Arenas = null,
-    [property: JsonConverter(typeof(SwuNameListConverter))]
-    [property: JsonPropertyName("aspectDuplicates")] string[]? AspectDuplicates = null,
+    [property: JsonConverter(typeof(SwuAspectListConverter))]
+    [property: JsonPropertyName("aspectDuplicates")] SwuAspectAttributes[]? AspectDuplicateDetails = null,
     [property: JsonPropertyName("artFrontHorizontal")] bool? ArtFrontHorizontal = null,
     [property: JsonPropertyName("artBackHorizontal")] bool? ArtBackHorizontal = null,
     [property: JsonPropertyName("hp")] int? Hp = null,
@@ -260,7 +261,104 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("rules")] string? Rules = null,
     [property: JsonPropertyName("rulesStyled")] string? RulesStyled = null,
     [property: JsonPropertyName("hyperspace")] bool? Hyperspace = null,
-    [property: JsonPropertyName("showcase")] bool? Showcase = null);
+    [property: JsonPropertyName("showcase")] bool? Showcase = null)
+{
+    public SwuCardAttributes(
+        string? Title,
+        string? Subtitle,
+        string? CardUid,
+        string? SerialCode,
+        string? Locale,
+        int? CardNumber,
+        string? Rarity,
+        string? Text,
+        string? Artist,
+        int? Cost,
+        int? Power,
+        int? Health,
+        string? Arena,
+        string[]? Aspects,
+        string[]? Traits,
+        string[]? Keywords,
+        DateTimeOffset? CreatedAt,
+        DateTimeOffset? UpdatedAt,
+        DateTimeOffset? PublishedAt,
+        StrapiRelation<SwuTypeAttributes>? Type,
+        StrapiRelation<SwuExpansionAttributes>? Expansion,
+        StrapiRelationList<SwuVariantTypeAttributes>? VariantTypes,
+        StrapiRelation<SwuVariantRefAttributes>? VariantOf,
+        StrapiRelation<SwuVariantRefAttributes>? ReprintOf,
+        StrapiRelation<SwuImageAttributes>? ArtFront,
+        StrapiRelation<SwuImageAttributes>? ArtBack,
+        string? TextStyled = null,
+        StrapiRelation<SwuTypeAttributes>? Type2 = null,
+        string[]? Arenas = null,
+        string[]? AspectDuplicates = null,
+        bool? ArtFrontHorizontal = null,
+        bool? ArtBackHorizontal = null,
+        int? Hp = null,
+        string? DeployBox = null,
+        string? DeployBoxStyled = null,
+        string? EpicAction = null,
+        string? EpicActionStyled = null,
+        string? Rules = null,
+        string? RulesStyled = null,
+        bool? Hyperspace = null,
+        bool? Showcase = null)
+        : this(
+            Title,
+            Subtitle,
+            CardUid,
+            SerialCode,
+            Locale,
+            CardNumber,
+            Rarity is null ? null : new SwuRarityAttributes(Rarity),
+            Text,
+            Artist,
+            Cost,
+            Power,
+            Health,
+            Arena,
+            Aspects?.Select(a => new SwuAspectAttributes(a)).ToArray(),
+            Traits,
+            Keywords,
+            CreatedAt,
+            UpdatedAt,
+            PublishedAt,
+            Type,
+            Expansion,
+            VariantTypes,
+            VariantOf,
+            ReprintOf,
+            ArtFront,
+            ArtBack,
+            TextStyled,
+            Type2,
+            Arenas,
+            AspectDuplicates?.Select(a => new SwuAspectAttributes(a)).ToArray(),
+            ArtFrontHorizontal,
+            ArtBackHorizontal,
+            Hp,
+            DeployBox,
+            DeployBoxStyled,
+            EpicAction,
+            EpicActionStyled,
+            Rules,
+            RulesStyled,
+            Hyperspace,
+            Showcase)
+    {
+    }
+
+    [JsonIgnore]
+    public string? Rarity => RarityDetails?.Name;
+
+    [JsonIgnore]
+    public string[]? Aspects => AspectDetails?.Select(a => a.Name!).ToArray();
+
+    [JsonIgnore]
+    public string[]? AspectDuplicates => AspectDuplicateDetails?.Select(a => a.Name!).ToArray();
+}
 
 internal sealed record StrapiRelation<T>(
     [property: JsonPropertyName("data")] StrapiRelationData<T>? Data);
@@ -274,6 +372,15 @@ internal sealed record StrapiRelationData<T>(
 
 internal sealed record SwuNameAttributes(
     [property: JsonPropertyName("name")] string? Name);
+
+internal sealed record SwuRarityAttributes(
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("character")] string? Character = null,
+    [property: JsonPropertyName("color")] string? Color = null);
+
+internal sealed record SwuAspectAttributes(
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("color")] string? Color = null);
 
 /// <summary>Normalizes a live Strapi relationship or legacy string to its name.</summary>
 internal sealed class SwuNameConverter : JsonConverter<string>
@@ -291,6 +398,47 @@ internal sealed class SwuNameConverter : JsonConverter<string>
     /// <inheritdoc/>
     public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
         => writer.WriteStringValue(value);
+}
+
+/// <summary>Normalizes a live Strapi rarity relationship or legacy string to <see cref="SwuRarityAttributes"/>.</summary>
+internal sealed class SwuRarityConverter : JsonConverter<SwuRarityAttributes>
+{
+    /// <inheritdoc/>
+    public override SwuRarityAttributes? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+            return new SwuRarityAttributes(reader.GetString());
+
+        var relationship = JsonSerializer.Deserialize<StrapiRelation<SwuRarityAttributes>>(ref reader, options);
+        return relationship?.Data?.Attributes;
+    }
+
+    /// <inheritdoc/>
+    public override void Write(Utf8JsonWriter writer, SwuRarityAttributes value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, new StrapiRelation<SwuRarityAttributes>(new StrapiRelationData<SwuRarityAttributes>(0, value)), options);
+}
+
+/// <summary>Normalizes live Strapi aspect relationships and legacy file arrays to <see cref="SwuAspectAttributes"/> arrays.</summary>
+internal sealed class SwuAspectListConverter : JsonConverter<SwuAspectAttributes[]>
+{
+    /// <inheritdoc/>
+    public override SwuAspectAttributes[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.StartArray)
+        {
+            var names = JsonSerializer.Deserialize<string[]>(ref reader, options);
+            return names?.Select(n => new SwuAspectAttributes(n)).ToArray();
+        }
+
+        var relationship = JsonSerializer.Deserialize<StrapiRelationList<SwuAspectAttributes>>(ref reader, options);
+        return relationship?.Data?.Select(item => item?.Attributes is { Name: not null } attrs
+            ? attrs
+            : throw new JsonException("SWU relationship entry is missing its name.")).ToArray();
+    }
+
+    /// <inheritdoc/>
+    public override void Write(Utf8JsonWriter writer, SwuAspectAttributes[] value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, value.Select(v => v.Name).ToArray(), options);
 }
 
 /// <summary>Normalizes live Strapi relationships and legacy file arrays to names.</summary>
@@ -319,7 +467,8 @@ internal sealed record SwuTypeAttributes(
 internal sealed record SwuExpansionAttributes(
     [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("code")] string? Code,
-    [property: JsonPropertyName("releaseDate")] DateOnly? ReleaseDate = null);
+    [property: JsonPropertyName("releaseDate")] DateOnly? ReleaseDate = null,
+    [property: JsonPropertyName("publishedAt")] DateTimeOffset? PublishedAt = null);
 
 internal sealed record SwuVariantTypeAttributes(
     [property: JsonPropertyName("name")] string? Name,

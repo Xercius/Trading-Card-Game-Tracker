@@ -91,12 +91,22 @@ internal sealed class SwuSharedIdentity
         return changed;
     }
 
-    internal Card? FindCard(string? cardUid)
-        => string.IsNullOrWhiteSpace(cardUid) ? null : _printings.FirstOrDefault(p =>
-            SourceUid(p) == cardUid && (p.Card.CardUid is null || p.Card.CardUid == cardUid))?.Card;
+    internal static int? SourceId(CardPrinting printing)
+        => printing.StrapiId ?? ReadInt(printing.DetailsJson, "sourceId");
 
     internal static string? SourceUid(CardPrinting printing)
         => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid") ?? printing.Card.CardUid;
+
+    internal static bool IsVariantOrReprint(CardPrinting printing)
+    {
+        var sourceJson = HasRelationshipFields(printing.DetailsJson)
+            ? printing.DetailsJson
+            : HasRelationshipFields(printing.Card.DetailsJson) ? printing.Card.DetailsJson : null;
+        if (sourceJson is not null)
+            return HasRelationship(sourceJson);
+
+        return printing.VariantOfId is not null || printing.ReprintOfId is not null;
+    }
 
     private CardPrinting? FindTarget(CardPrinting printing, string field)
     {
@@ -141,6 +151,18 @@ internal sealed class SwuSharedIdentity
 
     private static bool HasProperty(string? json, string name)
         => Read(json, name) is not null;
+
+    private static bool HasRelationshipFields(string? json)
+        => HasProperty(json, "variantOfSourceId")
+           || HasProperty(json, "variantOfCardUid")
+           || HasProperty(json, "reprintOfSourceId")
+           || HasProperty(json, "reprintOfCardUid");
+
+    private static bool HasRelationship(string? json)
+        => ReadInt(json, "variantOfSourceId") is > 0
+           || !string.IsNullOrWhiteSpace(ReadString(json, "variantOfCardUid"))
+           || ReadInt(json, "reprintOfSourceId") is > 0
+           || !string.IsNullOrWhiteSpace(ReadString(json, "reprintOfCardUid"));
 
     private static int? ReadInt(string? json, string name)
         => Read(json, name) is { ValueKind: JsonValueKind.Number } value
