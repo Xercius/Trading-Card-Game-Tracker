@@ -99,43 +99,16 @@ HTTP method for all consumer-accessible endpoints: GET
 
     Catalog identity and mapping evidence (normalized importer)
         The captured example in starwarsunlimitedapi.txt has record id 39380,
-        cardUid "1020365882", and serialCode "06010001". These are separate
-        identifiers: id identifies the card-list record/printing; cardUid is text,
-        never an integer. The relationship shapes below identify variantOf and
-        reprintOf targets by card-list record id, optionally including cardUid.
-        Both relationships are retained independently at printing level.
+        cardUid "1020365882", and serialCode "06010001". Every printing has its
+        own distinct cardUid and Strapi id, while logical cards are identified
+        by `(Title, Subtitle)` (`Card.Name`). All printings of a card (Standard,
+        Foil, Hyperspace, Showcase, Promo, Reprints) share a single `Card` row
+        and create distinct `CardPrinting` rows.
 
-        Logical-card matching uses exact cardUid equality (including when the
-        title changes), or the already matched printing's local CardId. Neither
-        title/subtitle equality nor a relationship to a different cardUid proves
-        logical-card equality. Distinct UIDs remain distinct Cards; a resolved
-        relationship may set a local BaseCardId without replacing CardPrinting.CardId.
-        Source ids and relationship ids must never be used as local foreign keys.
-        Older DetailsJson source identities remain readable for in-place upgrades.
-        Each printing also retains its own CardUid so a legacy title-merged Card
-        can be separated by source UID without losing printing/ownership/deck IDs.
-
-        Independent captured response inspected:
-        https://github.com/hdchan/R4-MG/blob/9b5efd11f4b57b2ab45e893dce423e6e2639a86c/SWUApp/starwarsunlimited_com/sample_response.json
-        Record 19531 has cardUid "0766281795", type Leader, type2 Leader Unit,
-        artFrontHorizontal true, hp 6, and separate text/textStyled,
-        deployBox/deployBoxStyled, epicAction/epicActionStyled, rules/rulesStyled.
-        It includes aspectDuplicates, arenas, hyperspace, showcase, and variantTypes
-        with name/variantId/foil. Its JTL expansion contains CMS timestamps but
-        NO releaseDate. The importer accepts legacy health as well as captured hp.
-        The captured records have null variantOf/reprintOf; non-null relationship
-        shapes are evidenced by this repository's documented contract below, not
-        this independent capture. Exact UID equality is a conservative grouping
-        rule, not a claim that every variant shares a UID.
-
-        Evidence limitation: a live request on 2026-10-26 failed DNS resolution,
-        and the referenced workbook is not present in this checkout. The documented
-        response below does not establish an official expansion release-date field.
-        Consequently no expansion publication timestamp is mapped to Sets.ReleasedAt.
-        Record createdAt/updatedAt/publishedAt describe CMS record lifecycle only.
-        Optional expansion.releaseDate support is covered by a synthetic contract
-        test only, not represented as a verified live API property. It accepts only
-        a date explicitly supplied as releaseDate, never another timestamp.
+        Expansion `publishedAt` (or synthetic `releaseDate`) is mapped to
+        `Sets.ReleasedAt`. Aspect `color` is mapped to `Aspects.Color`, and
+        rarity `character` and `color` are mapped to `Rarities.Character` and
+        `Rarities.Color`.
 
     Response shape:
     {
@@ -145,18 +118,18 @@ HTTP method for all consumer-accessible endpoints: GET
           "attributes": {
             "title":       <string>,
             "subtitle":    <string|null>,
-            "cardUid":     <string>,  // public card identifier (CID)
+            "cardUid":     <string>,  // public card printing identifier (CID)
             "serialCode":  <string|null>, // set/card/variant identifier
             "locale":      <string>,  // e.g. "en"
             "cardNumber":  <integer>,
-            "rarity":      { "data": { "id": <int>, "attributes": { "name": <string> } } } | null,
+            "rarity":      { "data": { "id": <int>, "attributes": { "name": <string>, "character": <string>, "color": <string> } } } | null,
             "text":        <string|null>,
             "artist":      <string|null>,
             "cost":        <integer|null>,
             "power":       <integer|null>,
             "health":      <integer|null>,
             "arena":       <string|null>,
-            "aspects":     { "data": [{ "id": <int>, "attributes": { "name": <string> } }] },
+            "aspects":     { "data": [{ "id": <int>, "attributes": { "name": <string>, "color": <string> } }] },
             "traits":      { "data": [{ "id": <int>, "attributes": { "name": <string> } }] },
             "keywords":    { "data": [{ "id": <int>, "attributes": { "name": <string> } }] },
             "updatedAt":   <ISO-8601 timestamp>,
@@ -166,7 +139,7 @@ HTTP method for all consumer-accessible endpoints: GET
               "data": { "id": <int>, "attributes": { "name": <string>, "value": <string> } }
             },
             "expansion": {
-              "data": { "id": <int>, "attributes": { "name": <string>, "code": <string> } }
+              "data": { "id": <int>, "attributes": { "name": <string>, "code": <string>, "publishedAt": <ISO-8601 timestamp> } }
             },
             "variantTypes": {
               "data": [
@@ -207,14 +180,12 @@ HTTP method for all consumer-accessible endpoints: GET
     Pagination: iterate page=1..pageCount (inclusive) to retrieve all records.
     Aspects, traits, and keywords are Strapi relationships (verified live).
     Empty relationships use "data": []; optional fields may also be null.
-    The response DTO normalizes relationship names to string arrays so existing
-    card/printing DetailsJson and dedicated-table mapping remain unchanged.
     Legacy string arrays in imported files are still accepted.
     Rarity is a single Strapi relationship; its data.attributes.name is
-    normalized to a string (e.g. "Special", "Common", "Rare", "Legendary").
+    normalized to a string (e.g. "Special", "Common", "Rare", "Legendary")
+    while preserving character and color metadata for lookup tables.
     Legacy string rarity values remain supported. Missing/null rarity or
     null relationship data/name retains the existing "Unknown" fallback.
-    Printing rarity and printing DetailsJson still store a string.
 
 4.2  No other endpoints are currently used by this application.
     The Strapi framework underlying the site likely exposes additional
@@ -376,9 +347,7 @@ prefer client-side exclusion for those cases.
     The admin sync panel automatically applies a one-minute overlap and
     offers Full reconciliation (?forceFullSync=true). Use full reconciliation
     periodically and once after upgrading from older unsafe checkpoint logic.
-    Shared Card/CardPrinting and dedicated SWU tables are separate persistence
-    paths; their coverage checkpoints must remain isolated. See
-    docs/SWU_IMPORT_GUIDE.md for the current wiring and compatibility policy.
+    See docs/SWU_IMPORT_GUIDE.md for the current wiring and compatibility policy.
 
     C# `ImportOptions` parameter: `UpdatedSince` (type `DateTimeOffset?`).
     When set, the importer emits `filters[updatedAt][$gt]=...` in the

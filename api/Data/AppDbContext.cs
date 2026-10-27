@@ -29,8 +29,6 @@ namespace api.Data
         public DbSet<CardKeyword> CardKeywords => Set<CardKeyword>();
         public DbSet<CardArena> CardArenas => Set<CardArena>();
         public DbSet<CardAspect> CardAspects => Set<CardAspect>();
-        public DbSet<SwuCard> SwuCards => Set<SwuCard>();
-        public DbSet<SwuCardPrinting> SwuCardPrintings => Set<SwuCardPrinting>();
         public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
 
         protected override void OnModelCreating(ModelBuilder b)
@@ -41,6 +39,7 @@ namespace api.Data
             b.Entity<Card>(e =>
             {
                 e.HasKey(c => c.Id);
+                e.Ignore(c => c.DetailsJson);
 
                 // required columns (don’t rely only on C# 'required' for EF)
                 e.Property(c => c.Game).IsRequired().HasMaxLength(64);
@@ -80,9 +79,6 @@ namespace api.Data
                 e.HasIndex(c => new { c.Game, c.StrapiId })
                     .IsUnique()
                     .HasFilter("\"StrapiId\" IS NOT NULL");
-                e.HasIndex(c => c.CardUid)
-                    .IsUnique()
-                    .HasFilter("\"CardUid\" IS NOT NULL");
 
                 // relationship to printings
                 e.HasMany(c => c.Printings)
@@ -328,84 +324,6 @@ namespace api.Data
                 e.HasOne(x => x.Aspect).WithMany(a => a.Cards)
                     .HasForeignKey(x => x.AspectId).OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(x => x.AspectId);
-            });
-
-            // --- SwuCard (SWU-specific logical card) ---
-            b.Entity<SwuCard>(e =>
-            {
-                e.ToTable("SwuCards");
-                e.HasKey(c => c.Id);
-
-                e.Property(c => c.Title).IsRequired().HasMaxLength(256);
-                e.Property(c => c.CardType).IsRequired().HasMaxLength(64);
-                e.Property(c => c.CardUid).HasMaxLength(64);
-                e.Property(c => c.Subtitle).HasMaxLength(256);
-                e.Property(c => c.Arena).HasMaxLength(32);
-                e.Property(c => c.Artist).HasMaxLength(128);
-                e.Property(c => c.Aspects).HasMaxLength(256);
-                e.Property(c => c.Traits).HasMaxLength(512);
-                e.Property(c => c.Keywords).HasMaxLength(512);
-
-                // one row per Strapi record ID
-                e.HasIndex(c => c.StrapiId).IsUnique();
-
-                // unique cardUid when present
-                e.HasIndex(c => c.CardUid)
-                 .IsUnique()
-                 .HasFilter("\"CardUid\" IS NOT NULL");
-
-                // fast lookup by set + title
-                e.HasIndex(c => new { c.SetId, c.Title, c.Subtitle });
-
-                // FK to the primary set that introduced this card
-                e.HasOne(c => c.Set)
-                 .WithMany(s => s.Cards)
-                 .HasForeignKey(c => c.SetId)
-                 .OnDelete(DeleteBehavior.Restrict);
-
-                // self-referencing FK for variant cards
-                e.HasOne(c => c.BaseCard)
-                 .WithMany(c => c.Variants)
-                 .HasForeignKey(c => c.BaseCardId)
-                 .IsRequired(false)
-                 .OnDelete(DeleteBehavior.SetNull);
-
-                e.HasIndex(c => c.BaseCardId);
-            });
-
-            // --- SwuCardPrinting (SWU-specific printing variant) ---
-            b.Entity<SwuCardPrinting>(e =>
-            {
-                e.ToTable("SwuCardPrintings");
-                e.HasKey(p => p.Id);
-
-                e.Property(p => p.Number).IsRequired().HasMaxLength(32);
-                e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
-                e.Property(p => p.Style).IsRequired().HasMaxLength(64);
-                e.Property(p => p.ImageUrl).HasMaxLength(1024);
-                e.Property(p => p.BackImageUrl).HasMaxLength(1024);
-
-                // one row per Strapi record ID
-                e.HasIndex(p => p.StrapiId).IsUnique();
-
-                // uniqueness: one printing per (card, set, number, style)
-                e.HasIndex(p => new { p.SwuCardId, p.SetId, p.Number, p.Style })
-                 .IsUnique();
-
-                // fast lookup by set + number
-                e.HasIndex(p => new { p.SetId, p.Number });
-
-                // FK to SwuCard
-                e.HasOne(p => p.SwuCard)
-                 .WithMany(c => c.Printings)
-                 .HasForeignKey(p => p.SwuCardId)
-                 .OnDelete(DeleteBehavior.Cascade);
-
-                // FK to shared Set
-                e.HasOne(p => p.Set)
-                 .WithMany(s => s.Printings)
-                 .HasForeignKey(p => p.SetId)
-                 .OnDelete(DeleteBehavior.Restrict);
             });
 
             // --- SyncLog (SWU import operation audit log) ---

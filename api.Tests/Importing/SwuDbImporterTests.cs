@@ -1273,6 +1273,193 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains(summary.Messages, m => m.Contains("Warning") && m.Contains("TWI"));
     }
 
+    [Fact]
+    public async Task ImportFromFileAsync_Populates_AspectColor_RarityCharacterAndColor_And_SetReleasedAtFromPublishedAt()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        const string json = """
+            {
+              "data": [
+                {
+                  "id": 91001,
+                  "attributes": {
+                    "title": "Sabine Wren",
+                    "subtitle": "Galvanized Revolutionary",
+                    "cardUid": "06010014",
+                    "serialCode": "06010014",
+                    "locale": "en",
+                    "cardNumber": 14,
+                    "rarity": {
+                      "data": {
+                        "id": 4,
+                        "attributes": {
+                          "name": "Common",
+                          "character": "C",
+                          "color": "#a8a8a8"
+                        }
+                      }
+                    },
+                    "text": "Action: Deal 1 damage to each base.",
+                    "artist": "Test Artist",
+                    "cost": 4,
+                    "power": 2,
+                    "health": 5,
+                    "arena": "Ground",
+                    "aspects": {
+                      "data": [
+                        {
+                          "id": 1,
+                          "attributes": {
+                            "name": "Aggression",
+                            "color": "#d3202a"
+                          }
+                        }
+                      ]
+                    },
+                    "aspectDuplicates": {
+                      "data": [
+                        {
+                          "id": 22,
+                          "attributes": {
+                            "name": "Heroism",
+                            "color": "#e5d7b2"
+                          }
+                        }
+                      ]
+                    },
+                    "traits": ["Rebel", "Mandalorian"],
+                    "keywords": ["Raid"],
+                    "createdAt": "2024-01-24T22:25:47.763Z",
+                    "updatedAt": "2024-02-01T10:00:00.000Z",
+                    "publishedAt": "2024-01-24T22:25:47.763Z",
+                    "type": {
+                      "data": {
+                        "id": 4,
+                        "attributes": {
+                          "name": "Leader",
+                          "value": "leader"
+                        }
+                      }
+                    },
+                    "expansion": {
+                      "data": {
+                        "id": 2,
+                        "attributes": {
+                          "name": "Spark of Rebellion",
+                          "code": "SOR",
+                          "publishedAt": "2024-01-24T22:25:47.763Z"
+                        }
+                      }
+                    },
+                    "variantTypes": {
+                      "data": [
+                        {
+                          "id": 46,
+                          "attributes": {
+                            "name": "Standard",
+                            "variantId": "01",
+                            "foil": false
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "meta": {
+                "pagination": {
+                  "page": 1,
+                  "pageSize": 100,
+                  "pageCount": 1,
+                  "total": 1
+                }
+              }
+            }
+            """;
+
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(1, summary.PrintingsCreated);
+
+        var set = await db.Sets.SingleAsync(s => s.Code == "SOR");
+        Assert.Equal(new DateOnly(2024, 1, 24), set.ReleasedAt);
+
+        var rarity = await db.Rarities.SingleAsync(r => r.Name == "Common");
+        Assert.Equal("C", rarity.Character);
+        Assert.Equal("#a8a8a8", rarity.Color);
+
+        var aggression = await db.Aspects.SingleAsync(a => a.Name == "Aggression");
+        Assert.Equal("#d3202a", aggression.Color);
+
+        var heroism = await db.Aspects.SingleAsync(a => a.Name == "Heroism");
+        Assert.Equal("#e5d7b2", heroism.Color);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_MultiplePrintingsWithDistinctCardUids_ShareSingleLogicalCard()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var standardJson = BuildStrapiJson(
+            id: 92001,
+            title: "Luke Skywalker",
+            subtitle: "Jedi Knight",
+            serialCode: "06010050",
+            cardUid: "06010050",
+            cardNumber: 50,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: false,
+            imageUrl: "https://cdn.starwarsunlimited.com/06010050_EN.png",
+            text: "Standard text.");
+
+        var variantOfData = new { data = new { id = 92001, attributes = new { title = "Luke Skywalker", cardUid = "06010050" } } };
+        var foilJson = BuildStrapiJson(
+            id: 92002,
+            title: "Luke Skywalker",
+            subtitle: "Jedi Knight",
+            serialCode: "06020050",
+            cardUid: "06020050",
+            cardNumber: 50,
+            expansionCode: "SOR",
+            typeName: "Unit",
+            rarity: "Legendary",
+            foil: true,
+            imageUrl: "https://cdn.starwarsunlimited.com/06020050_EN.png",
+            text: "Variant text without reminder.",
+            variantOf: variantOfData);
+
+        var options = new ImportOptions(DryRun: false, SetCode: "SOR");
+        var summary1 = await importer.ImportFromFileAsync(ToStream(standardJson), options);
+        var summary2 = await importer.ImportFromFileAsync(ToStream(foilJson), options);
+
+        Assert.Equal(0, summary1.Errors);
+        Assert.Equal(1, summary1.CardsCreated);
+        Assert.Equal(1, summary1.PrintingsCreated);
+
+        Assert.Equal(0, summary2.Errors);
+        Assert.Equal(0, summary2.CardsCreated);
+        Assert.Equal(0, summary2.CardsUpdated);
+        Assert.Equal(1, summary2.PrintingsCreated);
+
+        var card = await db.Cards.Include(c => c.Printings).SingleAsync(c => c.Game == Game);
+        Assert.Equal("Luke Skywalker \u2014 Jedi Knight", card.Name);
+        Assert.Equal("Standard text.", card.Description);
+        Assert.Equal("06010050", card.CardUid);
+        Assert.Equal(2, card.Printings.Count);
+        Assert.Contains(card.Printings, p => p.Number == "06010050" && p.CardUid == "06010050" && p.VariantOfId == null);
+        Assert.Contains(card.Printings, p => p.Number == "06020050" && p.CardUid == "06020050" && p.VariantOfId != null);
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     /// <summary>

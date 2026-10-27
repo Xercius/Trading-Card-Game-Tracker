@@ -91,12 +91,19 @@ internal sealed class SwuSharedIdentity
         return changed;
     }
 
-    internal Card? FindCard(string? cardUid)
-        => string.IsNullOrWhiteSpace(cardUid) ? null : _printings.FirstOrDefault(p =>
-            SourceUid(p) == cardUid && (p.Card.CardUid is null || p.Card.CardUid == cardUid))?.Card;
+    internal static int? SourceId(CardPrinting printing)
+        => printing.StrapiId ?? ReadInt(printing.DetailsJson, "sourceId");
 
     internal static string? SourceUid(CardPrinting printing)
         => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid") ?? printing.Card.CardUid;
+
+    internal static bool IsVariantOrReprint(CardPrinting printing)
+        => printing.VariantOfId is not null
+           || printing.ReprintOfId is not null
+           || ReadInt(printing.DetailsJson, "variantOfSourceId") is > 0
+           || !string.IsNullOrWhiteSpace(ReadString(printing.DetailsJson, "variantOfCardUid"))
+           || ReadInt(printing.DetailsJson, "reprintOfSourceId") is > 0
+           || !string.IsNullOrWhiteSpace(ReadString(printing.DetailsJson, "reprintOfCardUid"));
 
     private CardPrinting? FindTarget(CardPrinting printing, string field)
     {

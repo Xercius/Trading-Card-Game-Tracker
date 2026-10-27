@@ -20,7 +20,5 @@ public sealed class Set
     public DateOnly? ReleasedAt { get; set; }
     public DateTimeOffset LastSyncedAt { get; set; }
 
-    public ICollection<SwuCard> Cards { get; set; } = new List<SwuCard>();
-    public ICollection<SwuCardPrinting> Printings { get; set; } = new List<SwuCardPrinting>();
     public ICollection<SyncLog> SyncLogs { get; set; } = new List<SyncLog>();
 }

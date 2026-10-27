@@ -21,34 +21,31 @@ public sealed class AppDbContextSwuConfigurationTests
 
         var game = db.Model.FindEntityType(typeof(Game));
         var set = db.Model.FindEntityType(typeof(Set));
-        var swuCard = db.Model.FindEntityType(typeof(SwuCard));
-        var swuCardPrinting = db.Model.FindEntityType(typeof(SwuCardPrinting));
+        var card = db.Model.FindEntityType(typeof(Card));
+        var cardPrinting = db.Model.FindEntityType(typeof(CardPrinting));
         var syncLog = db.Model.FindEntityType(typeof(SyncLog));
 
         Assert.NotNull(game);
         Assert.NotNull(set);
-        Assert.NotNull(swuCard);
-        Assert.NotNull(swuCardPrinting);
+        Assert.NotNull(card);
+        Assert.NotNull(cardPrinting);
         Assert.NotNull(syncLog);
 
         Assert.Equal("Games", game!.GetTableName());
         Assert.Equal("Sets", set!.GetTableName());
-        Assert.Equal("SwuCards", swuCard!.GetTableName());
-        Assert.Equal("SwuCardPrintings", swuCardPrinting!.GetTableName());
+        Assert.Equal("Cards", card!.GetTableName());
+        Assert.Equal("CardPrintings", cardPrinting!.GetTableName());
         Assert.Equal("SyncLogs", syncLog!.GetTableName());
+        Assert.DoesNotContain(db.Model.GetEntityTypes(), e => e.GetTableName() is "SwuCards" or "SwuCardPrintings");
+        Assert.Null(card.FindProperty(nameof(Card.DetailsJson)));
+        Assert.DoesNotContain(card.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Card.CardUid)));
         Assert.Contains(game.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Game.NameNormalized)));
         Assert.Contains(set.GetIndexes(), i => i.IsUnique &&
             i.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(Set.GameId), nameof(Set.Code) }));
-
-        var cardUidIndex = swuCard.GetIndexes()
-            .Single(i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(SwuCard.CardUid) }));
-
-        Assert.True(cardUidIndex.IsUnique);
-        Assert.Equal("\"CardUid\" IS NOT NULL", cardUidIndex.GetFilter());
     }
 
     [Fact]
-    public async Task Migration_PreservesSwuSetsAndTheirSyncLogReferences()
+    public async Task Migration_PreservesSwuSetsAndTheirSyncLogReferences_AndRemovesUnusedSwuTables()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -69,10 +66,14 @@ public sealed class AppDbContextSwuConfigurationTests
             VALUES (3, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit');
             INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
             VALUES (4, 'Pokémon', 'Pikachu', 'Pokémon');
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
+            VALUES (5, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (8, 4, 'sor', 'SVP-001', 'Promo', 'Standard');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
+            VALUES (9, 5, 'sor', 'SOR-001', 'Common', 'Hyperspace');
             """);
 
         await migrator.MigrateAsync();
@@ -81,15 +82,18 @@ public sealed class AppDbContextSwuConfigurationTests
         var set = await db.Sets.SingleAsync();
         var syncLog = await db.SyncLogs.Include(log => log.Set).SingleAsync();
         var printing = await db.CardPrintings.SingleAsync(item => item.Id == 7);
+        var duplicateCardPrinting = await db.CardPrintings.SingleAsync(item => item.Id == 9);
         var otherGamePrinting = await db.CardPrintings.SingleAsync(item => item.Id == 8);
         Assert.Equal("Star Wars Unlimited", game.Name);
         Assert.Equal("star wars unlimited", game.NameNormalized);
         Assert.Equal(41, set.Id);
         Assert.Equal(game.Id, set.GameId);
-        Assert.Equal("SOR", set.Code);
         Assert.Equal(set.Id, syncLog.SetId);
         Assert.Equal(set.Id, syncLog.Set!.Id);
         Assert.Equal(set.Id, printing.SetId);
+        Assert.Equal(3, printing.CardId);
+        Assert.Equal(3, duplicateCardPrinting.CardId);
+        Assert.Equal(2, await db.Cards.CountAsync());
         Assert.Null(otherGamePrinting.SetId);
     }
 

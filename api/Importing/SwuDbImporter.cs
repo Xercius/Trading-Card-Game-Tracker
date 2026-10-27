@@ -243,16 +243,17 @@ public sealed class SwuDbImporter : ISourceImporter
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url;
 
-        // Source/serial identity takes precedence over names, which can be corrected upstream.
+        // Source/serial identity takes precedence for printings; logical cards are keyed by (Game, Name).
         var printing = identity.FindPrinting(sourceId, serialCode, set, number);
-        var card = (cardUid is null ? null : _db.Cards.Local
-            .SingleOrDefault(c => c.Game == game && c.CardUid == cardUid))
-            ?? identity.FindCard(cardUid) ?? printing?.Card;
-        // Legacy title matching could put unrelated source UIDs on one Card.
-        // Keep the first identity on that row; move other identities, not printing IDs.
-        if (cardUid is not null && card?.CardUid is { } existingUid && existingUid != cardUid
-            && card.Printings.Any(p => p != printing && SwuSharedIdentity.SourceUid(p) is { } uid && uid != cardUid))
-            card = null;
+        var card = _db.Cards.Local.FirstOrDefault(c => c.Game == game && c.Name == name)
+            ?? printing?.Card;
+
+        bool isBasePrinting = variantOfSourceId is null
+            && string.IsNullOrWhiteSpace(variantOfCardUid)
+            && reprintOfSourceId is null
+            && string.IsNullOrWhiteSpace(reprintOfCardUid);
+        bool isCanonicalForCard = card is null
+            || !card.Printings.Any(p => p != printing && IsHigherPriorityPrinting(p, isBasePrinting, sourceId));
 
         var printingJson = JsonSerializer.Serialize(new
         {
@@ -283,7 +284,7 @@ public sealed class SwuDbImporter : ISourceImporter
             };
             _db.Cards.Add(card);
         }
-        else
+        else if (isCanonicalForCard)
         {
             bool changed = card.Name != name || card.CardType != type
                 || card.Description != text;
@@ -293,29 +294,34 @@ public sealed class SwuDbImporter : ISourceImporter
             if (changed && _db.Entry(card).State != EntityState.Added)
                 _db.Entry(card).State = EntityState.Modified;
         }
-        var originalCardValues = _db.Entry(card).CurrentValues.Clone();
-        card.CardUid = cardUid;
-        card.Subtitle = attrs.Subtitle;
-        card.CardType2 = attrs.Type2?.Data?.Attributes?.Name;
-        card.TextStyled = attrs.TextStyled;
-        card.DeployBox = attrs.DeployBox;
-        card.DeployBoxStyled = attrs.DeployBoxStyled;
-        card.EpicAction = attrs.EpicAction;
-        card.EpicActionStyled = attrs.EpicActionStyled;
-        card.Rules = attrs.Rules;
-        card.RulesStyled = attrs.RulesStyled;
-        card.Arena = attrs.Arena;
-        card.Cost = attrs.Cost;
-        card.Power = attrs.Power;
-        card.Hp = attrs.Health ?? attrs.Hp;
-        card.Artist = attrs.Artist;
-        card.Aspects = JsonSerializer.Serialize((attrs.Aspects ?? []).Concat(attrs.AspectDuplicates ?? []));
-        card.Traits = JsonSerializer.Serialize(attrs.Traits ?? []);
-        card.Keywords = JsonSerializer.Serialize(attrs.Keywords ?? []);
-        card.DetailsJson = null;
-        if (_db.Entry(card).State != EntityState.Added
-            && originalCardValues.Properties.Any(p => !Equals(originalCardValues[p], _db.Entry(card).CurrentValues[p])))
-            _db.Entry(card).State = EntityState.Modified;
+
+        if (isCanonicalForCard)
+        {
+            var originalCardValues = _db.Entry(card).CurrentValues.Clone();
+            card.CardUid = cardUid;
+            card.Subtitle = attrs.Subtitle;
+            card.CardType2 = attrs.Type2?.Data?.Attributes?.Name;
+            card.TextStyled = attrs.TextStyled;
+            card.DeployBox = attrs.DeployBox;
+            card.DeployBoxStyled = attrs.DeployBoxStyled;
+            card.EpicAction = attrs.EpicAction;
+            card.EpicActionStyled = attrs.EpicActionStyled;
+            card.Rules = attrs.Rules;
+            card.RulesStyled = attrs.RulesStyled;
+            card.Arena = attrs.Arena;
+            card.Cost = attrs.Cost;
+            card.Power = attrs.Power;
+            card.Hp = attrs.Health ?? attrs.Hp;
+            card.Artist = attrs.Artist;
+            card.Aspects = JsonSerializer.Serialize((attrs.Aspects ?? []).Concat(attrs.AspectDuplicates ?? []));
+            card.Traits = JsonSerializer.Serialize(attrs.Traits ?? []);
+            card.Keywords = JsonSerializer.Serialize(attrs.Keywords ?? []);
+            card.DetailsJson = null;
+            if (_db.Entry(card).State != EntityState.Added
+                && originalCardValues.Properties.Any(p => !Equals(originalCardValues[p], _db.Entry(card).CurrentValues[p])))
+                _db.Entry(card).State = EntityState.Modified;
+        }
+
         var printingCreated = printing is null;
         if (printing is null)
         {
@@ -353,6 +359,18 @@ public sealed class SwuDbImporter : ISourceImporter
         var originalPrintingValues = _db.Entry(printing).CurrentValues.Clone();
         var oldCard = printing.Card;
         _db.Entry(printing).Reference(entity => entity.Card).CurrentValue = card;
+        if (oldCard != card)
+        {
+            oldCard.Printings.Remove(printing);
+            if (!card.Printings.Contains(printing))
+                card.Printings.Add(printing);
+            if (oldCard.Printings.Count == 0)
+                _db.Cards.Remove(oldCard);
+        }
+        else if (!card.Printings.Contains(printing))
+        {
+            card.Printings.Add(printing);
+        }
         printing.StrapiId = sourceId;
         printing.CardUid = cardUid;
         printing.BackImageUrl = attrs.ArtBack?.Data?.Attributes?.Url
@@ -366,11 +384,7 @@ public sealed class SwuDbImporter : ISourceImporter
         printing.ApiCreatedAt = attrs.CreatedAt?.ToUniversalTime();
         printing.ApiUpdatedAt = attrs.UpdatedAt?.ToUniversalTime();
         printing.ApiPublishedAt = attrs.PublishedAt?.ToUniversalTime();
-        associationsChanged = catalog.Apply(card, printing, attrs);
-        if (oldCard != card)
-        {
-            if (oldCard.Printings.Count == 0) _db.Cards.Remove(oldCard);
-        }
+        associationsChanged = catalog.Apply(card, printing, attrs, includeCardAssociations: isCanonicalForCard);
         if (!printingCreated && !updateCounted
             && (_db.Entry(printing).State == EntityState.Modified || originalPrintingValues.Properties.Any(p =>
                 p.Name != nameof(CardPrinting.LastSyncedAt)
@@ -382,5 +396,14 @@ public sealed class SwuDbImporter : ISourceImporter
         printing.LastSyncedAt = _timeProvider.GetUtcNow();
         identity.Track(printing);
         return card;
+    }
+
+    private static bool IsHigherPriorityPrinting(CardPrinting existing, bool candidateIsBase, int candidateSourceId)
+    {
+        bool existingIsBase = !SwuSharedIdentity.IsVariantOrReprint(existing);
+        if (existingIsBase != candidateIsBase)
+            return existingIsBase;
+        var existingSourceId = SwuSharedIdentity.SourceId(existing) ?? int.MaxValue;
+        return existingSourceId < candidateSourceId;
     }
 }

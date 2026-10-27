@@ -20,8 +20,7 @@ Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/
 - **`AdminSyncController`** orchestrates full-catalog and incremental imports by delegating to `SwuDbImporter`, manages the global `swu-catalog` checkpoint, records sync results, and supports full reconciliation.
 - **`SwuDbImporter`** is the current SWU importer implementation.
 - **`ImporterRegistry`** exposes `swu` as a normal source alongside the other games.
-- **`SWUApiClient`** handles fetching, pagination, filtering, and rate-limit retries for the shared importer and the dedicated service implementation.
-- **`CardSyncService`** is registered for the dedicated SWU tables, but no current admin import or sync workflow invokes it.
+- **`SWUApiClient`** handles fetching, pagination, filtering, and rate-limit retries for the shared importer.
 
 ## What
 
@@ -37,25 +36,20 @@ Today SWU is implemented as a generic importer:
   - full Strapi response objects: `{ "data": [...], "meta": {...} }`
   - bare JSON arrays of Strapi records
 
-The importer writes into the shared tables instead of SWU-specific tables:
+The importer writes into the shared normalized tables:
 
-- logical card data goes into `Card`
-- printing data goes into `CardPrinting`
-- expansion codes and names are upserted into `SwuSet`
-- SWU-only metadata is serialized into `Card.DetailsJson` and `CardPrinting.DetailsJson`
+- logical card data goes into `Card` (keyed by `(Game, Name)` built from `(Title, Subtitle)`, so all printings of a card share a single `Card` row)
+- printing data goes into `CardPrinting` (each printing retains its own `StrapiId`, `CardUid`, `Number`, `Style`, and relationship metadata in `CardPrinting.DetailsJson`)
+- expansion codes, names, and `publishedAt` dates are upserted into `Sets` (`Sets.ReleasedAt`)
+- aspect names and colors are upserted into `Aspects` (`Aspects.Color`)
+- rarity names, characters, and colors are upserted into `Rarities` (`Rarities.Character`, `Rarities.Color`)
 - successful remote apply runs store last-sync state in `ImportSyncHistory`
 
-### Dedicated persistence and compatibility
+### Persistence and compatibility
 
-Dedicated `SwuSet`, `SwuCard`, `SwuCardPrinting`, and `SyncLog` entities, migrations, DbContext configuration, `SWUApiClient`, and `CardSyncService` implementation already exist. The dedicated service is registered but is not connected to a current admin route or UI workflow.
+The shared `Card`/`CardPrinting` tables and normalized lookup tables (`Games`, `Sets`, `Rarities`, `CardTypes`, `Traits`, `Keywords`, `Arenas`, `Aspects`) are authoritative for the application's card browsing, collections, decks, and wishlists. The legacy unused `SwuCards` and `SwuCardPrintings` tables and `Cards.DetailsJson` column have been removed by `RemoveSwuTablesAndCardDetailsJson`.
 
-The shared `Card`/`CardPrinting` tables remain authoritative for the application's card browsing, collections, decks, and wishlists. Those features reference shared printing IDs; pointing the admin button at dedicated tables would not update the cards they use.
-
-The active admin import and sync workflows use `SwuDbImporter` and the shared tables. Do not delete or recreate shared printings to switch storage paths; any future dedicated-table workflow needs an explicit, ownership-preserving bridge or migration.
-
-The dedicated service implementation stores per-set checkpoints under `swu-dedicated`, with a five-minute overlap for automatic deltas. The admin sync panel does not use this key: it uses the global `swu-catalog` checkpoint, separate from the generic importer's per-set `swu` history. Existing `swu` history is not used to establish global catalog coverage.
-
-The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upstream relationship targets in nullable `SwuCard.BaseStrapiId`. Apply migrations through the normal deployment workflow. No existing ownership tables or applied migrations are rewritten.
+The admin sync panel uses the global `swu-catalog` checkpoint, separate from the generic importer's per-set `swu` history. Existing `swu` history is not used to establish global catalog coverage.
 
 ## When
 
@@ -84,7 +78,6 @@ The additive `RetainSwuUpstreamBaseReferences` migration retains unresolved upst
 - The upstream SWU API is an internal Strapi endpoint and may change without notice.
 - The shared importer keeps existing collection, deck, wishlist, and pricing references intact.
 - Timestamps (`createdAt`, `updatedAt`, `publishedAt`) make incremental sync possible, so the repository already tracks per-importer/per-set sync times.
-- Separate storage paths must not share synchronization checkpoints: fetching into dedicated tables does not update shared inventory.
 
 ## How
 
@@ -202,44 +195,33 @@ This is the preferred path for unit tests because it avoids live API dependencie
 
 | SWU field | Current repository behavior |
 |---|---|
-| `title` + `subtitle` | Combined display name; upstream printing identity takes precedence when updating an existing card, so renaming does not replace its owned printing. |
-| `cardUid` | Exact string identity for logical-card matching; never matched by title alone. Each printing retains its source `CardUid`; numeric record `id` is stored separately as `CardPrinting.StrapiId`. Legacy title-merged cards are separated by UID while preserving printing IDs. |
+| `title` + `subtitle` | Combined display name (`Title` or `Title — Subtitle`), used as the logical card identity (`(Game, Name)`), grouping all printings of a card under one `Card` row. |
+| `cardUid` | Stored per printing on `CardPrinting.CardUid` and on the canonical printing's `Card.CardUid`; numeric record `id` is stored as `CardPrinting.StrapiId`. |
 | `type` / `type2` | Game-scoped card types, associated with source roles `Type` / `Type2`; legacy strings remain populated. |
 | `text` / `textStyled` | `Card.Description` / `Card.TextStyled`. |
 | `expansion.data.attributes.code` / `name` | Uppercase `CardPrinting.Set`, shared `Sets` row, and printing `SetId`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
-| `expansion.data.attributes.releaseDate` | Optional date-only set release value; never inferred from CMS publication timestamps. This optional contract is tested synthetically; see the evidence limitations in `SWUAPI_DOCUMENTATION.txt`. |
+| `expansion.data.attributes.publishedAt` / `releaseDate` | Populates `Sets.ReleasedAt` (`DateOnly` from `releaseDate` or UTC date of `publishedAt`). |
 | `serialCode` | Preferred printing identity and stored as `CardPrinting.Number` when present. |
 | `cardNumber` | Used as fallback printing number; if missing, record `id` is used. |
-| `rarity` | Game-scoped rarity and printing `RarityId`; legacy name falls back to `Unknown`. |
-| `variantTypes` | Sorted source names form `Style`; any source `foil: true` sets `IsFoil`. Variant IDs remain in diagnostic JSON. |
+| `rarity` | Game-scoped rarity (`Rarities.Name`, `Rarities.Character`, `Rarities.Color`) and printing `RarityId`; legacy name falls back to `Unknown`. |
+| `variantTypes` | Sorted source names form `Style`; any source `foil: true` sets `IsFoil`. Variant IDs remain in `CardPrinting.DetailsJson`. |
 | `artFront` / `artBack` | Separate `ImageUrl` / `BackImageUrl`; each uses its original URL, card format, then thumbnail. Back art never substitutes for front art. |
 | `artFrontHorizontal` / `artBackHorizontal` | Nullable boolean printing columns. |
-| `variantOf` / `reprintOf` | Distinct printing relationships `VariantOfId` / `ReprintOfId` resolved by source record ID. Unresolved upstream IDs/UIDs remain in printing JSON for subsequent syncs. An optional `Card.BaseCardId` links known, distinct local logical cards, never upstream IDs. |
-| `createdAt` / `updatedAt` / `publishedAt` | Printing `ApiCreatedAt` / `ApiUpdatedAt` / `ApiPublishedAt`; CMS lifecycle dates, not printing or set release dates. |
+| `variantOf` / `reprintOf` | Distinct printing relationships `VariantOfId` / `ReprintOfId` resolved by source record ID. Unresolved upstream IDs/UIDs remain in `CardPrinting.DetailsJson` for subsequent syncs. |
+| `createdAt` / `updatedAt` / `publishedAt` | Printing `ApiCreatedAt` / `ApiUpdatedAt` / `ApiPublishedAt`. |
 | traits / keywords / arenas | Game-scoped lookups and unique card associations. |
-| aspects / aspectDuplicates | Concatenated source occurrences grouped by aspect with an explicit positive `Count`, including double aspects. |
+| aspects / aspectDuplicates | Concatenated source occurrences grouped by aspect with an explicit positive `Count` and `Aspects.Color` populated from `attributes.color`. |
 | cost / power / health / artist | Typed card columns, with upstream `health` mapped to `Hp`. |
-
-The additive `PopulateNormalizedSwuPrintingFields` migration supplies styled text,
-orientation, foil, publication, and distinct printing relationship fields without
-replacing existing printing IDs or changing API routes/response shapes.
-`RetainSwuPrintingSourceUid` adds the per-printing UID used for legacy identity
-reconciliation; legacy JSON source identities are adopted on the next sync.
-After upgrading an existing catalog with these migrations, run one full
-reconciliation (`forceFullSync=true`) so unchanged upstream records receive the
-new mappings and legacy identity reconciliation.
 
 ### 5. Operational gotchas
 
 - **English only:** non-`en` records are skipped intentionally.
 - **Set discovery:** no pre-populated or hard-coded set list is required for full-catalog imports. Explicit single-set imports still require the caller to supply a code.
-- **Persistence paths:** the dedicated SWU entities and service implementation exist, but current admin import/sync workflows update shared tables.
 - **Two tracking purposes:** `SyncLog` audits sync attempts; `ImportSyncHistory` stores reusable coverage checkpoints. A completed attempt is not necessarily a successful synchronization.
 - **Artwork:** image URLs are stored; image files are not downloaded.
 - **Pagination:** pages are fetched before shared database writes begin. A later-page exception cannot advance the checkpoint. Upstream page-number pagination is not a snapshot; overlap and periodic reconciliation remain necessary.
-- **Checkpoint isolation:** the sync button uses only `swu-catalog` with an empty set code. Legacy `swu` per-set history (including zero-card runs) and `swu-dedicated` history do not establish global coverage.
+- **Checkpoint isolation:** the sync button uses only `swu-catalog` with an empty set code. Legacy `swu` per-set history (including zero-card runs) does not establish global coverage.
 - **Checkpoint timing:** save the run-start time only after all pages and applicable records succeed. A failed checkpoint write causes safe re-fetching, not skipped records. Per-row API timestamps are metadata, not proof of complete set coverage.
-- **Dedicated service behavior:** if `CardSyncService` is invoked, SWU rows, their checkpoint, and the completed audit log commit together. Limited runs are logged as `Partial`; rejected records produce `Failed`, and neither advances coverage. The current admin sync workflow does not invoke this service.
 - **Preview scope:** the preview is capped, while an unlimited remote apply processes the whole requested feed (one set or the full catalog). It is not a guaranteed immutable snapshot of a changing upstream API.
 
 ### 6. API and script examples
@@ -290,14 +272,10 @@ Optional auth can be supplied with `SWU_API_IDENTIFIER` + `SWU_API_PASSWORD` or 
 When working on SWU imports:
 
 1. Read this file and `docs/SWUAPI_DOCUMENTATION.txt`.
-2. Check which persistence path the caller uses before modifying identity or synchronization.
-3. Use dry-run before apply.
-4. Preserve incremental sync behavior based on `updatedAt`.
-5. Keep `api.Tests/Importing/SwuDbImporterTests.cs` in sync with mapping or query changes.
-6. Keep checkpoints isolated between shared and dedicated persistence; do not use the dedicated service checkpoint to advance shared inventory coverage.
+2. Use dry-run before apply.
+3. Preserve incremental sync behavior based on `updatedAt`.
+4. Keep `api.Tests/Importing/SwuDbImporterTests.cs` in sync with mapping or query changes.
 
 ## Validation
 
-Use the existing SQLite importer/sync-service tests and admin endpoint tests for repeat imports in fresh contexts, duplicate records, renames with ownership/deck references, relationship ordering, rejected records, limits, and failed later pages. Client sync-panel tests cover incremental/full requests and partial-failure feedback.
-
-A read-only, anonymous one-card connectivity check was attempted on 2026-10-20 using the existing script, but this environment could not resolve `admin.starwarsunlimited.com`. Live upstream compatibility remains unverified here. Re-run the script locally, then preview/apply a small captured response in a disposable database before reconciling a real collection.
+Use the existing SQLite importer tests and admin endpoint tests for repeat imports in fresh contexts, duplicate records, renames with ownership/deck references, relationship ordering, rejected records, limits, and failed later pages. Client sync-panel tests cover incremental/full requests and partial-failure feedback.
