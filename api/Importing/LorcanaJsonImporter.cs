@@ -119,7 +119,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
 
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = detailsCardJson };
+            card = new Card { Game = game, Name = name, CardType = type, Text = text, DetailsJson = detailsCardJson };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
@@ -127,7 +127,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
         {
             bool changed = false;
             if (card.CardType != type) { card.CardType = type; changed = true; }
-            if (card.Description != text) { card.Description = text; changed = true; }
+            if (card.Text != text) { card.Text = text; changed = true; }
             if (card.DetailsJson != detailsCardJson) { card.DetailsJson = detailsCardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }

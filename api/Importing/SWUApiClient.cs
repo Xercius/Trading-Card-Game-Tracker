@@ -261,7 +261,9 @@ internal sealed record SwuCardAttributes(
     [property: JsonPropertyName("rules")] string? Rules = null,
     [property: JsonPropertyName("rulesStyled")] string? RulesStyled = null,
     [property: JsonPropertyName("hyperspace")] bool? Hyperspace = null,
-    [property: JsonPropertyName("showcase")] bool? Showcase = null)
+    [property: JsonPropertyName("showcase")] bool? Showcase = null,
+    [property: JsonPropertyName("upgradeHp")] int? UpgradeHp = null,
+    [property: JsonPropertyName("upgradePower")] int? UpgradePower = null)
 {
     public SwuCardAttributes(
         string? Title,
@@ -304,7 +306,9 @@ internal sealed record SwuCardAttributes(
         string? Rules = null,
         string? RulesStyled = null,
         bool? Hyperspace = null,
-        bool? Showcase = null)
+        bool? Showcase = null,
+        int? UpgradeHp = null,
+        int? UpgradePower = null)
         : this(
             Title,
             Subtitle,
@@ -346,7 +350,9 @@ internal sealed record SwuCardAttributes(
             Rules,
             RulesStyled,
             Hyperspace,
-            Showcase)
+            Showcase,
+            UpgradeHp,
+            UpgradePower)
     {
     }
 

@@ -177,7 +177,7 @@ public sealed class SwuSharedImporterRegressionTests
         {
             var card = await db.Cards.Include(c => c.CardTypes).ThenInclude(t => t.CardType)
                 .Include(c => c.CardAspects).SingleAsync();
-            Assert.Equal("Rules", card.Description);
+            Assert.Equal("Rules", card.Text);
             Assert.Equal("<p>Rules</p>", card.TextStyled);
             Assert.Equal("On Attack", card.DeployBox);
             Assert.Equal("<p>On Attack</p>", card.DeployBoxStyled);
@@ -507,12 +507,12 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database, lower, higher);
 
         await using (var db = database.Open())
-            Assert.Equal("lower source", (await db.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+            Assert.Equal("lower source", (await db.Cards.SingleAsync(card => card.Name == "Shared")).Text);
 
         var replay = await ImportAsync(database, lower, higher);
         Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
         await using var verify = database.Open();
-        Assert.Equal("lower source", (await verify.Cards.SingleAsync(card => card.Name == "Shared")).Description);
+        Assert.Equal("lower source", (await verify.Cards.SingleAsync(card => card.Name == "Shared")).Text);
     }
 
     [Fact]

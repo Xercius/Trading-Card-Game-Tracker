@@ -110,7 +110,7 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal("Heroism", copiedAspect.Aspect.Name);
         Assert.Equal("{\"kept\":true}", (await db.Cards.SingleAsync(item => item.Id == 4)).DetailsJson);
         Assert.Equal(10, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
-        Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Description);
+        Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Text);
     }
 
     [Fact]

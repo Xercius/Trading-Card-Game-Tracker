@@ -14,6 +14,7 @@ export type CardPrintingDetail = CardPrintingImages & {
   rarity: string;
   style: string;
   releaseDate?: string | null;
+  artist?: string | null;
 };
 
 export type CardAspect = {
@@ -31,7 +32,7 @@ export type CardDetail = {
   arena?: string | null;
   aspects?: CardAspect[];
   traits?: string[];
-  description: string | null;
+  text: string | null;
   textStyled?: string | null;
   epicAction?: string | null;
   epicActionStyled?: string | null;
@@ -40,6 +41,8 @@ export type CardDetail = {
   cost?: number | null;
   hp?: number | null;
   power?: number | null;
+  upgradeHp?: number | null;
+  upgradePower?: number | null;
   printings: CardPrintingDetail[];
 };
 
@@ -51,6 +54,7 @@ export type PrintingSummary = CardPrintingImages & {
   rarity: string;
   style?: string;
   releaseDate?: string | null;
+  artist?: string | null;
   imageUrl: string;
 };
 

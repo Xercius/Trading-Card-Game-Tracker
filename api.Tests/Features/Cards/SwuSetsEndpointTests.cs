@@ -46,7 +46,7 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
             Game = SwuGame,
             Name = cardName,
             CardType = "Unit",
-            Description = null
+            Text = null
         };
         db.Cards.Add(card);
 
