@@ -84,7 +84,7 @@ public sealed class SwccgdbImporter : ISourceImporter
         var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = cardType, Description = desc, DetailsJson = JsonSerializer.Serialize(src, Json) };
+            card = new Card { Game = game, Name = name, CardType = cardType, Text = desc, DetailsJson = JsonSerializer.Serialize(src, Json) };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
@@ -92,7 +92,7 @@ public sealed class SwccgdbImporter : ISourceImporter
         {
             bool changed = false;
             if (card.CardType != cardType) { card.CardType = cardType; changed = true; }
-            if (card.Description != desc) { card.Description = desc; changed = true; }
+            if (card.Text != desc) { card.Text = desc; changed = true; }
             var newJson = JsonSerializer.Serialize(src, Json);
             if (card.DetailsJson != newJson) { card.DetailsJson = newJson; changed = true; }
             if (changed) summary.CardsUpdated++;

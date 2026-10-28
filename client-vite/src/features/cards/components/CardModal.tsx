@@ -179,7 +179,7 @@ export default function CardModal({
     return allTypes.some((type) => type.toLowerCase().includes("unit"));
   }, [details, primaryType, secondaryType]);
 
-  const rulesTextSource = details?.textStyled?.trim() || details?.description?.trim() || null;
+  const rulesTextSource = details?.textStyled?.trim() || details?.text?.trim() || null;
   const epicActionSource =
     details?.epicActionStyled?.trim() || details?.epicAction?.trim() || null;
   const deployBoxSource =

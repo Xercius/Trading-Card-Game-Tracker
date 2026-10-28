@@ -40,7 +40,8 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardPrintingResponse.ImageOrientation), o => o.MapFrom(s =>
                 s.ArtFrontHorizontal == true ? "horizontal" : s.ArtFrontHorizontal == false ? "vertical" : null))
             .ForCtorParam(nameof(CardPrintingResponse.BackImageOrientation), o => o.MapFrom(s =>
-                s.ArtBackHorizontal == true ? "horizontal" : s.ArtBackHorizontal == false ? "vertical" : null));
+                s.ArtBackHorizontal == true ? "horizontal" : s.ArtBackHorizontal == false ? "vertical" : null))
+            .ForCtorParam(nameof(CardPrintingResponse.Artist), o => o.MapFrom(s => s.Artist));
         CreateMap<CardPrinting, CardListItemResponse.PrimaryPrintingResponse>()
             .ForMember(d => d.Set, o => o.MapFrom(s =>
                 s.CatalogSet == null ? s.Set : s.CatalogSet.Name ?? s.CatalogSet.Code))
@@ -73,7 +74,7 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.Name), o => o.MapFrom(s => s.Name))
             .ForCtorParam(nameof(CardDetailResponse.Game), o => o.MapFrom(s => s.Game))
             .ForCtorParam(nameof(CardDetailResponse.CardType), o => o.MapFrom(s => s.CardType))
-            .ForCtorParam(nameof(CardDetailResponse.Description), o => o.MapFrom(s => s.Description))
+            .ForCtorParam(nameof(CardDetailResponse.Text), o => o.MapFrom(s => s.Text))
             .ForCtorParam(nameof(CardDetailResponse.Printings), o => o.MapFrom(s => s.Printings))
             .ForCtorParam(nameof(CardDetailResponse.CardTypes), o => o.MapFrom(s =>
                 s.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList()))
@@ -95,6 +96,8 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.DeployBoxStyled), o => o.MapFrom(s => s.DeployBoxStyled))
             .ForCtorParam(nameof(CardDetailResponse.Cost), o => o.MapFrom(s => s.Cost))
             .ForCtorParam(nameof(CardDetailResponse.Hp), o => o.MapFrom(s => s.Hp))
-            .ForCtorParam(nameof(CardDetailResponse.Power), o => o.MapFrom(s => s.Power));
+            .ForCtorParam(nameof(CardDetailResponse.Power), o => o.MapFrom(s => s.Power))
+            .ForCtorParam(nameof(CardDetailResponse.UpgradeHp), o => o.MapFrom(s => s.UpgradeHp))
+            .ForCtorParam(nameof(CardDetailResponse.UpgradePower), o => o.MapFrom(s => s.UpgradePower));
     }
 }

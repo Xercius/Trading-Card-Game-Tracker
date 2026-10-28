@@ -117,7 +117,7 @@ describe("CardModal", () => {
                 "<p><strong>On Attack:</strong> Give an Experience token to a friendly <strong><i>Vehicle</i></strong> or <strong><i>Droid</i></strong> unit.</p>",
               epicActionStyled: "<p><strong>Epic Action:</strong> Deploy this leader.</p>",
               deployBoxStyled: "<p><strong>When Deployed:</strong> Give a Shield token.</p>",
-              description: null,
+              text: null,
               printings: [],
             },
       })
@@ -162,7 +162,7 @@ describe("CardModal", () => {
               cardType: "Event",
               cardTypes: ["Event"],
               arena: "Ground",
-              description: "Defeat a unit.",
+              text: "Defeat a unit.",
               printings: [],
             },
       })
@@ -216,7 +216,7 @@ describe("CardModal", () => {
                 name: "Two-sided Card",
                 game: "Magic",
                 cardType: "Creature",
-                description: null,
+                text: null,
                 printings: [],
               },
         })
@@ -255,7 +255,7 @@ describe("CardModal", () => {
               name: "Two-sided Card",
               game: "Magic",
               cardType: "Creature",
-              description: null,
+              text: null,
               printings: [
                 {
                   id: 1001,
@@ -286,7 +286,7 @@ describe("CardModal", () => {
               name: "No Image Card",
               game: "Magic",
               cardType: "Creature",
-              description: null,
+              text: null,
               printings: [],
             },
       })
@@ -381,7 +381,7 @@ describe("CardModal", () => {
             name: "Wishlist Card",
             game: "Magic",
             cardType: "Creature",
-            description: "Test",
+            text: "Test",
             printings: [],
           },
         });

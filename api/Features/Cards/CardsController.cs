@@ -297,7 +297,7 @@ public class CardsController : ControllerBase
             c.Name,
             c.Game,
             c.CardType,
-            c.Description,
+            c.Text,
             printings,
             c.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList(),
             c.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
@@ -314,7 +314,9 @@ public class CardsController : ControllerBase
             c.DeployBoxStyled,
             c.Cost,
             c.Hp,
-            c.Power);
+            c.Power,
+            c.UpgradeHp,
+            c.UpgradePower);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.
@@ -610,7 +612,8 @@ public class CardsController : ControllerBase
             printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
             printing.BackImageUrl,
             GetOrientation(printing.ArtFrontHorizontal),
-            GetOrientation(printing.ArtBackHorizontal));
+            GetOrientation(printing.ArtBackHorizontal),
+            printing.Artist);
 
     private static PrintingDto ToPrintingDto(CardPrinting printing)
         => new(

@@ -279,7 +279,7 @@ public sealed class SwuDbImporter : ISourceImporter
                 Game = game,
                 Name = name,
                 CardType = type,
-                Description = text,
+                Text = text,
                 CardUid = cardUid
             };
             _db.Cards.Add(card);
@@ -287,10 +287,10 @@ public sealed class SwuDbImporter : ISourceImporter
         else if (isCanonicalForCard)
         {
             bool changed = card.Name != name || card.CardType != type
-                || card.Description != text;
+                || card.Text != text;
             card.Name = name;
             card.CardType = type;
-            card.Description = text;
+            card.Text = text;
             if (changed && _db.Entry(card).State != EntityState.Added)
                 _db.Entry(card).State = EntityState.Modified;
         }
@@ -312,7 +312,8 @@ public sealed class SwuDbImporter : ISourceImporter
             card.Cost = attrs.Cost;
             card.Power = attrs.Power;
             card.Hp = attrs.Health ?? attrs.Hp;
-            card.Artist = attrs.Artist;
+            card.UpgradeHp = attrs.UpgradeHp;
+            card.UpgradePower = attrs.UpgradePower;
             card.Aspects = JsonSerializer.Serialize((attrs.Aspects ?? []).Concat(attrs.AspectDuplicates ?? []));
             card.Traits = JsonSerializer.Serialize(attrs.Traits ?? []);
             card.Keywords = JsonSerializer.Serialize(attrs.Keywords ?? []);
@@ -382,6 +383,7 @@ public sealed class SwuDbImporter : ISourceImporter
             ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Thumbnail?.Url;
         printing.ArtFrontHorizontal = attrs.ArtFrontHorizontal;
         printing.ArtBackHorizontal = attrs.ArtBackHorizontal;
+        printing.Artist = attrs.Artist;
         printing.IsFoil = isFoil;
         printing.Hyperspace = attrs.Hyperspace;
         printing.Showcase = attrs.Showcase;

@@ -48,7 +48,6 @@ namespace api.Data
                 e.Property(c => c.CardType2).HasMaxLength(64);
                 e.Property(c => c.CardUid).HasMaxLength(64);
                 e.Property(c => c.Arena).HasMaxLength(32);
-                e.Property(c => c.Artist).HasMaxLength(128);
                 e.Property(c => c.Aspects).HasMaxLength(256);
                 e.Property(c => c.Traits).HasMaxLength(512);
                 e.Property(c => c.Keywords).HasMaxLength(512);
@@ -96,6 +95,7 @@ namespace api.Data
                 e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Style).IsRequired().HasMaxLength(64);
                 e.Property(p => p.BackImageUrl).HasMaxLength(1024);
+                e.Property(p => p.Artist).HasMaxLength(256);
                 e.Property(p => p.CardUid).HasMaxLength(64);
 
                 // fast FK lookup

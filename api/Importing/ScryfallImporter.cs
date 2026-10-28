@@ -91,7 +91,7 @@ public sealed class ScryfallImporter : ISourceImporter
             ?? await _db.Cards.Where(x => x.Game == game && x.Name == name).FirstOrDefaultAsync(ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = cardType, Description = desc };
+            card = new Card { Game = game, Name = name, CardType = cardType, Text = desc };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
@@ -100,7 +100,7 @@ public sealed class ScryfallImporter : ISourceImporter
             // Update fields if changed
             bool changed = false;
             if (card.CardType != cardType) { card.CardType = cardType; changed = true; }
-            if (card.Description != desc) { card.Description = desc; changed = true; }
+            if (card.Text != desc) { card.Text = desc; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
 

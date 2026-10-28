@@ -153,7 +153,7 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 Game = game,
                 Name = name,
                 CardType = type,
-                Description = text,
+                Text = text,
                 DetailsJson = detailsCard
             };
             _db.Cards.Add(card);
@@ -168,9 +168,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 changed = true;
             }
 
-            if (card.Description != text)
+            if (card.Text != text)
             {
-                card.Description = text;
+                card.Text = text;
                 changed = true;
             }
 

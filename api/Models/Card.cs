@@ -9,7 +9,7 @@ public sealed class Card
     public required string Game { get; set; } // Magic, Lorcana, Star Wars Unlimited etc..
     public required string Name { get; set; } // Name of card
     public required string CardType { get; set; } // Unit, Instant, Sorcery, Upgrade, Enchantment etc..
-    public string? Description { get; set; } // Optional rules text
+    public string? Text { get; set; } // Optional rules text
     public string? TextStyled { get; set; }
     public string? DeployBox { get; set; }
     public string? DeployBoxStyled { get; set; }
@@ -26,7 +26,8 @@ public sealed class Card
     public int? Cost { get; set; }
     public int? Power { get; set; }
     public int? Hp { get; set; }
-    public string? Artist { get; set; }
+    public int? UpgradeHp { get; set; }
+    public int? UpgradePower { get; set; }
     public string? Aspects { get; set; }
     public string? Traits { get; set; }
     public string? Keywords { get; set; }

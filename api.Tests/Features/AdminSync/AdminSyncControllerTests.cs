@@ -289,7 +289,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
                 Game = "Star Wars Unlimited",
                 Name = "Grand Moff Tarkin",
                 CardType = "Leader",
-                Description = "Original text.",
+                Text = "Original text.",
                 DetailsJson = "{\"version\":1}"
             });
             await db.SaveChangesAsync();
@@ -340,7 +340,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var updatedCard = await appDb.Cards
             .Include(c => c.Printings)
             .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
-        Assert.Equal("Updated text.", updatedCard.Description);
+        Assert.Equal("Updated text.", updatedCard.Text);
         Assert.NotNull(updatedCard.LastSyncedAt);
         Assert.Null(updatedCard.DetailsJson);
 
@@ -352,7 +352,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var newCard = await appDb.Cards
             .Include(c => c.Printings)
             .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Luke Skywalker");
-        Assert.Equal("Deal 3 damage to a unit.", newCard.Description);
+        Assert.Equal("Deal 3 damage to a unit.", newCard.Text);
         var newPrinting = Assert.Single(newCard.Printings);
         Assert.Equal("SOR", newPrinting.Set);
         Assert.Equal("1", newPrinting.Number);
@@ -654,7 +654,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
                 .OrderBy(p => p.Id).Select(p => p.Id).ToArrayAsync());
             Assert.Equal("Expansion 3", (await db.Sets.SingleAsync(s => s.Code == "NEXT")).Name);
             Assert.Equal("Corrected expansion", (await db.Sets.SingleAsync(s => s.Code == "SOR")).Name);
-            Assert.Equal("Updated text", (await db.Cards.SingleAsync(c => c.Name == "Card 1")).Description);
+            Assert.Equal("Updated text", (await db.Cards.SingleAsync(c => c.Name == "Card 1")).Text);
             Assert.Equal(legacyCheckpoint, (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu")).LastSyncedAt);
             var checkpoint = (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).LastSyncedAt;
             var status = await client.GetFromJsonAsync<AdminSyncStatusDetailsResponse>("/api/admin/sync/star-wars-unlimited/status");

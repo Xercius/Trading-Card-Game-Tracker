@@ -615,7 +615,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
                         Game = "Test Game",
                         Name = name,
                         CardType = "Test",
-                        Description = null,
+                        Text = null,
                         DetailsJson = "{}",
                     };
                     db.Cards.Add(card);

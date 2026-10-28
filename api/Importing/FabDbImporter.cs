@@ -140,7 +140,7 @@ public sealed class FabDbImporter : ISourceImporter
             ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Description = text, DetailsJson = cardJson };
+            card = new Card { Game = game, Name = name, CardType = type, Text = text, DetailsJson = cardJson };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
@@ -148,7 +148,7 @@ public sealed class FabDbImporter : ISourceImporter
         {
             bool changed = false;
             if (card.CardType != type) { card.CardType = type; changed = true; }
-            if (card.Description != text) { card.Description = text; changed = true; }
+            if (card.Text != text) { card.Text = text; changed = true; }
             if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }

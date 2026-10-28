@@ -124,7 +124,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         var createdCard = await db.Cards.SingleAsync(c => c.Name == "Unit Test Card");
         Assert.Equal("Magic", createdCard.Game);
         Assert.Equal("Creature", createdCard.CardType);
-        Assert.Equal("Deal 2 damage to any target", createdCard.Description);
+        Assert.Equal("Deal 2 damage to any target", createdCard.Text);
 
         var createdPrinting = await db.CardPrintings.SingleAsync(p => p.Set == "UTS" && p.Number == "007");
         Assert.Equal(createdCard.Id, createdPrinting.CardId);
@@ -163,7 +163,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         await db.Entry(createdPrinting).ReloadAsync();
 
         Assert.Equal("Sorcery", createdCard.CardType);
-        Assert.Equal("Front\nDraw a card", createdCard.Description);
+        Assert.Equal("Front\nDraw a card", createdCard.Text);
 
         Assert.Equal("mythic", createdPrinting.Rarity);
         Assert.Equal("Standard", createdPrinting.Style);

@@ -18,7 +18,7 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Name">Display name of the card (e.g., "Lightning Bolt", "Elsa - Snow Queen").</param>
 /// <param name="Game">Name of the trading card game this card belongs to (e.g., "Magic", "Lorcana", "Star Wars Unlimited").</param>
 /// <param name="CardType">Type classification of the card (e.g., "Unit", "Instant", "Sorcery", "Upgrade", "Enchantment").</param>
-/// <param name="Description">Optional rules text or description of the card's abilities and effects.</param>
+/// <param name="Text">Optional rules text or description of the card's abilities and effects.</param>
 /// <param name="Printings">Read-only collection of all printing variations for this card, including different sets, rarities, and styles.</param>
 /// <param name="CardTypes">Normalized type associations, including both primary and secondary types.</param>
 /// <param name="Aspects">Normalized aspect associations with their occurrence counts.</param>
@@ -33,12 +33,14 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Cost">Optional resource cost of the card.</param>
 /// <param name="Hp">Optional hit points / health of the card.</param>
 /// <param name="Power">Optional power of the card.</param>
+/// <param name="UpgradeHp">Optional hit points granted when this card is attached as an upgrade.</param>
+/// <param name="UpgradePower">Optional power granted when this card is attached as an upgrade.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
     string Game,
     string CardType,
-    string? Description,
+    string? Text,
     IReadOnlyList<CardPrintingResponse> Printings,
     IReadOnlyList<string>? CardTypes = null,
     IReadOnlyList<CardAspectResponse>? Aspects = null,
@@ -52,6 +54,8 @@ public sealed record CardDetailResponse(
     string? DeployBoxStyled = null,
     int? Cost = null,
     int? Hp = null,
-    int? Power = null);
+    int? Power = null,
+    int? UpgradeHp = null,
+    int? UpgradePower = null);
 
 public sealed record CardAspectResponse(string Name, int Count);
