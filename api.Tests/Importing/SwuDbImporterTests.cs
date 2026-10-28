@@ -150,7 +150,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("Card text.", card.Description);
         Assert.Equal("Legendary", printing.Rarity);
         Assert.Equal("SOR", printing.Set);
-        Assert.Equal("06010001", printing.Number);
+        Assert.Equal("1", printing.Number);
         Assert.Equal("Standard", printing.Style);
         Assert.Equal("https://example.invalid/card.png", printing.ImageUrl);
         Assert.Equal("Legendary", (await db.Rarities.SingleAsync(r => r.Id == printing.RarityId)).Name);
@@ -189,12 +189,13 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         var card = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine" && c.Game == Game);
         Assert.Equal("Leader", card.CardType);
         Assert.Equal("Deploy: exhaust this leader.", card.Description);
+        Assert.NotNull(card.LastSyncedAt);
 
-        // Printing stored with serialCode as the Number key.
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "06010001");
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "1020365882");
         Assert.Equal(card.Id, printing.CardId);
         Assert.Equal("SOR", printing.Set);
         Assert.Equal("Legendary", printing.Rarity);
+        Assert.Equal("1", printing.Number);
         Assert.Equal("Standard", printing.Style);
         Assert.Equal("https://cdn.starwarsunlimited.com/06010001_EN.png", printing.ImageUrl);
     }
@@ -225,7 +226,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.PrintingsCreated);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "06020002");
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "2579145458");
         Assert.Equal("Foil", printing.Style);
     }
 
@@ -279,8 +280,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         var card = await db.Cards.SingleAsync(c => c.Name == "Grand Moff Tarkin" && c.Game == Game);
         Assert.Equal("Updated text.", card.Description);
+        Assert.NotNull(card.LastSyncedAt);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "06010003");
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "9988776655");
         Assert.Equal("Uncommon", printing.Rarity);
         Assert.Equal("https://cdn.starwarsunlimited.com/v2.png", printing.ImageUrl);
     }
@@ -442,7 +444,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.PrintingsCreated);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "07010001");
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "1234567890");
         Assert.Equal("SHD", printing.Set);
     }
 
@@ -580,10 +582,10 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         await importer.ImportFromFileAsync(ToStream(shdJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
 
-        var sorPrinting = await db.CardPrintings.SingleAsync(p => p.Number == "06030001");
+        var sorPrinting = await db.CardPrintings.SingleAsync(p => p.CardUid == "1111111111");
         Assert.Equal("SOR", sorPrinting.Set);
 
-        var shdPrinting = await db.CardPrintings.SingleAsync(p => p.Number == "07020002");
+        var shdPrinting = await db.CardPrintings.SingleAsync(p => p.CardUid == "2222222222");
         Assert.Equal("SHD", shdPrinting.Set);
     }
 
@@ -790,8 +792,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("How liberty dies text.", card2.Description);
 
         // Each printing must point to its own card.
-        var printing1 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-001");
-        var printing2 = await db.CardPrintings.SingleAsync(p => p.Number == "SOR-CP-002");
+        var printing1 = await db.CardPrintings.SingleAsync(p => p.CardUid == "CP001");
+        var printing2 = await db.CardPrintings.SingleAsync(p => p.CardUid == "CP002");
         Assert.Equal(card1.Id, printing1.CardId);
         Assert.Equal(card2.Id, printing2.CardId);
     }
@@ -830,7 +832,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.PrintingsCreated);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "06010010");
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "3344556677");
         Assert.Equal(DateTimeOffset.Parse(expectedCreatedAt), printing.ApiCreatedAt);
         Assert.Equal(DateTimeOffset.Parse(expectedUpdatedAt), printing.ApiUpdatedAt);
         Assert.Equal(DateTimeOffset.Parse("2025-08-15T18:30:00.000Z"), printing.ApiPublishedAt);
@@ -981,9 +983,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task ImportFromFileAsync_Stores_VariantOf_And_ReprintOf_In_DetailsJson()
     {
-        // The importer must persist variantOfSourceId/variantOfCardUid and
-        // reprintOfSourceId/reprintOfCardUid in the Card's DetailsJson so the
-        // relationship data is available without a schema change.
+        // The importer persists CardUid-based relationship data without a schema change.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -1017,17 +1017,14 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         using var doc = JsonDocument.Parse(printing.DetailsJson!);
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("variantOfSourceId", out var variantOfSourceId), "DetailsJson must contain 'variantOfSourceId'");
-        Assert.Equal(12345, variantOfSourceId.GetInt32());
-
         Assert.True(root.TryGetProperty("variantOfCardUid", out var variantOfCardUid), "DetailsJson must contain 'variantOfCardUid'");
         Assert.Equal("9000000001", variantOfCardUid.GetString());
 
-        Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId), "DetailsJson must contain 'reprintOfSourceId'");
-        Assert.Equal(99999, reprintOfSourceId.GetInt32());
-
         Assert.True(root.TryGetProperty("reprintOfCardUid", out var reprintOfCardUid), "DetailsJson must contain 'reprintOfCardUid'");
         Assert.Equal("8000000001", reprintOfCardUid.GetString());
+        Assert.Equal(99, root.GetProperty("cardNumber").GetInt32());
+        Assert.False(root.TryGetProperty("variantOfSourceId", out _));
+        Assert.False(root.TryGetProperty("reprintOfSourceId", out _));
     }
 
     [Fact]
@@ -1149,7 +1146,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
     public async Task ImportFromFileAsync_NullVariantOf_Stores_Null_VariantOf_Fields_In_DetailsJson()
     {
         // When variantOf is null in the API response the DetailsJson must still be valid JSON
-        // and the variantOfSourceId / variantOfCardUid fields must be present with null values.
+        // and relationship UID fields must be present with null values.
         await factory.ResetDatabaseAsync();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -1174,12 +1171,13 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         using var doc = JsonDocument.Parse(printing.DetailsJson!);
         var root = doc.RootElement;
 
-        // Fields must be present but null.
-        Assert.True(root.TryGetProperty("variantOfSourceId", out var variantOfSourceId));
-        Assert.Equal(JsonValueKind.Null, variantOfSourceId.ValueKind);
-
-        Assert.True(root.TryGetProperty("reprintOfSourceId", out var reprintOfSourceId));
-        Assert.Equal(JsonValueKind.Null, reprintOfSourceId.ValueKind);
+        Assert.True(root.TryGetProperty("variantOfCardUid", out var variantOfCardUid));
+        Assert.Equal(JsonValueKind.Null, variantOfCardUid.ValueKind);
+        Assert.True(root.TryGetProperty("reprintOfCardUid", out var reprintOfCardUid));
+        Assert.Equal(JsonValueKind.Null, reprintOfCardUid.ValueKind);
+        Assert.Equal(1, root.GetProperty("cardNumber").GetInt32());
+        Assert.False(root.TryGetProperty("variantOfSourceId", out _));
+        Assert.False(root.TryGetProperty("reprintOfSourceId", out _));
     }
 
     [Fact]
@@ -1387,7 +1385,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         var set = await db.Sets.SingleAsync(s => s.Code == "SOR");
-        Assert.Null(set.ReleasedAt);
+        Assert.Equal(new DateOnly(2024, 1, 24), set.ReleasedAt);
 
         var page = JsonNode.Parse(json)!;
         var expansion = page["data"]![0]!["attributes"]!["expansion"]!["data"]!["attributes"]!;
@@ -1399,7 +1397,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         expansion["publishedAt"] = "2025-02-01T00:00:00.000Z";
         await importer.ImportFromFileAsync(ToStream(page.ToJsonString()), new ImportOptions(DryRun: false, SetCode: "SOR"));
         db.ChangeTracker.Clear();
-        Assert.Equal(new DateOnly(2024, 2, 1), (await db.Sets.SingleAsync(s => s.Code == "SOR")).ReleasedAt);
+        Assert.Equal(new DateOnly(2025, 2, 1), (await db.Sets.SingleAsync(s => s.Code == "SOR")).ReleasedAt);
 
         var rarity = await db.Rarities.SingleAsync(r => r.Name == "Common");
         Assert.Equal("C", rarity.Character);
@@ -1468,8 +1466,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("Standard text.", card.Description);
         Assert.Equal("06010050", card.CardUid);
         Assert.Equal(2, card.Printings.Count);
-        Assert.Contains(card.Printings, p => p.Number == "06010050" && p.CardUid == "06010050" && p.VariantOfId == null);
-        Assert.Contains(card.Printings, p => p.Number == "06020050" && p.CardUid == "06020050" && p.VariantOfId != null);
+        Assert.Contains(card.Printings, p => p.Number == "50" && p.CardUid == "06010050" && p.VariantOfId == null);
+        Assert.Contains(card.Printings, p => p.Number == "50" && p.CardUid == "06020050" && p.VariantOfId != null);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────

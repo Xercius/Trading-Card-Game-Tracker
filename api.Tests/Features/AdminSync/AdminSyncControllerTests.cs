@@ -299,10 +299,11 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             {
                 CardId = existingCard.Id,
                 Set = "SOR",
-                Number = "SOR-020",
+                Number = "1",
                 Rarity = "Common",
                 Style = "Standard",
                 ImageUrl = "https://example.test/tarkin-original.png",
+                CardUid = "3001",
                 DetailsJson = "{\"version\":1}"
             });
             db.ImportSyncHistories.Add(new ImportSyncHistory
@@ -340,11 +341,13 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             .Include(c => c.Printings)
             .SingleAsync(c => c.Game == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
         Assert.Equal("Updated text.", updatedCard.Description);
+        Assert.NotNull(updatedCard.LastSyncedAt);
         Assert.Null(updatedCard.DetailsJson);
 
         var updatedPrinting = Assert.Single(updatedCard.Printings);
         Assert.Equal("Legendary", updatedPrinting.Rarity);
         Assert.Equal("https://example.test/tarkin-updated.png", updatedPrinting.ImageUrl);
+        Assert.NotNull(updatedPrinting.LastSyncedAt);
 
         var newCard = await appDb.Cards
             .Include(c => c.Printings)
@@ -352,7 +355,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         Assert.Equal("Deal 3 damage to a unit.", newCard.Description);
         var newPrinting = Assert.Single(newCard.Printings);
         Assert.Equal("SOR", newPrinting.Set);
-        Assert.Equal("SOR-021", newPrinting.Number);
+        Assert.Equal("1", newPrinting.Number);
         Assert.Equal("Rare", newPrinting.Rarity);
 
         var syncHistory = await appDb.ImportSyncHistories
