@@ -122,8 +122,11 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         await db.SaveChangesAsync();
 
         var createdCard = await db.Cards.SingleAsync(c => c.Name == "Unit Test Card");
-        Assert.Equal("Magic", createdCard.Game);
-        Assert.Equal("Creature", createdCard.CardType);
+        Assert.Equal("Magic", createdCard.Game!.Name);
+        Assert.Equal("Creature", await db.CardCardTypes
+            .Where(association => association.CardId == createdCard.Id && association.SourceRole == "Type")
+            .Select(association => association.CardType.Name)
+            .SingleAsync());
         Assert.Equal("Deal 2 damage to any target", createdCard.Text);
 
         var createdPrinting = await db.CardPrintings.SingleAsync(p => p.Set == "UTS" && p.Number == "007");
@@ -162,7 +165,10 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         await db.Entry(createdCard).ReloadAsync();
         await db.Entry(createdPrinting).ReloadAsync();
 
-        Assert.Equal("Sorcery", createdCard.CardType);
+        Assert.Equal("Sorcery", await db.CardCardTypes
+            .Where(association => association.CardId == createdCard.Id && association.SourceRole == "Type")
+            .Select(association => association.CardType.Name)
+            .SingleAsync());
         Assert.Equal("Front\nDraw a card", createdCard.Text);
 
         Assert.Equal("mythic", createdPrinting.Rarity);

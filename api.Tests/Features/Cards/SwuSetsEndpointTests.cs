@@ -3,6 +3,7 @@ using api.Features.Cards.Dtos;
 using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -42,11 +43,11 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
         string serialCode,
         string rarity = "Common")
     {
+        var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
         var card = new Card
         {
-            Game = SwuGame,
+            Game = game,
             Name = cardName,
-            CardType = "Unit",
             Text = null
         };
         db.Cards.Add(card);

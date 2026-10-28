@@ -99,14 +99,14 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
             var cardType = new CardType { Game = game, Name = "Unit" };
-            var card = new Card { Game = SwuGame, Name = "Reprinted Card", CardType = "Unit" };
+            var card = new Card { Game = game, Name = "Reprinted Card" };
             card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
             db.Cards.Add(card);
             AddPrinting(db, card, game, "LATE", "Late set", new DateOnly(2024, 1, 1), "2018-01-01");
             AddPrinting(db, card, game, "EARLY", "Early set", new DateOnly(2021, 1, 1), "2030-01-01");
             AddPrinting(db, card, game, "UNDATED", "Undated set", null, "2010-01-01");
 
-            var secondCard = new Card { Game = SwuGame, Name = "Undated Preferred", CardType = "Unit" };
+            var secondCard = new Card { Game = game, Name = "Undated Preferred" };
             secondCard.CardTypes.Add(new CardCardType
             {
                 Card = secondCard,
@@ -117,7 +117,11 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             AddPrinting(db, secondCard, game, "UNKNOWN", "Unknown date", null, "2010-01-01");
             AddPrinting(db, secondCard, game, "KNOWN", "Known date", new DateOnly(2025, 1, 1), "2025-01-01");
 
-            var setOnlyCard = new Card { Game = "Legacy Game", Name = "Set-associated card", CardType = "Unit" };
+            var setOnlyCard = new Card
+            {
+                Game = TreatmentLookup.GetOrAddGame(db, "Legacy Game"),
+                Name = "Set-associated card"
+            };
             db.Cards.Add(setOnlyCard);
             AddPrinting(db, setOnlyCard, game, "SET-LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
             AddPrinting(db, setOnlyCard, game, "SET-EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
@@ -145,7 +149,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
             var cardType = new CardType { Game = game, Name = "Unit" };
-            var card = new Card { Game = SwuGame, Name = "Ordered Reprints", CardType = "Unit" };
+            var card = new Card { Game = game, Name = "Ordered Reprints" };
             card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
             db.Cards.Add(card);
             AddPrinting(db, card, game, "LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
@@ -154,7 +158,11 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             AddPrinting(db, card, game, "TIE-A", "Alpha set", new DateOnly(2024, 1, 1), "2010-01-01");
             AddPrinting(db, card, game, "UNDATED", "Undated set", null, "2010-01-01");
 
-            var legacyCard = new Card { Game = "Legacy Game", Name = "Legacy Reprints", CardType = "Unit" };
+            var legacyCard = new Card
+            {
+                Game = TreatmentLookup.GetOrAddGame(db, "Legacy Game"),
+                Name = "Legacy Reprints"
+            };
             legacyCard.Printings.Add(new CardPrinting
             {
                 Card = legacyCard,
@@ -203,11 +211,8 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         var rarity = new Rarity { Game = game, Name = "Rare" };
         var card = new Card
         {
-            Game = SwuGame,
+            Game = game,
             Name = name,
-            CardType = firstType,
-            CardType2 = secondType,
-            Arena = "Ground",
             Cost = 6,
             Power = 4,
             Hp = 7,

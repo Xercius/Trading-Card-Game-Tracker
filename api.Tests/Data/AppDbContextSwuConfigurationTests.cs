@@ -37,7 +37,14 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal("CardPrintings", cardPrinting!.GetTableName());
         Assert.Equal("SyncLogs", syncLog!.GetTableName());
         Assert.DoesNotContain(db.Model.GetEntityTypes(), e => e.GetTableName() is "SwuCards" or "SwuCardPrintings");
-        Assert.NotNull(card.FindProperty(nameof(Card.DetailsJson)));
+        Assert.NotNull(card.FindProperty(nameof(Card.GameId)));
+        Assert.DoesNotContain(card.GetProperties(), property =>
+            new[]
+            {
+                "Game", "GameNorm", "CardType", "CardType2", "DetailsJson", "Arena", "Aspects",
+                "Traits", "Keywords", "ApiCreatedAt", "ApiUpdatedAt", "BaseCardId",
+                "BaseStrapiId", "StrapiId"
+            }.Contains(property.Name));
         Assert.DoesNotContain(card.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Card.CardUid)));
         Assert.Contains(game.GetIndexes(), i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Game.NameNormalized)));
         Assert.Contains(set.GetIndexes(), i => i.IsUnique &&
@@ -117,7 +124,27 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal(3, copiedAspect.CardId);
         Assert.Equal(2, copiedAspect.Count);
         Assert.Equal("Heroism", copiedAspect.Aspect.Name);
-        Assert.Equal("{\"kept\":true}", (await db.Cards.SingleAsync(item => item.Id == 4)).DetailsJson);
+        var pokemonGame = await db.Games.SingleAsync(item => item.Name == "Pokémon");
+        Assert.Equal(pokemonGame.Id, (await db.Cards.SingleAsync(item => item.Id == 4)).GameId);
+        Assert.Equal("Pokémon", await db.CardCardTypes
+            .Where(association => association.CardId == 4 && association.SourceRole == "Type")
+            .Select(association => association.CardType.Name)
+            .SingleAsync());
+        var cardColumns = new List<string>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info('Cards')";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                cardColumns.Add(reader.GetString(1));
+        }
+        Assert.DoesNotContain(cardColumns, column =>
+            new[]
+            {
+                "Game", "GameNorm", "CardType", "CardType2", "DetailsJson", "Arena", "Aspects",
+                "Traits", "Keywords", "ApiCreatedAt", "ApiUpdatedAt", "BaseCardId",
+                "BaseStrapiId", "StrapiId"
+            }.Contains(column));
         Assert.Equal(10, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
         Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Text);
     }
@@ -176,7 +203,7 @@ public sealed class AppDbContextSwuConfigurationTests
         db.ChangeTracker.Clear();
 
         game = await db.Games.SingleAsync();
-        var card = new Card { Game = game.Name, Name = "Test card", CardType = "Unit" };
+        var card = new Card { Game = game, Name = "Test card" };
         var type = new CardType { GameId = game.Id, Name = "Unit", Value = "unit" };
         var aspect = new Aspect { GameId = game.Id, Name = "Heroism", Color = "#4A90E2" };
         db.AddRange(card, type, aspect);
@@ -208,7 +235,7 @@ public sealed class AppDbContextSwuConfigurationTests
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
 
         db.ChangeTracker.Clear();
-        var secondCard = new Card { Game = game.Name, Name = "Second card", CardType = "Unit" };
+        var secondCard = new Card { Game = game, Name = "Second card" };
         db.Cards.Add(secondCard);
         await db.SaveChangesAsync();
         db.CardAspects.Add(new CardAspect { CardId = secondCard.Id, AspectId = aspectId, Count = 0 });
