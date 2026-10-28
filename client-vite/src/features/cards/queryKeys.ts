@@ -3,6 +3,12 @@
 
 import type { CardFilters } from "./filters/useCardFilters";
 
+type OptionalExtraFilterFields = {
+  arenas?: string[];
+  aspects?: string[];
+  traits?: string[];
+};
+
 export const cardsQueryKeys = {
   all: ["cards"] as const,
 
@@ -12,7 +18,8 @@ export const cardsQueryKeys = {
     filters: Pick<
       CardFilters,
       "q" | "games" | "sets" | "rarities" | "types" | "page" | "pageSize" | "sort"
-    >
+    > &
+      OptionalExtraFilterFields
   ) =>
     [
       ...cardsQueryKeys.lists(),
@@ -22,6 +29,9 @@ export const cardsQueryKeys = {
         sets: filters.sets,
         rarities: filters.rarities,
         types: filters.types,
+        arenas: filters.arenas ?? [],
+        aspects: filters.aspects ?? [],
+        traits: filters.traits ?? [],
         page: filters.page,
         pageSize: filters.pageSize,
         sort: filters.sort,
@@ -30,8 +40,10 @@ export const cardsQueryKeys = {
 
   facets: () => [...cardsQueryKeys.all, "facets"] as const,
 
-  facetOptions: (filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities" | "types">) =>
-    [...cardsQueryKeys.facets(), filters] as const,
+  facetOptions: (
+    filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities" | "types"> &
+      OptionalExtraFilterFields
+  ) => [...cardsQueryKeys.facets(), filters] as const,
 
   facetGames: () => [...cardsQueryKeys.facets(), "games"] as const,
 
@@ -40,6 +52,8 @@ export const cardsQueryKeys = {
   facetRarities: (games: string[]) =>
     [...cardsQueryKeys.facets(), "rarities", games.join("|")] as const,
 
-  printingFacets: (filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities" | "types">) =>
-    [...cardsQueryKeys.facets(), "printings", filters] as const,
+  printingFacets: (
+    filters: Pick<CardFilters, "q" | "games" | "sets" | "rarities" | "types"> &
+      OptionalExtraFilterFields
+  ) => [...cardsQueryKeys.facets(), "printings", filters] as const,
 };

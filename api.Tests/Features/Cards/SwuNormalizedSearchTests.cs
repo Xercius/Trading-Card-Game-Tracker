@@ -28,7 +28,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
 
         using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
-            "/api/cards/printings?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit");
+            "/api/cards/printings?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit&arena=Ground&aspect=Heroism&trait=Rebel");
 
         var printing = Assert.Single(printings!);
         Assert.Equal("Spark of Rebellion", printing.SetName);
@@ -40,7 +40,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Equal(new DateOnly(2025, 10, 3), printing.ReleaseDate);
 
         using var cardsResponse = await client.GetAsync(
-            "/api/cards?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit");
+            "/api/cards?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit&arena=Ground&aspect=Heroism&trait=Rebel");
         Assert.True(cardsResponse.IsSuccessStatusCode, await cardsResponse.Content.ReadAsStringAsync());
         var cards = await cardsResponse.Content.ReadFromJsonAsync<CardListPageResponse>();
         var card = Assert.Single(cards!.Items);
@@ -64,10 +64,22 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Contains(facets.Rarities, option => option.Value == "Rare");
         Assert.Contains(facets.Types, option => option.Value == "Leader");
         Assert.Contains(facets.Types, option => option.Value == "Leader Unit");
+        Assert.Contains(facets.Arenas, option => option.Value == "Ground");
+        Assert.Contains(facets.Aspects, option => option.Value == "Heroism");
+        Assert.Contains(facets.Traits, option => option.Value == "Rebel");
 
         var details = await client.GetFromJsonAsync<CardDetailResponse>($"/api/cards/{cardId}");
         Assert.NotNull(details);
-        Assert.Contains("Leader Unit", details!.CardTypes!);
+        Assert.Equal("Leader Unit", details!.CardType2);
+        Assert.Equal("Ground", details.Arena);
+        Assert.Equal(["Force", "Rebel"], details.Traits);
+        Assert.Equal("<p><strong>On Attack:</strong> Give a Shield token.</p>", details.TextStyled);
+        Assert.Equal("<p><strong>Epic Action:</strong> Deploy Luke.</p>", details.EpicActionStyled);
+        Assert.Equal("<p><strong>When Deployed:</strong> Give a Shield token.</p>", details.DeployBoxStyled);
+        Assert.Equal(6, details.Cost);
+        Assert.Equal(7, details.Hp);
+        Assert.Equal(4, details.Power);
+        Assert.Contains("Leader Unit", details.CardTypes!);
         Assert.Equal(2, Assert.Single(details.Aspects!).Count);
         var detailPrinting = Assert.Single(details.Printings);
         Assert.Equal("SOR", detailPrinting.SetCode);
@@ -187,7 +199,20 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
         var set = new Set { Game = game, Code = setCode, Name = setName, ReleasedAt = releasedAt };
         var rarity = new Rarity { Game = game, Name = "Rare" };
-        var card = new Card { Game = SwuGame, Name = name, CardType = firstType };
+        var card = new Card
+        {
+            Game = SwuGame,
+            Name = name,
+            CardType = firstType,
+            CardType2 = secondType,
+            Arena = "Ground",
+            Cost = 6,
+            Power = 4,
+            Hp = 7,
+            TextStyled = "<p><strong>On Attack:</strong> Give a Shield token.</p>",
+            EpicActionStyled = "<p><strong>Epic Action:</strong> Deploy Luke.</p>",
+            DeployBoxStyled = "<p><strong>When Deployed:</strong> Give a Shield token.</p>"
+        };
         card.CardTypes.Add(new CardCardType
         {
             Card = card,
@@ -200,11 +225,26 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             CardType = new CardType { Game = game, Name = secondType },
             SourceRole = "Type2"
         });
+        card.CardArenas.Add(new CardArena
+        {
+            Card = card,
+            Arena = new Arena { Game = game, Name = "Ground" }
+        });
         card.CardAspects.Add(new CardAspect
         {
             Card = card,
             Aspect = new Aspect { Game = game, Name = aspectName },
             Count = aspectCount
+        });
+        card.CardTraits.Add(new CardTrait
+        {
+            Card = card,
+            Trait = new Trait { Game = game, Name = "Force" }
+        });
+        card.CardTraits.Add(new CardTrait
+        {
+            Card = card,
+            Trait = new Trait { Game = game, Name = "Rebel" }
         });
         db.Cards.Add(card);
         db.CardPrintings.Add(new CardPrinting

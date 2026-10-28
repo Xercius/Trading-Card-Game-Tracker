@@ -34,6 +34,9 @@ describe("usePrintingFacets", () => {
       sets: [{ value: "Late Set", count: 1 }],
       rarities: [{ value: "Rare", count: 2 }],
       types: [{ value: "Leader Unit", count: 2 }],
+      arenas: [{ value: "Ground", count: 2 }],
+      aspects: [{ value: "Heroism", count: 2 }],
+      traits: [{ value: "Force", count: 2 }],
     } satisfies CardsFacetResponse);
     const filters: CardFilters = {
       q: "droid",
@@ -41,6 +44,9 @@ describe("usePrintingFacets", () => {
       sets: [],
       rarities: ["Rare"],
       types: ["Leader Unit"],
+      arenas: ["Ground"],
+      aspects: ["Heroism"],
+      traits: ["Force"],
       page: 1,
       pageSize: 60,
     };
@@ -48,11 +54,17 @@ describe("usePrintingFacets", () => {
     const { result } = renderHook(() => usePrintingFacets(filters), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.data?.sets).toEqual(["Late Set"]));
+    expect(result.current.data?.arenas).toEqual(["Ground"]);
+    expect(result.current.data?.aspects).toEqual(["Heroism"]);
+    expect(result.current.data?.traits).toEqual(["Force"]);
     expect(fetchCardFacetsMock).toHaveBeenCalledWith({
       games: ["Star Wars Unlimited"],
       sets: undefined,
       rarities: ["Rare"],
       types: ["Leader Unit"],
+      arenas: ["Ground"],
+      aspects: ["Heroism"],
+      traits: ["Force"],
       q: "droid",
       printingSearch: true,
     });

@@ -25,6 +25,9 @@ export type PrintingQuery = {
   set?: string[];
   rarity?: string[];
   types?: string[];
+  arenas?: string[];
+  aspects?: string[];
+  traits?: string[];
   page?: number;
   pageSize?: number;
   uniqueCards?: boolean;
@@ -37,6 +40,9 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   if (query.set?.length) params.set("set", query.set.join(","));
   if (query.rarity?.length) params.set("rarity", query.rarity.join(","));
   if (query.types?.length) params.set("type", query.types.join(","));
+  if (query.arenas?.length) params.set("arena", query.arenas.join(","));
+  if (query.aspects?.length) params.set("aspect", query.aspects.join(","));
+  if (query.traits?.length) params.set("trait", query.traits.join(","));
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
   if (query.uniqueCards) params.set("uniqueCards", "true");

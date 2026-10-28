@@ -308,7 +308,7 @@ public sealed class SwuDbImporter : ISourceImporter
             card.EpicActionStyled = attrs.EpicActionStyled;
             card.Rules = attrs.Rules;
             card.RulesStyled = attrs.RulesStyled;
-            card.Arena = attrs.Arena;
+            card.Arena = attrs.Arena ?? attrs.Arenas?.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a))?.Trim();
             card.Cost = attrs.Cost;
             card.Power = attrs.Power;
             card.Hp = attrs.Health ?? attrs.Hp;

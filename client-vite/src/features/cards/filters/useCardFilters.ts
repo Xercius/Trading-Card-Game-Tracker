@@ -7,12 +7,27 @@ export type CardFilters = {
   sets: string[];
   rarities: string[];
   types: string[];
+  arenas: string[];
+  aspects: string[];
+  traits: string[];
   page: number;
   pageSize: number;
   sort?: string;
 };
 
-const filterKeys = ["game", "set", "rarity", "type", "q", "page", "pageSize", "sort"] as const;
+const filterKeys = [
+  "game",
+  "set",
+  "rarity",
+  "type",
+  "arena",
+  "aspect",
+  "trait",
+  "q",
+  "page",
+  "pageSize",
+  "sort",
+] as const;
 
 type SetFiltersFn = (updater: CardFilters | ((prev: CardFilters) => CardFilters)) => void;
 
@@ -20,7 +35,19 @@ type UseCardFiltersResult = {
   filters: CardFilters;
   setFilters: SetFiltersFn;
   clearAll: () => void;
-  toQueryKey: () => readonly [string, string, string, string, string, number, number, string];
+  toQueryKey: () => readonly [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    number,
+    number,
+    string,
+  ];
 };
 
 const DEFAULT_PAGE = 1;
@@ -32,6 +59,9 @@ const emptyFilters: CardFilters = {
   sets: [],
   rarities: [],
   types: [],
+  arenas: [],
+  aspects: [],
+  traits: [],
   page: DEFAULT_PAGE,
   pageSize: DEFAULT_PAGE_SIZE,
   sort: undefined,
@@ -60,10 +90,13 @@ function sanitizeList(values: string[]): string[] {
 function sanitizeFilters(input: CardFilters): CardFilters {
   return {
     q: input.q.trim(),
-    games: sanitizeList(input.games),
-    sets: sanitizeList(input.sets),
-    rarities: sanitizeList(input.rarities),
-    types: sanitizeList(input.types),
+    games: sanitizeList(input.games ?? []),
+    sets: sanitizeList(input.sets ?? []),
+    rarities: sanitizeList(input.rarities ?? []),
+    types: sanitizeList(input.types ?? []),
+    arenas: sanitizeList(input.arenas ?? []),
+    aspects: sanitizeList((input.aspects ?? []).filter((a) => a.trim().toLowerCase() !== "all")),
+    traits: sanitizeList(input.traits ?? []),
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
     sort: input.sort?.trim() || undefined,
@@ -78,6 +111,9 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const sets = parseCsv(params.get("set"));
   const rarities = parseCsv(params.get("rarity"));
   const types = parseCsv(params.get("type"));
+  const arenas = parseCsv(params.get("arena"));
+  const aspects = parseCsv(params.get("aspect"));
+  const traits = parseCsv(params.get("trait"));
 
   const pageStr = params.get("page");
   const page = pageStr ? Math.max(1, parseInt(pageStr, 10) || DEFAULT_PAGE) : DEFAULT_PAGE;
@@ -89,7 +125,19 @@ function parseFilters(params: URLSearchParams): CardFilters {
 
   const sort = params.get("sort") || undefined;
 
-  return sanitizeFilters({ q, games, sets, rarities, types, page, pageSize, sort });
+  return sanitizeFilters({
+    q,
+    games,
+    sets,
+    rarities,
+    types,
+    arenas,
+    aspects,
+    traits,
+    page,
+    pageSize,
+    sort,
+  });
 }
 
 function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLSearchParams {
@@ -110,6 +158,15 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   if (filters.types.length > 0) {
     next.set("type", filters.types.join(","));
   }
+  if (filters.arenas.length > 0) {
+    next.set("arena", filters.arenas.join(","));
+  }
+  if (filters.aspects.length > 0) {
+    next.set("aspect", filters.aspects.join(","));
+  }
+  if (filters.traits.length > 0) {
+    next.set("trait", filters.traits.join(","));
+  }
   if (filters.q.length > 0) {
     next.set("q", filters.q);
   }
@@ -125,6 +182,9 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   return next;
 }
 
+/**
+ * Custom hook to read and update card search filters synchronized with URL query parameters.
+ */
 export function useCardFilters(): UseCardFiltersResult {
   const [searchParams, setSearchParams] = useSearchParams();
   const serialized = searchParams.toString();
@@ -135,6 +195,9 @@ export function useCardFilters(): UseCardFiltersResult {
   const setsKey = filters.sets.join("|");
   const raritiesKey = filters.rarities.join("|");
   const typesKey = filters.types.join("|");
+  const arenasKey = filters.arenas.join("|");
+  const aspectsKey = filters.aspects.join("|");
+  const traitsKey = filters.traits.join("|");
 
   const stableKey = useMemo(
     () =>
@@ -144,6 +207,9 @@ export function useCardFilters(): UseCardFiltersResult {
         setsKey,
         raritiesKey,
         typesKey,
+        arenasKey,
+        aspectsKey,
+        traitsKey,
         filters.page,
         filters.pageSize,
         filters.sort ?? "",
@@ -154,6 +220,9 @@ export function useCardFilters(): UseCardFiltersResult {
       setsKey,
       raritiesKey,
       typesKey,
+      arenasKey,
+      aspectsKey,
+      traitsKey,
       filters.page,
       filters.pageSize,
       filters.sort,

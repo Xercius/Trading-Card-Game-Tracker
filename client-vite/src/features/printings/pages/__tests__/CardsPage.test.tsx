@@ -8,7 +8,9 @@ import * as printingsApi from "../../api/usePrintings";
 import * as printingFacetsApi from "../../api/usePrintingFacets";
 
 vi.mock("../../api/usePrintingFacets", () => ({
-  usePrintingFacets: () => ({ data: { games: [], sets: [], rarities: [], types: [] } }),
+  usePrintingFacets: () => ({
+    data: { games: [], sets: [], rarities: [], types: [], arenas: [], aspects: [], traits: [] },
+  }),
 }));
 
 // Define a strongly-typed mock result for usePrintings
@@ -35,7 +37,7 @@ describe("CardsPage filter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(printingFacetsApi, "usePrintingFacets").mockReturnValue({
-      data: { games: [], sets: [], rarities: [], types: [] },
+      data: { games: [], sets: [], rarities: [], types: [], arenas: [], aspects: [], traits: [] },
     } as unknown as ReturnType<typeof printingFacetsApi.usePrintingFacets>);
   });
 
@@ -55,7 +57,7 @@ describe("CardsPage filter wiring", () => {
 
     render(<CardsPage />, {
       wrapper: createTestWrapper([
-        "/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&type=Leader+Unit&q=bolt",
+        "/cards?game=Magic,Lorcana&set=TestSet&rarity=Rare&type=Leader+Unit&arena=Ground&aspect=Heroism&trait=Rebel&q=bolt",
       ]),
     });
 
@@ -66,11 +68,33 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.sets).toEqual(["TestSet"]);
     expect(callArgs.rarities).toEqual(["Rare"]);
     expect(callArgs.types).toEqual(["Leader Unit"]);
+    expect(callArgs.arenas).toEqual(["Ground"]);
+    expect(callArgs.aspects).toEqual(["Heroism"]);
+    expect(callArgs.traits).toEqual(["Rebel"]);
     expect(callArgs.q).toBe("bolt");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
 
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  });
+
+  it("renders filter buttons for Type, Arena, Aspects, and Traits", () => {
+    const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
+    mockUsePrintings.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards"]),
+    });
+
+    expect(screen.getByRole("button", { name: "Type (All)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Arena (All)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aspects (All)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Traits (All)" })).toBeInTheDocument();
   });
 
   it("uses default values when no URL parameters are present", () => {
@@ -92,6 +116,9 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.sets).toEqual([]);
     expect(callArgs.rarities).toEqual([]);
     expect(callArgs.types).toEqual([]);
+    expect(callArgs.arenas).toEqual([]);
+    expect(callArgs.aspects).toEqual([]);
+    expect(callArgs.traits).toEqual([]);
     expect(callArgs.q).toBe("");
     expect(callArgs.page).toBe(1);
     expect(callArgs.pageSize).toBe(60);
@@ -133,12 +160,18 @@ describe("CardsPage filter wiring", () => {
     } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, {
-      wrapper: createTestWrapper(["/cards?game=Magic&rarity=Rare"]),
+      wrapper: createTestWrapper([
+        "/cards?game=Magic&rarity=Rare&type=Unit&arena=Space&aspect=Heroism&trait=Rebel",
+      ]),
     });
 
     expect(screen.queryByText("Active filters:")).toBeInTheDocument();
     expect(screen.queryByText("Game: Magic")).toBeInTheDocument();
     expect(screen.queryByText("Rarity: Rare")).toBeInTheDocument();
+    expect(screen.queryByText("Type: Unit")).toBeInTheDocument();
+    expect(screen.queryByText("Arena: Space")).toBeInTheDocument();
+    expect(screen.queryByText("Aspect: Heroism")).toBeInTheDocument();
+    expect(screen.queryByText("Trait: Rebel")).toBeInTheDocument();
   });
 
   it("displays loading state", () => {

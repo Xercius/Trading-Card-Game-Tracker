@@ -53,6 +53,21 @@ public sealed class ListPrintingsQuery
     public string? Type { get; init; }
 
     /// <summary>
+    /// Optional filter by card arena (e.g., "Ground", "Space").
+    /// </summary>
+    public string? Arena { get; init; }
+
+    /// <summary>
+    /// Optional filter by card aspect (e.g., "Vigilance", "Command", "Aggression").
+    /// </summary>
+    public string? Aspect { get; init; }
+
+    /// <summary>
+    /// Optional filter by card trait (e.g., "Rebel", "Imperial", "Vehicle").
+    /// </summary>
+    public string? Trait { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

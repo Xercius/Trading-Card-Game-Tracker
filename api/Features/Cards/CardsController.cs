@@ -50,6 +50,9 @@ public class CardsController : ControllerBase
     /// <param name="set">Optional comma-separated list of set names to filter.</param>
     /// <param name="rarity">Optional comma-separated list of rarities to filter.</param>
     /// <param name="type">Optional comma-separated list of associated card types to filter.</param>
+    /// <param name="arena">Optional comma-separated list of associated card arenas to filter.</param>
+    /// <param name="aspect">Optional comma-separated list of associated card aspects to filter.</param>
+    /// <param name="trait">Optional comma-separated list of associated card traits to filter.</param>
     /// <param name="skip">Number of records to skip for pagination (default: 0).</param>
     /// <param name="take">Number of records to take per page (default: 60, max: 200).</param>
     /// <param name="includeTotal">Whether to include the total count of matching cards (default: false).</param>
@@ -64,6 +67,9 @@ public class CardsController : ControllerBase
         [FromQuery] string? set,
         [FromQuery] string? rarity,
         [FromQuery] string? type,
+        [FromQuery] string? arena = null,
+        [FromQuery] string? aspect = null,
+        [FromQuery] string? trait = null,
         [FromQuery] int skip = 0,
         [FromQuery] int take = 60,
         [FromQuery] bool includeTotal = false,
@@ -76,6 +82,9 @@ public class CardsController : ControllerBase
         var sets = CsvUtils.Parse(set);
         var rarities = CsvUtils.Parse(rarity);
         var types = CsvUtils.Parse(type);
+        var arenas = CsvUtils.Parse(arena);
+        var aspects = CsvUtils.Parse(aspect);
+        var traits = CsvUtils.Parse(trait);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
             .Where(g => normalizedGames.Contains(g.NameNormalized))
@@ -84,7 +93,7 @@ public class CardsController : ControllerBase
 
         var query = _db.Cards
             .AsNoTracking()
-            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds)
+            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits)
             .OrderBy(c => c.Game)
             .ThenBy(c => c.Name)
             .ThenBy(c => c.Id);
@@ -155,6 +164,9 @@ public class CardsController : ControllerBase
     /// <param name="set">Optional comma-separated set filter.</param>
     /// <param name="rarity">Optional comma-separated rarity filter.</param>
     /// <param name="type">Optional comma-separated associated card-type filter.</param>
+    /// <param name="arena">Optional comma-separated associated card-arena filter.</param>
+    /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
+    /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
     /// <param name="includePrintings">If true, includes all printings for each card in the response.</param>
     /// <param name="page">Page number for pagination (default: 1).</param>
     /// <param name="pageSize">Number of results per page (default: 50, max: 200).</param>
@@ -168,6 +180,9 @@ public class CardsController : ControllerBase
         string? set,
         string? rarity,
         string? type,
+        string? arena,
+        string? aspect,
+        string? trait,
         bool includePrintings,
         int page, int pageSize)
     {
@@ -180,12 +195,15 @@ public class CardsController : ControllerBase
         var sets = CsvUtils.Parse(set);
         var rarities = CsvUtils.Parse(rarity);
         var types = CsvUtils.Parse(type);
+        var arenas = CsvUtils.Parse(arena);
+        var aspects = CsvUtils.Parse(aspect);
+        var traits = CsvUtils.Parse(trait);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
-        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds);
+        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds, arenas, aspects, traits);
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -198,8 +216,11 @@ public class CardsController : ControllerBase
         q = q.OrderBy(c => c.Name).ThenBy(c => c.Id);
 
         var cards = await q
+            .AsSplitQuery()
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
+            .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
+            .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -224,19 +245,11 @@ public class CardsController : ControllerBase
             .GroupBy(p => p.CardId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var detailed = cards.Select(c => new CardDetailResponse(
-            c.Id,
-            c.Name,
-            c.Game,
-            c.CardType,
-            c.Description,
+        var detailed = cards.Select(c => BuildCardDetailResponse(
+            c,
             map.TryGetValue(c.Id, out var list)
                 ? list.Select(MapPrintingResponse).ToList()
-                : new List<CardPrintingResponse>(),
-            c.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList(),
-            c.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
-                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
-        )).ToList();
+                : new List<CardPrintingResponse>())).ToList();
 
         return Ok(new Paged<CardDetailResponse>(detailed, total, page, pageSize));
     }
@@ -255,6 +268,8 @@ public class CardsController : ControllerBase
             .AsNoTracking()
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
+            .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
+            .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
             .FirstOrDefaultAsync(x => x.Id == cardId);
         if (c is null)
         {
@@ -271,20 +286,35 @@ public class CardsController : ControllerBase
             .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
             .ToListAsync();
 
-        var dto = new CardDetailResponse(
+        var dto = BuildCardDetailResponse(c, printings.Select(MapPrintingResponse).ToList());
+
+        return Ok(dto);
+    }
+
+    private static CardDetailResponse BuildCardDetailResponse(Card c, List<CardPrintingResponse> printings)
+        => new(
             c.Id,
             c.Name,
             c.Game,
             c.CardType,
             c.Description,
-            printings.Select(MapPrintingResponse).ToList(),
+            printings,
             c.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList(),
             c.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
-                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
-        );
-
-        return Ok(dto);
-    }
+                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList(),
+            c.CardType2 ?? c.CardTypes.FirstOrDefault(type => type.SourceRole == "Type2")?.CardType.Name,
+            c.CardArenas.Count > 0
+                ? string.Join(", ", c.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n))
+                : c.Arena,
+            c.CardTraits.Select(trait => trait.Trait.Name).Distinct().OrderBy(name => name).ToList(),
+            c.TextStyled,
+            c.EpicAction,
+            c.EpicActionStyled,
+            c.DeployBox,
+            c.DeployBoxStyled,
+            c.Cost,
+            c.Hp,
+            c.Power);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.
@@ -478,6 +508,9 @@ public class CardsController : ControllerBase
     /// <param name="set">Optional comma-separated set filter.</param>
     /// <param name="rarity">Optional comma-separated rarity filter.</param>
     /// <param name="type">Optional comma-separated associated card-type filter.</param>
+    /// <param name="arena">Optional comma-separated associated card-arena filter.</param>
+    /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
+    /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
     /// <param name="includePrintings">If true, includes all printings for each card (default: false).</param>
     /// <param name="page">Page number, starting from 1 (default: 1).</param>
     /// <param name="pageSize">Results per page (default: 50, max: 200).</param>
@@ -492,10 +525,13 @@ public class CardsController : ControllerBase
         [FromQuery] string? set,
         [FromQuery] string? rarity,
         [FromQuery] string? type,
+        [FromQuery] string? arena = null,
+        [FromQuery] string? aspect = null,
+        [FromQuery] string? trait = null,
         [FromQuery] bool includePrintings = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
-        => await ListCardsCore(game, name, set, rarity, type, includePrintings, page, pageSize);
+        => await ListCardsCore(game, name, set, rarity, type, arena, aspect, trait, includePrintings, page, pageSize);
 
     /// <summary>
     /// Retrieves detailed information for a specific card, including all its printings.

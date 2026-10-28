@@ -10,6 +10,9 @@ export type CardsPageParams = {
   sets?: string[];
   rarities?: string[];
   types?: string[];
+  arenas?: string[];
+  aspects?: string[];
+  traits?: string[];
   skip: number;
   take: number;
 };
@@ -88,6 +91,9 @@ export async function fetchCardsPage({
   sets,
   rarities,
   types,
+  arenas,
+  aspects,
+  traits,
   skip,
   take,
 }: CardsPageParams): Promise<CardsPage> {
@@ -97,6 +103,9 @@ export async function fetchCardsPage({
   if (sets?.length) params.set("set", sets.join(","));
   if (rarities?.length) params.set("rarity", rarities.join(","));
   if (types?.length) params.set("type", types.join(","));
+  if (arenas?.length) params.set("arena", arenas.join(","));
+  if (aspects?.length) params.set("aspect", aspects.join(","));
+  if (traits?.length) params.set("trait", traits.join(","));
   params.set("skip", String(skip));
   params.set("take", String(take));
 
@@ -180,6 +189,9 @@ export type CardsFacetResponse = {
   sets: FacetOption[];
   rarities: FacetOption[];
   types: FacetOption[];
+  arenas?: FacetOption[];
+  aspects?: FacetOption[];
+  traits?: FacetOption[];
 };
 
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
@@ -227,6 +239,9 @@ export type PrintingsQuery = {
   set?: string;
   rarity?: string;
   type?: string;
+  arena?: string;
+  aspect?: string;
+  trait?: string;
   style?: string;
   q?: string;
   page?: number;
@@ -239,6 +254,9 @@ export async function listPrintings(q: PrintingsQuery = {}): Promise<PrintingDto
   if (q.set) params.set("set", q.set);
   if (q.rarity) params.set("rarity", q.rarity);
   if (q.type) params.set("type", q.type);
+  if (q.arena) params.set("arena", q.arena);
+  if (q.aspect) params.set("aspect", q.aspect);
+  if (q.trait) params.set("trait", q.trait);
   if (q.style) params.set("style", q.style);
   if (q.q) params.set("q", q.q);
   if (q.page) params.set("page", String(q.page));
@@ -294,6 +312,9 @@ export async function fetchCardFacets({
   sets,
   rarities,
   types,
+  arenas,
+  aspects,
+  traits,
   q,
   printingSearch,
 }: {
@@ -301,6 +322,9 @@ export async function fetchCardFacets({
   sets?: string[];
   rarities?: string[];
   types?: string[];
+  arenas?: string[];
+  aspects?: string[];
+  traits?: string[];
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -309,9 +333,22 @@ export async function fetchCardFacets({
   if (sets?.length) params.set("set", sets.join(","));
   if (rarities?.length) params.set("rarity", rarities.join(","));
   if (types?.length) params.set("type", types.join(","));
+  if (arenas?.length) params.set("arena", arenas.join(","));
+  if (aspects?.length) params.set("aspect", aspects.join(","));
+  if (traits?.length) params.set("trait", traits.join(","));
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 
   const res = await api.get<CardsFacetResponse>("cards/facets", { params });
-  return res.data ?? { games: [], sets: [], rarities: [], types: [] };
+  return (
+    res.data ?? {
+      games: [],
+      sets: [],
+      rarities: [],
+      types: [],
+      arenas: [],
+      aspects: [],
+      traits: [],
+    }
+  );
 }

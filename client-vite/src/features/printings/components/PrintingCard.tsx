@@ -4,6 +4,8 @@ type Props = { p: PrintingListItem; onClick?: (p: PrintingListItem) => void };
 
 export function PrintingCard({ p, onClick }: Props) {
   const ariaLabel = `${p.cardName} — ${p.setName}${p.number ? ` #${p.number}` : ""}`;
+  const hasArtwork =
+    Boolean(p.imageUrl) && !p.imageUrl?.includes("/images/placeholders/card-3x4.png");
 
   return (
     <button
@@ -12,37 +14,19 @@ export function PrintingCard({ p, onClick }: Props) {
       aria-label={ariaLabel}
     >
       <div className="w-full overflow-hidden bg-muted">
-        {p.imageUrl ? (
+        {hasArtwork ? (
           <img
-            src={p.imageUrl}
+            src={p.imageUrl ?? ""}
             alt=""
             className="block h-auto w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
             loading="lazy"
           />
         ) : (
-          <div className="aspect-[63/88] grid w-full place-items-center text-xs text-muted-foreground">
+          <div className="aspect-[63/88] grid w-full place-items-center gap-1 p-2 text-center text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{p.cardName}</span>
+            <span>{p.setName}</span>
             No image
           </div>
-        )}
-      </div>
-      <div className="space-y-1 p-2 text-sm">
-        <p className="font-medium">{p.cardName}</p>
-        <p className="text-muted-foreground">
-          {p.setName}
-          {p.setCode ? ` (${p.setCode})` : ""}
-          {p.number ? ` • #${p.number}` : ""}
-        </p>
-        <p className="text-muted-foreground">
-          {[p.cardTypes?.join(", ") ?? "", p.rarity ?? "", p.releaseDate ?? ""]
-            .filter(Boolean)
-            .join(" • ")}
-        </p>
-        {p.aspects && p.aspects.length > 0 && (
-          <p className="text-muted-foreground">
-            {p.aspects
-              .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
-              .join(", ")}
-          </p>
         )}
       </div>
     </button>

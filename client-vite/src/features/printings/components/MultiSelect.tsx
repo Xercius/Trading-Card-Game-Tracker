@@ -42,7 +42,13 @@ function CheckIcon({ className = "" }: IconProps) {
 
 function XIcon({ className = "" }: IconProps) {
   return (
-    <svg aria-hidden="true" className={`h-3 w-3 ${className}`} viewBox="0 0 20 20" fill="none" stroke="currentColor">
+    <svg
+      aria-hidden="true"
+      className={`h-3 w-3 ${className}`}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+    >
       <path d="M6 6l8 8M14 6l-8 8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -127,7 +133,9 @@ export function MultiSelect({
           onClick={() => setOpen((prev) => !prev)}
         >
           <span className="truncate text-left text-sm font-medium">{summary}</span>
-          <ChevronDownIcon className={open ? "-rotate-180 transition-transform" : "transition-transform"} />
+          <ChevronDownIcon
+            className={open ? "-rotate-180 transition-transform" : "transition-transform"}
+          />
         </Button>
         {open && (
           <div className="absolute left-0 z-50 mt-2 w-72 rounded-lg border border-white/20 bg-[#242424] shadow-xl">
@@ -147,6 +155,20 @@ export function MultiSelect({
               aria-multiselectable="true"
               className="max-h-60 overflow-auto py-1 text-sm"
             >
+              {!normalizedSearch && options.length > 0 && (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={values.length === 0}
+                  onClick={() => onChange([])}
+                  className={`flex w-full items-center justify-between px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground ${
+                    values.length === 0 ? "font-semibold" : ""
+                  }`}
+                >
+                  <span className="truncate">All</span>
+                  <CheckIcon className={values.length === 0 ? "text-accent-foreground" : "opacity-0"} />
+                </button>
+              )}
               {filteredOptions.length === 0 ? (
                 <div className="px-3 py-2 text-muted-foreground">No results.</div>
               ) : (

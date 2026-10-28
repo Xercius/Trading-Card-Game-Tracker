@@ -113,8 +113,45 @@ public sealed class PrintingsController : ControllerBase
         if (types.Count > 0)
         {
             var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(p => p.Card.CardTypes.Any(type =>
-                normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
+            query = query.Where(p =>
+                normalizedTypes.Contains(EF.Functions.Collate(p.Card.CardType, "NOCASE")) ||
+                (p.Card.CardType2 != null &&
+                    normalizedTypes.Contains(EF.Functions.Collate(p.Card.CardType2, "NOCASE"))) ||
+                p.Card.CardTypes.Any(type =>
+                    normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
+        }
+
+        var arenas = CsvUtils.Parse(qp.Arena);
+        if (arenas.Count > 0)
+        {
+            var normalizedArenas = arenas.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p =>
+                (p.Card.Arena != null &&
+                    normalizedArenas.Contains(EF.Functions.Collate(p.Card.Arena, "NOCASE"))) ||
+                p.Card.CardArenas.Any(arena =>
+                    normalizedArenas.Contains(EF.Functions.Collate(arena.Arena.Name, "NOCASE"))));
+        }
+
+        var aspects = CsvUtils.Parse(qp.Aspect);
+        if (aspects.Count > 0)
+        {
+            var normalizedAspects = aspects
+                .Select(SqliteCaseNormalizer.Normalize)
+                .Where(a => a != "all")
+                .ToList();
+            if (normalizedAspects.Count > 0)
+            {
+                query = query.Where(p => p.Card.CardAspects.Any(aspect =>
+                    normalizedAspects.Contains(EF.Functions.Collate(aspect.Aspect.Name, "NOCASE"))));
+            }
+        }
+
+        var traits = CsvUtils.Parse(qp.Trait);
+        if (traits.Count > 0)
+        {
+            var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p => p.Card.CardTraits.Any(trait =>
+                normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
         }
 
         // Filter by style(s) - supports comma-separated list
