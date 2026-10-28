@@ -71,35 +71,6 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset?>("ApiCreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("ApiUpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Arena")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Aspects")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("BaseCardId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("BaseStrapiId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("CardType")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CardType2")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("CardUid")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -113,32 +84,18 @@ namespace api.Migrations
                     b.Property<string>("DeployBoxStyled")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DetailsJson")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("EpicAction")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EpicActionStyled")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Game")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GameNorm")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("TEXT")
-                        .HasComputedColumnSql("LOWER(TRIM([Game]))", true);
+                    b.Property<int?>("GameId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("Hp")
                         .HasColumnType("INTEGER")
                         .HasColumnName("Hp");
-
-                    b.Property<string>("Keywords")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
@@ -162,9 +119,6 @@ namespace api.Migrations
                     b.Property<string>("RulesStyled")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("StrapiId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Subtitle")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -175,10 +129,6 @@ namespace api.Migrations
                     b.Property<string>("TextStyled")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Traits")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("UpgradeHp")
                         .HasColumnType("INTEGER");
 
@@ -187,17 +137,11 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BaseCardId");
-
-                    b.HasIndex("GameNorm");
-
                     b.HasIndex("NameNormalized");
 
-                    b.HasIndex("Game", "Name");
-
-                    b.HasIndex("Game", "StrapiId")
+                    b.HasIndex("GameId", "Name")
                         .IsUnique()
-                        .HasFilter("\"StrapiId\" IS NOT NULL");
+                        .HasDatabaseName("UX_Cards_GameId_Name");
 
                     b.ToTable("Cards");
                 });
@@ -887,12 +831,12 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.Card", b =>
                 {
-                    b.HasOne("api.Models.Card", "BaseCard")
-                        .WithMany("Variants")
-                        .HasForeignKey("BaseCardId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("BaseCard");
+                    b.Navigation("Game");
                 });
 
             modelBuilder.Entity("api.Models.CardArena", b =>
@@ -1195,8 +1139,6 @@ namespace api.Migrations
                     b.Navigation("CardTypes");
 
                     b.Navigation("Printings");
-
-                    b.Navigation("Variants");
                 });
 
             modelBuilder.Entity("api.Models.CardPrinting", b =>

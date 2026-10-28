@@ -41,39 +41,39 @@ public static class TestDataSeeder
         var lightningBolt = new Card
         {
             Id = LightningBoltCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Lightning Bolt",
-            CardType = "Spell",
             Text = "Deal 3 damage to any target"
         };
 
         var goblinGuide = new Card
         {
             Id = GoblinGuideCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Goblin Guide",
-            CardType = "Creature",
             Text = "Fast and furious"
         };
 
         var elsa = new Card
         {
             Id = ElsaCardId,
-            Game = "Lorcana",
+            Game = TreatmentLookup.GetOrAddGame(db, "Lorcana"),
             Name = "Elsa, Ice Sculptor",
-            CardType = "Character",
             Text = "Freezes opponents"
         };
 
         var mickey = new Card
         {
             Id = MickeyCardId,
-            Game = "Lorcana",
+            Game = TreatmentLookup.GetOrAddGame(db, "Lorcana"),
             Name = "Mickey, Brave Tailor",
-            CardType = "Character",
             Text = "Sews victory"
         };
 
+        TreatmentLookup.UpsertCardType(db, lightningBolt, "Spell");
+        TreatmentLookup.UpsertCardType(db, goblinGuide, "Creature");
+        TreatmentLookup.UpsertCardType(db, elsa, "Character");
+        TreatmentLookup.UpsertCardType(db, mickey, "Character");
         db.Cards.AddRange(lightningBolt, goblinGuide, elsa, mickey);
 
         db.CardPrintings.AddRange(

@@ -8,6 +8,7 @@ namespace api.Importing;
 internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
 {
     private Game _game = null!;
+    internal Game Game => _game;
 
     internal async Task LoadAsync(CancellationToken ct)
     {

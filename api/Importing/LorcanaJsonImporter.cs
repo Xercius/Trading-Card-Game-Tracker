@@ -114,28 +114,28 @@ public sealed class LorcanaJsonImporter : ISourceImporter
             GetNestedString(c, "image_uris", "normal");
 
         // Upsert Card by (Game, Name)
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
         var detailsCardJson = JsonSerializer.Serialize(c, J);
 
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Text = text, DetailsJson = detailsCardJson };
+            card = new Card { Game = gameEntity, Name = name, Text = text };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
         else
         {
             bool changed = false;
-            if (card.CardType != type) { card.CardType = type; changed = true; }
             if (card.Text != text) { card.Text = text; changed = true; }
-            if (card.DetailsJson != detailsCardJson) { card.DetailsJson = detailsCardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
+        TreatmentLookup.UpsertCardType(_db, card, type);
 
         // Upsert Printing by (Game, Set, Number)
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         var printingJson = JsonSerializer.Serialize(new
@@ -146,7 +146,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
             style,
             images = new { url = imageUrl }
         }, J);
-        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
+        var treatment = TreatmentLookup.Upsert(_db, game, style);
 
         if (printing is null)
         {

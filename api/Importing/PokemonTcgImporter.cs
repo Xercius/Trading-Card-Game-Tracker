@@ -105,7 +105,8 @@ public sealed class PokemonTcgImporter : ISourceImporter
         string? imageUrl = src.Images?.Large ?? src.Images?.Small;
 
         // Upsert Card by (Game, Name)
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
         var cardJson = JsonSerializer.Serialize(new
         {
             src.Supertype,
@@ -122,25 +123,24 @@ public sealed class PokemonTcgImporter : ISourceImporter
 
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = type, Text = text, DetailsJson = cardJson };
+            card = new Card { Game = gameEntity, Name = name, Text = text };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
         else
         {
             bool changed = false;
-            if (card.CardType != type) { card.CardType = type; changed = true; }
             if (card.Text != text) { card.Text = text; changed = true; }
-            if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
+        TreatmentLookup.UpsertCardType(_db, card, type);
 
         // Upsert Printing by (Game, Set, Number)
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
-        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
+        var treatment = TreatmentLookup.Upsert(_db, game, style);
 
         var printingJson = JsonSerializer.Serialize(new
         {

@@ -108,13 +108,13 @@ namespace api.Controllers
             var rows = await _db.UserCards
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
                 .Where(x => x.UserId == UserId)
-                .OrderBy(r => r.CardPrinting.Card.Game)
+                .OrderBy(r => r.CardPrinting.Card.Game!.Name)
                 .ThenBy(r => r.CardPrinting.Card.Name)
                 .ThenBy(r => r.CardPrinting.Set)
                 .ThenBy(r => r.CardPrinting.Number)
                 .Select(x => new
                 {
-                    Game = x.CardPrinting.Card.Game,
+                    Game = x.CardPrinting.Card.Game!.Name,
                     CardName = x.CardPrinting.Card.Name,
                     x.CardPrinting.Set,
                     x.CardPrinting.Number,
@@ -143,13 +143,13 @@ namespace api.Controllers
                 .Include(x => x.CardPrinting).ThenInclude(cp => cp.Card)
                 .Where(x => x.CardPrinting != null && x.CardPrinting.Card != null)
                 .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
-                .OrderBy(r => r.CardPrinting.Card.Game)
+                .OrderBy(r => r.CardPrinting.Card.Game!.Name)
                 .ThenBy(r => r.CardPrinting.Card.Name)
                 .ThenBy(r => r.CardPrinting.Set)
                 .ThenBy(r => r.CardPrinting.Number)
                 .Select(x => new
                 {
-                    Game = x.CardPrinting.Card.Game,
+                    Game = x.CardPrinting.Card.Game!.Name,
                     CardName = x.CardPrinting.Card.Name,
                     x.CardPrinting.Set,
                     x.CardPrinting.Number,

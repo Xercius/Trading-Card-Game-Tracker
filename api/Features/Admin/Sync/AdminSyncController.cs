@@ -23,7 +23,6 @@ public sealed class AdminSyncController(
     private const string SwuImporterKey = "swu";
     private const string CatalogHistoryKey = "swu-catalog";
     private const string GlobalCatalogScope = "GlobalCatalog";
-    private const string SwuGameName = "Star Wars Unlimited";
     private const string SyncRouteKey = "star-wars-unlimited";
 
     [HttpGet("star-wars-unlimited/logs")]
@@ -277,7 +276,8 @@ public sealed class AdminSyncController(
             .Concat(
                 db.CardPrintings
                     .AsNoTracking()
-                    .Where(p => p.Card.Game == SwuGameName)
+                    .Where(p => p.Card.Game != null
+                        && p.Card.Game.NameNormalized == "star wars unlimited")
                     .Select(p => p.Set))
             .ToListAsync(ct);
 

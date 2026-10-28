@@ -41,7 +41,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
 
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var persisted = await db.Cards.AnyAsync(c => c.Game == "Test Game" && c.Name == "Card ALP");
+        var persisted = await db.Cards.AnyAsync(c => c.Game!.Name == "Test Game" && c.Name == "Card ALP");
         Assert.False(persisted);
     }
 
@@ -607,16 +607,20 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
                 var summary = CreateSummary(options);
                 var set = options.SetCode ?? "GEN";
                 var name = $"Card {set}";
-                var card = await db.Cards.FirstOrDefaultAsync(c => c.Game == "Test Game" && c.Name == name, ct);
+                var game = await db.Games.SingleOrDefaultAsync(candidate => candidate.Name == "Test Game", ct);
+                if (game is null)
+                {
+                    game = new Game { Name = "Test Game" };
+                    db.Games.Add(game);
+                }
+                var card = await db.Cards.FirstOrDefaultAsync(c => c.GameId == game.Id && c.Name == name, ct);
                 if (card is null)
                 {
                     card = new Card
                     {
-                        Game = "Test Game",
+                        Game = game,
                         Name = name,
-                        CardType = "Test",
                         Text = null,
-                        DetailsJson = "{}",
                     };
                     db.Cards.Add(card);
                     summary.CardsCreated++;

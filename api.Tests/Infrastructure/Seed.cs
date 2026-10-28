@@ -40,35 +40,35 @@ public static class Seed
         var lightning = new Card
         {
             Id = LightningCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Lightning Bolt",
-            CardType = "Instant"
         };
 
         var goblin = new Card
         {
             Id = GoblinCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Goblin Guide",
-            CardType = "Creature"
         };
 
         var phoenix = new Card
         {
             Id = PhoenixCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Flameborn Phoenix",
-            CardType = "Creature"
         };
 
         var dragon = new Card
         {
             Id = DragonCardId,
-            Game = "Magic",
+            Game = TreatmentLookup.GetOrAddGame(db, "Magic"),
             Name = "Shivan Dragon",
-            CardType = "Creature"
         };
 
+        TreatmentLookup.UpsertCardType(db, lightning, "Instant");
+        TreatmentLookup.UpsertCardType(db, goblin, "Creature");
+        TreatmentLookup.UpsertCardType(db, phoenix, "Creature");
+        TreatmentLookup.UpsertCardType(db, dragon, "Creature");
         db.Cards.AddRange(lightning, goblin, phoenix, dragon);
 
         db.CardPrintings.AddRange(

@@ -45,15 +45,9 @@ internal sealed class SwuSharedIdentity
         _bySetNumberAndTreatment[(printing.Set, printing.Number, printing.Treatment?.Name ?? "Standard")] = printing;
     }
 
-    internal IReadOnlyList<Card> ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
+    internal void ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
     {
-        var changed = new List<Card>();
         var updatedPrintings = new List<CardPrinting>();
-        var cardsByUid = _printings
-            .Where(p => !string.IsNullOrWhiteSpace(SourceUid(p)))
-            .GroupBy(p => SourceUid(p)!)
-            .ToDictionary(g => g.Key, g => g.First().Card);
-
         foreach (var printing in _printings)
         {
             var variantOf = FindTarget(printing, "variantOfCardUid");
@@ -65,20 +59,7 @@ internal sealed class SwuSharedIdentity
             printing.ReprintOf = reprintOf;
             printing.ReprintOfId = reprintOf?.Id;
         }
-        foreach (var group in _printings.GroupBy(p => p.Card))
-        {
-            var card = group.Key;
-            var baseCard = group.Select(p => ResolveBase(p, cardsByUid))
-                .FirstOrDefault(target => target is not null && !ReferenceEquals(target, card));
-            if (card.BaseCardId == baseCard?.Id) continue;
-            // A printing without a relationship must not erase another printing's valid link.
-            // If no printing resolves, clear stale links after upstream changes/removals.
-            card.BaseCard = baseCard;
-            card.BaseCardId = baseCard?.Id;
-            changed.Add(card);
-        }
         changedPrintings = updatedPrintings;
-        return changed;
     }
 
     internal static int? SourceId(CardPrinting printing)
@@ -91,7 +72,7 @@ internal sealed class SwuSharedIdentity
     {
         var sourceJson = HasRelationshipFields(printing.DetailsJson)
             ? printing.DetailsJson
-            : HasRelationshipFields(printing.Card.DetailsJson) ? printing.Card.DetailsJson : null;
+            : null;
         if (sourceJson is not null)
             return HasRelationship(sourceJson);
 
@@ -103,20 +84,6 @@ internal sealed class SwuSharedIdentity
         var cardUid = ReadString(printing.DetailsJson, field);
         return !string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid, out var target)
             && target != printing ? target : null;
-    }
-
-    private static Card? ResolveBase(CardPrinting printing,
-        IReadOnlyDictionary<string, Card> byUid)
-    {
-        var json = printing.DetailsJson;
-        Card? baseCard = null;
-        var uid = ReadString(json, "variantOfCardUid");
-        if (string.IsNullOrWhiteSpace(uid))
-            uid = ReadString(json, "reprintOfCardUid");
-
-        if (!string.IsNullOrWhiteSpace(uid))
-            byUid.TryGetValue(uid, out baseCard);
-        return baseCard;
     }
 
     private static void RemoveIfOwned<TKey>(Dictionary<TKey, CardPrinting> index, TKey key, CardPrinting printing)

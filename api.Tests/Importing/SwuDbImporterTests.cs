@@ -128,8 +128,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, created.Errors);
         Assert.Equal(1, created.CardsCreated);
         Assert.Equal(1, created.PrintingsCreated);
-        var card = await db.Cards.SingleAsync(c => c.Game == Game);
-        var originalCardDetails = card.DetailsJson;
+        var card = await db.Cards.SingleAsync(c => c.Game!.Name == Game);
         var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
         Assert.Equal(expected, printing.Rarity);
         Assert.Equal(expected, printing.RarityLookup!.Name);
@@ -143,10 +142,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, updated.PrintingsCreated);
         Assert.Equal(1, updated.PrintingsUpdated);
         db.ChangeTracker.Clear();
-        card = await db.Cards.SingleAsync(c => c.Game == Game);
+        card = await db.Cards.SingleAsync(c => c.Game!.Name == Game);
         printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
-        Assert.Equal(originalCardDetails, card.DetailsJson);
-        Assert.Equal("Leader", card.CardType);
+        Assert.Equal("Leader", await db.CardCardTypes.Where(association =>
+                association.CardId == card.Id && association.SourceRole == "Type")
+            .Select(association => association.CardType.Name).SingleAsync());
         Assert.Equal("Card text.", card.Text);
         Assert.Equal("Legendary", printing.Rarity);
         Assert.Equal("SOR", printing.Set);
@@ -188,8 +188,10 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
         Assert.Equal(0, summary.PrintingsUpdated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine" && c.Game == Game);
-        Assert.Equal("Leader", card.CardType);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine" && c.Game!.Name == Game);
+        Assert.Equal("Leader", await db.CardCardTypes.Where(association =>
+                association.CardId == card.Id && association.SourceRole == "Type")
+            .Select(association => association.CardType.Name).SingleAsync());
         Assert.Equal("Deploy: exhaust this leader.", card.Text);
         Assert.NotNull(card.LastSyncedAt);
 
@@ -280,7 +282,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary2.PrintingsCreated);
         Assert.Equal(1, summary2.PrintingsUpdated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Grand Moff Tarkin" && c.Game == Game);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Grand Moff Tarkin" && c.Game!.Name == Game);
         Assert.Equal("Updated text.", card.Text);
         Assert.NotNull(card.LastSyncedAt);
 
@@ -413,8 +415,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         // The Italian card must not appear in the database.
-        Assert.False(await db.Cards.AnyAsync(c => c.Name == "Scheda Italiana" && c.Game == Game));
-        Assert.True(await db.Cards.AnyAsync(c => c.Name == "English Card" && c.Game == Game));
+        Assert.False(await db.Cards.AnyAsync(c => c.Name == "Scheda Italiana" && c.Game!.Name == Game));
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "English Card" && c.Game!.Name == Game));
 
         // A warning message about the skipped record must be present in the summary.
         Assert.Contains(summary.Messages, m => m.Contains("77001") && m.Contains("it"));
@@ -500,7 +502,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
         Assert.Equal(1, summary.PrintingsCreated);
-        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Bare Array Card" && c.Game == Game));
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Bare Array Card" && c.Game!.Name == Game));
     }
 
     [Fact]
@@ -647,7 +649,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         // When expansion is missing, set falls back to "UNK" and number is used as key.
-        var printing = await db.CardPrintings.SingleAsync(p => p.Card.Name == "Mystery Card" && p.Card.Game == Game);
+        var printing = await db.CardPrintings.SingleAsync(p => p.Card.Name == "Mystery Card" && p.Card.Game!.Name == Game);
         Assert.Equal("UNK", printing.Set);
     }
 
@@ -708,14 +710,13 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card \u2014 The Rich One" && c.Game == Game);
-        Assert.Null(card.DetailsJson);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Rich Card \u2014 The Rich One" && c.Game!.Name == Game);
         Assert.Equal("The Rich One", card.Subtitle);
         Assert.Equal("Jane Doe", (await db.CardPrintings.SingleAsync(p => p.CardId == card.Id)).Artist);
         Assert.Equal(3, card.Power);
         Assert.Equal(7, card.Hp);
         Assert.Equal(5, card.Cost);
-        Assert.Equal("Ground", card.Arena);
+        Assert.Equal("Ground", Assert.Single(card.CardArenas).Arena.Name);
         Assert.Equal(new[] { "Aggression", "Command" },
             card.CardAspects.Select(x => x.Aspect.Name));
         Assert.Equal(new[] { "Imperial", "Clone Trooper" },
@@ -785,8 +786,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary2.PrintingsCreated);
 
         // Two distinct Card rows must exist — one per subtitle.
-        var card1 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 Galactic Emperor" && c.Game == Game);
-        var card2 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 How Liberty Dies" && c.Game == Game);
+        var card1 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 Galactic Emperor" && c.Game!.Name == Game);
+        var card2 = await db.Cards.SingleAsync(c => c.Name == "Chancellor Palpatine \u2014 How Liberty Dies" && c.Game!.Name == Game);
         Assert.NotEqual(card1.Id, card2.Id);
 
         // Each card's text must be its own, not overwritten by the second import.
@@ -915,8 +916,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(2, summary.CardsCreated);
         Assert.Equal(2, summary.PrintingsCreated);
-        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page One Card" && c.Game == Game));
-        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page Two Card" && c.Game == Game));
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page One Card" && c.Game!.Name == Game));
+        Assert.True(await db.Cards.AnyAsync(c => c.Name == "Page Two Card" && c.Game!.Name == Game));
     }
 
     [Theory]
@@ -1014,7 +1015,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Luke Skywalker (Variant)" && c.Game == Game);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Luke Skywalker (Variant)" && c.Game!.Name == Game);
         var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
         using var doc = JsonDocument.Parse(printing.DetailsJson!);
         var root = doc.RootElement;
@@ -1054,7 +1055,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         await importer.ImportFromFileAsync(ToStream(baseJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
 
-        var baseCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo" && c.Game == Game);
+        var baseCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo" && c.Game!.Name == Game);
 
         // Second: import the variant card that references the base by title.
         var variantOfData = new { data = new { id = 10001, attributes = new { title = "Han Solo", cardUid = "1000000001" } } };
@@ -1077,8 +1078,10 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo (Showcase)" && c.Game == Game);
-        Assert.Equal(baseCard.Id, variantCard.BaseCardId);
+        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Han Solo (Showcase)" && c.Game!.Name == Game);
+        var basePrinting = await db.CardPrintings.SingleAsync(p => p.CardId == baseCard.Id);
+        var variantPrinting = await db.CardPrintings.SingleAsync(p => p.CardId == variantCard.Id);
+        Assert.Equal(basePrinting.Id, variantPrinting.VariantOfId);
     }
 
     [Fact]
@@ -1112,9 +1115,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
 
-        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Princess Leia (Alternate Art)" && c.Game == Game);
-        // Base not yet in DB — BaseCardId must be null.
-        Assert.Null(variantCard.BaseCardId);
+        var variantCard = await db.Cards.SingleAsync(c => c.Name == "Princess Leia (Alternate Art)" && c.Game!.Name == Game);
+        var variantPrinting = await db.CardPrintings.SingleAsync(p => p.CardId == variantCard.Id);
+        Assert.Null(variantPrinting.VariantOfId);
     }
 
     [Fact]
@@ -1140,8 +1143,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "Darth Maul" && c.Game == Game);
-        Assert.Null(card.BaseCardId);
+        var card = await db.Cards.SingleAsync(c => c.Name == "Darth Maul" && c.Game!.Name == Game);
+        var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+        Assert.Null(printing.VariantOfId);
     }
 
     [Fact]
@@ -1168,7 +1172,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SOR"));
 
-        var card = await db.Cards.SingleAsync(c => c.Name == "R2-D2" && c.Game == Game);
+        var card = await db.Cards.SingleAsync(c => c.Name == "R2-D2" && c.Game!.Name == Game);
         var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
         using var doc = JsonDocument.Parse(printing.DetailsJson!);
         var root = doc.RootElement;
@@ -1463,7 +1467,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary2.CardsUpdated);
         Assert.Equal(1, summary2.PrintingsCreated);
 
-        var card = await db.Cards.Include(c => c.Printings).SingleAsync(c => c.Game == Game);
+        var card = await db.Cards.Include(c => c.Printings).SingleAsync(c => c.Game!.Name == Game);
         Assert.Equal("Luke Skywalker \u2014 Jedi Knight", card.Name);
         Assert.Equal("Standard text.", card.Text);
         Assert.Equal("06010050", card.CardUid);

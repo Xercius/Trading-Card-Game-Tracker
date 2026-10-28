@@ -99,7 +99,8 @@ public sealed class TransformersFmImporter : ISourceImporter
                         ?? src.Images?.Card
                         ?? src.Images?.Alt;
 
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
 
         var cardJson = JsonSerializer.Serialize(new
         {
@@ -123,11 +124,9 @@ public sealed class TransformersFmImporter : ISourceImporter
         {
             card = new Card
             {
-                Game = game,
+                Game = gameEntity,
                 Name = name,
-                CardType = type,
                 Text = text,
-                DetailsJson = cardJson
             };
             _db.Cards.Add(card);
             summary.CardsCreated++;
@@ -135,15 +134,14 @@ public sealed class TransformersFmImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (card.CardType != type) { card.CardType = type; changed = true; }
             if (card.Text != text) { card.Text = text; changed = true; }
-            if (card.DetailsJson != cardJson) { card.DetailsJson = cardJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
+        TreatmentLookup.UpsertCardType(_db, card, type);
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         var printingJson = JsonSerializer.Serialize(new
@@ -165,7 +163,7 @@ public sealed class TransformersFmImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Treatment = TreatmentLookup.Upsert(_db, card.Game, style),
+                Treatment = TreatmentLookup.Upsert(_db, game, style),
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
             };

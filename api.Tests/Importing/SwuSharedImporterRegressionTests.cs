@@ -26,7 +26,8 @@ public sealed class SwuSharedImporterRegressionTests
         int secondId;
         await using (var seed = database.Open())
         {
-            var card = new Card { Game = "Star Wars Unlimited", Name = "Same title", CardType = "" };
+            var game = await seed.Games.SingleAsync(candidate => candidate.Name == "Star Wars Unlimited");
+            var card = new Card { Game = game, Name = "Same title" };
             var first = new CardPrinting
             {
                 Card = card,
@@ -113,8 +114,6 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(resolved.VariantOf.Id, resolved.VariantOfId);
         Assert.Equal(resolved.ReprintOf.Id, resolved.ReprintOfId);
         Assert.NotEqual(resolved.VariantOfId, resolved.ReprintOfId);
-        Assert.Equal(resolved.VariantOf.CardId, resolved.Card.BaseCardId);
-        Assert.NotEqual(100, resolved.Card.BaseCardId);
     }
 
     [Fact]
@@ -340,7 +339,6 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(2, summary.PrintingsCreated);
         await using var db = database.Open();
         var card = await db.Cards.SingleAsync();
-        Assert.Null(card.BaseCardId);
         Assert.Equal(2, await db.CardPrintings.CountAsync());
         Assert.All(await db.CardPrintings.ToListAsync(), p => Assert.Equal(card.Id, p.CardId));
     }
@@ -362,7 +360,7 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database, variant, impostor);
         await using (var before = database.Open())
         {
-            Assert.Null((await before.Cards.SingleAsync(c => c.Name.EndsWith("Showcase"))).BaseCardId);
+            Assert.Null((await before.CardPrintings.SingleAsync(p => p.StrapiId == 2)).VariantOfId);
         }
         if (separateImports)
             await ImportAsync(database, basis);
@@ -372,9 +370,9 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         var cards = await db.Cards.ToListAsync();
         var baseCard = cards.Single(c => c.Name.EndsWith("Jedi Knight"));
-        var variantCard = cards.Single(c => c.Name.EndsWith("Showcase"));
-        Assert.Equal(baseCard.Id, variantCard.BaseCardId);
-        Assert.Null(baseCard.BaseCardId);
+        var basePrinting = await db.CardPrintings.SingleAsync(p => p.CardId == baseCard.Id);
+        var variantPrinting = await db.CardPrintings.SingleAsync(p => p.StrapiId == 2);
+        Assert.Equal(basePrinting.Id, variantPrinting.VariantOfId);
         using var metadata = JsonDocument.Parse(
             (await db.CardPrintings.SingleAsync(p => p.StrapiId == 2)).DetailsJson!);
         Assert.Equal("uid-1", metadata.RootElement.GetProperty("variantOfCardUid").GetString());
@@ -392,8 +390,9 @@ public sealed class SwuSharedImporterRegressionTests
 
         await using var db = database.Open();
         var baseCard = await db.Cards.SingleAsync(card => card.Name == "Base");
-        var reprint = await db.Cards.SingleAsync(card => card.Name == "Reprint");
-        Assert.Equal(baseCard.Id, reprint.BaseCardId);
+        var basePrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == baseCard.Id);
+        var reprintPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        Assert.Equal(basePrinting.Id, reprintPrinting.ReprintOfId);
     }
 
     [Fact]
@@ -408,8 +407,9 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(0, result.CardsUpdated);
         await using var db = database.Open();
         var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
-        var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
-        Assert.Equal(basis.Id, variant.BaseCardId);
+        var basisPrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == basis.Id);
+        var variantPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        Assert.Equal(basisPrinting.Id, variantPrinting.VariantOfId);
     }
 
     [Fact]
@@ -426,7 +426,9 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
         var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
-        Assert.Equal(basis.Id, variant.BaseCardId);
+        var basisPrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == basis.Id);
+        var variantPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        Assert.Equal(basisPrinting.Id, variantPrinting.VariantOfId);
         Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.CardId == variant.Id));
     }
 
@@ -442,19 +444,19 @@ public sealed class SwuSharedImporterRegressionTests
             var preview = await new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(
                 stream, new ImportOptions(DryRun: true));
             Assert.Equal(1, preview.CardsCreated);
-            Assert.Equal(1, preview.CardsUpdated);
+            Assert.Equal(1, preview.PrintingsUpdated);
         }
         await AssertBaseAsync(database, "Variant", null);
         var committed = await ImportAsync(database, basis);
         Assert.Equal(1, committed.CardsCreated);
-        Assert.Equal(1, committed.CardsUpdated);
+        Assert.Equal(1, committed.PrintingsUpdated);
         await AssertBaseAsync(database, "Variant", "Base");
         var replay = await ImportAsync(database, basis);
-        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
     }
 
     [Fact]
-    public async Task Import_MetadataAndRelationshipChange_CountsExistingCardOnce()
+    public async Task Import_MetadataAndRelationshipChange_CountsExistingPrintingOnce()
     {
         await using var database = await Database.CreateAsync();
         await ImportAsync(database,
@@ -463,7 +465,8 @@ public sealed class SwuSharedImporterRegressionTests
         var updated = Record(2, "Variant", "SHD", "two", variantId: 1);
         var result = await ImportAsync(database, updated, updated);
         Assert.Equal(0, result.CardsCreated);
-        Assert.Equal(1, result.CardsUpdated);
+        Assert.Equal(0, result.CardsUpdated);
+        Assert.Equal(1, result.PrintingsUpdated);
         await AssertBaseAsync(database, "Variant", "Base");
     }
 
@@ -763,9 +766,15 @@ public sealed class SwuSharedImporterRegressionTests
     private static async Task AssertBaseAsync(Database database, string name, string? baseName)
     {
         await using var db = database.Open();
-        var card = await db.Cards.Include(c => c.BaseCard).SingleAsync(c => c.Name == name);
-        Assert.Equal(baseName, card.BaseCard?.Name);
-        Assert.Equal(baseName is null, card.BaseCardId is null);
+        var printings = await db.CardPrintings.Include(p => p.VariantOf!).ThenInclude(p => p.Card)
+            .Where(p => p.Card!.Name == name).ToListAsync();
+        Assert.NotEmpty(printings);
+        var targets = printings.Where(p => p.VariantOf is not null)
+            .Select(p => p.VariantOf!.Card.Name).Distinct().ToArray();
+        if (baseName is null)
+            Assert.Empty(targets);
+        else
+            Assert.Equal([baseName], targets);
     }
 
     private static async Task<ImportSummary> ImportAsync(Database database, params object[] records)

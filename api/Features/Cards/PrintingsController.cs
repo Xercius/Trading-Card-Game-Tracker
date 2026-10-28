@@ -49,31 +49,32 @@ public sealed class PrintingsController : ControllerBase
         // Build base query with eager loading of Card for name and game information
         var query = _db.Set<CardPrinting>()
             .AsNoTracking()
-            .Include(p => p.Card) // need Name + Game
+            .Include(p => p.Card).ThenInclude(card => card.Game)
             .Include(p => p.Treatment)
             .AsQueryable();
 
         // Filter by game(s) - supports comma-separated list via CsvUtils
         var games = CsvUtils.Parse(qp.Game); // Suggest: rename 'games' → 'gameNames'
         var requestedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
+        var gameIds = await _db.Games
+            .Where(game => requestedGames.Contains(game.NameNormalized))
+            .Select(game => game.Id)
+            .ToListAsync(ct);
         var swuGameIds = await _db.Games
             .Where(game => game.NameNormalized == "star wars unlimited")
             .Select(game => game.Id)
             .ToListAsync(ct);
         if (games.Count > 0)
         {
-            // Case-insensitive match using normalized column for index efficiency
-            var normalizedGames = requestedGames
-                .Where(game => game != "star wars unlimited")
-                .ToList();
+            var otherGameIds = gameIds.Where(gameId => !swuGameIds.Contains(gameId)).ToList();
             var includesSwu = requestedGames.Contains("star wars unlimited");
             query = query.Where(p =>
-                normalizedGames.Contains(EF.Property<string>(p.Card, "GameNorm")) ||
-                (includesSwu && (
-                    (p.CatalogSet != null && swuGameIds.Contains(p.CatalogSet.GameId)) ||
-                    (p.CatalogSet == null && (
-                        p.Card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId)) ||
-                        EF.Property<string>(p.Card, "GameNorm") == "star wars unlimited")))));
+                p.Card.GameId.HasValue && otherGameIds.Contains(p.Card.GameId.Value)
+                || includesSwu && (
+                    p.CatalogSet != null && swuGameIds.Contains(p.CatalogSet.GameId)
+                    || p.CatalogSet == null && (
+                        p.Card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId))
+                        || p.Card.GameId.HasValue && swuGameIds.Contains(p.Card.GameId.Value))));
         }
 
         // Filter by set(s) - supports comma-separated list
@@ -114,9 +115,6 @@ public sealed class PrintingsController : ControllerBase
         {
             var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                normalizedTypes.Contains(EF.Functions.Collate(p.Card.CardType, "NOCASE")) ||
-                (p.Card.CardType2 != null &&
-                    normalizedTypes.Contains(EF.Functions.Collate(p.Card.CardType2, "NOCASE"))) ||
                 p.Card.CardTypes.Any(type =>
                     normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
         }
@@ -126,8 +124,6 @@ public sealed class PrintingsController : ControllerBase
         {
             var normalizedArenas = arenas.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
-                (p.Card.Arena != null &&
-                    normalizedArenas.Contains(EF.Functions.Collate(p.Card.Arena, "NOCASE"))) ||
                 p.Card.CardArenas.Any(arena =>
                     normalizedArenas.Contains(EF.Functions.Collate(arena.Arena.Name, "NOCASE"))));
         }
@@ -174,7 +170,6 @@ public sealed class PrintingsController : ControllerBase
             // Use normalized columns where available for index-friendly case-insensitive wildcard search
             query = query.Where(p =>
                 (p.Card.Name != null && EF.Functions.Like(EF.Functions.Collate(p.Card.Name, "NOCASE"), pattern)) ||
-                (p.Card.CardType != null && EF.Functions.Like(EF.Functions.Collate(p.Card.CardType, "NOCASE"), pattern)) ||
                 p.Card.CardTypes.Any(type => EF.Functions.Like(
                     EF.Functions.Collate(type.CardType.Name, "NOCASE"), pattern)) ||
                 (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
@@ -190,7 +185,7 @@ public sealed class PrintingsController : ControllerBase
             var matchingCardIds = query.Select(p => p.CardId).Distinct();
             query = _db.Set<CardPrinting>()
                 .AsNoTracking()
-                .Include(p => p.Card)
+                .Include(p => p.Card).ThenInclude(card => card.Game)
                 .Where(p => matchingCardIds.Contains(p.CardId))
                 .Where(p => p.Id == _db.Set<CardPrinting>()
                     .Where(candidate => candidate.CardId == p.CardId)
@@ -198,14 +193,14 @@ public sealed class PrintingsController : ControllerBase
                         (candidate.CatalogSet != null && swuGameIds.Contains(candidate.CatalogSet.GameId)) ||
                         candidate.Card.CardTypes.Any(type =>
                             swuGameIds.Contains(type.CardType.GameId)) ||
-                        EF.Property<string>(candidate.Card, "GameNorm") == "star wars unlimited"
+                        swuGameIds.Contains(candidate.Card.GameId ?? 0)
                         ? candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null
                         : candidate.ReleasedAt == null)
                     .ThenBy(candidate =>
                         (candidate.CatalogSet != null && swuGameIds.Contains(candidate.CatalogSet.GameId)) ||
                         candidate.Card.CardTypes.Any(type =>
                             swuGameIds.Contains(type.CardType.GameId)) ||
-                        EF.Property<string>(candidate.Card, "GameNorm") == "star wars unlimited"
+                        swuGameIds.Contains(candidate.Card.GameId ?? 0)
                         ? candidate.CatalogSet == null ? null : candidate.CatalogSet.ReleasedAt
                         : candidate.ReleasedAt)
                     .ThenBy(candidate => candidate.Id)
@@ -243,6 +238,7 @@ public sealed class PrintingsController : ControllerBase
         var printings = await query
             .Include(p => p.CatalogSet)
             .Include(p => p.RarityLookup)
+            .Include(p => p.Card).ThenInclude(card => card.Game)
             .Include(p => p.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(p => p.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .AsSplitQuery()
@@ -264,7 +260,7 @@ public sealed class PrintingsController : ControllerBase
                 : printing.ImageUrl,
             printing.CardId,
             printing.Card.Name,
-            printing.Card.Game)
+            printing.Card.Game?.Name ?? string.Empty)
         {
             Style = printing.Treatment?.Name ?? "Standard",
             ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,

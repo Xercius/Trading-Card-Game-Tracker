@@ -29,13 +29,14 @@ public static class MinimalDbSeeder
         Console.WriteLine("Minimal seed complete: added sample cards and printings.");
     }
 
-    private static IReadOnlyList<Card> CreateSampleCards(AppDbContext context) => new List<Card>
+    private static IReadOnlyList<Card> CreateSampleCards(AppDbContext context)
     {
+        var cards = new List<Card>
+        {
         new()
         {
-            Game = "Magic: The Gathering",
+            Game = TreatmentLookup.GetOrAddGame(context, "Magic: The Gathering"),
             Name = "Lightning Bolt",
-            CardType = "Instant",
             Printings =
             {
                 new CardPrinting
@@ -49,9 +50,8 @@ public static class MinimalDbSeeder
         },
         new()
         {
-            Game = "Pokemon TCG",
+            Game = TreatmentLookup.GetOrAddGame(context, "Pokemon TCG"),
             Name = "Pikachu",
-            CardType = "Pokemon",
             Printings =
             {
                 new CardPrinting
@@ -65,9 +65,8 @@ public static class MinimalDbSeeder
         },
         new()
         {
-            Game = "Star Wars Unlimited",
+            Game = TreatmentLookup.GetOrAddGame(context, "Star Wars Unlimited"),
             Name = "Luke Skywalker, Hope of the Rebellion",
-            CardType = "Unit",
             Printings =
             {
                 new CardPrinting
@@ -79,5 +78,10 @@ public static class MinimalDbSeeder
                 },
             },
         },
-    };
+        };
+        TreatmentLookup.UpsertCardType(context, cards[0], "Instant");
+        TreatmentLookup.UpsertCardType(context, cards[1], "Pokemon");
+        TreatmentLookup.UpsertCardType(context, cards[2], "Unit");
+        return cards;
+    }
 }

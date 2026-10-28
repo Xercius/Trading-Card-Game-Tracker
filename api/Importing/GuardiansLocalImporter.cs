@@ -138,11 +138,12 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         string style = "Standard";
         string? imageUrl = row.ImageUrl;
 
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
         var card = _db.ChangeTracker.Entries<Card>()
             .Where(e => e.State != EntityState.Deleted)
             .Select(e => e.Entity)
-            .FirstOrDefault(x => x.Game == game && x.Name == name)
-            ?? await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+            .FirstOrDefault(x => x.GameId == gameEntity.Id && x.Name == name)
+            ?? await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
 
         string detailsCard = JsonSerializer.Serialize(new { row.Extras, text, type }, J);
 
@@ -150,11 +151,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         {
             card = new Card
             {
-                Game = game,
+                Game = gameEntity,
                 Name = name,
-                CardType = type,
                 Text = text,
-                DetailsJson = detailsCard
             };
             _db.Cards.Add(card);
             summary.CardsCreated++;
@@ -162,21 +161,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (card.CardType != type)
-            {
-                card.CardType = type;
-                changed = true;
-            }
-
             if (card.Text != text)
             {
                 card.Text = text;
-                changed = true;
-            }
-
-            if (card.DetailsJson != detailsCard)
-            {
-                card.DetailsJson = detailsCard;
                 changed = true;
             }
 
@@ -185,10 +172,11 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 summary.CardsUpdated++;
             }
         }
+        TreatmentLookup.UpsertCardType(_db, card, type);
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, c => c.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, c => c.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
         string detailsPrinting = JsonSerializer.Serialize(new { row.Rarity, row.ImageUrl, row.Extras }, J);
@@ -201,7 +189,7 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Treatment = TreatmentLookup.Upsert(_db, card.Game, style),
+                Treatment = TreatmentLookup.Upsert(_db, game, style),
                 ImageUrl = imageUrl,
                 DetailsJson = detailsPrinting
             };
