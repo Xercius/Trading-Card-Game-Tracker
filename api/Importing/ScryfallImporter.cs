@@ -87,11 +87,12 @@ public sealed class ScryfallImporter : ISourceImporter
         string? desc = BuildRulesText(c);
 
         // Find or create Card by (Game, Name)
-        var card = _db.Cards.Local.FirstOrDefault(x => x.Game == game && x.Name == name)
-            ?? await _db.Cards.Where(x => x.Game == game && x.Name == name).FirstOrDefaultAsync(ct);
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var card = _db.Cards.Local.FirstOrDefault(x => x.GameId == gameEntity.Id && x.Name == name)
+            ?? await _db.Cards.Where(x => x.GameId == gameEntity.Id && x.Name == name).FirstOrDefaultAsync(ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = cardType, Text = desc };
+            card = new Card { Game = gameEntity, Name = name, Text = desc };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
@@ -99,10 +100,10 @@ public sealed class ScryfallImporter : ISourceImporter
         {
             // Update fields if changed
             bool changed = false;
-            if (card.CardType != cardType) { card.CardType = cardType; changed = true; }
             if (card.Text != desc) { card.Text = desc; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
+        TreatmentLookup.UpsertCardType(_db, card, cardType);
 
         // Idempotent by (Game, Set, Number)
         string set = c.Set?.ToUpperInvariant() ?? setCode.ToUpperInvariant();
@@ -119,9 +120,9 @@ public sealed class ScryfallImporter : ISourceImporter
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
-        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
+        var treatment = TreatmentLookup.Upsert(_db, game, style);
 
         if (printing is null)
         {

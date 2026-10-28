@@ -1,6 +1,7 @@
 using api.Common.Errors;
 using api.Data;
 using api.Features.Values.Dtos;
+using api.Features._Common;
 using api.Models;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
@@ -56,9 +57,14 @@ public class ValuesController : ControllerBase
                 detail: "The refresh request must include at least one item.");
         }
 
+        var normalizedGame = SqliteCaseNormalizer.Normalize(game);
+        var gameId = await _db.Games
+            .Where(candidate => candidate.NameNormalized == normalizedGame)
+            .Select(candidate => (int?)candidate.Id)
+            .FirstOrDefaultAsync();
         var cpIds = items.Select(i => i.CardPrintingId).ToHashSet();
         var valid = await _db.CardPrintings.Include(cp => cp.Card)
-            .Where(cp => cpIds.Contains(cp.Id) && cp.Card.Game == game)
+            .Where(cp => cpIds.Contains(cp.Id) && gameId.HasValue && cp.Card.GameId == gameId.Value)
             .Select(cp => cp.Id)
             .ToListAsync();
 
@@ -117,7 +123,7 @@ public class ValuesController : ControllerBase
             .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
             .Select(uc => new
             {
-                Game = uc.CardPrinting.Card.Game,
+                Game = uc.CardPrinting.Card.Game!.Name,
                 PrintingId = uc.CardPrintingId,
                 Qty = uc.QuantityOwned
             })

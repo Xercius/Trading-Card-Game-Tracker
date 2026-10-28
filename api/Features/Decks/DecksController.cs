@@ -425,7 +425,7 @@ public class DecksController : ControllerBase
                 detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
-        if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(deck!.Game, cp.Card.Game?.Name, StringComparison.OrdinalIgnoreCase))
         {
             return this.CreateValidationProblem(
                 "cardPrintingId",
@@ -488,7 +488,7 @@ public class DecksController : ControllerBase
                 detail: "One or more CardPrintings not found.");
         }
 
-        if (printings.Any(cp => !string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase)))
+        if (printings.Any(cp => !string.Equals(deck!.Game, cp.Card.Game?.Name, StringComparison.OrdinalIgnoreCase)))
         {
             return this.CreateValidationProblem(
                 "cardPrintingId",
@@ -565,7 +565,7 @@ public class DecksController : ControllerBase
                 detail: $"Card printing {cardPrintingId} was not found.");
         }
 
-        if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(deckEntity.Game, printing.Card.Game?.Name, StringComparison.OrdinalIgnoreCase))
         {
             return this.CreateValidationProblem(
                 "cardPrintingId",
@@ -642,7 +642,7 @@ public class DecksController : ControllerBase
                     StatusCodes.Status404NotFound,
                     detail: $"Card printing {request.PrintingId} was not found.");
             }
-            if (!string.Equals(deckEntity.Game, printing.Card.Game, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(deckEntity.Game, printing.Card.Game?.Name, StringComparison.OrdinalIgnoreCase))
             {
                 return this.CreateValidationProblem(
                     "cardPrintingId",
@@ -730,7 +730,7 @@ public class DecksController : ControllerBase
                     StatusCodes.Status404NotFound,
                     detail: $"Card printing {cardPrintingId} was not found.");
             }
-            if (!string.Equals(deck!.Game, cp.Card.Game, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(deck!.Game, cp.Card.Game?.Name, StringComparison.OrdinalIgnoreCase))
             {
                 return this.CreateValidationProblem(
                     "cardPrintingId",

@@ -31,7 +31,7 @@ public sealed class DecksMappingProfile : Profile
             .ForCtorParam(nameof(DeckCardItemResponse.Game),
                 opt => opt.MapFrom(dc =>
                     dc.CardPrinting != null && dc.CardPrinting.Card != null
-                        ? dc.CardPrinting.Card.Game
+                       ? dc.CardPrinting.Card.Game!.Name
                         : string.Empty))
 
             .ForCtorParam(nameof(DeckCardItemResponse.Set),

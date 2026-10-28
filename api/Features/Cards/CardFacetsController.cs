@@ -70,8 +70,8 @@ public sealed class CardFacetsController : ControllerBase
             .ToList();
         var traits = CsvUtils.Parse(trait);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var swuGameIds = await _db.Games
-            .Where(candidate => candidate.NameNormalized == "star wars unlimited")
+        var gameIds = await _db.Games
+            .Where(candidate => gamesNormalized.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
 
@@ -89,7 +89,6 @@ public sealed class CardFacetsController : ControllerBase
                 var normalizedPattern = $"%{normalizedTerm}%";
                 baseQuery = baseQuery.Where(cp =>
                     EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
-                    EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern) ||
                     cp.Card.CardTypes.Any(cardType => EF.Functions.Like(
                         EF.Functions.Collate(cardType.CardType.Name, "NOCASE"), pattern)) ||
                     (cp.Number != null && EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern)) ||
@@ -103,7 +102,6 @@ public sealed class CardFacetsController : ControllerBase
             {
                 baseQuery = baseQuery.Where(cp =>
                     EF.Functions.Like(EF.Functions.Collate(cp.Card.Name, "NOCASE"), pattern) ||
-                    EF.Functions.Like(EF.Functions.Collate(cp.Card.CardType, "NOCASE"), pattern) ||
                     cp.Card.CardTypes.Any(cardType => EF.Functions.Like(
                         EF.Functions.Collate(cardType.CardType.Name, "NOCASE"), pattern)));
             }
@@ -118,13 +116,13 @@ public sealed class CardFacetsController : ControllerBase
         gameQuery = ApplyTraitFilter(gameQuery, traits);
 
         var gameFacets = await gameQuery
-            .GroupBy(cp => cp.CatalogSet == null ? cp.Card.Game : cp.CatalogSet.Game.Name)
+            .GroupBy(cp => cp.Card.Game!.Name)
             .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
 
         // Compute set facets
-        var setQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var setQuery = ApplyGameFilter(baseQuery, gameIds);
         setQuery = ApplyRarityFilter(setQuery, rarities);
         setQuery = ApplyTypeFilter(setQuery, types);
         setQuery = ApplyArenaFilter(setQuery, arenas);
@@ -139,7 +137,7 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
 
         // Compute rarity facets
-        var rarityQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var rarityQuery = ApplyGameFilter(baseQuery, gameIds);
         rarityQuery = ApplySetFilter(rarityQuery, sets);
         rarityQuery = ApplyTypeFilter(rarityQuery, types);
         rarityQuery = ApplyArenaFilter(rarityQuery, arenas);
@@ -154,7 +152,7 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
 
         // Compute type facets
-        var typeQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var typeQuery = ApplyGameFilter(baseQuery, gameIds);
         typeQuery = ApplySetFilter(typeQuery, sets);
         typeQuery = ApplyRarityFilter(typeQuery, rarities);
         typeQuery = ApplyArenaFilter(typeQuery, arenas);
@@ -168,24 +166,12 @@ public sealed class CardFacetsController : ControllerBase
             .Where(association => typeCardIds.Contains(association.CardId))
             .Select(association => new { association.CardId, association.CardType.Name })
             .ToListAsync(ct);
-        var scalarSwuTypes = await _db.Cards
-            .AsNoTracking()
-            .Where(c => typeCardIds.Contains(c.Id) &&
-                EF.Property<string>(c, "GameNorm") == "star wars unlimited")
-            .Select(c => new { c.Id, c.CardType, c.CardType2 })
-            .ToListAsync(ct);
         var typeFacets = BuildFacets(
-            typeAssociations.Select(a => (a.CardId, a.Name))
-                .Concat(scalarSwuTypes
-                    .Where(c => !string.IsNullOrWhiteSpace(c.CardType))
-                    .Select(c => (c.Id, c.CardType)))
-                .Concat(scalarSwuTypes
-                    .Where(c => !string.IsNullOrWhiteSpace(c.CardType2))
-                    .Select(c => (c.Id, c.CardType2!))),
+            typeAssociations.Select(a => (a.CardId, a.Name)),
             typePrintingCounts);
 
         // Compute arena facets
-        var arenaQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var arenaQuery = ApplyGameFilter(baseQuery, gameIds);
         arenaQuery = ApplySetFilter(arenaQuery, sets);
         arenaQuery = ApplyRarityFilter(arenaQuery, rarities);
         arenaQuery = ApplyTypeFilter(arenaQuery, types);
@@ -199,18 +185,12 @@ public sealed class CardFacetsController : ControllerBase
             .Where(association => arenaCardIds.Contains(association.CardId))
             .Select(association => new { association.CardId, association.Arena.Name })
             .ToListAsync(ct);
-        var scalarArenas = await _db.Cards
-            .AsNoTracking()
-            .Where(c => arenaCardIds.Contains(c.Id) && c.Arena != null && c.Arena != "")
-            .Select(c => new { CardId = c.Id, Name = c.Arena! })
-            .ToListAsync(ct);
         var arenaFacets = BuildFacets(
-            arenaAssociations.Select(a => (a.CardId, a.Name))
-                .Concat(scalarArenas.Select(a => (a.CardId, a.Name))),
+            arenaAssociations.Select(a => (a.CardId, a.Name)),
             arenaPrintingCounts);
 
         // Compute aspect facets
-        var aspectQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var aspectQuery = ApplyGameFilter(baseQuery, gameIds);
         aspectQuery = ApplySetFilter(aspectQuery, sets);
         aspectQuery = ApplyRarityFilter(aspectQuery, rarities);
         aspectQuery = ApplyTypeFilter(aspectQuery, types);
@@ -227,7 +207,7 @@ public sealed class CardFacetsController : ControllerBase
         var aspectFacets = BuildFacets(aspectAssociations.Select(a => (a.CardId, a.Name)), aspectPrintingCounts);
 
         // Compute trait facets
-        var traitQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var traitQuery = ApplyGameFilter(baseQuery, gameIds);
         traitQuery = ApplySetFilter(traitQuery, sets);
         traitQuery = ApplyRarityFilter(traitQuery, rarities);
         traitQuery = ApplyTypeFilter(traitQuery, types);
@@ -243,7 +223,7 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
         var traitFacets = BuildFacets(traitAssociations.Select(a => (a.CardId, a.Name)), traitPrintingCounts);
 
-        var treatmentQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        var treatmentQuery = ApplyGameFilter(baseQuery, gameIds);
         treatmentQuery = ApplySetFilter(treatmentQuery, sets);
         treatmentQuery = ApplyRarityFilter(treatmentQuery, rarities);
         treatmentQuery = ApplyTypeFilter(treatmentQuery, types);
@@ -285,7 +265,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         var games = await _db.CardPrintings
             .AsNoTracking()
-            .Select(cp => cp.CatalogSet == null ? cp.Card.Game : cp.CatalogSet.Game.Name)
+            .Select(cp => cp.Card.Game!.Name)
             .Distinct()
             .OrderBy(game => game)
             .ToListAsync(ct);
@@ -316,7 +296,7 @@ public sealed class CardFacetsController : ControllerBase
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
-        var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), normalizedGames, gameIds);
+        var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
         var sets = await query
             .Select(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Code)
@@ -357,7 +337,7 @@ public sealed class CardFacetsController : ControllerBase
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
-        var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), normalizedGames, gameIds);
+        var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
         var rarities = await query
             .Select(cp => cp.RarityLookup == null ? cp.Rarity : cp.RarityLookup.Name)
@@ -403,19 +383,12 @@ public sealed class CardFacetsController : ControllerBase
 
     private static IQueryable<CardPrinting> ApplyGameFilter(
         IQueryable<CardPrinting> query,
-        IReadOnlyCollection<string> normalizedGames,
-        IReadOnlyCollection<int> swuGameIds)
+        IReadOnlyCollection<int> gameIds)
     {
-        if (normalizedGames.Count == 0) return query;
-        var legacyGames = normalizedGames.Where(value => value != "star wars unlimited").ToList();
-        var includesSwu = normalizedGames.Contains("star wars unlimited");
-        return query.Where(printing =>
-            legacyGames.Contains(EF.Property<string>(printing.Card, "GameNorm")) ||
-            (includesSwu && (
-                (printing.CatalogSet != null && swuGameIds.Contains(printing.CatalogSet.GameId)) ||
-                (printing.CatalogSet == null && (
-                    printing.Card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId)) ||
-                    EF.Property<string>(printing.Card, "GameNorm") == "star wars unlimited")))));
+        return gameIds.Count == 0
+            ? query.Where(_ => false)
+            : query.Where(printing => printing.Card.GameId.HasValue
+                && gameIds.Contains(printing.Card.GameId.Value));
     }
 
     private static IQueryable<CardPrinting> ApplySetFilter(
@@ -448,11 +421,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         if (types.Count == 0) return query;
         var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
-        return query.Where(printing =>
-            normalizedTypes.Contains(EF.Functions.Collate(printing.Card.CardType, "NOCASE")) ||
-            (printing.Card.CardType2 != null &&
-                normalizedTypes.Contains(EF.Functions.Collate(printing.Card.CardType2, "NOCASE"))) ||
-            printing.Card.CardTypes.Any(cardType =>
+        return query.Where(printing => printing.Card.CardTypes.Any(cardType =>
                 normalizedTypes.Contains(EF.Functions.Collate(cardType.CardType.Name, "NOCASE"))));
     }
 
@@ -462,10 +431,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         if (arenas.Count == 0) return query;
         var normalizedArenas = arenas.Select(SqliteCaseNormalizer.Normalize).ToList();
-        return query.Where(printing =>
-            (printing.Card.Arena != null &&
-                normalizedArenas.Contains(EF.Functions.Collate(printing.Card.Arena, "NOCASE"))) ||
-            printing.Card.CardArenas.Any(cardArena =>
+        return query.Where(printing => printing.Card.CardArenas.Any(cardArena =>
                 normalizedArenas.Contains(EF.Functions.Collate(cardArena.Arena.Name, "NOCASE"))));
     }
 

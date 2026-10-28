@@ -79,24 +79,23 @@ public sealed class SwccgdbImporter : ISourceImporter
         string name = src.Front?.Title?.Trim() ?? "Unknown";
         string cardType = src.Front?.Type ?? "";
         string? desc = src.Front?.Gametext;
+        var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
 
         // Card by (Game, Name)
-        var card = await _db.Cards.FirstOrDefaultAsync(x => x.Game == game && x.Name == name, ct);
+        var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
         if (card is null)
         {
-            card = new Card { Game = game, Name = name, CardType = cardType, Text = desc, DetailsJson = JsonSerializer.Serialize(src, Json) };
+            card = new Card { Game = gameEntity, Name = name, Text = desc };
             _db.Cards.Add(card);
             summary.CardsCreated++;
         }
         else
         {
             bool changed = false;
-            if (card.CardType != cardType) { card.CardType = cardType; changed = true; }
             if (card.Text != desc) { card.Text = desc; changed = true; }
-            var newJson = JsonSerializer.Serialize(src, Json);
-            if (card.DetailsJson != newJson) { card.DetailsJson = newJson; changed = true; }
             if (changed) summary.CardsUpdated++;
         }
+        TreatmentLookup.UpsertCardType(_db, card, cardType);
 
         // Printing by (Game, Set, Number)
         string set = setCode; // keep textual set code used in the request
@@ -109,9 +108,9 @@ public sealed class SwccgdbImporter : ISourceImporter
 
         var printing = await _db.CardPrintings
             .Where(p => p.Set == set && p.Number == number)
-            .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
+            .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
-        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
+        var treatment = TreatmentLookup.Upsert(_db, game, style);
 
         if (printing is null)
         {

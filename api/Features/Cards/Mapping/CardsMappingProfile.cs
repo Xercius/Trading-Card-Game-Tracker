@@ -60,9 +60,11 @@ public sealed class CardsMappingProfile : Profile
         // Primary property is intentionally ignored and populated separately in the controller
         CreateMap<Card, CardListItemResponse>()
             .ForMember(d => d.CardId, o => o.MapFrom(s => s.Id))
-            .ForMember(d => d.Game, o => o.MapFrom(s => s.Game))
+            .ForMember(d => d.Game, o => o.MapFrom(s => s.Game == null ? string.Empty : s.Game.Name))
             .ForMember(d => d.Name, o => o.MapFrom(s => s.Name))
-            .ForMember(d => d.CardType, o => o.MapFrom(s => s.CardType))
+            .ForMember(d => d.CardType, o => o.MapFrom(s =>
+                s.CardTypes.Where(type => type.SourceRole == "Type")
+                    .Select(type => type.CardType.Name).FirstOrDefault() ?? string.Empty))
             .ForMember(d => d.CardTypes, o => o.MapFrom(s =>
                 s.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList()))
             .ForMember(d => d.Aspects, o => o.MapFrom(s => s.CardAspects
@@ -76,8 +78,11 @@ public sealed class CardsMappingProfile : Profile
         CreateMap<Card, CardDetailResponse>()
             .ForCtorParam(nameof(CardDetailResponse.Id), o => o.MapFrom(s => s.Id))
             .ForCtorParam(nameof(CardDetailResponse.Name), o => o.MapFrom(s => s.Name))
-            .ForCtorParam(nameof(CardDetailResponse.Game), o => o.MapFrom(s => s.Game))
-            .ForCtorParam(nameof(CardDetailResponse.CardType), o => o.MapFrom(s => s.CardType))
+            .ForCtorParam(nameof(CardDetailResponse.Game), o => o.MapFrom(s =>
+                s.Game == null ? string.Empty : s.Game.Name))
+            .ForCtorParam(nameof(CardDetailResponse.CardType), o => o.MapFrom(s =>
+                s.CardTypes.Where(type => type.SourceRole == "Type")
+                    .Select(type => type.CardType.Name).FirstOrDefault() ?? string.Empty))
             .ForCtorParam(nameof(CardDetailResponse.Text), o => o.MapFrom(s => s.Text))
             .ForCtorParam(nameof(CardDetailResponse.Printings), o => o.MapFrom(s => s.Printings))
             .ForCtorParam(nameof(CardDetailResponse.CardTypes), o => o.MapFrom(s =>
@@ -86,11 +91,9 @@ public sealed class CardsMappingProfile : Profile
                 .OrderBy(aspect => aspect.Aspect.Name)
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()))
             .ForCtorParam(nameof(CardDetailResponse.CardType2), o => o.MapFrom(s =>
-                s.CardType2 ?? s.CardTypes.Where(type => type.SourceRole == "Type2").Select(type => type.CardType.Name).FirstOrDefault()))
+                s.CardTypes.Where(type => type.SourceRole == "Type2").Select(type => type.CardType.Name).FirstOrDefault()))
             .ForCtorParam(nameof(CardDetailResponse.Arena), o => o.MapFrom(s =>
-                s.CardArenas.Count > 0
-                    ? string.Join(", ", s.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n))
-                    : s.Arena))
+                string.Join(", ", s.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n))))
             .ForCtorParam(nameof(CardDetailResponse.Traits), o => o.MapFrom(s =>
                 s.CardTraits.Select(trait => trait.Trait.Name).Distinct().OrderBy(name => name).ToList()))
             .ForCtorParam(nameof(CardDetailResponse.TextStyled), o => o.MapFrom(s => s.TextStyled))

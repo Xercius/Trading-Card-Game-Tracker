@@ -94,7 +94,7 @@ public class CardsController : ControllerBase
         var query = _db.Cards
             .AsNoTracking()
             .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits)
-            .OrderBy(c => c.Game)
+            .OrderBy(c => c.Game == null ? string.Empty : c.Game.Name)
             .ThenBy(c => c.Name)
             .ThenBy(c => c.Id);
 
@@ -268,6 +268,7 @@ public class CardsController : ControllerBase
         var c = await _db.Cards
             .AsNoTracking()
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
+            .Include(card => card.Game)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
             .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
@@ -297,17 +298,15 @@ public class CardsController : ControllerBase
         => new(
             c.Id,
             c.Name,
-            c.Game,
-            c.CardType,
+            c.Game?.Name ?? string.Empty,
+            c.CardTypes.FirstOrDefault(type => type.SourceRole == "Type")?.CardType.Name ?? string.Empty,
             c.Text,
             printings,
             c.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList(),
             c.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList(),
-            c.CardType2 ?? c.CardTypes.FirstOrDefault(type => type.SourceRole == "Type2")?.CardType.Name,
-            c.CardArenas.Count > 0
-                ? string.Join(", ", c.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n))
-                : c.Arena,
+            c.CardTypes.FirstOrDefault(type => type.SourceRole == "Type2")?.CardType.Name,
+            string.Join(", ", c.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n)),
             c.CardTraits.Select(trait => trait.Trait.Name).Distinct().OrderBy(name => name).ToList(),
             c.TextStyled,
             c.EpicAction,
@@ -391,7 +390,7 @@ public class CardsController : ControllerBase
 
         var treatment = dto.Id.HasValue && dto.Style is null
             ? null
-            : await GetOrCreateTreatmentAsync(cp?.Card.Game ?? card.Game, treatmentName);
+            : await GetOrCreateTreatmentAsync(cp?.Card.GameId ?? card.GameId, treatmentName);
 
         if (!dto.Id.HasValue)
         {
@@ -482,7 +481,7 @@ public class CardsController : ControllerBase
             if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
                 continue;
 
-            var treatment = await GetOrCreateTreatmentAsync(card!.Game, dto.Style);
+            var treatment = await GetOrCreateTreatmentAsync(card!.GameId, dto.Style);
             var match = existing.FirstOrDefault(x =>
                 x.Set == set &&
                 x.Number == number &&
@@ -579,7 +578,7 @@ public class CardsController : ControllerBase
             .AsNoTracking()
             .Where(card => card.Id == cardId)
             .Select(card => (bool?)(
-                EF.Property<string>(card, "GameNorm") == "star wars unlimited" ||
+                swuGameIds.Contains(card.GameId ?? 0) ||
                 card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId)) ||
                 card.Printings.Any(printing => printing.CatalogSet != null &&
                     swuGameIds.Contains(printing.CatalogSet.GameId))))
@@ -594,6 +593,7 @@ public class CardsController : ControllerBase
             .Where(cp => cp.CardId == cardId)
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
+            .Include(cp => cp.Card).ThenInclude(card => card.Game)
             .Include(cp => cp.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(cp => cp.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect);
         var orderedPrintings = cardIsSwu.Value
@@ -639,7 +639,7 @@ public class CardsController : ControllerBase
             printing.ImageUrl ?? PlaceholderCardImage,
             printing.CardId,
             printing.Card.Name,
-            printing.Card.Game)
+            printing.Card.Game?.Name ?? string.Empty)
         {
             Style = printing.Treatment?.Name ?? "Standard",
             ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
@@ -652,17 +652,16 @@ public class CardsController : ControllerBase
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
         };
 
-    private async Task<Treatment> GetOrCreateTreatmentAsync(string gameName, string? name)
+    private async Task<Treatment> GetOrCreateTreatmentAsync(int? gameId, string? name)
     {
         var treatmentName = string.IsNullOrWhiteSpace(name) ? "Standard" : name.Trim();
         var normalizedName = SqliteCaseNormalizer.Normalize(treatmentName);
-        var normalizedGame = SqliteCaseNormalizer.Normalize(gameName);
-        var game = _db.Games.Local.FirstOrDefault(candidate =>
-                SqliteCaseNormalizer.Normalize(candidate.Name) == normalizedGame)
-            ?? await _db.Games.FirstOrDefaultAsync(candidate => candidate.NameNormalized == normalizedGame)
-            ?? new Game { Name = gameName.Trim() };
-        if (_db.Entry(game).State == EntityState.Detached)
-            _db.Games.Add(game);
+        var game = gameId.HasValue
+            ? _db.Games.Local.FirstOrDefault(candidate => candidate.Id == gameId.Value)
+                ?? await _db.Games.FindAsync(gameId.Value)
+            : null;
+        if (game is null)
+            throw new InvalidOperationException("The card must have a game before adding a printing.");
 
         var treatment = _db.Treatments.Local.FirstOrDefault(candidate =>
             (candidate.Game == game || (game.Id != 0 && candidate.GameId == game.Id))

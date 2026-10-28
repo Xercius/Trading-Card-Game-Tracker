@@ -13,7 +13,7 @@ public sealed class WishlistsMappingProfile : Profile
             .ForCtorParam(nameof(WishlistItemResponse.QuantityWanted), opt => opt.MapFrom(uc => uc.QuantityWanted))
             .ForCtorParam(nameof(WishlistItemResponse.CardId), opt => opt.MapFrom(uc => uc.CardPrinting.CardId))
             .ForCtorParam(nameof(WishlistItemResponse.CardName), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Name))
-            .ForCtorParam(nameof(WishlistItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game))
+            .ForCtorParam(nameof(WishlistItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game!.Name))
             .ForCtorParam(nameof(WishlistItemResponse.Set), opt => opt.MapFrom(uc => uc.CardPrinting.Set))
             .ForCtorParam(nameof(WishlistItemResponse.Number), opt => opt.MapFrom(uc => uc.CardPrinting.Number))
             .ForCtorParam(nameof(WishlistItemResponse.Rarity), opt => opt.MapFrom(uc => uc.CardPrinting.Rarity))

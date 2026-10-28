@@ -22,7 +22,8 @@ internal static class QueryExtensions
         {
             var normalized = SqliteCaseNormalizer.Normalize(game);
             query = query.Where(uc =>
-                EF.Property<string>(uc.CardPrinting.Card, "GameNorm") == normalized);
+                uc.CardPrinting.Card.Game != null
+                && uc.CardPrinting.Card.Game.NameNormalized == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(set))
@@ -78,7 +79,6 @@ internal static class QueryExtensions
             var pattern = $"%{term}%";
             query = query.Where(c =>
                 EF.Functions.Like(EF.Functions.Collate(c.Name, "NOCASE"), pattern) ||
-                EF.Functions.Like(EF.Functions.Collate(c.CardType, "NOCASE"), pattern) ||
                 c.CardTypes.Any(type => EF.Functions.Like(
                     EF.Functions.Collate(type.CardType.Name, "NOCASE"), pattern)));
         }
@@ -89,15 +89,9 @@ internal static class QueryExtensions
                 .Select(g => g is null ? null : SqliteCaseNormalizer.Normalize(g))
                 .Where(g => !string.IsNullOrEmpty(g))
                 .ToList();
-            var includesSwu = normalizedGames.Remove("star wars unlimited");
             query = query.Where(c =>
-                normalizedGames.Contains(EF.Property<string>(c, "GameNorm")) ||
-                (includesSwu && (
-                    c.CardTypes.Any(type => gameIds.Contains(type.CardType.GameId)) ||
-                    c.Printings.Any(printing => printing.CatalogSet != null &&
-                        gameIds.Contains(printing.CatalogSet.GameId)) ||
-                    (!c.CardTypes.Any() && !c.Printings.Any(printing => printing.CatalogSet != null) &&
-                        EF.Property<string>(c, "GameNorm") == "star wars unlimited"))));
+                c.Game != null && normalizedGames.Contains(c.Game.NameNormalized)
+                || c.GameId.HasValue && gameIds.Contains(c.GameId.Value));
         }
 
         if (sets.Count > 0)
@@ -130,9 +124,6 @@ internal static class QueryExtensions
         {
             var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(c =>
-                normalizedTypes.Contains(EF.Functions.Collate(c.CardType, "NOCASE")) ||
-                (c.CardType2 != null &&
-                    normalizedTypes.Contains(EF.Functions.Collate(c.CardType2, "NOCASE"))) ||
                 c.CardTypes.Any(type =>
                     normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
         }
@@ -141,8 +132,6 @@ internal static class QueryExtensions
         {
             var normalizedArenas = arenas.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(c =>
-                (c.Arena != null &&
-                    normalizedArenas.Contains(EF.Functions.Collate(c.Arena, "NOCASE"))) ||
                 c.CardArenas.Any(arena =>
                     normalizedArenas.Contains(EF.Functions.Collate(arena.Arena.Name, "NOCASE"))));
         }
@@ -177,9 +166,12 @@ internal static class QueryExtensions
             new CardListItemResponse
             {
                 CardId = c.Id,
-                Game = c.Game,
+                Game = c.Game == null ? string.Empty : c.Game.Name,
                 Name = c.Name,
-                CardType = c.CardType,
+                CardType = c.CardTypes
+                    .Where(type => type.SourceRole == "Type")
+                    .Select(type => type.CardType.Name)
+                    .FirstOrDefault() ?? string.Empty,
                 PrintingsCount = c.Printings.Count(),
                 Primary = c.Printings
                     .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))

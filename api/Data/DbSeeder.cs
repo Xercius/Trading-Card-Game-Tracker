@@ -24,22 +24,22 @@ namespace api.Data
             if (context.Cards.Any()) return;
 
             // Seed Cards
-            var card1 = new Card { Name = "Disabling Fang Fighter", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card2 = new Card { Name = "Shin Hati, Overeager Apprentice", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card3 = new Card { Name = "Mega Manectric ex", Game = "Pokemon TCG", CardType = "Pokemon" };
-            var card4 = new Card { Name = "Parallel Lives", Game = "Magic: The Gathering", CardType = "Enchantment" };
-            var card5 = new Card { Name = "Darth Maul, Revenge At Last", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card6 = new Card { Name = "Maul, Shadow Collective Visionary", Game = "Star Wars Unlimited", CardType = "Unit" };
-            var card7 = new Card { Name = "Darth Maul's Lightsaber", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card8 = new Card { Name = "Battle Fury", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card9 = new Card { Name = "Shadowed Intentions", Game = "Star Wars Unlimited", CardType = "Upgrade" };
-            var card10 = new Card { Name = "Ataru Onslaught", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card11 = new Card { Name = "Calm in the Storm", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card12 = new Card { Name = "In the Shadows", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card13 = new Card { Name = "Unleash Rage", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card14 = new Card { Name = "Face Off", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card15 = new Card { Name = "Unnatural Life", Game = "Star Wars Unlimited", CardType = "Event" };
-            var card16 = new Card { Name = "Baylan Skoll, Enigmatic Master", Game = "Star Wars Unlimited", CardType = "Unit" };
+            var card1 = CreateCard(context, "Disabling Fang Fighter", "Star Wars Unlimited", "Unit");
+            var card2 = CreateCard(context, "Shin Hati, Overeager Apprentice", "Star Wars Unlimited", "Unit");
+            var card3 = CreateCard(context, "Mega Manectric ex", "Pokemon TCG", "Pokemon");
+            var card4 = CreateCard(context, "Parallel Lives", "Magic: The Gathering", "Enchantment");
+            var card5 = CreateCard(context, "Darth Maul, Revenge At Last", "Star Wars Unlimited", "Unit");
+            var card6 = CreateCard(context, "Maul, Shadow Collective Visionary", "Star Wars Unlimited", "Unit");
+            var card7 = CreateCard(context, "Darth Maul's Lightsaber", "Star Wars Unlimited", "Upgrade");
+            var card8 = CreateCard(context, "Battle Fury", "Star Wars Unlimited", "Upgrade");
+            var card9 = CreateCard(context, "Shadowed Intentions", "Star Wars Unlimited", "Upgrade");
+            var card10 = CreateCard(context, "Ataru Onslaught", "Star Wars Unlimited", "Event");
+            var card11 = CreateCard(context, "Calm in the Storm", "Star Wars Unlimited", "Event");
+            var card12 = CreateCard(context, "In the Shadows", "Star Wars Unlimited", "Event");
+            var card13 = CreateCard(context, "Unleash Rage", "Star Wars Unlimited", "Event");
+            var card14 = CreateCard(context, "Face Off", "Star Wars Unlimited", "Event");
+            var card15 = CreateCard(context, "Unnatural Life", "Star Wars Unlimited", "Event");
+            var card16 = CreateCard(context, "Baylan Skoll, Enigmatic Master", "Star Wars Unlimited", "Unit");
             context.Cards.AddRange(card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11, card12, card13, card14, card15, card16);
 
             context.SaveChanges(); // Save to get IDs for relationships
@@ -328,6 +328,17 @@ namespace api.Data
             var deck2Card2 = new DeckCard { Deck = deck2, CardPrinting = printing2b, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2, QuantityProxy = 0 };
             context.DeckCards.AddRange(deck1Card1, deck1Card2, deck2Card1, deck2Card2);
             context.SaveChanges();
+        }
+
+        private static Card CreateCard(AppDbContext context, string name, string gameName, string type)
+        {
+            var card = new Card
+            {
+                Name = name,
+                Game = TreatmentLookup.GetOrAddGame(context, gameName)
+            };
+            TreatmentLookup.UpsertCardType(context, card, type);
+            return card;
         }
     }
 }

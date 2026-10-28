@@ -41,43 +41,25 @@ namespace api.Data
             {
                 e.HasKey(c => c.Id);
 
-                // required columns (don’t rely only on C# 'required' for EF)
-                e.Property(c => c.Game).IsRequired().HasMaxLength(64);
                 e.Property(c => c.Name).IsRequired().HasMaxLength(256);
-                e.Property(c => c.CardType).IsRequired().HasMaxLength(128);
                 e.Property(c => c.Subtitle).HasMaxLength(256);
-                e.Property(c => c.CardType2).HasMaxLength(64);
                 e.Property(c => c.CardUid).HasMaxLength(64);
-                e.Property(c => c.Arena).HasMaxLength(32);
-                e.Property(c => c.Aspects).HasMaxLength(256);
-                e.Property(c => c.Traits).HasMaxLength(512);
-                e.Property(c => c.Keywords).HasMaxLength(512);
                 e.Property(c => c.Hp).HasColumnName("Hp");
 
                 // useful lookup index for list/search
-                e.HasIndex(c => new { c.Game, c.Name });
+                e.HasIndex(c => new { c.GameId, c.Name })
+                    .IsUnique()
+                    .HasDatabaseName("UX_Cards_GameId_Name");
+                e.HasOne(c => c.Game)
+                    .WithMany()
+                    .HasForeignKey(c => c.GameId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 // normalized name for case-insensitive search (SQL Server shown)
                 e.Property<string>("NameNormalized")
                  .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", stored: true);
                 e.HasIndex("NameNormalized");
-
-                // normalized game for case-insensitive search
-                e.Property<string>("GameNorm")
-                 .HasComputedColumnSql("LOWER(TRIM([Game]))", stored: true);
-                e.HasIndex("GameNorm");
-
-                // self-referencing FK: a variant card points to its base card
-                e.HasOne(c => c.BaseCard)
-                 .WithMany(c => c.Variants)
-                 .HasForeignKey(c => c.BaseCardId)
-                 .IsRequired(false)
-                 .OnDelete(DeleteBehavior.SetNull);
-
-                e.HasIndex(c => c.BaseCardId);
-                e.HasIndex(c => new { c.Game, c.StrapiId })
-                    .IsUnique()
-                    .HasFilter("\"StrapiId\" IS NOT NULL");
 
                 // relationship to printings
                 e.HasMany(c => c.Printings)

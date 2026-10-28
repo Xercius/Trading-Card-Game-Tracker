@@ -18,7 +18,7 @@ public sealed class CollectionsMappingProfile : Profile
             .ForCtorParam(nameof(UserCardItemResponse.AvailabilityWithProxies), opt => opt.MapFrom(CardAvailabilityHelper.AvailabilityWithProxiesExpression))
             .ForCtorParam(nameof(UserCardItemResponse.CardId), opt => opt.MapFrom(uc => uc.CardPrinting.CardId))
             .ForCtorParam(nameof(UserCardItemResponse.CardName), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Name))
-            .ForCtorParam(nameof(UserCardItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game))
+            .ForCtorParam(nameof(UserCardItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game!.Name))
             .ForCtorParam(nameof(UserCardItemResponse.Set), opt => opt.MapFrom(uc => uc.CardPrinting.Set))
             .ForCtorParam(nameof(UserCardItemResponse.Number), opt => opt.MapFrom(uc => uc.CardPrinting.Number))
             .ForCtorParam(nameof(UserCardItemResponse.Rarity), opt => opt.MapFrom(uc => uc.CardPrinting.Rarity))
