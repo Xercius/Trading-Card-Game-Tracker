@@ -81,9 +81,9 @@ public static class TestDataSeeder
             {
                 Id = LightningBoltAlphaPrintingId,
                 CardId = LightningBoltCardId,
-                Set = "Alpha",
                 Number = "A1",
-                Rarity = "Common",
+                CatalogSet = TreatmentLookup.UpsertSet(db, lightningBolt.Game, "Alpha"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, lightningBolt.Game, "Common"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://img.example.com/bolt-alpha.png"
             },
@@ -91,9 +91,9 @@ public static class TestDataSeeder
             {
                 Id = LightningBoltBetaPrintingId,
                 CardId = LightningBoltCardId,
-                Set = "Beta",
                 Number = "B2",
-                Rarity = "Uncommon",
+                CatalogSet = TreatmentLookup.UpsertSet(db, lightningBolt.Game, "Beta"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, lightningBolt.Game, "Uncommon"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Foil"),
                 ImageUrl = "https://img.example.com/bolt-beta.png"
             },
@@ -101,9 +101,9 @@ public static class TestDataSeeder
             {
                 Id = GoblinGuidePrintingId,
                 CardId = GoblinGuideCardId,
-                Set = "Zendikar",
                 Number = "Z3",
-                Rarity = "Rare",
+                CatalogSet = TreatmentLookup.UpsertSet(db, goblinGuide.Game, "Zendikar"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, goblinGuide.Game, "Rare"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://img.example.com/goblin-guide.png"
             },
@@ -111,9 +111,9 @@ public static class TestDataSeeder
             {
                 Id = ElsaPrintingId,
                 CardId = ElsaCardId,
-                Set = "Rise of the Floodborn",
                 Number = "R1",
-                Rarity = "Legendary",
+                CatalogSet = TreatmentLookup.UpsertSet(db, elsa.Game, "Rise of the Floodborn"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, elsa.Game, "Legendary"),
                 Treatment = TreatmentLookup.Upsert(db, "Lorcana", "Standard"),
                 ImageUrl = "https://img.example.com/elsa.png"
             },
@@ -121,9 +121,9 @@ public static class TestDataSeeder
             {
                 Id = MickeyPrintingId,
                 CardId = MickeyCardId,
-                Set = "Spark of Imagination",
                 Number = "S1",
-                Rarity = "Rare",
+                CatalogSet = TreatmentLookup.UpsertSet(db, mickey.Game, "Spark of Imagination"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, mickey.Game, "Rare"),
                 Treatment = TreatmentLookup.Upsert(db, "Lorcana", "Standard"),
                 ImageUrl = "https://img.example.com/mickey.png"
             },
@@ -131,9 +131,9 @@ public static class TestDataSeeder
             {
                 Id = ExtraMagicPrintingId,
                 CardId = LightningBoltCardId,
-                Set = "Collectors",
                 Number = "C4",
-                Rarity = "Mythic",
+                CatalogSet = TreatmentLookup.UpsertSet(db, lightningBolt.Game, "Collectors"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, lightningBolt.Game, "Mythic"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Borderless"),
                 ImageUrl = "https://img.example.com/bolt-collectors.png"
             }

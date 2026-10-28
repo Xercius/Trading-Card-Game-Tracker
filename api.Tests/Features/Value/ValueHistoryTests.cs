@@ -87,13 +87,14 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var game = await db.Games.SingleAsync(candidate => candidate.Name == "Magic");
 
             var proxyPrinting = new CardPrinting
             {
                 CardId = TestDataSeeder.LightningBoltCardId,
-                Set = "Proxy Trials",
+                CatalogSet = TreatmentLookup.UpsertSet(db, game, "Proxy Trials"),
                 Number = "PX1",
-                Rarity = "Common",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Common"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Proxy"),
                 ImageUrl = null
             };

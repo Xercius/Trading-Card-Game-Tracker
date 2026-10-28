@@ -116,10 +116,12 @@ public sealed class ScryfallImporter : ISourceImporter
                            ?? c.CardFaces?.FirstOrDefault()?.ImageUris?.Normal;
 
         string rarity = c.Rarity ?? "common";
+        var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set, c.ReleasedAt);
+        var rarityLookup = TreatmentLookup.UpsertRarity(_db, gameEntity, rarity);
         string style = (c.Finishes?.Contains("foil") == true) ? "Foil" : "Standard";
 
         var printing = await _db.CardPrintings
-            .Where(p => p.Set == set && p.Number == number)
+            .Where(p => p.SetId == setLookup.Id && p.Number == number)
             .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
         var treatment = TreatmentLookup.Upsert(_db, game, style);
@@ -129,11 +131,10 @@ public sealed class ScryfallImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = treatment,
-                ReleasedAt = c.ReleasedAt,
                 ImageUrl = imageUrl
             };
             _db.CardPrintings.Add(printing);
@@ -143,9 +144,8 @@ public sealed class ScryfallImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
-            if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
+            if (printing.RarityId != rarityLookup.Id) { printing.RarityLookup = rarityLookup; changed = true; }
             if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
-            if (c.ReleasedAt is not null && printing.ReleasedAt != c.ReleasedAt) { printing.ReleasedAt = c.ReleasedAt; changed = true; }
             if (printing.ImageUrl != imageUrl && imageUrl is not null) { printing.ImageUrl = imageUrl; changed = true; }
             if (changed) summary.PrintingsUpdated++;
         }

@@ -411,6 +411,8 @@ public sealed class DiceMastersDbImporter : ISourceImporter
         string? imageUrl = src.ImageUrl;
 
         var gameEntity = TreatmentLookup.GetOrAddGame(_db, GameName);
+        var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set);
+        var rarityLookup = TreatmentLookup.UpsertRarity(_db, gameEntity, rarity);
         var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
         var cardJson = JsonSerializer.Serialize(new
         {
@@ -435,7 +437,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
         TreatmentLookup.UpsertCardType(_db, card, cardType);
 
         var printing = await _db.CardPrintings
-            .Where(p => p.Set == set && p.Number == number)
+            .Where(p => p.SetId == setLookup.Id && p.Number == number)
             .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
@@ -446,9 +448,9 @@ public sealed class DiceMastersDbImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = TreatmentLookup.Upsert(_db, GameName, style),
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
@@ -460,7 +462,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
-            if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
+            if (printing.RarityId != rarityLookup.Id) { printing.RarityLookup = rarityLookup; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed) summary.PrintingsUpdated++;

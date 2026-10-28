@@ -278,12 +278,12 @@ public sealed class AdminSyncController(
                     .AsNoTracking()
                     .Where(p => p.Card.Game != null
                         && p.Card.Game.NameNormalized == "star wars unlimited")
-                    .Select(p => p.Set))
+                    .Select(p => p.CatalogSet == null ? null : p.CatalogSet.Code))
             .ToListAsync(ct);
 
         return discoveredCodes
             .Where(code => !string.IsNullOrWhiteSpace(code))
-            .Select(code => code.Trim().ToUpperInvariant())
+            .Select(code => code!.Trim().ToUpperInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToArray();

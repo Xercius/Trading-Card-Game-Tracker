@@ -36,6 +36,17 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal("Cards", card!.GetTableName());
         Assert.Equal("CardPrintings", cardPrinting!.GetTableName());
         Assert.Equal("SyncLogs", syncLog!.GetTableName());
+        Assert.DoesNotContain(cardPrinting.GetProperties(), property =>
+            new[]
+            {
+                "Set", "SetNorm", "Rarity", "RarityNorm", "ReleasedAt", "StrapiId"
+            }.Contains(property.Name));
+        var printingIndex = Assert.Single(cardPrinting.GetIndexes(),
+            index => index.GetDatabaseName() == "UX_CardPrintings");
+        Assert.True(printingIndex.IsUnique);
+        Assert.Equal(
+            new[] { nameof(CardPrinting.CardId), nameof(CardPrinting.SetId), nameof(CardPrinting.Number), nameof(CardPrinting.TreatmentId) },
+            printingIndex.Properties.Select(property => property.Name));
         Assert.DoesNotContain(db.Model.GetEntityTypes(), e => e.GetTableName() is "SwuCards" or "SwuCardPrintings");
         Assert.NotNull(card.FindProperty(nameof(Card.GameId)));
         Assert.DoesNotContain(card.GetProperties(), property =>
@@ -77,8 +88,8 @@ public sealed class AppDbContextSwuConfigurationTests
             VALUES (5, 'Star Wars Unlimited', 'Luke Skywalker', 'Unit', 'higher priority');
             INSERT INTO "Cards" ("Id", "Game", "Name", "CardType")
             VALUES (10, 'Pokémon', 'Pikachu', 'Pokémon');
-            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style", "DetailsJson")
-            VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard', '{{"sourceId":200,"variantOfSourceId":null,"reprintOfSourceId":null}}');
+            INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style", "DetailsJson", "ReleasedAt")
+            VALUES (7, 3, 'sor', 'SOR-001', 'Common', 'Standard', '{{"sourceId":200,"variantOfSourceId":null,"reprintOfSourceId":null}}', '1975-01-02');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (8, 4, 'sor', 'SVP-001', 'Promo', 'Standard');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style", "DetailsJson")
@@ -95,7 +106,7 @@ public sealed class AppDbContextSwuConfigurationTests
         await migrator.MigrateAsync();
 
         var game = await db.Games.SingleAsync(item => item.Name == "Star Wars Unlimited");
-        var set = await db.Sets.SingleAsync();
+        var set = await db.Sets.SingleAsync(item => item.GameId == game.Id);
         var standardTreatment = await db.Treatments.SingleAsync(item =>
             item.GameId == game.Id && item.Name == "Standard");
         var hyperspaceTreatment = await db.Treatments.SingleAsync(item =>
@@ -111,20 +122,26 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal("star wars unlimited", game.NameNormalized);
         Assert.Equal(41, set.Id);
         Assert.Equal(game.Id, set.GameId);
+        Assert.Equal(new DateOnly(1975, 1, 2), set.ReleasedAt);
         Assert.Equal(set.Id, syncLog.SetId);
         Assert.Equal(set.Id, syncLog.Set!.Id);
         Assert.Equal(set.Id, printing.SetId);
+        var commonRarity = await db.Rarities.SingleAsync(item =>
+            item.GameId == game.Id && item.Name == "Common");
+        Assert.Equal(commonRarity.Id, printing.RarityId);
         Assert.Equal(standardTreatment.Id, printing.TreatmentId);
         Assert.Equal(hyperspaceTreatment.Id, duplicateCardPrinting.TreatmentId);
         Assert.Equal(3, printing.CardId);
         Assert.Equal(3, duplicateCardPrinting.CardId);
         Assert.Equal(2, await db.Cards.CountAsync());
-        Assert.Null(otherGamePrinting.SetId);
+        var pokemonGame = await db.Games.SingleAsync(item => item.Name == "Pokémon");
+        var pokemonSet = await db.Sets.SingleAsync(item => item.GameId == pokemonGame.Id
+            && EF.Functions.Collate(item.Code, "NOCASE") == "SOR");
+        Assert.Equal(pokemonSet.Id, otherGamePrinting.SetId);
         Assert.Equal(otherGameTreatment.Id, otherGamePrinting.TreatmentId);
         Assert.Equal(3, copiedAspect.CardId);
         Assert.Equal(2, copiedAspect.Count);
         Assert.Equal("Heroism", copiedAspect.Aspect.Name);
-        var pokemonGame = await db.Games.SingleAsync(item => item.Name == "Pokémon");
         Assert.Equal(pokemonGame.Id, (await db.Cards.SingleAsync(item => item.Id == 4)).GameId);
         Assert.Equal("Pokémon", await db.CardCardTypes
             .Where(association => association.CardId == 4 && association.SourceRole == "Type")
@@ -147,6 +164,38 @@ public sealed class AppDbContextSwuConfigurationTests
             }.Contains(column));
         Assert.Equal(4, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
         Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Text);
+
+        var printingColumns = new List<string>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info('CardPrintings')";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                printingColumns.Add(reader.GetString(1));
+        }
+        Assert.DoesNotContain(printingColumns, column =>
+            new[] { "Set", "SetNorm", "Rarity", "RarityNorm", "ReleasedAt", "StrapiId" }.Contains(column));
+        var printingIndexColumns = new List<string>();
+        var printingIndexIsUnique = false;
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA index_list('CardPrintings')";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                if (reader.GetString(1) == "UX_CardPrintings")
+                    printingIndexIsUnique = reader.GetInt64(2) == 1;
+        }
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA index_info('UX_CardPrintings')";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                printingIndexColumns.Add(reader.GetString(2));
+        }
+        Assert.Equal(
+            new[] { "CardId", "SetId", "Number", "TreatmentId" },
+            printingIndexColumns);
+        Assert.True(printingIndexIsUnique);
     }
 
     [Fact]

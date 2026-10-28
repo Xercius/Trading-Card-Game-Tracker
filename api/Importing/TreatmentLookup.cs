@@ -33,6 +33,50 @@ internal static class TreatmentLookup
         return treatment;
     }
 
+    internal static Set UpsertSet(AppDbContext db, Game? game, string code, DateOnly? releasedAt = null)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        code = code.Trim();
+        if (db.Entry(game).State == EntityState.Detached)
+            db.Games.Add(game);
+
+        var set = db.Sets.Local.FirstOrDefault(candidate =>
+                (candidate.Game == game || game.Id != 0 && candidate.GameId == game.Id)
+                && candidate.Code.Trim().Equals(code, StringComparison.OrdinalIgnoreCase))
+            ?? (game.Id == 0 ? null : db.Sets.FirstOrDefault(candidate =>
+                candidate.GameId == game.Id
+                && EF.Functions.Collate(candidate.Code, "NOCASE") == code));
+        if (set is null)
+        {
+            set = new Set { Game = game, Code = code };
+            db.Sets.Add(set);
+        }
+        if (releasedAt is not null)
+            set.ReleasedAt = releasedAt;
+        return set;
+    }
+
+    internal static Rarity UpsertRarity(AppDbContext db, Game? game, string? name)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+        name = string.IsNullOrWhiteSpace(name) ? "Unknown" : name.Trim();
+        if (db.Entry(game).State == EntityState.Detached)
+            db.Games.Add(game);
+
+        var rarity = db.Rarities.Local.FirstOrDefault(candidate =>
+                (candidate.Game == game || game.Id != 0 && candidate.GameId == game.Id)
+                && candidate.Name.Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?? (game.Id == 0 ? null : db.Rarities.FirstOrDefault(candidate =>
+                candidate.GameId == game.Id
+                && EF.Functions.Collate(candidate.Name, "NOCASE") == name));
+        if (rarity is not null)
+            return rarity;
+
+        rarity = new Rarity { Game = game, Name = name };
+        db.Rarities.Add(rarity);
+        return rarity;
+    }
+
     internal static Game GetOrAddGame(AppDbContext db, string gameName)
     {
         var normalizedGame = gameName.Trim().ToLowerInvariant();

@@ -76,9 +76,9 @@ public static class Seed
             {
                 Id = LightningAlphaPrintingId,
                 CardId = LightningCardId,
-                Set = "Alpha",
                 Number = "A1",
-                Rarity = "Common",
+                CatalogSet = TreatmentLookup.UpsertSet(db, lightning.Game, "Alpha"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, lightning.Game, "Common"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/lightning-alpha.png"
             },
@@ -86,9 +86,9 @@ public static class Seed
             {
                 Id = LightningBetaPrintingId,
                 CardId = LightningCardId,
-                Set = "Beta",
                 Number = "B2",
-                Rarity = "Uncommon",
+                CatalogSet = TreatmentLookup.UpsertSet(db, lightning.Game, "Beta"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, lightning.Game, "Uncommon"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Foil"),
                 ImageUrl = "https://example.com/lightning-beta.png"
             },
@@ -96,9 +96,9 @@ public static class Seed
             {
                 Id = GoblinPrintingId,
                 CardId = GoblinCardId,
-                Set = "Zendikar",
                 Number = "Z3",
-                Rarity = "Rare",
+                CatalogSet = TreatmentLookup.UpsertSet(db, goblin.Game, "Zendikar"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, goblin.Game, "Rare"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/goblin.png"
             },
@@ -106,9 +106,9 @@ public static class Seed
             {
                 Id = PhoenixPrintingId,
                 CardId = PhoenixCardId,
-                Set = "Mythic Flames",
                 Number = "M4",
-                Rarity = "Mythic",
+                CatalogSet = TreatmentLookup.UpsertSet(db, phoenix.Game, "Mythic Flames"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, phoenix.Game, "Mythic"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/phoenix.png"
             },
@@ -116,9 +116,9 @@ public static class Seed
             {
                 Id = DragonPrintingId,
                 CardId = DragonCardId,
-                Set = "Legends",
                 Number = "L5",
-                Rarity = "Rare",
+                CatalogSet = TreatmentLookup.UpsertSet(db, dragon.Game, "Legends"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, dragon.Game, "Rare"),
                 Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/dragon.png"
             });

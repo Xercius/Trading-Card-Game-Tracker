@@ -19,9 +19,11 @@ public sealed class CollectionsMappingProfile : Profile
             .ForCtorParam(nameof(UserCardItemResponse.CardId), opt => opt.MapFrom(uc => uc.CardPrinting.CardId))
             .ForCtorParam(nameof(UserCardItemResponse.CardName), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Name))
             .ForCtorParam(nameof(UserCardItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game!.Name))
-            .ForCtorParam(nameof(UserCardItemResponse.Set), opt => opt.MapFrom(uc => uc.CardPrinting.Set))
+            .ForCtorParam(nameof(UserCardItemResponse.Set), opt => opt.MapFrom(uc =>
+                uc.CardPrinting.CatalogSet == null ? string.Empty : uc.CardPrinting.CatalogSet.Name ?? uc.CardPrinting.CatalogSet.Code))
             .ForCtorParam(nameof(UserCardItemResponse.Number), opt => opt.MapFrom(uc => uc.CardPrinting.Number))
-            .ForCtorParam(nameof(UserCardItemResponse.Rarity), opt => opt.MapFrom(uc => uc.CardPrinting.Rarity))
+            .ForCtorParam(nameof(UserCardItemResponse.Rarity), opt => opt.MapFrom(uc =>
+                uc.CardPrinting.RarityLookup == null ? string.Empty : uc.CardPrinting.RarityLookup.Name))
             .ForCtorParam(nameof(UserCardItemResponse.Style), opt => opt.MapFrom(uc => uc.CardPrinting.Treatment == null
                 ? "Standard"
                 : uc.CardPrinting.Treatment.Name))

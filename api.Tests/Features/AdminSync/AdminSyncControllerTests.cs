@@ -297,9 +297,9 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             db.CardPrintings.Add(new CardPrinting
             {
                 CardId = existingCard.Id,
-                Set = "SOR",
+                CatalogSet = await db.Sets.SingleAsync(set => set.Code == "SOR"),
                 Number = "1",
-                Rarity = "Common",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Common"),
                 Treatment = new Treatment { GameId = 1, Name = "Standard" },
                 ImageUrl = "https://example.test/tarkin-original.png",
                 CardUid = "3001",
@@ -338,22 +338,26 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var updatedCard = await appDb.Cards
             .Include(c => c.Printings)
+            .ThenInclude(printing => printing.RarityLookup)
             .SingleAsync(c => c.Game!.Name == "Star Wars Unlimited" && c.Name == "Grand Moff Tarkin");
         Assert.Equal("Updated text.", updatedCard.Text);
         Assert.NotNull(updatedCard.LastSyncedAt);
         var updatedPrinting = Assert.Single(updatedCard.Printings);
-        Assert.Equal("Legendary", updatedPrinting.Rarity);
+        Assert.Equal("Legendary", updatedPrinting.RarityLookup!.Name);
         Assert.Equal("https://example.test/tarkin-updated.png", updatedPrinting.ImageUrl);
         Assert.NotNull(updatedPrinting.LastSyncedAt);
 
         var newCard = await appDb.Cards
             .Include(c => c.Printings)
+            .ThenInclude(printing => printing.CatalogSet)
+            .Include(c => c.Printings)
+            .ThenInclude(printing => printing.RarityLookup)
             .SingleAsync(c => c.Game!.Name == "Star Wars Unlimited" && c.Name == "Luke Skywalker");
         Assert.Equal("Deal 3 damage to a unit.", newCard.Text);
         var newPrinting = Assert.Single(newCard.Printings);
-        Assert.Equal("SOR", newPrinting.Set);
+        Assert.Equal("SOR", newPrinting.CatalogSet!.Code);
         Assert.Equal("1", newPrinting.Number);
-        Assert.Equal("Rare", newPrinting.Rarity);
+        Assert.Equal("Rare", newPrinting.RarityLookup!.Name);
 
         var syncHistory = await appDb.ImportSyncHistories
             .Where(h => h.ImporterKey == "swu-catalog" && h.SetCode == "")
@@ -518,11 +522,12 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             Assert.Equal(new[] { "Sentinel" },
                 card.CardKeywords.Select(x => x.Keyword.Name));
             var printing = await db.CardPrintings.Include(p => p.RarityLookup).SingleAsync(p => p.CardId == card.Id);
-            Assert.Equal("Special", printing.Rarity);
             Assert.Equal("Special", printing.RarityLookup!.Name);
             Assert.NotNull(printing.SetId);
             Assert.Equal("", (await db.ImportSyncHistories.SingleAsync(h => h.ImporterKey == "swu-catalog")).SetCode);
-            Assert.Equal(["NEW", "SOR"], await db.Sets.OrderBy(s => s.Code).Select(s => s.Code).ToArrayAsync());
+            Assert.Equal(["NEW", "SOR"], await db.Sets
+                .Where(set => set.Game!.Name == "Star Wars Unlimited")
+                .OrderBy(set => set.Code).Select(set => set.Code).ToArrayAsync());
             Assert.All(await db.SyncLogs.ToListAsync(), log =>
             {
                 Assert.Equal("Succeeded", log.Status);
@@ -607,7 +612,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         using var verifyScope = services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(["NEW", "SOR"], await verifyDb.CardPrintings.Where(p => p.Card.Game!.Name == "Star Wars Unlimited")
-            .OrderBy(p => p.Set).Select(p => p.Set).ToArrayAsync());
+            .OrderBy(p => p.CatalogSet!.Code).Select(p => p.CatalogSet!.Code).ToArrayAsync());
         Assert.Equal(1, await verifyDb.ImportSyncHistories.CountAsync());
     }
 
@@ -647,7 +652,8 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             Assert.Equal(3, await db.Cards.CountAsync(c => c.Game!.Name == "Star Wars Unlimited"));
             Assert.Equal(3, await db.CardPrintings.CountAsync(p => p.Card.Game!.Name == "Star Wars Unlimited"));
-            Assert.Equal(originalIds, await db.CardPrintings.Where(p => p.Card.Game!.Name == "Star Wars Unlimited" && p.Set != "NEXT")
+            Assert.Equal(originalIds, await db.CardPrintings.Where(p => p.Card.Game!.Name == "Star Wars Unlimited"
+                    && p.CatalogSet!.Code != "NEXT")
                 .OrderBy(p => p.Id).Select(p => p.Id).ToArrayAsync());
             Assert.Equal("Expansion 3", (await db.Sets.SingleAsync(s => s.Code == "NEXT")).Name);
             Assert.Equal("Corrected expansion", (await db.Sets.SingleAsync(s => s.Code == "SOR")).Name);

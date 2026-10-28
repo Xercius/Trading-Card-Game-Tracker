@@ -5,9 +5,7 @@ namespace api.Models
         public int Id { get; set; } // Primary Key
         public int CardId { get; set; } // Foreign Key
         public Card Card { get; set; } = null!; // Navigation property
-        public required string Set { get; set; } // Card set
         public required string Number { get; set; } // Card's set number
-        public required string Rarity { get; set; } // Rarity of the card
         public int? RarityId { get; set; }
         public Rarity? RarityLookup { get; set; }
         public int? TreatmentId { get; set; }
@@ -22,10 +20,8 @@ namespace api.Models
         public int? ReprintOfId { get; set; }
         public CardPrinting? ReprintOf { get; set; }
         public string? DetailsJson { get; set; } // Source-specific payload
-        public DateOnly? ReleasedAt { get; set; } // Release date when supplied by the source
         public int? SetId { get; set; }
         public Set? CatalogSet { get; set; }
-        public int? StrapiId { get; set; }
         public string? CardUid { get; set; }
         public string? Artist { get; set; }
         public DateTimeOffset? ApiCreatedAt { get; set; }

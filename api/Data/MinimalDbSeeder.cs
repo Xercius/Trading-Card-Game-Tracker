@@ -41,9 +41,11 @@ public static class MinimalDbSeeder
             {
                 new CardPrinting
                 {
-                    Set = "Limited Edition Alpha",
                     Number = "150",
-                    Rarity = "Common",
+                    CatalogSet = TreatmentLookup.UpsertSet(
+                        context, TreatmentLookup.GetOrAddGame(context, "Magic: The Gathering"), "Limited Edition Alpha"),
+                    RarityLookup = TreatmentLookup.UpsertRarity(
+                        context, TreatmentLookup.GetOrAddGame(context, "Magic: The Gathering"), "Common"),
                     Treatment = TreatmentLookup.Upsert(context, "Magic: The Gathering", "Standard"),
                 },
             },
@@ -56,9 +58,11 @@ public static class MinimalDbSeeder
             {
                 new CardPrinting
                 {
-                    Set = "Base Set",
                     Number = "58",
-                    Rarity = "Common",
+                    CatalogSet = TreatmentLookup.UpsertSet(
+                        context, TreatmentLookup.GetOrAddGame(context, "Pokemon TCG"), "Base Set"),
+                    RarityLookup = TreatmentLookup.UpsertRarity(
+                        context, TreatmentLookup.GetOrAddGame(context, "Pokemon TCG"), "Common"),
                     Treatment = TreatmentLookup.Upsert(context, "Pokemon TCG", "Standard"),
                 },
             },
@@ -71,9 +75,11 @@ public static class MinimalDbSeeder
             {
                 new CardPrinting
                 {
-                    Set = "Spark of Rebellion",
                     Number = "001",
-                    Rarity = "Legendary",
+                    CatalogSet = TreatmentLookup.UpsertSet(
+                        context, TreatmentLookup.GetOrAddGame(context, "Star Wars Unlimited"), "Spark of Rebellion"),
+                    RarityLookup = TreatmentLookup.UpsertRarity(
+                        context, TreatmentLookup.GetOrAddGame(context, "Star Wars Unlimited"), "Legendary"),
                     Treatment = TreatmentLookup.Upsert(context, "Star Wars Unlimited", "Standard"),
                 },
             },

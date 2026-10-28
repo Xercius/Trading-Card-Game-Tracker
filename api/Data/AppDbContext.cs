@@ -73,9 +73,7 @@ namespace api.Data
             {
                 e.HasKey(p => p.Id);
 
-                e.Property(p => p.Set).IsRequired().HasMaxLength(64);
                 e.Property(p => p.Number).IsRequired().HasMaxLength(32);
-                e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
                 e.Property(p => p.BackImageUrl).HasMaxLength(1024);
                 e.Property(p => p.Artist).HasMaxLength(256);
                 e.Property(p => p.CardUid).HasMaxLength(64);
@@ -83,22 +81,9 @@ namespace api.Data
                 // fast FK lookup
                 e.HasIndex(p => p.CardId);
 
-                // filter/sort by set+number is super common
-                e.HasIndex(p => new { p.Set, p.Number });
-
-                // normalized set for case-insensitive search
-                e.Property<string>("SetNorm")
-                 .HasComputedColumnSql("LOWER(TRIM([Set]))", stored: true);
-                e.HasIndex("SetNorm");
-
-                // normalized rarity for case-insensitive search
-                e.Property<string>("RarityNorm")
-                 .HasComputedColumnSql("LOWER(TRIM([Rarity]))", stored: true);
-                e.HasIndex("RarityNorm");
-
-                // one logical printing per (Card, Set, Number, Treatment)
-                e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.TreatmentId })
-                 .IsUnique();
+                e.HasIndex(p => new { p.CardId, p.SetId, p.Number, p.TreatmentId })
+                    .IsUnique()
+                    .HasDatabaseName("UX_CardPrintings");
 
                 e.HasOne(p => p.CatalogSet)
                     .WithMany()
@@ -119,9 +104,6 @@ namespace api.Data
                     .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(p => p.TreatmentId);
-                e.HasIndex(p => p.StrapiId)
-                    .IsUnique()
-                    .HasFilter("\"StrapiId\" IS NOT NULL");
                 e.HasOne(p => p.VariantOf).WithMany().HasForeignKey(p => p.VariantOfId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(p => p.ReprintOf).WithMany().HasForeignKey(p => p.ReprintOfId)

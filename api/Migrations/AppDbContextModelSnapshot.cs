@@ -295,39 +295,13 @@ namespace api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Rarity")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("RarityId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("RarityNorm")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("TEXT")
-                        .HasComputedColumnSql("LOWER(TRIM([Rarity]))", true);
-
-                    b.Property<DateOnly?>("ReleasedAt")
-                        .HasColumnType("TEXT");
 
                     b.Property<int?>("ReprintOfId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Set")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("SetId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("SetNorm")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("TEXT")
-                        .HasComputedColumnSql("LOWER(TRIM([Set]))", true);
-
-                    b.Property<int?>("StrapiId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TreatmentId")
@@ -342,26 +316,17 @@ namespace api.Migrations
 
                     b.HasIndex("RarityId");
 
-                    b.HasIndex("RarityNorm");
-
                     b.HasIndex("ReprintOfId");
 
                     b.HasIndex("SetId");
-
-                    b.HasIndex("SetNorm");
-
-                    b.HasIndex("StrapiId")
-                        .IsUnique()
-                        .HasFilter("\"StrapiId\" IS NOT NULL");
 
                     b.HasIndex("TreatmentId");
 
                     b.HasIndex("VariantOfId");
 
-                    b.HasIndex("Set", "Number");
-
-                    b.HasIndex("CardId", "Set", "Number", "TreatmentId")
-                        .IsUnique();
+                    b.HasIndex("CardId", "SetId", "Number", "TreatmentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CardPrintings");
 
                     b.ToTable("CardPrintings");
                 });
