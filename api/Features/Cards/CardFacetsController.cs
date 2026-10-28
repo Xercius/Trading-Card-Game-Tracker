@@ -94,7 +94,6 @@ public sealed class CardFacetsController : ControllerBase
                     cp.Card.CardTypes.Any(cardType => EF.Functions.Like(
                         EF.Functions.Collate(cardType.CardType.Name, "NOCASE"), pattern)) ||
                     (cp.Number != null && EF.Functions.Like(EF.Functions.Collate(cp.Number, "NOCASE"), pattern)) ||
-                    (cp.Set != null && EF.Functions.Like(EF.Property<string>(cp, "SetNorm"), normalizedPattern)) ||
                     (cp.CatalogSet != null && cp.CatalogSet.Name != null &&
                         EF.Functions.Like(EF.Functions.Collate(cp.CatalogSet.Name, "NOCASE"), pattern)) ||
                     (cp.CatalogSet != null && cp.CatalogSet.Code != null &&
@@ -132,8 +131,8 @@ public sealed class CardFacetsController : ControllerBase
         setQuery = ApplyTraitFilter(setQuery, traits);
 
         var setFacets = await setQuery
-            .Where(cp => !string.IsNullOrWhiteSpace(cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Code))
-            .GroupBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Code)
+            .Where(cp => cp.CatalogSet != null && !string.IsNullOrWhiteSpace(cp.CatalogSet.Code))
+            .GroupBy(cp => cp.CatalogSet!.Code)
             .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
@@ -147,8 +146,8 @@ public sealed class CardFacetsController : ControllerBase
         rarityQuery = ApplyTraitFilter(rarityQuery, traits);
 
         var rarityFacets = await rarityQuery
-            .Where(cp => !string.IsNullOrWhiteSpace(cp.RarityLookup == null ? cp.Rarity : cp.RarityLookup.Name))
-            .GroupBy(cp => cp.RarityLookup == null ? cp.Rarity : cp.RarityLookup.Name)
+            .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.Name))
+            .GroupBy(cp => cp.RarityLookup!.Name)
             .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
@@ -303,8 +302,9 @@ public sealed class CardFacetsController : ControllerBase
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
         var sets = await query
-            .Select(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Code)
-            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(cp => cp.CatalogSet == null ? null : cp.CatalogSet.Code)
+            .Where(s => s != null && !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!)
             .Distinct()
             .OrderBy(set => set)
             .ToListAsync(ct);
@@ -346,8 +346,9 @@ public sealed class CardFacetsController : ControllerBase
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
         var rarities = await query
-            .Select(cp => cp.RarityLookup == null ? cp.Rarity : cp.RarityLookup.Name)
-            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(cp => cp.RarityLookup == null ? null : cp.RarityLookup.Name)
+            .Where(r => r != null && !string.IsNullOrWhiteSpace(r))
+            .Select(r => r!)
             .Distinct()
             .OrderBy(rarity => rarity)
             .ToListAsync(ct);
@@ -404,10 +405,9 @@ public sealed class CardFacetsController : ControllerBase
         if (sets.Count == 0) return query;
         var normalizedSets = sets.Select(SqliteCaseNormalizer.Normalize).ToList();
         return query.Where(printing => printing.CatalogSet != null
-            ? normalizedSets.Contains(EF.Functions.Collate(printing.CatalogSet.Code, "NOCASE")) ||
-              (printing.CatalogSet.Name != null && normalizedSets.Contains(
-                  EF.Functions.Collate(printing.CatalogSet.Name, "NOCASE")))
-            : normalizedSets.Contains(EF.Property<string>(printing, "SetNorm")));
+            && (normalizedSets.Contains(EF.Functions.Collate(printing.CatalogSet.Code, "NOCASE")) ||
+                printing.CatalogSet.Name != null && normalizedSets.Contains(
+                    EF.Functions.Collate(printing.CatalogSet.Name, "NOCASE"))));
     }
 
     private static IQueryable<CardPrinting> ApplyRarityFilter(
@@ -417,8 +417,7 @@ public sealed class CardFacetsController : ControllerBase
         if (rarities.Count == 0) return query;
         var normalizedRarities = rarities.Select(SqliteCaseNormalizer.Normalize).ToList();
         return query.Where(printing => printing.RarityLookup != null
-            ? normalizedRarities.Contains(EF.Functions.Collate(printing.RarityLookup.Name, "NOCASE"))
-            : normalizedRarities.Contains(EF.Property<string>(printing, "RarityNorm")));
+            && normalizedRarities.Contains(EF.Functions.Collate(printing.RarityLookup.Name, "NOCASE")));
     }
 
     private static IQueryable<CardPrinting> ApplyTypeFilter(

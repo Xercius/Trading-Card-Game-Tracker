@@ -166,18 +166,18 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             legacyCard.Printings.Add(new CardPrinting
             {
                 Card = legacyCard,
-                Set = "Zulu",
                 Number = "2",
-                Rarity = "Rare",
-                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard")
+                RarityLookup = TreatmentLookup.UpsertRarity(db, legacyCard.Game, "Rare"),
+                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard"),
+                CatalogSet = new Set { Game = legacyCard.Game, Code = "ZULU", Name = "Zulu" }
             });
             legacyCard.Printings.Add(new CardPrinting
             {
                 Card = legacyCard,
-                Set = "Alpha",
                 Number = "1",
-                Rarity = "Rare",
-                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard")
+                RarityLookup = TreatmentLookup.UpsertRarity(db, legacyCard.Game, "Rare"),
+                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard"),
+                CatalogSet = new Set { Game = legacyCard.Game, Code = "ALPHA", Name = "Alpha" }
             });
             db.Cards.Add(legacyCard);
             await db.SaveChangesAsync();
@@ -257,9 +257,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         db.CardPrintings.Add(new CardPrinting
         {
             Card = card,
-            Set = "Legacy set",
             Number = "SOR-001",
-            Rarity = "Common",
             Treatment = TreatmentLookup.Upsert(db, SwuGame, "Standard"),
             ImageUrl = "/front.png",
             BackImageUrl = "/back.png",
@@ -284,9 +282,10 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         card.Printings.Add(new CardPrinting
         {
             Card = card,
-            Set = setCode,
             Number = $"{setCode}-001",
-            Rarity = "Common",
+            ApiPublishedAt = new DateTimeOffset(DateOnly.Parse(printingReleaseDate)
+                .ToDateTime(TimeOnly.MinValue), TimeSpan.Zero),
+            RarityLookup = TreatmentLookup.UpsertRarity(db, card.Game, "Common"),
             Treatment = TreatmentLookup.Upsert(db, card.Game, "Standard"),
             CatalogSet = new Set
             {
@@ -295,7 +294,6 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
                 Name = setName,
                 ReleasedAt = setReleaseDate
             },
-            ReleasedAt = DateOnly.Parse(printingReleaseDate)
         });
     }
 }

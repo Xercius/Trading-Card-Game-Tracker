@@ -116,6 +116,7 @@ public sealed class SwuDbImporter : ISourceImporter
             await _db.Cards.Where(c => c.GameId == catalog.Game.Id).LoadAsync(ct);
             var printings = await _db.CardPrintings
                 .Include(p => p.Card)
+                .Include(p => p.CatalogSet)
                 .Include(p => p.Treatment)
                 .Where(p => p.Card.GameId == catalog.Game.Id).ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
@@ -157,6 +158,7 @@ public sealed class SwuDbImporter : ISourceImporter
                         await catalog.LoadAsync(ct);
                         await _db.Cards.Where(c => c.GameId == catalog.Game.Id).LoadAsync(ct);
                         printings = await _db.CardPrintings.Include(p => p.Card)
+                            .Include(p => p.CatalogSet)
                             .Include(p => p.Treatment)
                             .Where(p => p.Card.GameId == catalog.Game.Id).ToListAsync(ct);
                         identity = new SwuSharedIdentity(printings);
@@ -241,8 +243,10 @@ public sealed class SwuDbImporter : ISourceImporter
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url;
 
-        // CardUid identifies a printing; set/number/treatment is the fallback identity.
-        var printing = identity.FindPrinting(cardUid, set, number, treatmentName);
+        var setLookup = catalog.GetOrAddSet(set);
+        var treatmentLookup = catalog.UpsertTreatment(treatmentName);
+        // CardUid identifies a printing; normalized lookup IDs form the fallback identity.
+        var printing = identity.FindPrinting(cardUid, setLookup, number, treatmentLookup);
         var card = _db.Cards.Local.FirstOrDefault(c => c.GameId == catalog.Game.Id && c.Name == name)
             ?? printing?.Card;
 
@@ -253,6 +257,7 @@ public sealed class SwuDbImporter : ISourceImporter
 
         var printingJson = JsonSerializer.Serialize(new
         {
+            sourceId,
             cardUid,
             serialCode,
             cardNumber = attrs.CardNumber,
@@ -322,9 +327,9 @@ public sealed class SwuDbImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                Treatment = treatmentLookup,
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
             };
@@ -334,9 +339,9 @@ public sealed class SwuDbImporter : ISourceImporter
         else
         {
             bool changed = false;
-            if (printing.Set != set) { printing.Set = set; changed = true; }
             if (printing.Number != number) { printing.Number = number; changed = true; }
-            if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
+            if (printing.CatalogSet != setLookup) { printing.CatalogSet = setLookup; changed = true; }
+            if (printing.Treatment != treatmentLookup) { printing.Treatment = treatmentLookup; changed = true; }
             if (printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed)
@@ -364,7 +369,6 @@ public sealed class SwuDbImporter : ISourceImporter
         {
             card.Printings.Add(printing);
         }
-        printing.StrapiId = sourceId;
         printing.CardUid = cardUid;
         printing.BackImageUrl = attrs.ArtBack?.Data?.Attributes?.Url
             ?? attrs.ArtBack?.Data?.Attributes?.Formats?.Card?.Url

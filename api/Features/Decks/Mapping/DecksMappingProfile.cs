@@ -37,7 +37,8 @@ public sealed class DecksMappingProfile : Profile
             .ForCtorParam(nameof(DeckCardItemResponse.Set),
                 opt => opt.MapFrom(dc =>
                     dc.CardPrinting != null
-                        ? dc.CardPrinting.Set
+                        ? dc.CardPrinting.CatalogSet == null ? string.Empty :
+                            dc.CardPrinting.CatalogSet.Name ?? dc.CardPrinting.CatalogSet.Code
                         : string.Empty))
 
             .ForCtorParam(nameof(DeckCardItemResponse.Number),
@@ -49,7 +50,7 @@ public sealed class DecksMappingProfile : Profile
             .ForCtorParam(nameof(DeckCardItemResponse.Rarity),
                 opt => opt.MapFrom(dc =>
                     dc.CardPrinting != null
-                        ? dc.CardPrinting.Rarity
+                        ? dc.CardPrinting.RarityLookup == null ? string.Empty : dc.CardPrinting.RarityLookup.Name
                         : string.Empty))
 
             .ForCtorParam(nameof(DeckCardItemResponse.Style),

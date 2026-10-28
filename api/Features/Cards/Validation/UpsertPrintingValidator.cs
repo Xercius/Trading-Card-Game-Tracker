@@ -34,13 +34,13 @@ public sealed class UpsertPrintingValidator : AbstractValidator<UpsertPrintingRe
         // Ensure CardId references a valid card record (primary keys start at 1)
         RuleFor(x => x.CardId).GreaterThan(0);
 
-        // Validate optional Set field length matches CardPrinting.Set column (max 64 chars)
+        // Validate optional set code length.
         RuleFor(x => x.Set).MaximumLength(64).When(x => x.Set is not null);
 
         // Validate optional Number field length matches CardPrinting.Number column (max 32 chars)
         RuleFor(x => x.Number).MaximumLength(32).When(x => x.Number is not null);
 
-        // Validate optional Rarity field length matches CardPrinting.Rarity column (max 32 chars)
+        // Validate optional rarity name length.
         RuleFor(x => x.Rarity).MaximumLength(32).When(x => x.Rarity is not null);
 
         // Validate optional Style field length matches Treatment.Name (max 128 chars)

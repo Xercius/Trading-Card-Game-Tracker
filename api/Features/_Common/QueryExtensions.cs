@@ -28,16 +28,20 @@ internal static class QueryExtensions
 
         if (!string.IsNullOrWhiteSpace(set))
         {
-            var normalized = SqliteCaseNormalizer.Normalize(set);
+            var value = set.Trim();
             query = query.Where(uc =>
-                EF.Property<string>(uc.CardPrinting, "SetNorm") == normalized);
+                uc.CardPrinting.CatalogSet != null
+                && (EF.Functions.Collate(uc.CardPrinting.CatalogSet.Code, "NOCASE") == value
+                    || uc.CardPrinting.CatalogSet.Name != null
+                    && EF.Functions.Collate(uc.CardPrinting.CatalogSet.Name, "NOCASE") == value));
         }
 
         if (!string.IsNullOrWhiteSpace(rarity))
         {
-            var normalized = SqliteCaseNormalizer.Normalize(rarity);
+            var value = rarity.Trim();
             query = query.Where(uc =>
-                EF.Property<string>(uc.CardPrinting, "RarityNorm") == normalized);
+                uc.CardPrinting.RarityLookup != null
+                && EF.Functions.Collate(uc.CardPrinting.RarityLookup.Name, "NOCASE") == value);
         }
 
         if (!string.IsNullOrWhiteSpace(name))
@@ -102,10 +106,9 @@ internal static class QueryExtensions
                 .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p => p.CatalogSet != null
-                    ? normalizedSets.Contains(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE")) ||
-                      (p.CatalogSet.Name != null && normalizedSets.Contains(
-                          EF.Functions.Collate(p.CatalogSet.Name, "NOCASE")))
-                    : normalizedSets.Contains(EF.Property<string>(p, "SetNorm"))));
+                    && (normalizedSets.Contains(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE")) ||
+                        p.CatalogSet.Name != null && normalizedSets.Contains(
+                            EF.Functions.Collate(p.CatalogSet.Name, "NOCASE")))));
         }
 
         if (rarities.Count > 0)
@@ -116,8 +119,7 @@ internal static class QueryExtensions
                 .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p => p.RarityLookup != null
-                    ? normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))
-                    : normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm"))));
+                    && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))));
         }
 
         if (types.Count > 0)
@@ -177,23 +179,19 @@ internal static class QueryExtensions
                     .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
                     .ThenByDescending(p => p.Treatment != null
                         && p.Treatment.NameNormalized == "standard")
-                    .ThenBy(p => p.CatalogSet == null
-                        ? p.Set
-                        : p.CatalogSet.Name ?? p.CatalogSet.Code)
+                    .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.Name ?? p.CatalogSet.Code)
                     .ThenBy(p => p.Number)
                     .ThenBy(p => p.Id)
                     .Select(p => new CardListItemResponse.PrimaryPrintingResponse
                     {
                         Id = p.Id,
-                        Set = p.CatalogSet == null
-                            ? p.Set
-                            : p.CatalogSet.Name ?? p.CatalogSet.Code,
+                        Set = p.CatalogSet == null ? string.Empty : p.CatalogSet.Name ?? p.CatalogSet.Code,
                         SetCode = p.CatalogSet == null ? null : p.CatalogSet.Code,
                         Number = p.Number,
-                        Rarity = p.RarityLookup == null ? p.Rarity : p.RarityLookup.Name,
+                        Rarity = p.RarityLookup == null ? string.Empty : p.RarityLookup.Name,
                         Style = p.Treatment == null ? "Standard" : p.Treatment.Name,
                         ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl,
-                        ReleaseDate = p.CatalogSet == null ? p.ReleasedAt : p.CatalogSet.ReleasedAt
+                        ReleaseDate = p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt
                     })
                     .FirstOrDefault()
             });

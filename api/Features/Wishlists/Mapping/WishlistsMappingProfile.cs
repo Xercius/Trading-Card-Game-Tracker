@@ -14,9 +14,11 @@ public sealed class WishlistsMappingProfile : Profile
             .ForCtorParam(nameof(WishlistItemResponse.CardId), opt => opt.MapFrom(uc => uc.CardPrinting.CardId))
             .ForCtorParam(nameof(WishlistItemResponse.CardName), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Name))
             .ForCtorParam(nameof(WishlistItemResponse.Game), opt => opt.MapFrom(uc => uc.CardPrinting.Card.Game!.Name))
-            .ForCtorParam(nameof(WishlistItemResponse.Set), opt => opt.MapFrom(uc => uc.CardPrinting.Set))
+            .ForCtorParam(nameof(WishlistItemResponse.Set), opt => opt.MapFrom(uc =>
+                uc.CardPrinting.CatalogSet == null ? string.Empty : uc.CardPrinting.CatalogSet.Name ?? uc.CardPrinting.CatalogSet.Code))
             .ForCtorParam(nameof(WishlistItemResponse.Number), opt => opt.MapFrom(uc => uc.CardPrinting.Number))
-            .ForCtorParam(nameof(WishlistItemResponse.Rarity), opt => opt.MapFrom(uc => uc.CardPrinting.Rarity))
+            .ForCtorParam(nameof(WishlistItemResponse.Rarity), opt => opt.MapFrom(uc =>
+                uc.CardPrinting.RarityLookup == null ? string.Empty : uc.CardPrinting.RarityLookup.Name))
             .ForCtorParam(nameof(WishlistItemResponse.Style), opt => opt.MapFrom(uc => uc.CardPrinting.Treatment == null
                 ? "Standard"
                 : uc.CardPrinting.Treatment.Name))

@@ -1,6 +1,7 @@
 using api.Models;
 using api.Importing;
 using System.Diagnostics;
+using CardPrinting = api.Data.DbSeeder.SeedCardPrinting;
 
 namespace api.Data
 {
@@ -134,9 +135,37 @@ namespace api.Data
             var printing16g = new CardPrinting { CardId = card16.Id, Set = "Legends of the Force", Number = "1157", Rarity = "Legendary", Treatment = TreatmentLookup.Upsert(context, card16.Game, "Serialized Prestige"), ImageUrl = "images/swu/LOF/1157.png" };
             var printing16h = new CardPrinting { CardId = card16.Id, Set = "Legends of the Force Weekly Play", Number = "14", Rarity = "Legendary", Treatment = TreatmentLookup.Upsert(context, card16.Game, "Weekly Play"), ImageUrl = "images/swu/LOFwp/14.png" };
             var printing16i = new CardPrinting { CardId = card16.Id, Set = "Legends of the Force Weekly Play", Number = "34", Rarity = "Legendary", Treatment = TreatmentLookup.Upsert(context, card16.Game, "Weekly Play Foil"), ImageUrl = "images/swu/LOFwp/34.png" };
-            context.CardPrintings.AddRange(printing1a, printing1b, printing1c, printing1d, printing1e, printing1f, printing1g, printing1h, printing2a, printing2b, printing2c, printing2d, printing2e, printing2f, printing2g, printing2h, printing2i, printing2j, printing3a, printing4a, printing5a, printing5b, printing5c, printing5d, printing5e, printing5f, printing5g, printing6a, printing6b, printing6c, printing6d, printing6e, printing6f, printing6g, printing7a, printing7b, printing7c, printing7d, printing7e, printing8a, printing8b, printing8c, printing8d, printing9a, printing9b, printing9c, printing9d, printing10a, printing10b, printing10c, printing10d, printing11a, printing11b, printing11c, printing11d, printing12a, printing12b, printing12c, printing12d, printing13a, printing13b, printing13c, printing13d, printing14a, printing14b, printing14c, printing14d, printing15a, printing15b, printing15c, printing15d, printing15e, printing16a, printing16b, printing16c, printing16d, printing16e, printing16f, printing16g, printing16h, printing16i);
-
+            var seedPrintings = new[]
+            {
+                printing1a, printing1b, printing1c, printing1d, printing1e, printing1f, printing1g, printing1h,
+                printing2a, printing2b, printing2c, printing2d, printing2e, printing2f, printing2g, printing2h,
+                printing2i, printing2j, printing3a, printing4a, printing5a, printing5b, printing5c, printing5d,
+                printing5e, printing5f, printing5g, printing6a, printing6b, printing6c, printing6d, printing6e,
+                printing6f, printing6g, printing7a, printing7b, printing7c, printing7d, printing7e, printing8a,
+                printing8b, printing8c, printing9a, printing9b, printing9c, printing9d, printing10a, printing10b,
+                printing10c, printing10d, printing11a, printing11b, printing11c, printing11d, printing12a,
+                printing12b, printing12c, printing12d, printing13a, printing13b, printing13c, printing13d,
+                printing14a, printing14b, printing14c, printing14d, printing15a, printing15b, printing15c,
+                printing15d, printing15e, printing16a, printing16b, printing16c, printing16d, printing16e,
+                printing16f, printing16g, printing16h, printing16i
+            };
+            var cardPrintings = seedPrintings.Select(seedPrinting =>
+            {
+                var card = context.Cards.Local.Single(candidate => candidate.Id == seedPrinting.CardId);
+                return new api.Models.CardPrinting
+                {
+                    CardId = seedPrinting.CardId,
+                    Number = seedPrinting.Number,
+                    CatalogSet = TreatmentLookup.UpsertSet(context, card.Game, seedPrinting.Set),
+                    RarityLookup = TreatmentLookup.UpsertRarity(context, card.Game, seedPrinting.Rarity),
+                    Treatment = seedPrinting.Treatment,
+                    ImageUrl = seedPrinting.ImageUrl
+                };
+            }).ToArray();
+            context.CardPrintings.AddRange(cardPrintings);
             context.SaveChanges();
+            for (var index = 0; index < seedPrintings.Length; index++)
+                seedPrintings[index].Id = cardPrintings[index].Id;
 
             // Seed UserCards (collection data)
             var userCard1a = new UserCard
@@ -322,10 +351,10 @@ namespace api.Data
 
             Console.WriteLine($"Seeding DeckCards for Decks {deck1.Id} and {deck2.Id}.");
 
-            var deck1Card1 = new DeckCard { Deck = deck1, CardPrinting = printing1a, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 1, QuantityProxy = 0 };
-            var deck1Card2 = new DeckCard { Deck = deck1, CardPrinting = printing1b, QuantityInDeck = 1, QuantityIdea = 0, QuantityAcquire = 0, QuantityProxy = 0 };
-            var deck2Card1 = new DeckCard { Deck = deck2, CardPrinting = printing2a, QuantityInDeck = 3, QuantityIdea = 3, QuantityAcquire = 0, QuantityProxy = 0 };
-            var deck2Card2 = new DeckCard { Deck = deck2, CardPrinting = printing2b, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2, QuantityProxy = 0 };
+            var deck1Card1 = new DeckCard { Deck = deck1, CardPrintingId = printing1a.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 1, QuantityProxy = 0 };
+            var deck1Card2 = new DeckCard { Deck = deck1, CardPrintingId = printing1b.Id, QuantityInDeck = 1, QuantityIdea = 0, QuantityAcquire = 0, QuantityProxy = 0 };
+            var deck2Card1 = new DeckCard { Deck = deck2, CardPrintingId = printing2a.Id, QuantityInDeck = 3, QuantityIdea = 3, QuantityAcquire = 0, QuantityProxy = 0 };
+            var deck2Card2 = new DeckCard { Deck = deck2, CardPrintingId = printing2b.Id, QuantityInDeck = 2, QuantityIdea = 1, QuantityAcquire = 2, QuantityProxy = 0 };
             context.DeckCards.AddRange(deck1Card1, deck1Card2, deck2Card1, deck2Card2);
             context.SaveChanges();
         }
@@ -339,6 +368,17 @@ namespace api.Data
             };
             TreatmentLookup.UpsertCardType(context, card, type);
             return card;
+        }
+
+        internal sealed class SeedCardPrinting
+        {
+            public int Id { get; set; }
+            public int CardId { get; init; }
+            public required string Set { get; init; }
+            public required string Number { get; init; }
+            public required string Rarity { get; init; }
+            public required Treatment Treatment { get; init; }
+            public string? ImageUrl { get; init; }
         }
     }
 }

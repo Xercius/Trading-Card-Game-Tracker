@@ -240,7 +240,7 @@ public class CardsController : ControllerBase
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
             .Include(cp => cp.Treatment)
-            .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
+            .OrderBy(cp => cp.CatalogSet == null ? string.Empty : cp.CatalogSet.Code).ThenBy(cp => cp.Number)
             .ToListAsync(ct);
 
         var map = printings
@@ -287,7 +287,7 @@ public class CardsController : ControllerBase
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
             .Include(cp => cp.Treatment)
-            .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
+            .OrderBy(cp => cp.CatalogSet == null ? string.Empty : cp.CatalogSet.Code).ThenBy(cp => cp.Number)
             .ToListAsync();
 
         var dto = BuildCardDetailResponse(c, printings.Select(MapPrintingResponse).ToList());
@@ -389,6 +389,12 @@ public class CardsController : ControllerBase
 
         }
 
+        var setLookup = dto.Id.HasValue && dto.Set is null
+            ? cp?.CatalogSet
+            : await GetOrCreateSetAsync(cp?.Card.GameId ?? card.GameId, set);
+        var rarityLookup = dto.Id.HasValue && dto.Rarity is null
+            ? cp?.RarityLookup
+            : await GetOrCreateRarityAsync(cp?.Card.GameId ?? card.GameId, dto.Rarity?.Trim());
         var treatment = dto.Id.HasValue && dto.Style is null
             ? null
             : await GetOrCreateTreatmentAsync(cp?.Card.GameId ?? card.GameId, treatmentName);
@@ -397,7 +403,7 @@ public class CardsController : ControllerBase
         {
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x =>
                 x.CardId == dto.CardId &&
-                x.Set == set &&
+                setLookup != null && x.SetId == setLookup.Id &&
                 x.Number == number &&
                 treatment != null && x.TreatmentId == treatment.Id
             );
@@ -408,9 +414,9 @@ public class CardsController : ControllerBase
             cp = new CardPrinting
             {
                 CardId = dto.CardId,
-                Set = set!,
                 Number = number!,
-                Rarity = dto.Rarity?.Trim() ?? "",
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = treatment!,
                 ImageUrl = dto.ImageUrl
             };
@@ -418,9 +424,9 @@ public class CardsController : ControllerBase
         }
         else
         {
-            if (dto.Set is not null) cp.Set = set!;
+            if (dto.Set is not null) cp.CatalogSet = setLookup;
             if (dto.Number is not null) cp.Number = number!;
-            if (dto.Rarity is not null) cp.Rarity = dto.Rarity.Trim();
+            if (dto.Rarity is not null) cp.RarityLookup = rarityLookup;
             if (treatment is not null) cp.Treatment = treatment;
             if (dto.ImageUrlSet) cp.ImageUrl = dto.ImageUrl;
         }
@@ -469,6 +475,8 @@ public class CardsController : ControllerBase
         if (list.Count == 0) return NoContent();
 
         var existing = await _db.CardPrintings
+            .Include(cp => cp.CatalogSet)
+            .Include(cp => cp.RarityLookup)
             .Include(cp => cp.Treatment)
             .Where(cp => cp.CardId == cardId)
             .ToListAsync();
@@ -482,11 +490,17 @@ public class CardsController : ControllerBase
             if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
                 continue;
 
+            var setLookup = await GetOrCreateSetAsync(card!.GameId, set);
+            var rarityLookup = await GetOrCreateRarityAsync(card.GameId, dto.Rarity?.Trim());
             var treatment = await GetOrCreateTreatmentAsync(card!.GameId, dto.Style);
             var match = existing.FirstOrDefault(x =>
-                x.Set == set &&
+                setLookup != null && (setLookup.Id == 0
+                    ? ReferenceEquals(x.CatalogSet, setLookup)
+                    : x.SetId == setLookup.Id) &&
                 x.Number == number &&
-                treatment.Id != 0 && x.TreatmentId == treatment.Id
+                (treatment.Id == 0
+                    ? ReferenceEquals(x.Treatment, treatment)
+                    : x.TreatmentId == treatment.Id)
             );
 
             if (match is null)
@@ -494,9 +508,9 @@ public class CardsController : ControllerBase
                 var created = new CardPrinting
                 {
                     CardId = cardId,
-                    Set = set!,
                     Number = number!,
-                    Rarity = dto.Rarity?.Trim() ?? "",
+                    CatalogSet = setLookup,
+                    RarityLookup = rarityLookup,
                     Treatment = treatment,
                     ImageUrl = dto.ImageUrl
                 };
@@ -505,7 +519,7 @@ public class CardsController : ControllerBase
             }
             else
             {
-                if (dto.Rarity is not null) match.Rarity = dto.Rarity.Trim();
+                if (dto.Rarity is not null) match.RarityLookup = rarityLookup;
                 if (dto.ImageUrlSet) match.ImageUrl = dto.ImageUrl;
             }
         }
@@ -601,11 +615,11 @@ public class CardsController : ControllerBase
             ? printingsQuery
                 .OrderBy(cp => cp.CatalogSet == null || cp.CatalogSet.ReleasedAt == null)
                 .ThenBy(cp => cp.CatalogSet == null ? null : cp.CatalogSet.ReleasedAt)
-                .ThenBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
+                .ThenBy(cp => cp.CatalogSet == null ? string.Empty : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
                 .ThenBy(cp => cp.Number)
                 .ThenBy(cp => cp.Id)
             : printingsQuery
-                .OrderBy(cp => cp.CatalogSet == null ? cp.Set : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
+                .OrderBy(cp => cp.CatalogSet == null ? string.Empty : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
                 .ThenBy(cp => cp.Number)
                 .ThenBy(cp => cp.Id);
         var printings = await orderedPrintings
@@ -618,13 +632,13 @@ public class CardsController : ControllerBase
     private static CardPrintingResponse MapPrintingResponse(CardPrinting printing)
         => new(
             printing.Id,
-            printing.CatalogSet == null ? printing.Set : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
+            printing.CatalogSet == null ? string.Empty : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
             printing.Number,
-            printing.RarityLookup?.Name ?? printing.Rarity,
+            printing.RarityLookup?.Name ?? string.Empty,
             printing.Treatment?.Name ?? "Standard",
             printing.ImageUrl,
             printing.CatalogSet?.Code,
-            printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
+            GetReleaseDate(printing),
             printing.BackImageUrl,
             GetOrientation(printing.ArtFrontHorizontal),
             GetOrientation(printing.ArtBackHorizontal),
@@ -633,17 +647,17 @@ public class CardsController : ControllerBase
     private static PrintingDto ToPrintingDto(CardPrinting printing)
         => new(
             printing.Id,
-            printing.CatalogSet == null ? printing.Set : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
+            printing.CatalogSet == null ? string.Empty : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
             printing.CatalogSet?.Code,
             printing.Number,
-            printing.RarityLookup?.Name ?? printing.Rarity,
+            printing.RarityLookup?.Name ?? string.Empty,
             printing.ImageUrl ?? PlaceholderCardImage,
             printing.CardId,
             printing.Card.Name,
             printing.Card.Game?.Name ?? string.Empty)
         {
             Style = printing.Treatment?.Name ?? "Standard",
-            ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
+            ReleaseDate = GetReleaseDate(printing),
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = GetOrientation(printing.ArtFrontHorizontal),
             BackImageOrientation = GetOrientation(printing.ArtBackHorizontal),
@@ -682,6 +696,50 @@ public class CardsController : ControllerBase
 
     private static string? GetOrientation(bool? horizontal)
         => horizontal switch { true => "horizontal", false => "vertical", _ => null };
+
+    private static DateOnly? GetReleaseDate(CardPrinting printing)
+        => printing.CatalogSet?.ReleasedAt
+            ?? (printing.ApiPublishedAt is { } publishedAt
+                ? DateOnly.FromDateTime(publishedAt.UtcDateTime)
+                : null);
+
+    private async Task<Set?> GetOrCreateSetAsync(int? gameId, string? code)
+    {
+        if (gameId is null || string.IsNullOrWhiteSpace(code))
+            return null;
+
+        code = code.Trim();
+        var set = _db.Sets.Local.FirstOrDefault(candidate =>
+                candidate.GameId == gameId && candidate.Code.Equals(code, StringComparison.OrdinalIgnoreCase))
+            ?? await _db.Sets.FirstOrDefaultAsync(candidate =>
+                candidate.GameId == gameId
+                && EF.Functions.Collate(candidate.Code, "NOCASE") == code);
+        if (set is not null)
+            return set;
+
+        set = new Set { GameId = gameId.Value, Code = code, LastSyncedAt = DateTimeOffset.UnixEpoch };
+        _db.Sets.Add(set);
+        return set;
+    }
+
+    private async Task<Rarity?> GetOrCreateRarityAsync(int? gameId, string? name)
+    {
+        if (gameId is null || string.IsNullOrWhiteSpace(name))
+            return null;
+
+        name = name.Trim();
+        var rarity = _db.Rarities.Local.FirstOrDefault(candidate =>
+                candidate.GameId == gameId && candidate.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?? await _db.Rarities.FirstOrDefaultAsync(candidate =>
+                candidate.GameId == gameId
+                && EF.Functions.Collate(candidate.Name, "NOCASE") == name);
+        if (rarity is not null)
+            return rarity;
+
+        rarity = new Rarity { GameId = gameId.Value, Name = name };
+        _db.Rarities.Add(rarity);
+        return rarity;
+    }
 
     /// <summary>
     /// Creates or updates a card printing record. Admin-only endpoint.

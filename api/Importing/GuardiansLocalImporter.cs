@@ -139,6 +139,8 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         string? imageUrl = row.ImageUrl;
 
         var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set);
+        var rarityLookup = TreatmentLookup.UpsertRarity(_db, gameEntity, rarity);
         var card = _db.ChangeTracker.Entries<Card>()
             .Where(e => e.State != EntityState.Deleted)
             .Select(e => e.Entity)
@@ -175,7 +177,7 @@ public sealed class GuardiansLocalImporter : ISourceImporter
         TreatmentLookup.UpsertCardType(_db, card, type);
 
         var printing = await _db.CardPrintings
-            .Where(p => p.Set == set && p.Number == number)
+            .Where(p => p.SetId == setLookup.Id && p.Number == number)
             .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, c => c.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
 
@@ -186,9 +188,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = TreatmentLookup.Upsert(_db, game, style),
                 ImageUrl = imageUrl,
                 DetailsJson = detailsPrinting
@@ -205,9 +207,9 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 changed = true;
             }
 
-            if (printing.Rarity != rarity)
+            if (printing.RarityId != rarityLookup.Id)
             {
-                printing.Rarity = rarity;
+                printing.RarityLookup = rarityLookup;
                 changed = true;
             }
 

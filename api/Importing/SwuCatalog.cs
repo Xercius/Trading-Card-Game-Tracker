@@ -35,12 +35,8 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
     {
         var associationsChanged = false;
         var expansion = attrs.Expansion?.Data?.Attributes;
-        var set = db.Sets.Local.SingleOrDefault(s => s.Game == _game && s.Code == printing.Set);
-        if (set is null)
-        {
-            set = new Set { Game = _game, Code = printing.Set };
-            db.Sets.Add(set);
-        }
+        var set = GetOrAddSet(printing.CatalogSet?.Code
+            ?? throw new InvalidOperationException("A printing set is required."));
         if (!string.IsNullOrWhiteSpace(expansion?.Name) && set.Name != expansion.Name.Trim())
         {
             set.Name = expansion.Name.Trim();
@@ -69,7 +65,7 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         db.Entry(printing).Reference(entity => entity.Treatment).CurrentValue =
             UpsertTreatment(variantType?.Name, variantType?.Icon?.Data?.Attributes?.Url);
 
-        var rarity = Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
+        var rarity = Lookup(attrs.Rarity ?? "Unknown", name => new Rarity { Game = _game, Name = name });
         if (!string.IsNullOrWhiteSpace(attrs.RarityDetails?.Character)
             && rarity.Character != attrs.RarityDetails.Character.Trim())
         {
@@ -184,6 +180,19 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             MarkModified(treatment, nameof(Treatment.IconUrl));
         }
         return treatment;
+    }
+
+    internal Set GetOrAddSet(string code)
+    {
+        code = code.Trim();
+        var set = db.Sets.Local.SingleOrDefault(candidate =>
+            candidate.Game == _game && candidate.Code == code);
+        if (set is not null)
+            return set;
+
+        set = new Set { Game = _game, Code = code };
+        db.Sets.Add(set);
+        return set;
     }
 
     private void MarkModified<TEntity>(TEntity entity, string propertyName) where TEntity : class

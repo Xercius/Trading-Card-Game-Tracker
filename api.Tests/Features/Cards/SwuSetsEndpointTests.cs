@@ -55,9 +55,9 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
         db.CardPrintings.Add(new CardPrinting
         {
             Card = card,
-            Set = expansionCode,
+            CatalogSet = TreatmentLookup.UpsertSet(db, game, expansionCode),
             Number = serialCode,
-            Rarity = rarity,
+            RarityLookup = TreatmentLookup.UpsertRarity(db, game, rarity),
             Treatment = TreatmentLookup.Upsert(db, SwuGame, "Standard"),
             ImageUrl = null
         });

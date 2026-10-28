@@ -106,6 +106,8 @@ public sealed class PokemonTcgImporter : ISourceImporter
 
         // Upsert Card by (Game, Name)
         var gameEntity = TreatmentLookup.GetOrAddGame(_db, game);
+        var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set);
+        var rarityLookup = TreatmentLookup.UpsertRarity(_db, gameEntity, rarity);
         var card = await _db.Cards.FirstOrDefaultAsync(x => x.GameId == gameEntity.Id && x.Name == name, ct);
         var cardJson = JsonSerializer.Serialize(new
         {
@@ -137,7 +139,7 @@ public sealed class PokemonTcgImporter : ISourceImporter
 
         // Upsert Printing by (Game, Set, Number)
         var printing = await _db.CardPrintings
-            .Where(p => p.Set == set && p.Number == number)
+            .Where(p => p.SetId == setLookup.Id && p.Number == number)
             .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
         var treatment = TreatmentLookup.Upsert(_db, game, style);
@@ -158,9 +160,9 @@ public sealed class PokemonTcgImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = treatment,
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
@@ -172,7 +174,7 @@ public sealed class PokemonTcgImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
-            if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
+            if (printing.RarityId != rarityLookup.Id) { printing.RarityLookup = rarityLookup; changed = true; }
             if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }

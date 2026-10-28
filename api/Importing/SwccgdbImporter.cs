@@ -103,11 +103,13 @@ public sealed class SwccgdbImporter : ISourceImporter
         string number = ParseNumber(src.GempId) ?? src.Id.ToString();
 
         string rarity = src.Rarity ?? "Unknown";
+        var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set);
+        var rarityLookup = TreatmentLookup.UpsertRarity(_db, gameEntity, rarity);
         string style = "Standard";
         string? imageUrl = src.Front?.ImageUrl;
 
         var printing = await _db.CardPrintings
-            .Where(p => p.Set == set && p.Number == number)
+            .Where(p => p.SetId == setLookup.Id && p.Number == number)
             .Join(_db.Cards.Where(x => x.GameId == gameEntity.Id), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
         var treatment = TreatmentLookup.Upsert(_db, game, style);
@@ -117,9 +119,9 @@ public sealed class SwccgdbImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Set = set,
                 Number = number,
-                Rarity = rarity,
+                CatalogSet = setLookup,
+                RarityLookup = rarityLookup,
                 Treatment = treatment,
                 ImageUrl = imageUrl,
                 DetailsJson = JsonSerializer.Serialize(new { src.Printings, src.Side, src.Set }, Json)
@@ -131,7 +133,7 @@ public sealed class SwccgdbImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
-            if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
+            if (printing.RarityId != rarityLookup.Id) { printing.RarityLookup = rarityLookup; changed = true; }
             if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             var pJson = JsonSerializer.Serialize(new { src.Printings, src.Side, src.Set }, Json);

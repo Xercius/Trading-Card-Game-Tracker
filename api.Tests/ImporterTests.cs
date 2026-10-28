@@ -55,11 +55,14 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         }
 
         db.ChangeTracker.Clear();
-        var imported = await db.CardPrintings.Where(p => p.Card.Name == "Chronology Test Card")
+        var imported = await db.CardPrintings.Include(p => p.CatalogSet)
+            .Where(p => p.Card.Name == "Chronology Test Card")
             .OrderBy(p => p.Id).ToListAsync();
-        Assert.Equal(new[] { "LEB", "LEA" }, imported.Select(p => p.Set));
-        Assert.Equal(betaRelease is null ? (DateOnly?)null : DateOnly.Parse(betaRelease), imported[0].ReleasedAt);
-        Assert.Equal(alphaRelease is null ? (DateOnly?)null : DateOnly.Parse(alphaRelease), imported[1].ReleasedAt);
+        Assert.Equal(new[] { "LEB", "LEA" }, imported.Select(p => p.CatalogSet!.Code));
+        Assert.Equal(betaRelease is null ? (DateOnly?)null : DateOnly.Parse(betaRelease),
+            imported[0].CatalogSet!.ReleasedAt);
+        Assert.Equal(alphaRelease is null ? (DateOnly?)null : DateOnly.Parse(alphaRelease),
+            imported[1].CatalogSet!.ReleasedAt);
 
         using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/cards/printings?uniqueCards=true&set=LEB&pageSize=1");
@@ -86,12 +89,13 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
 
         Assert.Equal(0, updated.Errors);
         Assert.Equal(0, updated.PrintingsCreated);
-        Assert.Equal(1, updated.PrintingsUpdated);
+        Assert.Equal(0, updated.PrintingsUpdated);
         Assert.Equal(0, unchanged.Errors);
         Assert.Equal(0, unchanged.PrintingsUpdated);
         db.ChangeTracker.Clear();
-        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "LEB");
-        Assert.Equal(new DateOnly(1973, 10, 4), printing.ReleasedAt);
+        var printing = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CatalogSet!.Code == "LEB");
+        Assert.Equal(new DateOnly(1973, 10, 4), printing.CatalogSet!.ReleasedAt);
     }
 
     [Fact]
@@ -129,9 +133,11 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
             .SingleAsync());
         Assert.Equal("Deal 2 damage to any target", createdCard.Text);
 
-        var createdPrinting = await db.CardPrintings.SingleAsync(p => p.Set == "UTS" && p.Number == "007");
+        var createdPrinting = await db.CardPrintings
+            .Include(p => p.CatalogSet).Include(p => p.RarityLookup)
+            .SingleAsync(p => p.CatalogSet!.Code == "UTS" && p.Number == "007");
         Assert.Equal(createdCard.Id, createdPrinting.CardId);
-        Assert.Equal("rare", createdPrinting.Rarity);
+        Assert.Equal("Rare", createdPrinting.RarityLookup!.Name);
         Assert.Equal("Foil", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
         Assert.Equal("https://img.example.com/unit-test.png", createdPrinting.ImageUrl);
 
@@ -171,7 +177,8 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
             .SingleAsync());
         Assert.Equal("Front\nDraw a card", createdCard.Text);
 
-        Assert.Equal("mythic", createdPrinting.Rarity);
+        await db.Entry(createdPrinting).Reference(p => p.RarityLookup).LoadAsync();
+        Assert.Equal("Mythic", createdPrinting.RarityLookup!.Name);
         Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
         Assert.Equal("https://img.example.com/unit-face.png", createdPrinting.ImageUrl);
     }

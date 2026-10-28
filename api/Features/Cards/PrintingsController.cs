@@ -85,10 +85,9 @@ public sealed class PrintingsController : ControllerBase
             var normalizedSets = sets.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
                 p.CatalogSet != null
-                    ? normalizedSets.Contains(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE")) ||
-                      (p.CatalogSet.Name != null && normalizedSets.Contains(
-                          EF.Functions.Collate(p.CatalogSet.Name, "NOCASE")))
-                    : normalizedSets.Contains(EF.Property<string>(p, "SetNorm")));
+                    && (normalizedSets.Contains(EF.Functions.Collate(p.CatalogSet.Code, "NOCASE")) ||
+                        p.CatalogSet.Name != null && normalizedSets.Contains(
+                            EF.Functions.Collate(p.CatalogSet.Name, "NOCASE"))));
         }
 
         // Filter by exact printing number (case-sensitive)
@@ -106,8 +105,7 @@ public sealed class PrintingsController : ControllerBase
             var normalizedRarities = rarities.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
                 p.RarityLookup != null
-                    ? normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))
-                    : normalizedRarities.Contains(EF.Property<string>(p, "RarityNorm")));
+                    && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE")));
         }
 
         var types = CsvUtils.Parse(qp.Type);
@@ -173,7 +171,6 @@ public sealed class PrintingsController : ControllerBase
                 p.Card.CardTypes.Any(type => EF.Functions.Like(
                     EF.Functions.Collate(type.CardType.Name, "NOCASE"), pattern)) ||
                 (p.Number != null && EF.Functions.Like(EF.Functions.Collate(p.Number, "NOCASE"), pattern)) ||
-                (p.Set != null && EF.Functions.Like(EF.Property<string>(p, "SetNorm"), normalizedPattern)) ||
                 (p.CatalogSet != null && p.CatalogSet.Name != null &&
                     EF.Functions.Like(EF.Functions.Collate(p.CatalogSet.Name, "NOCASE"), pattern)) ||
                 (p.CatalogSet != null && p.CatalogSet.Code != null &&
@@ -183,26 +180,22 @@ public sealed class PrintingsController : ControllerBase
         if (qp.UniqueCards)
         {
             var matchingCardIds = query.Select(p => p.CardId).Distinct();
-            query = _db.Set<CardPrinting>()
+            var candidates = _db.Set<CardPrinting>()
                 .AsNoTracking()
-                .Include(p => p.Card).ThenInclude(card => card.Game)
+                .Include(p => p.Card).ThenInclude(card => card.Game);
+            query = candidates
                 .Where(p => matchingCardIds.Contains(p.CardId))
-                .Where(p => p.Id == _db.Set<CardPrinting>()
-                    .Where(candidate => candidate.CardId == p.CardId)
-                    .OrderBy(candidate =>
-                        (candidate.CatalogSet != null && swuGameIds.Contains(candidate.CatalogSet.GameId)) ||
-                        candidate.Card.CardTypes.Any(type =>
-                            swuGameIds.Contains(type.CardType.GameId)) ||
-                        swuGameIds.Contains(candidate.Card.GameId ?? 0)
-                        ? candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null
-                        : candidate.ReleasedAt == null)
-                    .ThenBy(candidate =>
-                        (candidate.CatalogSet != null && swuGameIds.Contains(candidate.CatalogSet.GameId)) ||
-                        candidate.Card.CardTypes.Any(type =>
-                            swuGameIds.Contains(type.CardType.GameId)) ||
-                        swuGameIds.Contains(candidate.Card.GameId ?? 0)
-                        ? candidate.CatalogSet == null ? null : candidate.CatalogSet.ReleasedAt
-                        : candidate.ReleasedAt)
+                .Where(p => p.Id == candidates.Where(candidate => candidate.CardId == p.CardId)
+                    .OrderBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)
+                    .ThenBy(candidate => candidate.CatalogSet == null
+                        ? null
+                        : candidate.CatalogSet.ReleasedAt)
+                    .ThenBy(candidate => requestedGames.Contains("star wars unlimited")
+                        ? candidate.CatalogSet == null ? string.Empty : candidate.CatalogSet.Code
+                        : string.Empty)
+                    .ThenBy(candidate => requestedGames.Contains("star wars unlimited")
+                        ? candidate.Number
+                        : string.Empty)
                     .ThenBy(candidate => candidate.Id)
                     .Select(candidate => candidate.Id)
                     .FirstOrDefault());
@@ -214,7 +207,7 @@ public sealed class PrintingsController : ControllerBase
             query = query
                 .OrderBy(p => p.CatalogSet == null || p.CatalogSet.ReleasedAt == null)
                 .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt)
-                .ThenBy(p => p.Set)
+                .ThenBy(p => p.CatalogSet == null ? string.Empty : p.CatalogSet.Code)
                 .ThenBy(p => p.Number)
                 .ThenBy(p => p.Card.Name)
                 .ThenBy(p => p.Id);
@@ -222,7 +215,7 @@ public sealed class PrintingsController : ControllerBase
         else
         {
             query = query
-                .OrderBy(p => p.Set)
+                .OrderBy(p => p.CatalogSet == null ? string.Empty : p.CatalogSet.Code)
                 .ThenBy(p => p.Number)
                 .ThenBy(p => p.Card.Name)
                 .ThenBy(p => p.Id);
@@ -251,10 +244,10 @@ public sealed class PrintingsController : ControllerBase
     private static PrintingDto ToPrintingDto(CardPrinting printing)
         => new(
             printing.Id,
-            printing.CatalogSet == null ? printing.Set : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
+            printing.CatalogSet == null ? string.Empty : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
             printing.CatalogSet?.Code,
             printing.Number,
-            printing.RarityLookup?.Name ?? printing.Rarity,
+            printing.RarityLookup?.Name ?? string.Empty,
             string.IsNullOrWhiteSpace(printing.ImageUrl)
                 ? "/images/placeholders/card-3x4.png"
                 : printing.ImageUrl,
@@ -263,7 +256,10 @@ public sealed class PrintingsController : ControllerBase
             printing.Card.Game?.Name ?? string.Empty)
         {
             Style = printing.Treatment?.Name ?? "Standard",
-            ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
+            ReleaseDate = printing.CatalogSet?.ReleasedAt
+                ?? (printing.ApiPublishedAt is { } publishedAt
+                    ? DateOnly.FromDateTime(publishedAt.UtcDateTime)
+                    : null),
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = printing.ArtFrontHorizontal == true ? "horizontal" :
                 printing.ArtFrontHorizontal == false ? "vertical" : null,

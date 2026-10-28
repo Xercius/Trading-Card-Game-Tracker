@@ -31,18 +31,18 @@ public sealed class SwuSharedImporterRegressionTests
             var first = new CardPrinting
             {
                 Card = card,
-                Set = "SOR",
+                CatalogSet = TreatmentLookup.UpsertSet(seed, card.Game, "SOR"),
                 Number = "one",
-                Rarity = "Common",
+                RarityLookup = TreatmentLookup.UpsertRarity(seed, card.Game, "Common"),
                 Treatment = TreatmentLookup.Upsert(seed, card.Game, "Standard"),
                 DetailsJson = """{"sourceId":1,"cardUid":"legacy-1","serialCode":"one"}"""
             };
             var second = new CardPrinting
             {
                 Card = card,
-                Set = "SOR",
+                CatalogSet = TreatmentLookup.UpsertSet(seed, card.Game, "SOR"),
                 Number = "two",
-                Rarity = "Common",
+                RarityLookup = TreatmentLookup.UpsertRarity(seed, card.Game, "Common"),
                 Treatment = TreatmentLookup.Upsert(seed, card.Game, "Standard"),
                 DetailsJson = """{"sourceId":2,"cardUid":"legacy-2","serialCode":"two"}"""
             };
@@ -70,7 +70,8 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
         await using var db = database.Open();
         Assert.Equal(1, await db.Cards.CountAsync());
-        var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
+        var printings = (await db.CardPrintings.Include(p => p.Card).ToListAsync())
+            .OrderBy(SourceId).ToArray();
         Assert.Equal(new[] { firstId, secondId }, printings.Select(p => p.Id));
         Assert.Equal(printings[0].CardId, printings[1].CardId);
         Assert.Equal("legacy-1", printings[0].CardUid);
@@ -100,15 +101,15 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database, Record(300, "Reprint target", "SHD", "reprint"));
         await using (var partial = database.Open())
         {
-            var printing = await partial.CardPrintings.Include(p => p.ReprintOf)
-                .SingleAsync(p => p.StrapiId == 200);
+            var printing = await PrintingWithSourceId(partial, 200)
+                .Include(p => p.ReprintOf).SingleAsync();
             Assert.Null(printing.VariantOfId);
             Assert.Equal("uid-300", printing.ReprintOf!.CardUid);
         }
         await ImportAsync(database, Record(100, "Variant target", "SOR", "base"));
         await using var db = database.Open();
-        var resolved = await db.CardPrintings.Include(p => p.Card)
-            .Include(p => p.VariantOf).Include(p => p.ReprintOf).SingleAsync(p => p.StrapiId == 200);
+        var resolved = await PrintingWithSourceId(db, 200).Include(p => p.Card)
+            .Include(p => p.VariantOf).Include(p => p.ReprintOf).SingleAsync();
         Assert.Equal("uid-100", resolved.VariantOf!.CardUid);
         Assert.Equal("uid-300", resolved.ReprintOf!.CardUid);
         Assert.Equal(resolved.VariantOf.Id, resolved.VariantOfId);
@@ -127,13 +128,14 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(0, result.Errors);
         Assert.Equal(1, result.CardsCreated);
         await using var db = database.Open();
-        var printings = await db.CardPrintings.Include(p => p.Card).OrderBy(p => p.StrapiId).ToListAsync();
+        var printings = (await db.CardPrintings.Include(p => p.Card).ToListAsync())
+            .OrderBy(SourceId).ToArray();
         Assert.Equal(2, await db.Cards.CountAsync());
         Assert.NotEqual(printings[0].CardId, printings[1].CardId);
         Assert.Equal(printings[1].CardId, printings[2].CardId);
         Assert.Equal("uid-2", printings[1].Card.CardUid);
         Assert.Equal("Renamed", printings[1].Card.Name);
-        Assert.Equal(new int?[] { 1, 2, 3 }, printings.Select(p => p.StrapiId));
+        Assert.Equal(new[] { 1, 2, 3 }, printings.Select(SourceId));
     }
 
     [Fact]
@@ -203,7 +205,6 @@ public sealed class SwuSharedImporterRegressionTests
             Assert.Equal(DateTimeOffset.Parse("2024-02-01T01:00:00Z"), printing.ApiUpdatedAt);
             Assert.Equal(DateTimeOffset.Parse("2024-03-01T01:00:00Z"), printing.ApiPublishedAt);
             Assert.Equal(new DateOnly(2024, 3, 8), printing.CatalogSet!.ReleasedAt);
-            Assert.Null(printing.ReleasedAt);
         }
 
         attrs["aspectDuplicates"] = null;
@@ -360,7 +361,7 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database, variant, impostor);
         await using (var before = database.Open())
         {
-            Assert.Null((await before.CardPrintings.SingleAsync(p => p.StrapiId == 2)).VariantOfId);
+            Assert.Null((await PrintingWithSourceId(before, 2).SingleAsync()).VariantOfId);
         }
         if (separateImports)
             await ImportAsync(database, basis);
@@ -371,10 +372,10 @@ public sealed class SwuSharedImporterRegressionTests
         var cards = await db.Cards.ToListAsync();
         var baseCard = cards.Single(c => c.Name.EndsWith("Jedi Knight"));
         var basePrinting = await db.CardPrintings.SingleAsync(p => p.CardId == baseCard.Id);
-        var variantPrinting = await db.CardPrintings.SingleAsync(p => p.StrapiId == 2);
+        var variantPrinting = await PrintingWithSourceId(db, 2).SingleAsync();
         Assert.Equal(basePrinting.Id, variantPrinting.VariantOfId);
         using var metadata = JsonDocument.Parse(
-            (await db.CardPrintings.SingleAsync(p => p.StrapiId == 2)).DetailsJson!);
+            (await PrintingWithSourceId(db, 2).SingleAsync()).DetailsJson!);
         Assert.Equal("uid-1", metadata.RootElement.GetProperty("variantOfCardUid").GetString());
         Assert.Equal("uid-3", metadata.RootElement.GetProperty("reprintOfCardUid").GetString());
         Assert.False(metadata.RootElement.TryGetProperty("variantOfSourceId", out _));
@@ -391,7 +392,7 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         var baseCard = await db.Cards.SingleAsync(card => card.Name == "Base");
         var basePrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == baseCard.Id);
-        var reprintPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        var reprintPrinting = await PrintingWithSourceId(db, 2).SingleAsync();
         Assert.Equal(basePrinting.Id, reprintPrinting.ReprintOfId);
     }
 
@@ -408,7 +409,7 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
         var basisPrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == basis.Id);
-        var variantPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        var variantPrinting = await PrintingWithSourceId(db, 2).SingleAsync();
         Assert.Equal(basisPrinting.Id, variantPrinting.VariantOfId);
     }
 
@@ -427,7 +428,7 @@ public sealed class SwuSharedImporterRegressionTests
         var basis = await db.Cards.SingleAsync(c => c.Name == "Leia — Rebel");
         var variant = await db.Cards.SingleAsync(c => c.Name == "Leia — Showcase");
         var basisPrinting = await db.CardPrintings.SingleAsync(printing => printing.CardId == basis.Id);
-        var variantPrinting = await db.CardPrintings.SingleAsync(printing => printing.StrapiId == 2);
+        var variantPrinting = await PrintingWithSourceId(db, 2).SingleAsync();
         Assert.Equal(basisPrinting.Id, variantPrinting.VariantOfId);
         Assert.Equal(2, await db.CardPrintings.CountAsync(p => p.CardId == variant.Id));
     }
@@ -560,9 +561,9 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(1, result.PrintingsCreated);
         await using var db = database.Open();
         Assert.Equal(2, await db.Cards.CountAsync());
-        Assert.Equal("Valid", (await db.CardPrintings.Include(p => p.Card)
-            .SingleAsync(p => p.StrapiId == 1)).Card.Name);
-        Assert.False(await db.CardPrintings.AnyAsync(p => p.StrapiId == 1 && p.Set == "SHD"));
+        Assert.Equal("Valid", (await PrintingWithSourceId(db, 1).Include(p => p.Card).SingleAsync()).Card.Name);
+        Assert.False(await db.CardPrintings.AnyAsync(p => p.DetailsJson != null
+            && p.DetailsJson.Contains("\"sourceId\":1,") && p.CatalogSet!.Code == "SHD"));
     }
 
     [Theory]
@@ -645,8 +646,9 @@ public sealed class SwuSharedImporterRegressionTests
             Assert.Equal(run == 0 ? 2 : 0, summary.CardsCreated);
             Assert.Equal(run == 0 ? 2 : 0, summary.PrintingsCreated);
             Assert.Equal(2, await db.Cards.CountAsync());
-            var printings = await db.CardPrintings.OrderBy(p => p.Id).ToArrayAsync();
-            Assert.Equal(["SOR", "NEW"], printings.Select(p => p.Set).ToArray());
+            var printings = await db.CardPrintings.Include(p => p.CatalogSet)
+                .OrderBy(p => p.Id).ToArrayAsync();
+            Assert.Equal(["SOR", "NEW"], printings.Select(p => p.CatalogSet!.Code).ToArray());
             if (run == 0)
                 printingIds = printings.Select(p => p.Id).ToArray();
             else
@@ -727,6 +729,16 @@ public sealed class SwuSharedImporterRegressionTests
         }
         await using var verify = database.Open();
         Assert.Empty(await verify.Cards.ToListAsync());
+    }
+
+    private static IQueryable<CardPrinting> PrintingWithSourceId(AppDbContext db, int sourceId)
+        => db.CardPrintings.Where(printing => printing.DetailsJson != null
+            && printing.DetailsJson.Contains($"\"sourceId\":{sourceId},"));
+
+    private static int SourceId(CardPrinting printing)
+    {
+        using var details = JsonDocument.Parse(printing.DetailsJson!);
+        return details.RootElement.GetProperty("sourceId").GetInt32();
     }
 
     private static object Record(int id, string title, string set, string serial,

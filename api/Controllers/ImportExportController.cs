@@ -110,15 +110,17 @@ namespace api.Controllers
                 .Where(x => x.UserId == UserId)
                 .OrderBy(r => r.CardPrinting.Card.Game!.Name)
                 .ThenBy(r => r.CardPrinting.Card.Name)
-                .ThenBy(r => r.CardPrinting.Set)
+                .ThenBy(r => r.CardPrinting.CatalogSet == null ? string.Empty : r.CardPrinting.CatalogSet.Code)
                 .ThenBy(r => r.CardPrinting.Number)
                 .Select(x => new
                 {
                     Game = x.CardPrinting.Card.Game!.Name,
                     CardName = x.CardPrinting.Card.Name,
-                    x.CardPrinting.Set,
+                    Set = x.CardPrinting.CatalogSet == null
+                        ? string.Empty
+                        : x.CardPrinting.CatalogSet.Name ?? x.CardPrinting.CatalogSet.Code,
                     x.CardPrinting.Number,
-                    x.CardPrinting.Rarity,
+                    Rarity = x.CardPrinting.RarityLookup == null ? string.Empty : x.CardPrinting.RarityLookup.Name,
                     Style = x.CardPrinting.Treatment == null ? "Standard" : x.CardPrinting.Treatment.Name,
                     x.CardPrintingId,
                     x.QuantityOwned,
@@ -145,15 +147,17 @@ namespace api.Controllers
                 .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
                 .OrderBy(r => r.CardPrinting.Card.Game!.Name)
                 .ThenBy(r => r.CardPrinting.Card.Name)
-                .ThenBy(r => r.CardPrinting.Set)
+                .ThenBy(r => r.CardPrinting.CatalogSet == null ? string.Empty : r.CardPrinting.CatalogSet.Code)
                 .ThenBy(r => r.CardPrinting.Number)
                 .Select(x => new
                 {
                     Game = x.CardPrinting.Card.Game!.Name,
                     CardName = x.CardPrinting.Card.Name,
-                    x.CardPrinting.Set,
+                    Set = x.CardPrinting.CatalogSet == null
+                        ? string.Empty
+                        : x.CardPrinting.CatalogSet.Name ?? x.CardPrinting.CatalogSet.Code,
                     x.CardPrinting.Number,
-                    x.CardPrinting.Rarity,
+                    Rarity = x.CardPrinting.RarityLookup == null ? string.Empty : x.CardPrinting.RarityLookup.Name,
                     Style = x.CardPrinting.Treatment == null ? "Standard" : x.CardPrinting.Treatment.Name,
                     x.CardPrintingId,
                     Quantity = x.QuantityWanted
@@ -185,16 +189,18 @@ namespace api.Controllers
                 .OrderBy(r => r.Deck!.Game)
                 .ThenBy(r => r.Deck!.Name)
                 .ThenBy(r => r.CardPrinting!.Card!.Name)
-                .ThenBy(r => r.CardPrinting!.Set ?? "")
+                .ThenBy(r => r.CardPrinting!.CatalogSet == null ? string.Empty : r.CardPrinting.CatalogSet.Code)
                 .ThenBy(r => r.CardPrinting!.Number ?? "")
                 .Select(dc => new
                 {
                     DeckName = dc.Deck!.Name,
                     Game = dc.Deck!.Game,
                     CardName = dc.CardPrinting!.Card!.Name,
-                    Set = dc.CardPrinting!.Set ?? "",
+                    Set = dc.CardPrinting!.CatalogSet == null
+                        ? string.Empty
+                        : dc.CardPrinting.CatalogSet.Name ?? dc.CardPrinting.CatalogSet.Code,
                     Number = dc.CardPrinting!.Number ?? "",
-                    Rarity = dc.CardPrinting!.Rarity ?? "",
+                    Rarity = dc.CardPrinting!.RarityLookup == null ? string.Empty : dc.CardPrinting.RarityLookup.Name,
                     Style = dc.CardPrinting!.Treatment == null ? "Standard" : dc.CardPrinting.Treatment.Name,
                     dc.CardPrintingId,
                     dc.QuantityInDeck,

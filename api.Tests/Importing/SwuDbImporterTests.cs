@@ -130,7 +130,6 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, created.PrintingsCreated);
         var card = await db.Cards.SingleAsync(c => c.Game!.Name == Game);
         var printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
-        Assert.Equal(expected, printing.Rarity);
         Assert.Equal(expected, printing.RarityLookup!.Name);
 
         attributes["rarity"] = JsonNode.Parse("""{"data":{"id":23,"attributes":{"name":"Legendary"}}}""");
@@ -143,13 +142,14 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, updated.PrintingsUpdated);
         db.ChangeTracker.Clear();
         card = await db.Cards.SingleAsync(c => c.Game!.Name == Game);
-        printing = await db.CardPrintings.SingleAsync(p => p.CardId == card.Id);
+        printing = await db.CardPrintings.Include(p => p.CatalogSet).Include(p => p.RarityLookup)
+            .SingleAsync(p => p.CardId == card.Id);
         Assert.Equal("Leader", await db.CardCardTypes.Where(association =>
                 association.CardId == card.Id && association.SourceRole == "Type")
             .Select(association => association.CardType.Name).SingleAsync());
         Assert.Equal("Card text.", card.Text);
-        Assert.Equal("Legendary", printing.Rarity);
-        Assert.Equal("SOR", printing.Set);
+        Assert.Equal("Legendary", printing.RarityLookup!.Name);
+        Assert.Equal("SOR", printing.CatalogSet!.Code);
         Assert.Equal("1", printing.Number);
         Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == printing.TreatmentId)).Name);
         Assert.Equal("https://example.invalid/card.png", printing.ImageUrl);
@@ -195,10 +195,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("Deploy: exhaust this leader.", card.Text);
         Assert.NotNull(card.LastSyncedAt);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "1020365882");
+        var printing = await db.CardPrintings.Include(p => p.CatalogSet).Include(p => p.RarityLookup)
+            .SingleAsync(p => p.CardUid == "1020365882");
         Assert.Equal(card.Id, printing.CardId);
-        Assert.Equal("SOR", printing.Set);
-        Assert.Equal("Legendary", printing.Rarity);
+        Assert.Equal("SOR", printing.CatalogSet!.Code);
+        Assert.Equal("Legendary", printing.RarityLookup!.Name);
         Assert.Equal("1", printing.Number);
         Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == printing.TreatmentId)).Name);
         Assert.Equal("https://cdn.starwarsunlimited.com/06010001_EN.png", printing.ImageUrl);
@@ -287,7 +288,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.NotNull(card.LastSyncedAt);
 
         var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "9988776655");
-        Assert.Equal("Uncommon", printing.Rarity);
+        Assert.Equal("Uncommon", printing.RarityLookup!.Name);
         Assert.Equal("https://cdn.starwarsunlimited.com/v2.png", printing.ImageUrl);
     }
 
@@ -448,8 +449,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.PrintingsCreated);
 
-        var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "1234567890");
-        Assert.Equal("SHD", printing.Set);
+        var printing = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CardUid == "1234567890");
+        Assert.Equal("SHD", printing.CatalogSet!.Code);
     }
 
     [Fact]
@@ -536,8 +538,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         // Number should be the cardNumber string when serialCode is null.
-        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "TWI" && p.Number == "7");
-        Assert.Equal("TWI", printing.Set);
+        var printing = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CatalogSet!.Code == "TWI" && p.Number == "7");
+        Assert.Equal("TWI", printing.CatalogSet!.Code);
         Assert.Equal("7", printing.Number);
 
         // Re-import identical data — should detect the existing printing by set+number and not create a new one.
@@ -545,7 +548,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary2.Errors);
         Assert.Equal(0, summary2.CardsCreated);
         Assert.Equal(0, summary2.PrintingsCreated);
-        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Set == "TWI" && p.Number == "7"));
+        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.CatalogSet!.Code == "TWI" && p.Number == "7"));
     }
 
     [Fact]
@@ -586,11 +589,13 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         await importer.ImportFromFileAsync(ToStream(shdJson), new ImportOptions(DryRun: false, SetCode: "SHD"));
 
-        var sorPrinting = await db.CardPrintings.SingleAsync(p => p.CardUid == "1111111111");
-        Assert.Equal("SOR", sorPrinting.Set);
+        var sorPrinting = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CardUid == "1111111111");
+        Assert.Equal("SOR", sorPrinting.CatalogSet!.Code);
 
-        var shdPrinting = await db.CardPrintings.SingleAsync(p => p.CardUid == "2222222222");
-        Assert.Equal("SHD", shdPrinting.Set);
+        var shdPrinting = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CardUid == "2222222222");
+        Assert.Equal("SHD", shdPrinting.CatalogSet!.Code);
     }
 
     [Fact]
@@ -650,7 +655,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
 
         // When expansion is missing, set falls back to "UNK" and number is used as key.
         var printing = await db.CardPrintings.SingleAsync(p => p.Card.Name == "Mystery Card" && p.Card.Game!.Name == Game);
-        Assert.Equal("UNK", printing.Set);
+        Assert.Equal("UNK", printing.CatalogSet!.Code);
     }
 
     [Theory]
@@ -839,7 +844,6 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(DateTimeOffset.Parse(expectedCreatedAt), printing.ApiCreatedAt);
         Assert.Equal(DateTimeOffset.Parse(expectedUpdatedAt), printing.ApiUpdatedAt);
         Assert.Equal(DateTimeOffset.Parse("2025-08-15T18:30:00.000Z"), printing.ApiPublishedAt);
-        Assert.Null(printing.ReleasedAt);
         Assert.Null(printing.CatalogSet!.ReleasedAt);
     }
 
@@ -1216,8 +1220,9 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         // Number should be the record id string when both serialCode and cardNumber are null.
-        var printing = await db.CardPrintings.SingleAsync(p => p.Set == "SOR" && p.Number == "77777");
-        Assert.Equal("SOR", printing.Set);
+        var printing = await db.CardPrintings.Include(p => p.CatalogSet)
+            .SingleAsync(p => p.CatalogSet!.Code == "SOR" && p.Number == "77777");
+        Assert.Equal("SOR", printing.CatalogSet!.Code);
         Assert.Equal("77777", printing.Number);
     }
 
@@ -1405,7 +1410,8 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         db.ChangeTracker.Clear();
         Assert.Equal(new DateOnly(2025, 2, 1), (await db.Sets.SingleAsync(s => s.Code == "SOR")).ReleasedAt);
 
-        var rarity = await db.Rarities.SingleAsync(r => r.Name == "Common");
+        var game = await db.Games.SingleAsync(candidate => candidate.Name == Game);
+        var rarity = await db.Rarities.SingleAsync(r => r.GameId == game.Id && r.Name == "Common");
         Assert.Equal("C", rarity.Character);
         Assert.Equal("#a8a8a8", rarity.Color);
 
