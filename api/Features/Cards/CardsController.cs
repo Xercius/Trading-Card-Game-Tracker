@@ -216,6 +216,7 @@ public class CardsController : ControllerBase
         q = q.OrderBy(c => c.Name).ThenBy(c => c.Id);
 
         var cards = await q
+            .AsSplitQuery()
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)

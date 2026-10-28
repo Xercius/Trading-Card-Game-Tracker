@@ -63,7 +63,7 @@ describe("PrintingCard", () => {
     container.remove();
   });
 
-  it("does not display visible text for card details", async () => {
+  it("does not display visible text for cards with artwork", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -109,7 +109,7 @@ describe("PrintingCard", () => {
     container.remove();
   });
 
-  it("shows 'No image' text when imageUrl is not provided", async () => {
+  it("identifies cards with missing artwork", async () => {
     const printingWithoutImage = { ...mockPrinting, imageUrl: null };
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -119,7 +119,32 @@ describe("PrintingCard", () => {
       root.render(<PrintingCard p={printingWithoutImage} />);
     });
 
+    expect(container.textContent).toContain("Sample Card");
+    expect(container.textContent).toContain("Test Set");
     expect(container.textContent).toContain("No image");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("identifies cards that use placeholder artwork", async () => {
+    const printingWithPlaceholder = {
+      ...mockPrinting,
+      imageUrl: "/images/placeholders/card-3x4.png",
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PrintingCard p={printingWithPlaceholder} />);
+    });
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("Sample Card");
+    expect(container.textContent).toContain("Test Set");
 
     await act(async () => {
       root.unmount();

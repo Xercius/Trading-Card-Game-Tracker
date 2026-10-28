@@ -19,6 +19,16 @@ type ChecklistProps = {
   loading?: boolean;
 };
 
+function canonicalizeFacetValues(values: readonly string[], options: readonly string[]): string[] {
+  if (options.length === 0) return [...values];
+
+  const optionsByLowerCase = new Map(options.map((option) => [option.toLowerCase(), option]));
+  return values.flatMap((value) => {
+    const canonicalValue = optionsByLowerCase.get(value.toLowerCase());
+    return canonicalValue ? [canonicalValue] : [];
+  });
+}
+
 function Checklist({
   idPrefix,
   title,
@@ -162,9 +172,9 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     const allowedSets = new Set(setOptions);
     const allowedRarities = new Set(rarityOptions);
     const allowedTypes = new Set(typeOptions);
-    const allowedArenas = new Set(arenaOptions);
-    const allowedAspects = new Set(aspectOptions);
-    const allowedTraits = new Set(traitOptions);
+    const normalizedArenas = canonicalizeFacetValues(filters.arenas, arenaOptions);
+    const normalizedAspects = canonicalizeFacetValues(filters.aspects, aspectOptions);
+    const normalizedTraits = canonicalizeFacetValues(filters.traits, traitOptions);
 
     const shouldValidateGames = allowedGames.size > 0;
     const shouldValidateSets = allowedSets.size > 0;
@@ -178,12 +188,15 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
       shouldValidateRarities && filters.rarities.some((value) => !allowedRarities.has(value));
     const hasInvalidTypes =
       allowedTypes.size > 0 && filters.types.some((value) => !allowedTypes.has(value));
-    const hasInvalidArenas =
-      allowedArenas.size > 0 && filters.arenas.some((value) => !allowedArenas.has(value));
-    const hasInvalidAspects =
-      allowedAspects.size > 0 && filters.aspects.some((value) => !allowedAspects.has(value));
-    const hasInvalidTraits =
-      allowedTraits.size > 0 && filters.traits.some((value) => !allowedTraits.has(value));
+    const hasInvalidArenas = filters.arenas.some(
+      (value, index) => normalizedArenas[index] !== value
+    );
+    const hasInvalidAspects = filters.aspects.some(
+      (value, index) => normalizedAspects[index] !== value
+    );
+    const hasInvalidTraits = filters.traits.some(
+      (value, index) => normalizedTraits[index] !== value
+    );
 
     if (
       !hasInvalidGames &&
@@ -212,15 +225,11 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           ? prev.rarities.filter((value) => allowedRarities.has(value))
           : prev.rarities,
       types: hasInvalidTypes ? prev.types.filter((value) => allowedTypes.has(value)) : prev.types,
-      arenas: hasInvalidArenas
-        ? prev.arenas.filter((value) => allowedArenas.has(value))
-        : prev.arenas,
+      arenas: hasInvalidArenas ? canonicalizeFacetValues(prev.arenas, arenaOptions) : prev.arenas,
       aspects: hasInvalidAspects
-        ? prev.aspects.filter((value) => allowedAspects.has(value))
+        ? canonicalizeFacetValues(prev.aspects, aspectOptions)
         : prev.aspects,
-      traits: hasInvalidTraits
-        ? prev.traits.filter((value) => allowedTraits.has(value))
-        : prev.traits,
+      traits: hasInvalidTraits ? canonicalizeFacetValues(prev.traits, traitOptions) : prev.traits,
     }));
   }, [
     filters.games,
