@@ -187,6 +187,40 @@ public sealed class AppDbContextSwuConfigurationTests
     }
 
     [Fact]
+    public async Task Migration_CanBeRolledBackToDenormalizedCardSchema()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261028150939_ReplaceCardPrintingStyleWithTreatment");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO "Cards" ("Id", "Game", "Name", "CardType", "CardType2")
+            VALUES (1, 'Star Wars Unlimited', 'Rollback card', 'Unit', 'Leader');
+            """);
+
+        await migrator.MigrateAsync();
+        await migrator.MigrateAsync("20261028150939_ReplaceCardPrintingStyleWithTreatment");
+
+        var card = await db.Database.SqlQueryRaw<string>(
+            "SELECT \"Game\" || '|' || \"CardType\" || '|' || \"CardType2\" AS \"Value\" FROM \"Cards\" WHERE \"Id\" = 1")
+            .SingleAsync();
+        Assert.Equal("Star Wars Unlimited|Unit|Leader", card);
+        var columns = new List<string>();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info('Cards')";
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            columns.Add(reader.GetString(1));
+        Assert.DoesNotContain("GameId", columns);
+    }
+
+    [Fact]
     public async Task Database_EnforcesLookupAndAssociationConstraints_AndStoresAspectMultiplicity()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

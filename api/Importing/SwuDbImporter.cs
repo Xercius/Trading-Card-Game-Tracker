@@ -120,6 +120,7 @@ public sealed class SwuDbImporter : ISourceImporter
                 .Where(p => p.Card.GameId == catalog.Game.Id).ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
             var cardChanges = new SwuSharedCardChanges(summary);
+            var updatedPrintings = new HashSet<int>();
             var autoDetectChangesEnabled = _db.ChangeTracker.AutoDetectChangesEnabled;
             _db.ChangeTracker.AutoDetectChangesEnabled = false;
             try
@@ -131,10 +132,11 @@ public sealed class SwuDbImporter : ISourceImporter
                     processed++;
                     var counts = (summary.CardsCreated, summary.CardsUpdated,
                         summary.PrintingsCreated, summary.PrintingsUpdated);
+                    var updatedPrintingsBefore = updatedPrintings.ToHashSet();
                     try
                     {
                         var card = Upsert(record, summary, identity, requireExpansion, catalog,
-                            out var associationsChanged);
+                            updatedPrintings, out var associationsChanged);
                         var entry = card is null ? null : _db.Entry(card);
                         var state = entry?.State ?? EntityState.Unchanged;
                         var cardChanged = state == EntityState.Modified
@@ -158,6 +160,8 @@ public sealed class SwuDbImporter : ISourceImporter
                             .Include(p => p.Treatment)
                             .Where(p => p.Card.GameId == catalog.Game.Id).ToListAsync(ct);
                         identity = new SwuSharedIdentity(printings);
+                        updatedPrintings.Clear();
+                        updatedPrintings.UnionWith(updatedPrintingsBefore);
                         (summary.CardsCreated, summary.CardsUpdated,
                             summary.PrintingsCreated, summary.PrintingsUpdated) = counts;
                         summary.Errors++;
@@ -175,6 +179,8 @@ public sealed class SwuDbImporter : ISourceImporter
                     if (entry.State == EntityState.Added) continue;
                     entry.Property(entity => entity.VariantOfId).IsModified = true;
                     entry.Property(entity => entity.ReprintOfId).IsModified = true;
+                    if (updatedPrintings.Add(printing.Id))
+                        summary.PrintingsUpdated++;
                 }
                 await _db.SaveChangesAsync(ct);
                 summary.Messages.Add($"Processed {processed} records {description}.");
@@ -188,7 +194,7 @@ public sealed class SwuDbImporter : ISourceImporter
     }
 
     private Card? Upsert(StrapiRecord record, ImportSummary summary, SwuSharedIdentity identity,
-        bool requireExpansion, SwuCatalog catalog, out bool associationsChanged)
+        bool requireExpansion, SwuCatalog catalog, HashSet<int> updatedPrintings, out bool associationsChanged)
     {
         associationsChanged = false;
 
@@ -336,6 +342,8 @@ public sealed class SwuDbImporter : ISourceImporter
             if (changed)
             {
                 summary.PrintingsUpdated++;
+                if (printing.Id != 0)
+                    updatedPrintings.Add(printing.Id);
                 if (_db.Entry(printing).State != EntityState.Added)
                     _db.Entry(printing).State = EntityState.Modified;
             }
@@ -375,6 +383,8 @@ public sealed class SwuDbImporter : ISourceImporter
                 && !Equals(originalPrintingValues[p], _db.Entry(printing).CurrentValues[p]))))
         {
             summary.PrintingsUpdated++;
+            if (printing.Id != 0)
+                updatedPrintings.Add(printing.Id);
             _db.Entry(printing).State = EntityState.Modified;
         }
         printing.LastSyncedAt = syncedAt;

@@ -70,8 +70,10 @@ public sealed class CardFacetsController : ControllerBase
             .ToList();
         var traits = CsvUtils.Parse(trait);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameIds = await _db.Games
-            .Where(candidate => gamesNormalized.Contains(candidate.NameNormalized))
+        var gameLookupQuery = _db.Games.AsQueryable();
+        if (games.Count > 0)
+            gameLookupQuery = gameLookupQuery.Where(candidate => gamesNormalized.Contains(candidate.NameNormalized));
+        var gameIds = await gameLookupQuery
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
 
@@ -292,8 +294,10 @@ public sealed class CardFacetsController : ControllerBase
     {
         var games = CsvUtils.Parse(game);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameIds = await _db.Games
-            .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
+        var gameLookupQuery = _db.Games.AsQueryable();
+        if (games.Count > 0)
+            gameLookupQuery = gameLookupQuery.Where(candidate => normalizedGames.Contains(candidate.NameNormalized));
+        var gameIds = await gameLookupQuery
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
@@ -333,8 +337,10 @@ public sealed class CardFacetsController : ControllerBase
     {
         var games = CsvUtils.Parse(game);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameIds = await _db.Games
-            .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
+        var gameLookupQuery = _db.Games.AsQueryable();
+        if (games.Count > 0)
+            gameLookupQuery = gameLookupQuery.Where(candidate => normalizedGames.Contains(candidate.NameNormalized));
+        var gameIds = await gameLookupQuery
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);

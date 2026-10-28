@@ -217,6 +217,7 @@ public class CardsController : ControllerBase
 
         var cards = await q
             .AsSplitQuery()
+            .Include(card => card.Game)
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)

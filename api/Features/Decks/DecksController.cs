@@ -59,7 +59,7 @@ public class DecksController : ControllerBase
 
         var cards = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId)
-            .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card)
+            .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card).ThenInclude(card => card.Game)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -417,7 +417,8 @@ public class DecksController : ControllerBase
                 detail: "A request body is required.");
         }
 
-        var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
+        var cp = await _db.CardPrintings.Include(x => x.Card).ThenInclude(card => card.Game)
+            .FirstOrDefaultAsync(x => x.Id == dto.CardPrintingId);
         if (cp is null)
         {
             return this.CreateProblem(
@@ -478,7 +479,7 @@ public class DecksController : ControllerBase
         var ids = list.Select(x => x.CardPrintingId).Distinct().ToList();
         var printings = await _db.CardPrintings
             .Where(cp => ids.Contains(cp.Id))
-            .Include(cp => cp.Card)
+            .Include(cp => cp.Card).ThenInclude(card => card.Game)
             .ToListAsync();
 
         if (printings.Count != ids.Count)
@@ -556,7 +557,7 @@ public class DecksController : ControllerBase
         }
         var ct = HttpContext.RequestAborted;
 
-        var printing = await _db.CardPrintings.Include(cp => cp.Card)
+        var printing = await _db.CardPrintings.Include(cp => cp.Card).ThenInclude(card => card.Game)
             .FirstOrDefaultAsync(cp => cp.Id == cardPrintingId, ct);
         if (printing is null)
         {
@@ -634,7 +635,7 @@ public class DecksController : ControllerBase
         var currentQty = existing?.QuantityInDeck ?? 0;
         if (normalizedQty > currentQty)
         {
-            var printing = await _db.CardPrintings.Include(cp => cp.Card)
+            var printing = await _db.CardPrintings.Include(cp => cp.Card).ThenInclude(card => card.Game)
                 .FirstOrDefaultAsync(cp => cp.Id == request.PrintingId, ct);
             if (printing is null)
             {
@@ -723,7 +724,8 @@ public class DecksController : ControllerBase
         var dc = await _db.DeckCards.FirstOrDefaultAsync(x => x.DeckId == deckId && x.CardPrintingId == cardPrintingId);
         if (dc is null)
         {
-            var cp = await _db.CardPrintings.Include(x => x.Card).FirstOrDefaultAsync(x => x.Id == cardPrintingId);
+            var cp = await _db.CardPrintings.Include(x => x.Card).ThenInclude(card => card.Game)
+                .FirstOrDefaultAsync(x => x.Id == cardPrintingId);
             if (cp is null)
             {
                 return this.CreateProblem(

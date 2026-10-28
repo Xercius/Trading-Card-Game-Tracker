@@ -469,13 +469,72 @@ namespace api.Migrations
                         ORDER BY ct."CardTypeId" LIMIT 1)
                 """);
 
-            migrationBuilder.AddColumn<string>(
-                name: "GameNorm",
+            migrationBuilder.Sql(
+                """
+                DROP INDEX "IX_Cards_NameNormalized";
+                PRAGMA legacy_alter_table = ON;
+                ALTER TABLE "Cards" RENAME TO "Cards_Normalized";
+                PRAGMA legacy_alter_table = OFF;
+
+                CREATE TABLE "Cards" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_Cards" PRIMARY KEY AUTOINCREMENT,
+                    "GameId" INTEGER NULL,
+                    "ApiCreatedAt" TEXT NULL,
+                    "ApiUpdatedAt" TEXT NULL,
+                    "Arena" TEXT NULL,
+                    "Aspects" TEXT NULL,
+                    "BaseCardId" INTEGER NULL,
+                    "BaseStrapiId" INTEGER NULL,
+                    "CardType" TEXT NOT NULL,
+                    "CardType2" TEXT NULL,
+                    "CardUid" TEXT NULL,
+                    "Cost" INTEGER NULL,
+                    "DeployBox" TEXT NULL,
+                    "DeployBoxStyled" TEXT NULL,
+                    "DetailsJson" TEXT NULL,
+                    "EpicAction" TEXT NULL,
+                    "EpicActionStyled" TEXT NULL,
+                    "Game" TEXT NOT NULL,
+                    "GameNorm" TEXT GENERATED ALWAYS AS (LOWER(TRIM("Game"))) STORED,
+                    "Hp" INTEGER NULL,
+                    "Keywords" TEXT NULL,
+                    "LastSyncedAt" TEXT NULL,
+                    "Name" TEXT NOT NULL,
+                    "NameNormalized" TEXT GENERATED ALWAYS AS (UPPER(LTRIM(RTRIM("Name")))) STORED,
+                    "Power" INTEGER NULL,
+                    "Rules" TEXT NULL,
+                    "RulesStyled" TEXT NULL,
+                    "StrapiId" INTEGER NULL,
+                    "Subtitle" TEXT NULL,
+                    "Text" TEXT NULL,
+                    "TextStyled" TEXT NULL,
+                    "Traits" TEXT NULL,
+                    "UpgradeHp" INTEGER NULL,
+                    "UpgradePower" INTEGER NULL
+                );
+
+                INSERT INTO "Cards" (
+                    "Id", "GameId", "ApiCreatedAt", "ApiUpdatedAt", "Arena", "Aspects",
+                    "BaseCardId", "BaseStrapiId", "CardType", "CardType2", "CardUid", "Cost",
+                    "DeployBox", "DeployBoxStyled", "DetailsJson", "EpicAction", "EpicActionStyled",
+                    "Game", "Hp", "Keywords", "LastSyncedAt", "Name", "Power", "Rules", "RulesStyled",
+                    "StrapiId", "Subtitle", "Text", "TextStyled", "Traits", "UpgradeHp", "UpgradePower"
+                )
+                SELECT
+                    "Id", "GameId", "ApiCreatedAt", "ApiUpdatedAt", "Arena", "Aspects",
+                    "BaseCardId", "BaseStrapiId", "CardType", "CardType2", "CardUid", "Cost",
+                    "DeployBox", "DeployBoxStyled", "DetailsJson", "EpicAction", "EpicActionStyled",
+                    "Game", "Hp", "Keywords", "LastSyncedAt", "Name", "Power", "Rules", "RulesStyled",
+                    "StrapiId", "Subtitle", "Text", "TextStyled", "Traits", "UpgradeHp", "UpgradePower"
+                FROM "Cards_Normalized";
+
+                DROP TABLE "Cards_Normalized";
+                """);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cards_NameNormalized",
                 table: "Cards",
-                type: "TEXT",
-                nullable: true,
-                computedColumnSql: "LOWER(TRIM([Game]))",
-                stored: true);
+                column: "NameNormalized");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Cards_BaseCardId",

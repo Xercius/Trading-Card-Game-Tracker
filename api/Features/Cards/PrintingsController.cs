@@ -49,7 +49,7 @@ public sealed class PrintingsController : ControllerBase
         // Build base query with eager loading of Card for name and game information
         var query = _db.Set<CardPrinting>()
             .AsNoTracking()
-            .Include(p => p.Card) // need Name + Game
+            .Include(p => p.Card).ThenInclude(card => card.Game)
             .Include(p => p.Treatment)
             .AsQueryable();
 
@@ -66,8 +66,15 @@ public sealed class PrintingsController : ControllerBase
             .ToListAsync(ct);
         if (games.Count > 0)
         {
+            var otherGameIds = gameIds.Where(gameId => !swuGameIds.Contains(gameId)).ToList();
+            var includesSwu = requestedGames.Contains("star wars unlimited");
             query = query.Where(p =>
-                p.Card.GameId.HasValue && gameIds.Contains(p.Card.GameId.Value));
+                p.Card.GameId.HasValue && otherGameIds.Contains(p.Card.GameId.Value)
+                || includesSwu && (
+                    p.CatalogSet != null && swuGameIds.Contains(p.CatalogSet.GameId)
+                    || p.CatalogSet == null && (
+                        p.Card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId))
+                        || p.Card.GameId.HasValue && swuGameIds.Contains(p.Card.GameId.Value))));
         }
 
         // Filter by set(s) - supports comma-separated list
@@ -178,7 +185,7 @@ public sealed class PrintingsController : ControllerBase
             var matchingCardIds = query.Select(p => p.CardId).Distinct();
             query = _db.Set<CardPrinting>()
                 .AsNoTracking()
-                .Include(p => p.Card)
+                .Include(p => p.Card).ThenInclude(card => card.Game)
                 .Where(p => matchingCardIds.Contains(p.CardId))
                 .Where(p => p.Id == _db.Set<CardPrinting>()
                     .Where(candidate => candidate.CardId == p.CardId)
@@ -231,6 +238,7 @@ public sealed class PrintingsController : ControllerBase
         var printings = await query
             .Include(p => p.CatalogSet)
             .Include(p => p.RarityLookup)
+            .Include(p => p.Card).ThenInclude(card => card.Game)
             .Include(p => p.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(p => p.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .AsSplitQuery()

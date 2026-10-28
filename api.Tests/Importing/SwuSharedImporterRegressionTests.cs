@@ -444,19 +444,19 @@ public sealed class SwuSharedImporterRegressionTests
             var preview = await new SwuDbImporter(db, new UnusedClient(), NullLogger<SwuDbImporter>.Instance).ImportFromFileAsync(
                 stream, new ImportOptions(DryRun: true));
             Assert.Equal(1, preview.CardsCreated);
-            Assert.Equal(1, preview.CardsUpdated);
+            Assert.Equal(1, preview.PrintingsUpdated);
         }
         await AssertBaseAsync(database, "Variant", null);
         var committed = await ImportAsync(database, basis);
         Assert.Equal(1, committed.CardsCreated);
-        Assert.Equal(1, committed.CardsUpdated);
+        Assert.Equal(1, committed.PrintingsUpdated);
         await AssertBaseAsync(database, "Variant", "Base");
         var replay = await ImportAsync(database, basis);
-        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated);
+        Assert.Equal(0, replay.CardsCreated + replay.CardsUpdated + replay.PrintingsCreated + replay.PrintingsUpdated);
     }
 
     [Fact]
-    public async Task Import_MetadataAndRelationshipChange_CountsExistingCardOnce()
+    public async Task Import_MetadataAndRelationshipChange_CountsExistingPrintingOnce()
     {
         await using var database = await Database.CreateAsync();
         await ImportAsync(database,
@@ -465,7 +465,8 @@ public sealed class SwuSharedImporterRegressionTests
         var updated = Record(2, "Variant", "SHD", "two", variantId: 1);
         var result = await ImportAsync(database, updated, updated);
         Assert.Equal(0, result.CardsCreated);
-        Assert.Equal(1, result.CardsUpdated);
+        Assert.Equal(0, result.CardsUpdated);
+        Assert.Equal(1, result.PrintingsUpdated);
         await AssertBaseAsync(database, "Variant", "Base");
     }
 
