@@ -134,11 +134,15 @@ public sealed class SwuDbImporter : ISourceImporter
                     {
                         var card = Upsert(record, summary, identity, requireExpansion, catalog,
                             out var associationsChanged);
-                        var state = card is null ? EntityState.Unchanged : _db.Entry(card).State;
+                        var entry = card is null ? null : _db.Entry(card);
+                        var state = entry?.State ?? EntityState.Unchanged;
+                        var cardChanged = state == EntityState.Modified
+                            && entry!.Properties.Any(property => property.IsModified
+                                && property.Metadata.Name != nameof(Card.LastSyncedAt));
                         // EF rolls back failed writes to a savepoint in the import transaction.
                         await _db.SaveChangesAsync(ct);
                         if (state == EntityState.Added) cardChanges.Created(card!);
-                        if (state == EntityState.Modified || associationsChanged)
+                        if (cardChanged || associationsChanged)
                             cardChanges.Updated(card!);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
@@ -225,9 +229,7 @@ public sealed class SwuDbImporter : ISourceImporter
         int sourceId = record.Id;
         string rarity = attrs.Rarity ?? "Unknown";
 
-        int? variantOfSourceId = attrs.VariantOf?.Data?.Id;
         string? variantOfCardUid = attrs.VariantOf?.Data?.Attributes?.CardUid;
-        int? reprintOfSourceId = attrs.ReprintOf?.Data?.Id;
         string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
 
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
@@ -243,21 +245,21 @@ public sealed class SwuDbImporter : ISourceImporter
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url;
 
-        // Source/serial identity takes precedence for printings; logical cards are keyed by (Game, Name).
-        var printing = identity.FindPrinting(sourceId, serialCode, set, number);
+        // CardUid identifies a printing; set/number/style is the fallback identity.
+        var printing = identity.FindPrinting(cardUid, set, number, style);
         var card = _db.Cards.Local.FirstOrDefault(c => c.Game == game && c.Name == name)
             ?? printing?.Card;
 
-        bool isBasePrinting = variantOfSourceId is null
-            && string.IsNullOrWhiteSpace(variantOfCardUid)
-            && reprintOfSourceId is null
+        bool isBasePrinting = string.IsNullOrWhiteSpace(variantOfCardUid)
             && string.IsNullOrWhiteSpace(reprintOfCardUid);
         bool isCanonicalForCard = card is null
             || !card.Printings.Any(p => p != printing && IsHigherPriorityPrinting(p, isBasePrinting, sourceId));
 
         var printingJson = JsonSerializer.Serialize(new
         {
+            cardUid,
             serialCode,
+            cardNumber = attrs.CardNumber,
             variantTypes = attrs.VariantTypes?.Data?.Select(v => new
             {
                 v.Id,
@@ -265,9 +267,7 @@ public sealed class SwuDbImporter : ISourceImporter
                 v.Attributes?.VariantId,
                 v.Attributes?.Foil
             }).OrderBy(v => v.Id),
-            variantOfSourceId,
             variantOfCardUid,
-            reprintOfSourceId,
             reprintOfCardUid
         }, JsonOptions);
 
@@ -322,6 +322,11 @@ public sealed class SwuDbImporter : ISourceImporter
                 _db.Entry(card).State = EntityState.Modified;
         }
 
+        var syncedAt = _timeProvider.GetUtcNow();
+        card.LastSyncedAt = syncedAt;
+        if (_db.Entry(card).State != EntityState.Added)
+            _db.Entry(card).Property(entity => entity.LastSyncedAt).IsModified = true;
+
         var printingCreated = printing is null;
         if (printing is null)
         {
@@ -329,8 +334,7 @@ public sealed class SwuDbImporter : ISourceImporter
             {
                 Card = card,
                 Set = set,
-                // Store serialCode as Number when present so future lookups match correctly.
-                Number = serialCode ?? number,
+                Number = number,
                 Rarity = rarity,
                 Style = style,
                 ImageUrl = imageUrl,
@@ -343,7 +347,7 @@ public sealed class SwuDbImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.Set != set) { printing.Set = set; changed = true; }
-            if (printing.Number != (serialCode ?? number)) { printing.Number = serialCode ?? number; changed = true; }
+            if (printing.Number != number) { printing.Number = number; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
             if (printing.Style != style) { printing.Style = style; changed = true; }
             if (printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
@@ -393,7 +397,9 @@ public sealed class SwuDbImporter : ISourceImporter
             summary.PrintingsUpdated++;
             _db.Entry(printing).State = EntityState.Modified;
         }
-        printing.LastSyncedAt = _timeProvider.GetUtcNow();
+        printing.LastSyncedAt = syncedAt;
+        if (_db.Entry(printing).State != EntityState.Added)
+            _db.Entry(printing).Property(entity => entity.LastSyncedAt).IsModified = true;
         identity.Track(printing);
         return card;
     }

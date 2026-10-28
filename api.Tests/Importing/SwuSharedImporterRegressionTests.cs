@@ -91,8 +91,10 @@ public sealed class SwuSharedImporterRegressionTests
             Assert.Null(printing.VariantOfId);
             Assert.Null(printing.ReprintOfId);
             using var details = JsonDocument.Parse(printing.DetailsJson!);
-            Assert.Equal(100, details.RootElement.GetProperty("variantOfSourceId").GetInt32());
-            Assert.Equal(300, details.RootElement.GetProperty("reprintOfSourceId").GetInt32());
+            Assert.Equal("uid-100", details.RootElement.GetProperty("variantOfCardUid").GetString());
+            Assert.Equal("uid-300", details.RootElement.GetProperty("reprintOfCardUid").GetString());
+            Assert.False(details.RootElement.TryGetProperty("variantOfSourceId", out _));
+            Assert.False(details.RootElement.TryGetProperty("reprintOfSourceId", out _));
         }
         await ImportAsync(database, Record(300, "Reprint target", "SHD", "reprint"));
         await using (var partial = database.Open())
@@ -100,14 +102,16 @@ public sealed class SwuSharedImporterRegressionTests
             var printing = await partial.CardPrintings.Include(p => p.ReprintOf)
                 .SingleAsync(p => p.StrapiId == 200);
             Assert.Null(printing.VariantOfId);
-            Assert.Equal(300, printing.ReprintOf!.StrapiId);
+            Assert.Equal("uid-300", printing.ReprintOf!.CardUid);
         }
         await ImportAsync(database, Record(100, "Variant target", "SOR", "base"));
         await using var db = database.Open();
         var resolved = await db.CardPrintings.Include(p => p.Card)
             .Include(p => p.VariantOf).Include(p => p.ReprintOf).SingleAsync(p => p.StrapiId == 200);
-        Assert.Equal(100, resolved.VariantOf!.StrapiId);
-        Assert.Equal(300, resolved.ReprintOf!.StrapiId);
+        Assert.Equal("uid-100", resolved.VariantOf!.CardUid);
+        Assert.Equal("uid-300", resolved.ReprintOf!.CardUid);
+        Assert.Equal(resolved.VariantOf.Id, resolved.VariantOfId);
+        Assert.Equal(resolved.ReprintOf.Id, resolved.ReprintOfId);
         Assert.NotEqual(resolved.VariantOfId, resolved.ReprintOfId);
         Assert.Equal(resolved.VariantOf.CardId, resolved.Card.BaseCardId);
         Assert.NotEqual(100, resolved.Card.BaseCardId);
@@ -119,7 +123,7 @@ public sealed class SwuSharedImporterRegressionTests
         await using var database = await Database.CreateAsync();
         await ImportAsync(database, Record(1, "Original", "SOR", "one", uid: "000-text-uid"));
         var result = await ImportAsync(database,
-            Record(2, "Renamed", "SHD", "two", uid: "000-text-uid"),
+            Record(2, "Renamed", "SHD", "two", uid: "uid-2"),
             Record(3, "Renamed", "SHD", "three", uid: "different"));
         Assert.Equal(0, result.Errors);
         Assert.Equal(1, result.CardsCreated);
@@ -128,7 +132,7 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(2, await db.Cards.CountAsync());
         Assert.NotEqual(printings[0].CardId, printings[1].CardId);
         Assert.Equal(printings[1].CardId, printings[2].CardId);
-        Assert.Equal("000-text-uid", printings[1].Card.CardUid);
+        Assert.Equal("uid-2", printings[1].Card.CardUid);
         Assert.Equal("Renamed", printings[1].Card.Name);
         Assert.Equal(new int?[] { 1, 2, 3 }, printings.Select(p => p.StrapiId));
     }
@@ -254,7 +258,7 @@ public sealed class SwuSharedImporterRegressionTests
     public async Task Import_ReplayAndRename_PreservesIdentityAndReferences(bool serialChanges)
     {
         await using var database = await Database.CreateAsync();
-        var original = Record(1, "Original", "SOR", "serial-1");
+        var original = Record(1, "Original", "SOR", "serial-1", uid: "stable-uid");
         await ImportAsync(database, original);
         int cardId;
         int printingId;
@@ -285,9 +289,9 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(0, replay.CardsCreated + replay.PrintingsCreated
             + replay.CardsUpdated + replay.PrintingsUpdated);
 
-        // A stable source ID survives serial corrections; a stable serial survives source-ID changes.
+        // A stable printing UID survives changes to the source ID and serial code.
         var renamed = Record(serialChanges ? 1 : 101, "Renamed", "SHD",
-            serialChanges ? "corrected-serial" : "serial-1", subtitle: "Corrected subtitle");
+            serialChanges ? "corrected-serial" : "serial-1", subtitle: "Corrected subtitle", uid: "stable-uid");
         var result = await ImportAsync(database, renamed);
         Assert.Equal(0, result.Errors);
         Assert.Equal(0, result.CardsCreated + result.PrintingsCreated);
@@ -298,6 +302,7 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal("Renamed — Corrected subtitle", card.Name);
         Assert.Equal(printingId, updated.Id);
         Assert.Equal(cardId, updated.CardId);
+        Assert.Equal(serialChanges ? "1" : "101", updated.Number);
         var owned = await verify.UserCards.SingleAsync();
         Assert.Equal(printingId, owned.CardPrintingId);
         Assert.Equal(3, owned.QuantityOwned);
@@ -307,7 +312,7 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
-    public async Task Import_CorrectedSerialDoesNotRemainAnIdentityAlias()
+    public async Task Import_SerialCodeDoesNotPopulatePrintingNumber()
     {
         await using var database = await Database.CreateAsync();
         await ImportAsync(database, Record(1, "Original", "SOR", "old-serial"));
@@ -319,8 +324,8 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         Assert.Equal(2, await db.Cards.CountAsync());
         Assert.Equal(2, await db.CardPrintings.CountAsync());
-        Assert.Equal(1, await db.CardPrintings.CountAsync(printing => printing.Number == "new-serial"));
-        Assert.Equal(1, await db.CardPrintings.CountAsync(printing => printing.Number == "old-serial"));
+        Assert.Equal(new[] { "1", "2" }, await db.CardPrintings.OrderBy(printing => printing.Id)
+            .Select(printing => printing.Number).ToArrayAsync());
     }
 
     [Fact]
@@ -328,7 +333,7 @@ public sealed class SwuSharedImporterRegressionTests
     {
         await using var database = await Database.CreateAsync();
         var first = Record(1, "Han Solo", "SOR", "standard");
-        var variant = Record(2, "Han Solo", "SHD", "showcase", variantId: 1, uid: "uid-1");
+        var variant = Record(2, "Han Solo", "SHD", "showcase", variantId: 1, uid: "uid-2");
         var summary = await ImportAsync(database, first, first, variant, variant);
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
@@ -372,11 +377,11 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Equal(baseCard.Id, variantCard.BaseCardId);
         Assert.Null(baseCard.BaseCardId);
         using var metadata = JsonDocument.Parse(
-            (await db.CardPrintings.SingleAsync(p => p.Number == "variant")).DetailsJson!);
-        Assert.Equal(useUid ? 999 : 1, metadata.RootElement.GetProperty("variantOfSourceId").GetInt32());
+            (await db.CardPrintings.SingleAsync(p => p.StrapiId == 2)).DetailsJson!);
         Assert.Equal("uid-1", metadata.RootElement.GetProperty("variantOfCardUid").GetString());
-        Assert.Equal(3, metadata.RootElement.GetProperty("reprintOfSourceId").GetInt32());
         Assert.Equal("uid-3", metadata.RootElement.GetProperty("reprintOfCardUid").GetString());
+        Assert.False(metadata.RootElement.TryGetProperty("variantOfSourceId", out _));
+        Assert.False(metadata.RootElement.TryGetProperty("reprintOfSourceId", out _));
     }
 
     [Fact]
@@ -415,7 +420,7 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database,
             Record(2, "Leia", "SHD", "variant", subtitle: "Showcase", variantId: 1));
         await ImportAsync(database,
-            Record(3, "Leia", "TWI", "another-printing", subtitle: "Showcase", uid: "uid-2"));
+            Record(3, "Leia", "TWI", "another-printing", subtitle: "Showcase", uid: "uid-3"));
         await ImportAsync(database,
             Record(1, "Leia", "SOR", "base", subtitle: "Rebel"));
 
@@ -517,10 +522,10 @@ public sealed class SwuSharedImporterRegressionTests
         await ImportAsync(database,
             Record(1, "Base", "SOR", "one"),
             Record(2, "Variant", "SHD", "two", variantId: 1),
-            Record(3, "Variant", "TWI", "three", variantId: 1, uid: "uid-2"));
+            Record(3, "Variant", "TWI", "three", variantId: 1, uid: "uid-3"));
         await ImportAsync(database, Record(2, "Variant", "SHD", "two"));
         await AssertBaseAsync(database, "Variant", "Base");
-        await ImportAsync(database, Record(3, "Variant", "TWI", "three", uid: "uid-2"));
+        await ImportAsync(database, Record(3, "Variant", "TWI", "three", uid: "uid-3"));
         await AssertBaseAsync(database, "Variant", null);
     }
 
@@ -554,8 +559,8 @@ public sealed class SwuSharedImporterRegressionTests
         await using var db = database.Open();
         Assert.Equal(2, await db.Cards.CountAsync());
         Assert.Equal("Valid", (await db.CardPrintings.Include(p => p.Card)
-            .SingleAsync(p => p.Number == "one")).Card.Name);
-        Assert.False(await db.CardPrintings.AnyAsync(p => p.Number == "changed"));
+            .SingleAsync(p => p.StrapiId == 1)).Card.Name);
+        Assert.False(await db.CardPrintings.AnyAsync(p => p.StrapiId == 1 && p.Set == "SHD"));
     }
 
     [Theory]
@@ -566,16 +571,14 @@ public sealed class SwuSharedImporterRegressionTests
         await using var database = await Database.CreateAsync();
         await ImportAsync(database,
             Record(1, "Shared", "SOR", "one"),
-            Record(2, "Shared", "SOR", "two", uid: "uid-1"));
-        var failed = newCard
-            ? Record(3, "New", "SOR", "three")
-            : Record(1, "Changed", "SOR", "two");
+            Record(2, "Shared", "SOR", "two"));
+        var failed = Record(3, newCard ? "New" : "Shared", "SOR", "three");
         // SQLite's trigger simulates a persistence failure after the entities have been changed.
         await using (var setup = database.Open())
         {
             await setup.Database.ExecuteSqlRawAsync("""
                 CREATE TRIGGER RejectPrintingInsert BEFORE INSERT ON CardPrintings
-                WHEN NEW.Number = 'three' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
+                WHEN NEW.Number = '3' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
                 """);
         }
         var result = await ImportAsync(database, failed, Record(4, "Next", "SHD", "four"));
@@ -590,8 +593,8 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.True(await db.Cards.AnyAsync(c => c.Name == "Shared"));
         Assert.False(await db.Cards.AnyAsync(c => c.Name == "Changed" || c.Name == "New"));
         Assert.Equal(3, await db.CardPrintings.CountAsync());
-        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Number == "one"));
-        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.Number == "two"));
+        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.CardUid == "uid-1"));
+        Assert.Equal(1, await db.CardPrintings.CountAsync(p => p.CardUid == "uid-2"));
     }
 
     [Fact]
@@ -602,7 +605,7 @@ public sealed class SwuSharedImporterRegressionTests
         {
             await setup.Database.ExecuteSqlRawAsync("""
                 CREATE TRIGGER RejectPrintingInsert BEFORE INSERT ON CardPrintings
-                WHEN NEW.Number = 'failed' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
+                WHEN NEW.Number = '71' BEGIN SELECT RAISE(ABORT, 'Rejected printing'); END;
                 """);
         }
 
@@ -745,7 +748,7 @@ public sealed class SwuSharedImporterRegressionTests
                     data = new
                     {
                         id = variantId.Value,
-                        attributes = new { title = "Luke Skywalker — Wrong", cardUid = variantUid }
+                        attributes = new { title = "Luke Skywalker — Wrong", cardUid = variantUid ?? $"uid-{variantId}" }
                     }
                 },
                 reprintOf = reprintId is null ? null : new

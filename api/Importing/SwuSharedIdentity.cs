@@ -9,9 +9,8 @@ internal sealed class SwuSharedIdentity
     private readonly List<CardPrinting> _printings = [];
     private readonly HashSet<CardPrinting> _printingSet = [];
     private readonly Dictionary<CardPrinting, PrintingKeys> _keysByPrinting = [];
-    private readonly Dictionary<int, CardPrinting> _bySource = [];
-    private readonly Dictionary<string, CardPrinting> _bySerial = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string Set, string Number), CardPrinting> _bySetNumber = [];
+    private readonly Dictionary<string, CardPrinting> _byUid = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Set, string Number, string Style), CardPrinting> _bySetNumberAndStyle = [];
 
     internal SwuSharedIdentity(IEnumerable<CardPrinting> printings)
     {
@@ -19,11 +18,13 @@ internal sealed class SwuSharedIdentity
             Track(printing);
     }
 
-    internal CardPrinting? FindPrinting(int sourceId, string? serialCode, string set, string number)
+    internal CardPrinting? FindPrinting(string? cardUid, string set, string number, string style)
     {
-        if (_bySource.TryGetValue(sourceId, out var printing)) return printing;
-        if (serialCode is not null && _bySerial.TryGetValue(serialCode, out printing)) return printing;
-        return _bySetNumber.GetValueOrDefault((set, serialCode ?? number));
+        if (!string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid, out var printing))
+            return printing;
+        var fallback = _bySetNumberAndStyle.GetValueOrDefault((set, number, style));
+        if (string.IsNullOrWhiteSpace(cardUid)) return fallback;
+        return fallback is not null && SourceUid(fallback) is null ? fallback : null;
     }
 
     internal void Track(CardPrinting printing)
@@ -32,42 +33,31 @@ internal sealed class SwuSharedIdentity
 
         if (_keysByPrinting.TryGetValue(printing, out var oldKeys))
         {
-            if (oldKeys.SourceId is { } oldSourceId)
-                RemoveIfOwned(_bySource, oldSourceId, printing);
-            if (oldKeys.SerialCode is not null)
-                RemoveIfOwned(_bySerial, oldKeys.SerialCode, printing);
-            RemoveIfOwned(_bySerial, oldKeys.Number, printing);
-            RemoveIfOwned(_bySetNumber, oldKeys.SetNumber, printing);
+            if (oldKeys.CardUid is not null)
+                RemoveIfOwned(_byUid, oldKeys.CardUid, printing);
+            RemoveIfOwned(_bySetNumberAndStyle, oldKeys.SetNumberAndStyle, printing);
         }
 
-        var sourceIdValue = printing.StrapiId ?? ReadInt(printing.DetailsJson, "sourceId");
-        var sourceId = sourceIdValue is > 0 ? sourceIdValue : null;
-        var serialCode = ReadString(printing.DetailsJson, "serialCode");
-        var keys = new PrintingKeys(sourceId, serialCode, printing.Number, (printing.Set, printing.Number));
+        var cardUid = SourceUid(printing);
+        var keys = new PrintingKeys(cardUid, (printing.Set, printing.Number, printing.Style));
         _keysByPrinting[printing] = keys;
-        if (sourceId is { } idValue) _bySource[idValue] = printing;
-        if (serialCode is not null) _bySerial[serialCode] = printing;
-        _bySerial.TryAdd(printing.Number, printing);
-        _bySetNumber[(printing.Set, printing.Number)] = printing;
+        if (cardUid is not null) _byUid[cardUid] = printing;
+        _bySetNumberAndStyle[(printing.Set, printing.Number, printing.Style)] = printing;
     }
 
     internal IReadOnlyList<Card> ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
     {
         var changed = new List<Card>();
         var updatedPrintings = new List<CardPrinting>();
-        var bySource = _printings
-            .Where(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId")) is > 0)
-            .GroupBy(p => (p.StrapiId ?? ReadInt(p.DetailsJson, "sourceId"))!.Value)
-            .ToDictionary(g => g.Key, g => g.First().Card);
-        var byUid = _printings
+        var cardsByUid = _printings
             .Where(p => !string.IsNullOrWhiteSpace(SourceUid(p)))
             .GroupBy(p => SourceUid(p)!)
             .ToDictionary(g => g.Key, g => g.First().Card);
 
         foreach (var printing in _printings)
         {
-            var variantOf = FindTarget(printing, "variantOfSourceId");
-            var reprintOf = FindTarget(printing, "reprintOfSourceId");
+            var variantOf = FindTarget(printing, "variantOfCardUid");
+            var reprintOf = FindTarget(printing, "reprintOfCardUid");
             if (printing.VariantOfId != variantOf?.Id || printing.ReprintOfId != reprintOf?.Id)
                 updatedPrintings.Add(printing);
             printing.VariantOf = variantOf;
@@ -78,7 +68,7 @@ internal sealed class SwuSharedIdentity
         foreach (var group in _printings.GroupBy(p => p.Card))
         {
             var card = group.Key;
-            var baseCard = group.Select(p => ResolveBase(p, bySource, byUid))
+            var baseCard = group.Select(p => ResolveBase(p, cardsByUid))
                 .FirstOrDefault(target => target is not null && !ReferenceEquals(target, card));
             if (card.BaseCardId == baseCard?.Id) continue;
             // A printing without a relationship must not erase another printing's valid link.
@@ -95,7 +85,7 @@ internal sealed class SwuSharedIdentity
         => printing.StrapiId ?? ReadInt(printing.DetailsJson, "sourceId");
 
     internal static string? SourceUid(CardPrinting printing)
-        => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid") ?? printing.Card.CardUid;
+        => printing.CardUid ?? ReadString(printing.DetailsJson, "cardUid");
 
     internal static bool IsVariantOrReprint(CardPrinting printing)
     {
@@ -110,28 +100,21 @@ internal sealed class SwuSharedIdentity
 
     private CardPrinting? FindTarget(CardPrinting printing, string field)
     {
-        var id = ReadInt(printing.DetailsJson, field);
-        return id is > 0 && _bySource.TryGetValue(id.Value, out var target)
+        var cardUid = ReadString(printing.DetailsJson, field);
+        return !string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid, out var target)
             && target != printing ? target : null;
     }
 
     private static Card? ResolveBase(CardPrinting printing,
-        IReadOnlyDictionary<int, Card> bySource, IReadOnlyDictionary<string, Card> byUid)
+        IReadOnlyDictionary<string, Card> byUid)
     {
-        var json = HasProperty(printing.DetailsJson, "variantOfSourceId")
-            ? printing.DetailsJson : printing.Card.DetailsJson;
+        var json = printing.DetailsJson;
         Card? baseCard = null;
-        var sourceId = ReadInt(json, "variantOfSourceId");
         var uid = ReadString(json, "variantOfCardUid");
-        if (sourceId is not > 0 && string.IsNullOrWhiteSpace(uid))
-        {
-            sourceId = ReadInt(json, "reprintOfSourceId");
+        if (string.IsNullOrWhiteSpace(uid))
             uid = ReadString(json, "reprintOfCardUid");
-        }
 
-        if (sourceId is > 0)
-            bySource.TryGetValue(sourceId.Value, out baseCard);
-        if (baseCard is null && !string.IsNullOrWhiteSpace(uid))
+        if (!string.IsNullOrWhiteSpace(uid))
             byUid.TryGetValue(uid, out baseCard);
         return baseCard;
     }
@@ -144,24 +127,15 @@ internal sealed class SwuSharedIdentity
     }
 
     private sealed record PrintingKeys(
-        int? SourceId,
-        string? SerialCode,
-        string Number,
-        (string Set, string Number) SetNumber);
-
-    private static bool HasProperty(string? json, string name)
-        => Read(json, name) is not null;
+        string? CardUid,
+        (string Set, string Number, string Style) SetNumberAndStyle);
 
     private static bool HasRelationshipFields(string? json)
-        => HasProperty(json, "variantOfSourceId")
-           || HasProperty(json, "variantOfCardUid")
-           || HasProperty(json, "reprintOfSourceId")
-           || HasProperty(json, "reprintOfCardUid");
+        => Read(json, "variantOfCardUid") is not null
+           || Read(json, "reprintOfCardUid") is not null;
 
     private static bool HasRelationship(string? json)
-        => ReadInt(json, "variantOfSourceId") is > 0
-           || !string.IsNullOrWhiteSpace(ReadString(json, "variantOfCardUid"))
-           || ReadInt(json, "reprintOfSourceId") is > 0
+        => !string.IsNullOrWhiteSpace(ReadString(json, "variantOfCardUid"))
            || !string.IsNullOrWhiteSpace(ReadString(json, "reprintOfCardUid"));
 
     private static int? ReadInt(string? json, string name)
