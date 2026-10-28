@@ -43,7 +43,7 @@ public sealed class UpsertPrintingValidator : AbstractValidator<UpsertPrintingRe
         // Validate optional Rarity field length matches CardPrinting.Rarity column (max 32 chars)
         RuleFor(x => x.Rarity).MaximumLength(32).When(x => x.Rarity is not null);
 
-        // Validate optional Style field length matches CardPrinting.Style column (max 64 chars)
-        RuleFor(x => x.Style).MaximumLength(64).When(x => x.Style is not null);
+        // Validate optional Style field length matches Treatment.Name (max 128 chars)
+        RuleFor(x => x.Style).MaximumLength(128).When(x => x.Style is not null);
     }
 }

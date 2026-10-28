@@ -129,7 +129,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         var createdPrinting = await db.CardPrintings.SingleAsync(p => p.Set == "UTS" && p.Number == "007");
         Assert.Equal(createdCard.Id, createdPrinting.CardId);
         Assert.Equal("rare", createdPrinting.Rarity);
-        Assert.Equal("Foil", createdPrinting.Style);
+        Assert.Equal("Foil", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
         Assert.Equal("https://img.example.com/unit-test.png", createdPrinting.ImageUrl);
 
         Assert.Equal(1, summary.CardsCreated);
@@ -166,7 +166,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         Assert.Equal("Front\nDraw a card", createdCard.Text);
 
         Assert.Equal("mythic", createdPrinting.Rarity);
-        Assert.Equal("Standard", createdPrinting.Style);
+        Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
         Assert.Equal("https://img.example.com/unit-face.png", createdPrinting.ImageUrl);
     }
 

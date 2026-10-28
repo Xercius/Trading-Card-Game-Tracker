@@ -33,6 +33,8 @@ public sealed class CardsMappingProfile : Profile
                 s.CatalogSet == null ? s.Set : s.CatalogSet.Name ?? s.CatalogSet.Code))
             .ForCtorParam(nameof(CardPrintingResponse.Rarity), o => o.MapFrom(s =>
                 s.RarityLookup == null ? s.Rarity : s.RarityLookup.Name))
+            .ForCtorParam(nameof(CardPrintingResponse.Style), o => o.MapFrom(s =>
+                s.Treatment == null ? "Standard" : s.Treatment.Name))
             .ForCtorParam(nameof(CardPrintingResponse.SetCode), o => o.MapFrom(s => s.CatalogSet == null ? null : s.CatalogSet.Code))
             .ForCtorParam(nameof(CardPrintingResponse.ReleaseDate), o => o.MapFrom(s =>
                 s.CatalogSet == null ? s.ReleasedAt : s.CatalogSet.ReleasedAt))
@@ -48,6 +50,8 @@ public sealed class CardsMappingProfile : Profile
             .ForMember(d => d.SetCode, o => o.MapFrom(s => s.CatalogSet == null ? null : s.CatalogSet.Code))
             .ForMember(d => d.Rarity, o => o.MapFrom(s =>
                 s.RarityLookup == null ? s.Rarity : s.RarityLookup.Name))
+            .ForMember(d => d.Style, o => o.MapFrom(s =>
+                s.Treatment == null ? "Standard" : s.Treatment.Name))
             .ForMember(d => d.ReleaseDate, o => o.MapFrom(s =>
                 s.CatalogSet == null ? s.ReleasedAt : s.CatalogSet.ReleasedAt));
 

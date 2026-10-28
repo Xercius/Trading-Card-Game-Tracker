@@ -23,7 +23,7 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Set">Name of the card set/expansion this printing belongs to (e.g., "The First Chapter", "Ursula's Return").</param>
 /// <param name="Number">Collector or card number within the set (e.g., "001", "147/204", "TFC-001").</param>
 /// <param name="Rarity">Rarity classification for this printing (e.g., "Common", "Rare", "Super Rare", "Legendary").</param>
-/// <param name="Style">Print style or finish of this card (e.g., "Standard", "Foil", "Hyperspace", "Showcase").</param>
+/// <param name="Style">Treatment name for this printing (e.g., "Standard", "Foil", "Hyperspace", "Showcase").</param>
 /// <param name="ImageUrl">Optional URL to the card's image for this specific printing. Null if no image is available.</param>
 /// <param name="SetCode">Normalized set code when available.</param>
 /// <param name="ReleaseDate">Release date of the normalized set.</param>

@@ -1,5 +1,6 @@
 using api.Data;
 using api.Features.Cards.Dtos;
+using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,7 +57,7 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
             Set = expansionCode,
             Number = serialCode,
             Rarity = rarity,
-            Style = "Standard",
+            Treatment = TreatmentLookup.Upsert(db, SwuGame, "Standard"),
             ImageUrl = null
         });
 

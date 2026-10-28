@@ -1,4 +1,5 @@
 using api.Data;
+using api.Importing;
 using api.Models;
 
 namespace api.Tests.Infrastructure;
@@ -78,7 +79,7 @@ public static class Seed
                 Set = "Alpha",
                 Number = "A1",
                 Rarity = "Common",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/lightning-alpha.png"
             },
             new CardPrinting
@@ -88,7 +89,7 @@ public static class Seed
                 Set = "Beta",
                 Number = "B2",
                 Rarity = "Uncommon",
-                Style = "Foil",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Foil"),
                 ImageUrl = "https://example.com/lightning-beta.png"
             },
             new CardPrinting
@@ -98,7 +99,7 @@ public static class Seed
                 Set = "Zendikar",
                 Number = "Z3",
                 Rarity = "Rare",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/goblin.png"
             },
             new CardPrinting
@@ -108,7 +109,7 @@ public static class Seed
                 Set = "Mythic Flames",
                 Number = "M4",
                 Rarity = "Mythic",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/phoenix.png"
             },
             new CardPrinting
@@ -118,7 +119,7 @@ public static class Seed
                 Set = "Legends",
                 Number = "L5",
                 Rarity = "Rare",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://example.com/dragon.png"
             });
 

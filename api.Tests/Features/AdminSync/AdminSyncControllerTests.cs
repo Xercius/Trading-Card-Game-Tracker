@@ -301,7 +301,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
                 Set = "SOR",
                 Number = "1",
                 Rarity = "Common",
-                Style = "Standard",
+                Treatment = new Treatment { GameId = 1, Name = "Standard" },
                 ImageUrl = "https://example.test/tarkin-original.png",
                 CardUid = "3001",
                 DetailsJson = "{\"version\":1}"

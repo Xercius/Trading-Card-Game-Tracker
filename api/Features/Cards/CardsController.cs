@@ -352,7 +352,8 @@ public class CardsController : ControllerBase
             return this.CreateValidationProblem(nameof(dto.CardId), "CardId must be provided.");
         }
 
-        if (await _db.Cards.FindAsync(dto.CardId) is null)
+        var card = await _db.Cards.FindAsync(dto.CardId);
+        if (card is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {dto.CardId} was not found.");
         }
@@ -360,16 +361,12 @@ public class CardsController : ControllerBase
         string? set = dto.Set?.Trim();
         string? number = dto.Number?.Trim();
         string? treatmentName = dto.Style?.Trim();
-        var card = await _db.Cards.FindAsync(dto.CardId);
-        var treatment = dto.Id.HasValue && dto.Style is null
-            ? null
-            : await GetOrCreateTreatmentAsync(card!.Game, treatmentName);
 
         CardPrinting? cp = null;
 
         if (dto.Id.HasValue)
         {
-            cp = await _db.CardPrintings.Include(x => x.Treatment)
+            cp = await _db.CardPrintings.Include(x => x.Treatment).Include(x => x.Card)
                 .FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
             if (cp is null)
             {
@@ -390,6 +387,14 @@ public class CardsController : ControllerBase
                 return this.CreateValidationProblem(errors);
             }
 
+        }
+
+        var treatment = dto.Id.HasValue && dto.Style is null
+            ? null
+            : await GetOrCreateTreatmentAsync(cp?.Card.Game ?? card.Game, treatmentName);
+
+        if (!dto.Id.HasValue)
+        {
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x =>
                 x.CardId == dto.CardId &&
                 x.Set == set &&
@@ -649,8 +654,8 @@ public class CardsController : ControllerBase
 
     private async Task<Treatment> GetOrCreateTreatmentAsync(string gameName, string? name)
     {
-        var normalizedName = SqliteCaseNormalizer.Normalize(
-            string.IsNullOrWhiteSpace(name) ? "Standard" : name.Trim());
+        var treatmentName = string.IsNullOrWhiteSpace(name) ? "Standard" : name.Trim();
+        var normalizedName = SqliteCaseNormalizer.Normalize(treatmentName);
         var normalizedGame = SqliteCaseNormalizer.Normalize(gameName);
         var game = _db.Games.Local.FirstOrDefault(candidate =>
                 SqliteCaseNormalizer.Normalize(candidate.Name) == normalizedGame)
@@ -670,7 +675,7 @@ public class CardsController : ControllerBase
         if (treatment is not null)
             return treatment;
 
-        treatment = new Treatment { Game = game, Name = normalizedName };
+        treatment = new Treatment { Game = game, Name = treatmentName };
         _db.Treatments.Add(treatment);
         return treatment;
     }

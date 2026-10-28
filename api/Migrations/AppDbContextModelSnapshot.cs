@@ -337,9 +337,6 @@ namespace api.Migrations
                     b.Property<string>("DetailsJson")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool?>("Hyperspace")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("ImageUrl")
                         .HasColumnType("TEXT");
 
@@ -386,21 +383,11 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("LOWER(TRIM([Set]))", true);
 
-                    b.Property<bool?>("Showcase")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int?>("StrapiId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Style")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StyleNorm")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("TEXT")
-                        .HasComputedColumnSql("LOWER(TRIM([Style]))", true);
+                    b.Property<int?>("TreatmentId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("VariantOfId")
                         .HasColumnType("INTEGER");
@@ -423,13 +410,13 @@ namespace api.Migrations
                         .IsUnique()
                         .HasFilter("\"StrapiId\" IS NOT NULL");
 
-                    b.HasIndex("StyleNorm");
+                    b.HasIndex("TreatmentId");
 
                     b.HasIndex("VariantOfId");
 
                     b.HasIndex("Set", "Number");
 
-                    b.HasIndex("CardId", "Set", "Number", "Style")
+                    b.HasIndex("CardId", "Set", "Number", "TreatmentId")
                         .IsUnique();
 
                     b.ToTable("CardPrintings");
@@ -757,6 +744,38 @@ namespace api.Migrations
                     b.ToTable("Traits", (string)null);
                 });
 
+            modelBuilder.Entity("api.Models.Treatment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IconUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameNormalized")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("TEXT")
+                        .HasComputedColumnSql("LOWER(TRIM([Name]))", true);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "NameNormalized")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Treatments_GameId_NameNormalized");
+
+                    b.ToTable("Treatments", (string)null);
+                });
+
             modelBuilder.Entity("api.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -986,6 +1005,11 @@ namespace api.Migrations
                         .HasForeignKey("SetId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("api.Models.Treatment", "Treatment")
+                        .WithMany("CardPrintings")
+                        .HasForeignKey("TreatmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("api.Models.CardPrinting", "VariantOf")
                         .WithMany()
                         .HasForeignKey("VariantOfId")
@@ -998,6 +1022,8 @@ namespace api.Migrations
                     b.Navigation("RarityLookup");
 
                     b.Navigation("ReprintOf");
+
+                    b.Navigation("Treatment");
 
                     b.Navigation("VariantOf");
                 });
@@ -1116,6 +1142,17 @@ namespace api.Migrations
                     b.Navigation("Game");
                 });
 
+            modelBuilder.Entity("api.Models.Treatment", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("Treatments")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("api.Models.UserCard", b =>
                 {
                     b.HasOne("api.Models.CardPrinting", "CardPrinting")
@@ -1192,6 +1229,8 @@ namespace api.Migrations
                     b.Navigation("Sets");
 
                     b.Navigation("Traits");
+
+                    b.Navigation("Treatments");
                 });
 
             modelBuilder.Entity("api.Models.Keyword", b =>
@@ -1207,6 +1246,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Trait", b =>
                 {
                     b.Navigation("Cards");
+                });
+
+            modelBuilder.Entity("api.Models.Treatment", b =>
+                {
+                    b.Navigation("CardPrintings");
                 });
 
             modelBuilder.Entity("api.Models.User", b =>

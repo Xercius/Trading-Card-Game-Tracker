@@ -1,4 +1,5 @@
 using api.Data;
+using api.Importing;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -83,7 +84,7 @@ public static class TestDataSeeder
                 Set = "Alpha",
                 Number = "A1",
                 Rarity = "Common",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://img.example.com/bolt-alpha.png"
             },
             new CardPrinting
@@ -93,7 +94,7 @@ public static class TestDataSeeder
                 Set = "Beta",
                 Number = "B2",
                 Rarity = "Uncommon",
-                Style = "Foil",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Foil"),
                 ImageUrl = "https://img.example.com/bolt-beta.png"
             },
             new CardPrinting
@@ -103,7 +104,7 @@ public static class TestDataSeeder
                 Set = "Zendikar",
                 Number = "Z3",
                 Rarity = "Rare",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Standard"),
                 ImageUrl = "https://img.example.com/goblin-guide.png"
             },
             new CardPrinting
@@ -113,7 +114,7 @@ public static class TestDataSeeder
                 Set = "Rise of the Floodborn",
                 Number = "R1",
                 Rarity = "Legendary",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Lorcana", "Standard"),
                 ImageUrl = "https://img.example.com/elsa.png"
             },
             new CardPrinting
@@ -123,7 +124,7 @@ public static class TestDataSeeder
                 Set = "Spark of Imagination",
                 Number = "S1",
                 Rarity = "Rare",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(db, "Lorcana", "Standard"),
                 ImageUrl = "https://img.example.com/mickey.png"
             },
             new CardPrinting
@@ -133,7 +134,7 @@ public static class TestDataSeeder
                 Set = "Collectors",
                 Number = "C4",
                 Rarity = "Mythic",
-                Style = "Borderless",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Borderless"),
                 ImageUrl = "https://img.example.com/bolt-collectors.png"
             }
         );

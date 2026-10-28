@@ -192,6 +192,7 @@ export type CardsFacetResponse = {
   arenas?: FacetOption[];
   aspects?: FacetOption[];
   traits?: FacetOption[];
+  treatments?: FacetOption[];
 };
 
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {

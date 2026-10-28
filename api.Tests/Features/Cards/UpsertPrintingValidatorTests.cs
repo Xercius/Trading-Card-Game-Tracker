@@ -30,9 +30,9 @@ public sealed class UpsertPrintingValidatorTests
     }
 
     [Fact]
-    public void Validate_Allows_Style_Length_Up_To_64()
+    public void Validate_Allows_Style_Length_Up_To_128()
     {
-        var request = CreateRequest(style: new string('a', 64));
+        var request = CreateRequest(style: new string('a', 128));
 
         var result = Validator.Validate(request);
 
@@ -40,9 +40,9 @@ public sealed class UpsertPrintingValidatorTests
     }
 
     [Fact]
-    public void Validate_Fails_When_Style_Exceeds_64()
+    public void Validate_Fails_When_Style_Exceeds_128()
     {
-        var request = CreateRequest(style: new string('a', 65));
+        var request = CreateRequest(style: new string('a', 129));
 
         var result = Validator.Validate(request);
 
