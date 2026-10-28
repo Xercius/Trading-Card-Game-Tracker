@@ -119,7 +119,7 @@ namespace api.Controllers
                     x.CardPrinting.Set,
                     x.CardPrinting.Number,
                     x.CardPrinting.Rarity,
-                    x.CardPrinting.Style,
+                    Style = x.CardPrinting.Treatment == null ? "Standard" : x.CardPrinting.Treatment.Name,
                     x.CardPrintingId,
                     x.QuantityOwned,
                     x.QuantityProxyOwned
@@ -154,7 +154,7 @@ namespace api.Controllers
                     x.CardPrinting.Set,
                     x.CardPrinting.Number,
                     x.CardPrinting.Rarity,
-                    x.CardPrinting.Style,
+                    Style = x.CardPrinting.Treatment == null ? "Standard" : x.CardPrinting.Treatment.Name,
                     x.CardPrintingId,
                     Quantity = x.QuantityWanted
                 })
@@ -195,7 +195,7 @@ namespace api.Controllers
                     Set = dc.CardPrinting!.Set ?? "",
                     Number = dc.CardPrinting!.Number ?? "",
                     Rarity = dc.CardPrinting!.Rarity ?? "",
-                    Style = dc.CardPrinting!.Style ?? "",
+                    Style = dc.CardPrinting!.Treatment == null ? "Standard" : dc.CardPrinting.Treatment.Name,
                     dc.CardPrintingId,
                     dc.QuantityInDeck,
                     dc.QuantityIdea,

@@ -449,7 +449,7 @@ public sealed class DiceMastersDbImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
+                Treatment = TreatmentLookup.Upsert(_db, card.Game, style),
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
             };

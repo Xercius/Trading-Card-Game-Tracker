@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
@@ -51,6 +50,7 @@ public sealed class PrintingsController : ControllerBase
         var query = _db.Set<CardPrinting>()
             .AsNoTracking()
             .Include(p => p.Card) // need Name + Game
+            .Include(p => p.Treatment)
             .AsQueryable();
 
         // Filter by game(s) - supports comma-separated list via CsvUtils
@@ -160,7 +160,8 @@ public sealed class PrintingsController : ControllerBase
         {
             // Case-insensitive match using normalized column for index efficiency
             var normalizedStyles = styles.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(StyleFilter(normalizedStyles));
+            query = query.Where(printing => printing.Treatment != null
+                && normalizedStyles.Contains(printing.Treatment.NameNormalized));
         }
 
         // Free-text search across card name, type, printing number, and set name
@@ -265,7 +266,7 @@ public sealed class PrintingsController : ControllerBase
             printing.Card.Name,
             printing.Card.Game)
         {
-            Style = printing.Style,
+            Style = printing.Treatment?.Name ?? "Standard",
             ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = printing.ArtFrontHorizontal == true ? "horizontal" :
@@ -278,31 +279,4 @@ public sealed class PrintingsController : ControllerBase
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
         };
 
-    private static Expression<Func<CardPrinting, bool>> StyleFilter(IReadOnlyList<string> styles)
-    {
-        var printing = Expression.Parameter(typeof(CardPrinting), "printing");
-        var styleNorm = Expression.Call(typeof(EF), nameof(EF.Property), [typeof(string)],
-            printing, Expression.Constant("StyleNorm"));
-        var functions = Expression.Property(null, typeof(EF), nameof(EF.Functions));
-        var like = typeof(DbFunctionsExtensions).GetMethod(nameof(DbFunctionsExtensions.Like),
-            [typeof(DbFunctions), typeof(string), typeof(string), typeof(string)])!;
-        Expression match = Expression.Constant(false);
-
-        foreach (var style in styles)
-        {
-            var escaped = EscapeLikePattern(style);
-            foreach (var pattern in new[] { escaped, $"{escaped}, %", $"%, {escaped}, %", $"%, {escaped}" })
-            {
-                match = Expression.OrElse(match, Expression.Call(like, functions, styleNorm,
-                    Expression.Constant(pattern), Expression.Constant("\\")));
-            }
-        }
-
-        return Expression.Lambda<Func<CardPrinting, bool>>(match, printing);
-    }
-
-    private static string EscapeLikePattern(string value) => value
-        .Replace("\\", "\\\\", StringComparison.Ordinal)
-        .Replace("%", "\\%", StringComparison.Ordinal)
-        .Replace("_", "\\_", StringComparison.Ordinal);
 }

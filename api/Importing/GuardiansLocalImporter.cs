@@ -201,7 +201,7 @@ public sealed class GuardiansLocalImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
+                Treatment = TreatmentLookup.Upsert(_db, card.Game, style),
                 ImageUrl = imageUrl,
                 DetailsJson = detailsPrinting
             };

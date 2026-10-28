@@ -10,14 +10,13 @@ namespace api.Models
         public required string Rarity { get; set; } // Rarity of the card
         public int? RarityId { get; set; }
         public Rarity? RarityLookup { get; set; }
-        public required string Style { get; set; } // Standard, Foil, Hyperspace, Showcase etc..
+        public int? TreatmentId { get; set; }
+        public Treatment? Treatment { get; set; }
         public string? ImageUrl { get; set; } // url to card image
         public string? BackImageUrl { get; set; }
         public bool? ArtFrontHorizontal { get; set; }
         public bool? ArtBackHorizontal { get; set; }
         public bool IsFoil { get; set; }
-        public bool? Hyperspace { get; set; }
-        public bool? Showcase { get; set; }
         public int? VariantOfId { get; set; }
         public CardPrinting? VariantOf { get; set; }
         public int? ReprintOfId { get; set; }

@@ -10,7 +10,7 @@ internal sealed class SwuSharedIdentity
     private readonly HashSet<CardPrinting> _printingSet = [];
     private readonly Dictionary<CardPrinting, PrintingKeys> _keysByPrinting = [];
     private readonly Dictionary<string, CardPrinting> _byUid = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string Set, string Number, string Style), CardPrinting> _bySetNumberAndStyle = [];
+    private readonly Dictionary<(string Set, string Number, string Treatment), CardPrinting> _bySetNumberAndTreatment = [];
 
     internal SwuSharedIdentity(IEnumerable<CardPrinting> printings)
     {
@@ -18,11 +18,11 @@ internal sealed class SwuSharedIdentity
             Track(printing);
     }
 
-    internal CardPrinting? FindPrinting(string? cardUid, string set, string number, string style)
+    internal CardPrinting? FindPrinting(string? cardUid, string set, string number, string treatment)
     {
         if (!string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid, out var printing))
             return printing;
-        var fallback = _bySetNumberAndStyle.GetValueOrDefault((set, number, style));
+        var fallback = _bySetNumberAndTreatment.GetValueOrDefault((set, number, treatment));
         if (string.IsNullOrWhiteSpace(cardUid)) return fallback;
         return fallback is not null && SourceUid(fallback) is null ? fallback : null;
     }
@@ -35,14 +35,14 @@ internal sealed class SwuSharedIdentity
         {
             if (oldKeys.CardUid is not null)
                 RemoveIfOwned(_byUid, oldKeys.CardUid, printing);
-            RemoveIfOwned(_bySetNumberAndStyle, oldKeys.SetNumberAndStyle, printing);
+            RemoveIfOwned(_bySetNumberAndTreatment, oldKeys.SetNumberAndTreatment, printing);
         }
 
         var cardUid = SourceUid(printing);
-        var keys = new PrintingKeys(cardUid, (printing.Set, printing.Number, printing.Style));
+        var keys = new PrintingKeys(cardUid, (printing.Set, printing.Number, printing.Treatment?.Name ?? "Standard"));
         _keysByPrinting[printing] = keys;
         if (cardUid is not null) _byUid[cardUid] = printing;
-        _bySetNumberAndStyle[(printing.Set, printing.Number, printing.Style)] = printing;
+        _bySetNumberAndTreatment[(printing.Set, printing.Number, printing.Treatment?.Name ?? "Standard")] = printing;
     }
 
     internal IReadOnlyList<Card> ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
@@ -128,7 +128,7 @@ internal sealed class SwuSharedIdentity
 
     private sealed record PrintingKeys(
         string? CardUid,
-        (string Set, string Number, string Style) SetNumberAndStyle);
+        (string Set, string Number, string Treatment) SetNumberAndTreatment);
 
     private static bool HasRelationshipFields(string? json)
         => Read(json, "variantOfCardUid") is not null

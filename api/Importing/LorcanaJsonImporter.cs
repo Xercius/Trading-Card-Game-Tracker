@@ -146,6 +146,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
             style,
             images = new { url = imageUrl }
         }, J);
+        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
 
         if (printing is null)
         {
@@ -155,7 +156,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
+                Treatment = treatment,
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
             };
@@ -167,7 +168,7 @@ public sealed class LorcanaJsonImporter : ISourceImporter
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
-            if (printing.Style != style) { printing.Style = style; changed = true; }
+            if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed) summary.PrintingsUpdated++;

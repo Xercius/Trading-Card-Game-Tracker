@@ -111,6 +111,7 @@ public sealed class SwccgdbImporter : ISourceImporter
             .Where(p => p.Set == set && p.Number == number)
             .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
+        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
 
         if (printing is null)
         {
@@ -120,7 +121,7 @@ public sealed class SwccgdbImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
+                Treatment = treatment,
                 ImageUrl = imageUrl,
                 DetailsJson = JsonSerializer.Serialize(new { src.Printings, src.Side, src.Set }, Json)
             };
@@ -132,7 +133,7 @@ public sealed class SwccgdbImporter : ISourceImporter
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
-            if (printing.Style != style) { printing.Style = style; changed = true; }
+            if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
             if (imageUrl is not null && printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             var pJson = JsonSerializer.Serialize(new { src.Printings, src.Side, src.Set }, Json);
             if (printing.DetailsJson != pJson) { printing.DetailsJson = pJson; changed = true; }

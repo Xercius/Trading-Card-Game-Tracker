@@ -79,7 +79,7 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
 
         var printingIds = await _db.CardPrintings
             .Where(cp => cp.CardId == cardId)
-            .Where(cp => !EF.Functions.Like(cp.Style, "%proxy%"))
+            .Where(cp => !EF.Functions.Like(cp.Treatment == null ? string.Empty : cp.Treatment.Name, "%proxy%"))
             .Select(cp => cp.Id)
             .ToListAsync();
 
@@ -112,7 +112,9 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
 
         var ownedPrintings = await _db.UserCards
             .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
-            .Where(uc => !EF.Functions.Like(uc.CardPrinting.Style, "%proxy%"))
+            .Where(uc => !EF.Functions.Like(uc.CardPrinting.Treatment == null
+                ? string.Empty
+                : uc.CardPrinting.Treatment.Name, "%proxy%"))
             .Select(uc => new { uc.CardPrintingId, uc.QuantityOwned })
             .ToListAsync();
 
@@ -167,7 +169,8 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
 
         var deckPrintings = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId && dc.QuantityInDeck > 0)
-            .Where(dc => dc.CardPrinting != null && !EF.Functions.Like(dc.CardPrinting.Style ?? string.Empty, "%proxy%"))
+            .Where(dc => dc.CardPrinting != null && !EF.Functions.Like(
+                dc.CardPrinting.Treatment == null ? string.Empty : dc.CardPrinting.Treatment.Name, "%proxy%"))
             .Select(dc => new { dc.CardPrintingId, dc.QuantityInDeck })
             .ToListAsync();
 

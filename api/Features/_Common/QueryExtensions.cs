@@ -183,7 +183,8 @@ internal static class QueryExtensions
                 PrintingsCount = c.Printings.Count(),
                 Primary = c.Printings
                     .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
-                    .ThenByDescending(p => p.Style == "Standard")
+                    .ThenByDescending(p => p.Treatment != null
+                        && p.Treatment.NameNormalized == "standard")
                     .ThenBy(p => p.CatalogSet == null
                         ? p.Set
                         : p.CatalogSet.Name ?? p.CatalogSet.Code)
@@ -198,7 +199,7 @@ internal static class QueryExtensions
                         SetCode = p.CatalogSet == null ? null : p.CatalogSet.Code,
                         Number = p.Number,
                         Rarity = p.RarityLookup == null ? p.Rarity : p.RarityLookup.Name,
-                        Style = p.Style,
+                        Style = p.Treatment == null ? "Standard" : p.Treatment.Name,
                         ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl,
                         ReleaseDate = p.CatalogSet == null ? p.ReleasedAt : p.CatalogSet.ReleasedAt
                     })

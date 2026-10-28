@@ -114,6 +114,7 @@ public sealed class SwuDbImporter : ISourceImporter
             await _db.Cards.Where(c => c.Game == "Star Wars Unlimited").LoadAsync(ct);
             var printings = await _db.CardPrintings
                 .Include(p => p.Card)
+                .Include(p => p.Treatment)
                 .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
             var identity = new SwuSharedIdentity(printings);
             var catalog = new SwuCatalog(_db, _timeProvider);
@@ -153,6 +154,7 @@ public sealed class SwuDbImporter : ISourceImporter
                         _db.ChangeTracker.Clear();
                         await _db.Cards.Where(c => c.Game == "Star Wars Unlimited").LoadAsync(ct);
                         printings = await _db.CardPrintings.Include(p => p.Card)
+                            .Include(p => p.Treatment)
                             .Where(p => p.Card.Game == "Star Wars Unlimited").ToListAsync(ct);
                         identity = new SwuSharedIdentity(printings);
                         await catalog.LoadAsync(ct);
@@ -232,21 +234,18 @@ public sealed class SwuDbImporter : ISourceImporter
         string? variantOfCardUid = attrs.VariantOf?.Data?.Attributes?.CardUid;
         string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
 
+        var variantType = attrs.VariantTypes?.Data?
+            .Select(variant => variant.Attributes)
+            .FirstOrDefault(attributes => !string.IsNullOrWhiteSpace(attributes?.Name));
+        string treatmentName = variantType?.Name?.Trim() ?? "Standard";
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
-        var styles = (attrs.VariantTypes?.Data ?? [])
-            .Select(v => v.Attributes?.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
-        if (attrs.Hyperspace == true) styles.Add("Hyperspace");
-        if (attrs.Showcase == true) styles.Add("Showcase");
-        if (styles.Any(n => n != "Standard")) styles.RemoveAll(n => n == "Standard");
-        string style = string.Join(", ", styles.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-        if (string.IsNullOrEmpty(style)) style = isFoil ? "Foil" : "Standard";
 
         string? imageUrl = attrs.ArtFront?.Data?.Attributes?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Card?.Url
                         ?? attrs.ArtFront?.Data?.Attributes?.Formats?.Thumbnail?.Url;
 
-        // CardUid identifies a printing; set/number/style is the fallback identity.
-        var printing = identity.FindPrinting(cardUid, set, number, style);
+        // CardUid identifies a printing; set/number/treatment is the fallback identity.
+        var printing = identity.FindPrinting(cardUid, set, number, treatmentName);
         var card = _db.Cards.Local.FirstOrDefault(c => c.Game == game && c.Name == name)
             ?? printing?.Card;
 
@@ -337,7 +336,6 @@ public sealed class SwuDbImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
                 ImageUrl = imageUrl,
                 DetailsJson = printingJson
             };
@@ -350,7 +348,6 @@ public sealed class SwuDbImporter : ISourceImporter
             if (printing.Set != set) { printing.Set = set; changed = true; }
             if (printing.Number != number) { printing.Number = number; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
-            if (printing.Style != style) { printing.Style = style; changed = true; }
             if (printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed)
@@ -385,8 +382,6 @@ public sealed class SwuDbImporter : ISourceImporter
         printing.ArtBackHorizontal = attrs.ArtBackHorizontal;
         printing.Artist = attrs.Artist;
         printing.IsFoil = isFoil;
-        printing.Hyperspace = attrs.Hyperspace;
-        printing.Showcase = attrs.Showcase;
         printing.ApiCreatedAt = attrs.CreatedAt?.ToUniversalTime();
         printing.ApiUpdatedAt = attrs.UpdatedAt?.ToUniversalTime();
         printing.ApiPublishedAt = attrs.PublishedAt?.ToUniversalTime();
