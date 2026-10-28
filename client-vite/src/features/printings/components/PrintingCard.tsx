@@ -25,26 +25,6 @@ export function PrintingCard({ p, onClick }: Props) {
           </div>
         )}
       </div>
-      <div className="space-y-1 p-2 text-sm">
-        <p className="font-medium">{p.cardName}</p>
-        <p className="text-muted-foreground">
-          {p.setName}
-          {p.setCode ? ` (${p.setCode})` : ""}
-          {p.number ? ` • #${p.number}` : ""}
-        </p>
-        <p className="text-muted-foreground">
-          {[p.cardTypes?.join(", ") ?? "", p.rarity ?? "", p.releaseDate ?? ""]
-            .filter(Boolean)
-            .join(" • ")}
-        </p>
-        {p.aspects && p.aspects.length > 0 && (
-          <p className="text-muted-foreground">
-            {p.aspects
-              .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
-              .join(", ")}
-          </p>
-        )}
-      </div>
     </button>
   );
 }

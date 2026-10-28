@@ -26,9 +26,20 @@ export type CardDetail = {
   name: string;
   game: string;
   cardType: string;
+  cardType2?: string | null;
   cardTypes?: string[];
+  arena?: string | null;
   aspects?: CardAspect[];
+  traits?: string[];
   description: string | null;
+  textStyled?: string | null;
+  epicAction?: string | null;
+  epicActionStyled?: string | null;
+  deployBox?: string | null;
+  deployBoxStyled?: string | null;
+  cost?: number | null;
+  hp?: number | null;
+  power?: number | null;
   printings: CardPrintingDetail[];
 };
 

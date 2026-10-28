@@ -8,7 +8,7 @@ import type { CardFilters } from "./useCardFilters";
 type ProbeState = {
   search: string;
   filters: CardFilters;
-  queryKey: readonly [string, string, string, string, string, number, number, string];
+  queryKey: ReturnType<ReturnType<typeof useCardFilters>["toQueryKey"]>;
   setFilters: ReturnType<typeof useCardFilters>["setFilters"];
 };
 
@@ -35,7 +35,7 @@ describe("useCardFilters", () => {
       root.render(
         <MemoryRouter
           initialEntries={[
-            "/cards?game=Magic,Lorcana&set=Rise&rarity=R,U&type=Leader,Leader%20Unit&q=bolt&page=2&pageSize=30",
+            "/cards?game=Magic,Lorcana&set=Rise&rarity=R,U&type=Leader,Leader%20Unit&arena=Ground&aspect=Heroism,Command&trait=Force,Rebel&q=bolt&page=2&pageSize=30",
           ]}
         >
           <FiltersProbe />
@@ -47,6 +47,9 @@ describe("useCardFilters", () => {
     expect(latest?.filters.sets).toEqual(["Rise"]);
     expect(latest?.filters.rarities).toEqual(["R", "U"]);
     expect(latest?.filters.types).toEqual(["Leader", "Leader Unit"]);
+    expect(latest?.filters.arenas).toEqual(["Ground"]);
+    expect(latest?.filters.aspects).toEqual(["Heroism", "Command"]);
+    expect(latest?.filters.traits).toEqual(["Force", "Rebel"]);
     expect(latest?.filters.q).toBe("bolt");
     expect(latest?.filters.page).toBe(2);
     expect(latest?.filters.pageSize).toBe(30);
@@ -56,6 +59,9 @@ describe("useCardFilters", () => {
     expect(decodeURIComponent(searchStr)).toContain("set=Rise");
     expect(decodeURIComponent(searchStr)).toContain("rarity=R,U");
     expect(new URLSearchParams(searchStr).get("type")).toBe("Leader,Leader Unit");
+    expect(new URLSearchParams(searchStr).get("arena")).toBe("Ground");
+    expect(new URLSearchParams(searchStr).get("aspect")).toBe("Heroism,Command");
+    expect(new URLSearchParams(searchStr).get("trait")).toBe("Force,Rebel");
     expect(decodeURIComponent(searchStr)).toContain("q=bolt");
     expect(searchStr).toContain("page=2");
     expect(searchStr).toContain("pageSize=30");
@@ -72,6 +78,9 @@ describe("useCardFilters", () => {
       "Rise",
       "R|U",
       "Leader|Leader Unit",
+      "Ground",
+      "Heroism|Command",
+      "Force|Rebel",
       2,
       30,
       "",
@@ -105,6 +114,9 @@ describe("useCardFilters", () => {
     expect(latest?.filters.sets).toEqual([]);
     expect(latest?.filters.rarities).toEqual([]);
     expect(latest?.filters.types).toEqual([]);
+    expect(latest?.filters.arenas).toEqual([]);
+    expect(latest?.filters.aspects).toEqual([]);
+    expect(latest?.filters.traits).toEqual([]);
 
     await act(async () => {
       root.unmount();
@@ -132,6 +144,9 @@ describe("useCardFilters", () => {
     expect(latest?.filters.sets).toEqual([]);
     expect(latest?.filters.rarities).toEqual([]);
     expect(latest?.filters.types).toEqual([]);
+    expect(latest?.filters.arenas).toEqual([]);
+    expect(latest?.filters.aspects).toEqual([]);
+    expect(latest?.filters.traits).toEqual([]);
     expect(latest?.filters.page).toBe(1);
     expect(latest?.filters.pageSize).toBe(60);
     expect(latest?.filters.sort).toBeUndefined();

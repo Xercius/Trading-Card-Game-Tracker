@@ -105,8 +105,18 @@ describe("CardModal", () => {
               name: "Luke Skywalker",
               game: "Star Wars Unlimited",
               cardType: "Leader",
+              cardType2: "Leader Unit",
               cardTypes: ["Leader", "Leader Unit"],
+              arena: "Ground",
               aspects: [{ name: "Heroism", count: 2 }],
+              traits: ["Force", "Rebel"],
+              cost: 6,
+              power: 4,
+              hp: 7,
+              textStyled:
+                "<p><strong>On Attack:</strong> Give an Experience token to a friendly <strong><i>Vehicle</i></strong> or <strong><i>Droid</i></strong> unit.</p>",
+              epicActionStyled: "<p><strong>Epic Action:</strong> Deploy this leader.</p>",
+              deployBoxStyled: "<p><strong>When Deployed:</strong> Give a Shield token.</p>",
               description: null,
               printings: [],
             },
@@ -115,11 +125,56 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
-    expect(await screen.findByText("Leader, Leader Unit")).toBeInTheDocument();
+    expect(await screen.findByText("Leader")).toBeInTheDocument();
+    expect(screen.getByText("Type 2:")).toBeInTheDocument();
+    expect(screen.getByText("Leader Unit")).toBeInTheDocument();
+    expect(screen.getByText("Arena:")).toBeInTheDocument();
+    expect(screen.getByText("Ground")).toBeInTheDocument();
     expect(screen.getByText("Heroism ×2")).toBeInTheDocument();
+    expect(screen.getByText("Force, Rebel")).toBeInTheDocument();
+    expect(screen.getByText("Cost:")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("Power:")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("HP:")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rules Text" })).toBeInTheDocument();
+    expect(screen.getByText("On Attack:").tagName.toLowerCase()).toBe("strong");
+    expect(screen.getByText("Vehicle").tagName.toLowerCase()).toBe("i");
+    expect(screen.getByRole("heading", { name: "Epic Action" })).toBeInTheDocument();
+    expect(screen.getByText("Deploy this leader.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Deploy Box" })).toBeInTheDocument();
+    expect(screen.getByText("Give a Shield token.", { exact: false })).toBeInTheDocument();
     expect(screen.getByTestId("selected-printing-label").textContent).toContain(
       "Spark of Rebellion (SOR) • #SOR-001 • Rare • 2025-10-03 • Standard"
     );
+  });
+
+  it("hides Type 2 when absent and hides Arena when card type does not contain Unit", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 101,
+              name: "Takedown",
+              game: "Star Wars Unlimited",
+              cardType: "Event",
+              cardTypes: ["Event"],
+              arena: "Ground",
+              description: "Defeat a unit.",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 101 });
+
+    expect(await screen.findByText("Event")).toBeInTheDocument();
+    expect(screen.queryByText("Type 2:")).toBeNull();
+    expect(screen.queryByText("Arena:")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Epic Action" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Deploy Box" })).toBeNull();
   });
 
   it.each([

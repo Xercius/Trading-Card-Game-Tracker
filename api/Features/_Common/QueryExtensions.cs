@@ -67,7 +67,10 @@ internal static class QueryExtensions
         IReadOnlyCollection<string> sets,
         IReadOnlyCollection<string> rarities,
         IReadOnlyCollection<string> types,
-        IReadOnlyCollection<int> gameIds)
+        IReadOnlyCollection<int> gameIds,
+        IReadOnlyCollection<string>? arenas = null,
+        IReadOnlyCollection<string>? aspects = null,
+        IReadOnlyCollection<string>? traits = null)
     {
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -126,8 +129,42 @@ internal static class QueryExtensions
         if (types.Count > 0)
         {
             var normalizedTypes = types.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(c => c.CardTypes.Any(type =>
-                normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
+            query = query.Where(c =>
+                normalizedTypes.Contains(EF.Functions.Collate(c.CardType, "NOCASE")) ||
+                (c.CardType2 != null &&
+                    normalizedTypes.Contains(EF.Functions.Collate(c.CardType2, "NOCASE"))) ||
+                c.CardTypes.Any(type =>
+                    normalizedTypes.Contains(EF.Functions.Collate(type.CardType.Name, "NOCASE"))));
+        }
+
+        if (arenas is { Count: > 0 })
+        {
+            var normalizedArenas = arenas.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(c =>
+                (c.Arena != null &&
+                    normalizedArenas.Contains(EF.Functions.Collate(c.Arena, "NOCASE"))) ||
+                c.CardArenas.Any(arena =>
+                    normalizedArenas.Contains(EF.Functions.Collate(arena.Arena.Name, "NOCASE"))));
+        }
+
+        if (aspects is { Count: > 0 })
+        {
+            var normalizedAspects = aspects
+                .Select(SqliteCaseNormalizer.Normalize)
+                .Where(a => a != "all")
+                .ToList();
+            if (normalizedAspects.Count > 0)
+            {
+                query = query.Where(c => c.CardAspects.Any(aspect =>
+                    normalizedAspects.Contains(EF.Functions.Collate(aspect.Aspect.Name, "NOCASE"))));
+            }
+        }
+
+        if (traits is { Count: > 0 })
+        {
+            var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(c => c.CardTraits.Any(trait =>
+                normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
         }
 
         return query;

@@ -21,6 +21,9 @@ const filters: CardFilters = {
   sets: ["SOR"],
   rarities: ["Rare"],
   types: ["Leader Unit"],
+  arenas: [],
+  aspects: [],
+  traits: [],
   page: 1,
   pageSize: 2,
 };

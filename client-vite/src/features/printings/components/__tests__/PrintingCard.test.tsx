@@ -63,7 +63,7 @@ describe("PrintingCard", () => {
     container.remove();
   });
 
-  it("displays normalized card details and aspect counts", async () => {
+  it("does not display visible text for card details", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -78,13 +78,10 @@ describe("PrintingCard", () => {
     expect(img?.getAttribute("alt")).toBe("");
 
     const textContent = container.textContent || "";
-    expect(textContent).toContain("Sample Card");
-    expect(textContent).toContain("Test Set");
-    expect(textContent).toContain("001");
-    expect(textContent).toContain("Rare");
-    expect(textContent).toContain("Leader, Leader Unit");
-    expect(textContent).toContain("Heroism ×2");
-    expect(textContent).toContain("2025-10-03");
+    expect(textContent).not.toContain("Sample Card");
+    expect(textContent).not.toContain("Test Set");
+    expect(textContent).not.toContain("001");
+    expect(textContent).not.toContain("Rare");
 
     await act(async () => {
       root.unmount();

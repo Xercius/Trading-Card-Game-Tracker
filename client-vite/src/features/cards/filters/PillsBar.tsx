@@ -66,6 +66,39 @@ export default function PillsBar() {
     });
   });
 
+  filters.arenas.forEach((arena) => {
+    tokens.push({
+      key: `arena:${arena}`,
+      label: `Arena: ${arena}`,
+      ariaLabel: `Remove arena filter ${arena}`,
+      onRemove: () =>
+        setFilters((prev) => ({ ...prev, arenas: prev.arenas.filter((value) => value !== arena) })),
+    });
+  });
+
+  filters.aspects.forEach((aspect) => {
+    tokens.push({
+      key: `aspect:${aspect}`,
+      label: `Aspect: ${aspect}`,
+      ariaLabel: `Remove aspect filter ${aspect}`,
+      onRemove: () =>
+        setFilters((prev) => ({
+          ...prev,
+          aspects: prev.aspects.filter((value) => value !== aspect),
+        })),
+    });
+  });
+
+  filters.traits.forEach((trait) => {
+    tokens.push({
+      key: `trait:${trait}`,
+      label: `Trait: ${trait}`,
+      ariaLabel: `Remove trait filter ${trait}`,
+      onRemove: () =>
+        setFilters((prev) => ({ ...prev, traits: prev.traits.filter((value) => value !== trait) })),
+    });
+  });
+
   if (tokens.length === 0) {
     return null;
   }

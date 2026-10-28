@@ -54,6 +54,21 @@ public sealed record CardsFacetResponse
     /// List of normalized SWU card-type facets with counts based on current filters.
     /// </summary>
     public IReadOnlyList<FacetOption> Types { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available arena facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Arenas { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available aspect facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Aspects { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available trait facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Traits { get; init; } = Array.Empty<FacetOption>();
 }
 
 /// <summary>

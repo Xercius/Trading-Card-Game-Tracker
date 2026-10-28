@@ -11,6 +11,7 @@ import CardModal from "@/features/cards/components/CardModal";
 import type { PrintingListItem } from "../api/printings";
 
 type ViewMode = "grid" | "table";
+type FilterArrayKey = "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 export default function CardsPage() {
@@ -32,7 +33,15 @@ export default function CardsPage() {
     isError: isFacetsError,
     refetch: refetchFacets,
   } = usePrintingFacets(filters);
-  const availableFacets = facets ?? { games: [], sets: [], rarities: [], types: [] };
+  const availableFacets = facets ?? {
+    games: [],
+    sets: [],
+    rarities: [],
+    types: [],
+    arenas: [],
+    aspects: [],
+    traits: [],
+  };
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
 
@@ -48,11 +57,21 @@ export default function CardsPage() {
   }, []);
 
   const clearFilters = React.useCallback(() => {
-    setFilters((prev) => ({ ...prev, games: [], sets: [], rarities: [], types: [], page: 1 }));
+    setFilters((prev) => ({
+      ...prev,
+      games: [],
+      sets: [],
+      rarities: [],
+      types: [],
+      arenas: [],
+      aspects: [],
+      traits: [],
+      page: 1,
+    }));
   }, [setFilters]);
 
   const removeFilterValue = React.useCallback(
-    (key: "games" | "sets" | "rarities" | "types", value: string) => {
+    (key: FilterArrayKey, value: string) => {
       setFilters((prev) => ({
         ...prev,
         [key]: prev[key].filter((item) => item !== value),
@@ -68,8 +87,19 @@ export default function CardsPage() {
       { key: "sets" as const, label: "Set", values: filters.sets ?? [] },
       { key: "rarities" as const, label: "Rarity", values: filters.rarities ?? [] },
       { key: "types" as const, label: "Type", values: filters.types ?? [] },
+      { key: "arenas" as const, label: "Arena", values: filters.arenas ?? [] },
+      { key: "aspects" as const, label: "Aspect", values: filters.aspects ?? [] },
+      { key: "traits" as const, label: "Trait", values: filters.traits ?? [] },
     ],
-    [filters.games, filters.sets, filters.rarities, filters.types]
+    [
+      filters.games,
+      filters.sets,
+      filters.rarities,
+      filters.types,
+      filters.arenas,
+      filters.aspects,
+      filters.traits,
+    ]
   );
 
   const hasActiveFilters = activeFilters.some((filter) => filter.values.length > 0);
@@ -97,14 +127,34 @@ export default function CardsPage() {
             options={availableFacets.rarities}
             onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
           />
-          {filters.games.some((game) => game.toLowerCase() === "star wars unlimited") && (
-            <MultiSelect
-              label="Type"
-              values={filters.types}
-              options={availableFacets.types ?? []}
-              onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
-            />
-          )}
+          <MultiSelect
+            label="Type"
+            values={filters.types ?? []}
+            options={availableFacets.types ?? []}
+            placeholder="Search types…"
+            onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
+          />
+          <MultiSelect
+            label="Arena"
+            values={filters.arenas ?? []}
+            options={availableFacets.arenas ?? []}
+            placeholder="Search arenas…"
+            onChange={(values) => setFilters((prev) => ({ ...prev, arenas: values, page: 1 }))}
+          />
+          <MultiSelect
+            label="Aspects"
+            values={filters.aspects ?? []}
+            options={availableFacets.aspects ?? []}
+            placeholder="Search aspects…"
+            onChange={(values) => setFilters((prev) => ({ ...prev, aspects: values, page: 1 }))}
+          />
+          <MultiSelect
+            label="Traits"
+            values={filters.traits ?? []}
+            options={availableFacets.traits ?? []}
+            placeholder="Search traits…"
+            onChange={(values) => setFilters((prev) => ({ ...prev, traits: values, page: 1 }))}
+          />
           <Button variant="ghost" onClick={clearFilters} disabled={!hasActiveFilters}>
             Clear filters
           </Button>

@@ -8,14 +8,23 @@ export type PrintingFacets = {
   sets: string[];
   rarities: string[];
   types: string[];
+  arenas: string[];
+  aspects: string[];
+  traits: string[];
 };
 
+/**
+ * Fetches available filter facet options based on current printing search filters.
+ */
 export function usePrintingFacets(filters: CardFilters) {
   const facetFilters = {
     games: filters.games.length > 0 ? filters.games : undefined,
     sets: filters.sets.length > 0 ? filters.sets : undefined,
     rarities: filters.rarities.length > 0 ? filters.rarities : undefined,
     types: filters.types.length > 0 ? filters.types : undefined,
+    ...(filters.arenas?.length ? { arenas: filters.arenas } : {}),
+    ...(filters.aspects?.length ? { aspects: filters.aspects } : {}),
+    ...(filters.traits?.length ? { traits: filters.traits } : {}),
     q: filters.q || undefined,
     printingSearch: true,
   };
@@ -28,6 +37,9 @@ export function usePrintingFacets(filters: CardFilters) {
       sets: facets.sets.map((facet) => facet.value),
       rarities: facets.rarities.map((facet) => facet.value),
       types: facets.types.map((facet) => facet.value),
+      arenas: (facets.arenas ?? []).map((facet) => facet.value),
+      aspects: (facets.aspects ?? []).map((facet) => facet.value),
+      traits: (facets.traits ?? []).map((facet) => facet.value),
     }),
     staleTime: 60_000,
   });

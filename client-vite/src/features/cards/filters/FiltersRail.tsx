@@ -106,6 +106,9 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
       filters.sets.join("|"),
       filters.rarities.join("|"),
       filters.types.join("|"),
+      filters.arenas.join("|"),
+      filters.aspects.join("|"),
+      filters.traits.join("|"),
       filters.q,
     ],
     queryFn: () =>
@@ -114,6 +117,9 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
         sets: filters.sets,
         rarities: filters.rarities,
         types: filters.types,
+        arenas: filters.arenas,
+        aspects: filters.aspects,
+        traits: filters.traits,
         q: filters.q,
       }),
     staleTime: 5 * 60_000,
@@ -135,6 +141,18 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     () => facetsQuery.data?.types.map((f) => f.value) ?? [],
     [facetsQuery.data?.types]
   );
+  const arenaOptions = useMemo(
+    () => (facetsQuery.data?.arenas ?? []).map((f) => f.value),
+    [facetsQuery.data?.arenas]
+  );
+  const aspectOptions = useMemo(
+    () => (facetsQuery.data?.aspects ?? []).map((f) => f.value),
+    [facetsQuery.data?.aspects]
+  );
+  const traitOptions = useMemo(
+    () => (facetsQuery.data?.traits ?? []).map((f) => f.value),
+    [facetsQuery.data?.traits]
+  );
 
   // Auto-clear invalid selections when facets update
   useEffect(() => {
@@ -144,6 +162,9 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     const allowedSets = new Set(setOptions);
     const allowedRarities = new Set(rarityOptions);
     const allowedTypes = new Set(typeOptions);
+    const allowedArenas = new Set(arenaOptions);
+    const allowedAspects = new Set(aspectOptions);
+    const allowedTraits = new Set(traitOptions);
 
     const shouldValidateGames = allowedGames.size > 0;
     const shouldValidateSets = allowedSets.size > 0;
@@ -157,8 +178,22 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
       shouldValidateRarities && filters.rarities.some((value) => !allowedRarities.has(value));
     const hasInvalidTypes =
       allowedTypes.size > 0 && filters.types.some((value) => !allowedTypes.has(value));
+    const hasInvalidArenas =
+      allowedArenas.size > 0 && filters.arenas.some((value) => !allowedArenas.has(value));
+    const hasInvalidAspects =
+      allowedAspects.size > 0 && filters.aspects.some((value) => !allowedAspects.has(value));
+    const hasInvalidTraits =
+      allowedTraits.size > 0 && filters.traits.some((value) => !allowedTraits.has(value));
 
-    if (!hasInvalidGames && !hasInvalidSets && !hasInvalidRarities && !hasInvalidTypes) {
+    if (
+      !hasInvalidGames &&
+      !hasInvalidSets &&
+      !hasInvalidRarities &&
+      !hasInvalidTypes &&
+      !hasInvalidArenas &&
+      !hasInvalidAspects &&
+      !hasInvalidTraits
+    ) {
       return;
     }
 
@@ -177,18 +212,33 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           ? prev.rarities.filter((value) => allowedRarities.has(value))
           : prev.rarities,
       types: hasInvalidTypes ? prev.types.filter((value) => allowedTypes.has(value)) : prev.types,
+      arenas: hasInvalidArenas
+        ? prev.arenas.filter((value) => allowedArenas.has(value))
+        : prev.arenas,
+      aspects: hasInvalidAspects
+        ? prev.aspects.filter((value) => allowedAspects.has(value))
+        : prev.aspects,
+      traits: hasInvalidTraits
+        ? prev.traits.filter((value) => allowedTraits.has(value))
+        : prev.traits,
     }));
   }, [
     filters.games,
     filters.sets,
     filters.rarities,
     filters.types,
+    filters.arenas,
+    filters.aspects,
+    filters.traits,
     setFilters,
     facetsQuery.data,
     gameOptions,
     setOptions,
     rarityOptions,
     typeOptions,
+    arenaOptions,
+    aspectOptions,
+    traitOptions,
   ]);
 
   const handleGameToggle = (value: string) => {
@@ -224,7 +274,10 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
     filters.games.length === 0 &&
     filters.sets.length === 0 &&
     filters.rarities.length === 0 &&
-    filters.types.length === 0;
+    filters.types.length === 0 &&
+    filters.arenas.length === 0 &&
+    filters.aspects.length === 0 &&
+    filters.traits.length === 0;
 
   const clearAndClose = () => {
     clearAll();
@@ -297,23 +350,70 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
           onToggle={handleRarityToggle}
           loading={facetsQuery.isLoading}
         />
-        {filters.games.some((game) => game.toLowerCase() === "star wars unlimited") && (
-          <Checklist
-            idPrefix="card-types"
-            title="Types"
-            options={typeOptions}
-            selected={filters.types}
-            onToggle={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                types: prev.types.includes(value)
-                  ? prev.types.filter((type) => type !== value)
-                  : [...prev.types, value],
-              }))
-            }
-            loading={facetsQuery.isLoading}
-          />
-        )}
+
+        <Checklist
+          idPrefix="card-types"
+          title="Types"
+          options={typeOptions}
+          selected={filters.types}
+          onToggle={(value) =>
+            setFilters((prev) => ({
+              ...prev,
+              types: prev.types.includes(value)
+                ? prev.types.filter((type) => type !== value)
+                : [...prev.types, value],
+            }))
+          }
+          loading={facetsQuery.isLoading}
+        />
+
+        <Checklist
+          idPrefix="card-arenas"
+          title="Arenas"
+          options={arenaOptions}
+          selected={filters.arenas}
+          onToggle={(value) =>
+            setFilters((prev) => ({
+              ...prev,
+              arenas: prev.arenas.includes(value)
+                ? prev.arenas.filter((arena) => arena !== value)
+                : [...prev.arenas, value],
+            }))
+          }
+          loading={facetsQuery.isLoading}
+        />
+
+        <Checklist
+          idPrefix="card-aspects"
+          title="Aspects"
+          options={aspectOptions}
+          selected={filters.aspects}
+          onToggle={(value) =>
+            setFilters((prev) => ({
+              ...prev,
+              aspects: prev.aspects.includes(value)
+                ? prev.aspects.filter((aspect) => aspect !== value)
+                : [...prev.aspects, value],
+            }))
+          }
+          loading={facetsQuery.isLoading}
+        />
+
+        <Checklist
+          idPrefix="card-traits"
+          title="Traits"
+          options={traitOptions}
+          selected={filters.traits}
+          onToggle={(value) =>
+            setFilters((prev) => ({
+              ...prev,
+              traits: prev.traits.includes(value)
+                ? prev.traits.filter((trait) => trait !== value)
+                : [...prev.traits, value],
+            }))
+          }
+          loading={facetsQuery.isLoading}
+        />
       </div>
 
       <div className="mt-auto flex gap-2">

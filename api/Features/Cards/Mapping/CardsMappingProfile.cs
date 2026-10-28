@@ -72,11 +72,29 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.Id), o => o.MapFrom(s => s.Id))
             .ForCtorParam(nameof(CardDetailResponse.Name), o => o.MapFrom(s => s.Name))
             .ForCtorParam(nameof(CardDetailResponse.Game), o => o.MapFrom(s => s.Game))
+            .ForCtorParam(nameof(CardDetailResponse.CardType), o => o.MapFrom(s => s.CardType))
+            .ForCtorParam(nameof(CardDetailResponse.Description), o => o.MapFrom(s => s.Description))
             .ForCtorParam(nameof(CardDetailResponse.Printings), o => o.MapFrom(s => s.Printings))
             .ForCtorParam(nameof(CardDetailResponse.CardTypes), o => o.MapFrom(s =>
                 s.CardTypes.Select(type => type.CardType.Name).Distinct().OrderBy(name => name).ToList()))
             .ForCtorParam(nameof(CardDetailResponse.Aspects), o => o.MapFrom(s => s.CardAspects
                 .OrderBy(aspect => aspect.Aspect.Name)
-                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()));
+                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()))
+            .ForCtorParam(nameof(CardDetailResponse.CardType2), o => o.MapFrom(s =>
+                s.CardType2 ?? s.CardTypes.Where(type => type.SourceRole == "Type2").Select(type => type.CardType.Name).FirstOrDefault()))
+            .ForCtorParam(nameof(CardDetailResponse.Arena), o => o.MapFrom(s =>
+                s.CardArenas.Count > 0
+                    ? string.Join(", ", s.CardArenas.Select(a => a.Arena.Name).Distinct().OrderBy(n => n))
+                    : s.Arena))
+            .ForCtorParam(nameof(CardDetailResponse.Traits), o => o.MapFrom(s =>
+                s.CardTraits.Select(trait => trait.Trait.Name).Distinct().OrderBy(name => name).ToList()))
+            .ForCtorParam(nameof(CardDetailResponse.TextStyled), o => o.MapFrom(s => s.TextStyled))
+            .ForCtorParam(nameof(CardDetailResponse.EpicAction), o => o.MapFrom(s => s.EpicAction))
+            .ForCtorParam(nameof(CardDetailResponse.EpicActionStyled), o => o.MapFrom(s => s.EpicActionStyled))
+            .ForCtorParam(nameof(CardDetailResponse.DeployBox), o => o.MapFrom(s => s.DeployBox))
+            .ForCtorParam(nameof(CardDetailResponse.DeployBoxStyled), o => o.MapFrom(s => s.DeployBoxStyled))
+            .ForCtorParam(nameof(CardDetailResponse.Cost), o => o.MapFrom(s => s.Cost))
+            .ForCtorParam(nameof(CardDetailResponse.Hp), o => o.MapFrom(s => s.Hp))
+            .ForCtorParam(nameof(CardDetailResponse.Power), o => o.MapFrom(s => s.Power));
     }
 }

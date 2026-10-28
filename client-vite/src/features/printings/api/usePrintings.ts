@@ -3,6 +3,9 @@ import { fetchPrintings, type PrintingQuery, type PrintingListItem } from "./pri
 import { cardsQueryKeys } from "@/features/cards/queryKeys";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 
+/**
+ * Queries paginated card printings matching the active card filters.
+ */
 export function usePrintings(filters: CardFilters) {
   const pageSize = Math.min(filters.pageSize, 500);
   const query: Omit<PrintingQuery, "page"> = {
@@ -11,6 +14,9 @@ export function usePrintings(filters: CardFilters) {
     set: filters.sets.length > 0 ? filters.sets : undefined,
     rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
     types: filters.types.length > 0 ? filters.types : undefined,
+    ...(filters.arenas?.length ? { arenas: filters.arenas } : {}),
+    ...(filters.aspects?.length ? { aspects: filters.aspects } : {}),
+    ...(filters.traits?.length ? { traits: filters.traits } : {}),
     pageSize,
     uniqueCards: true,
   };
