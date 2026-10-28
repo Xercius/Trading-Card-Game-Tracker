@@ -111,6 +111,170 @@ namespace api.Migrations
                 name: "IX_Cards_GameNorm",
                 table: "Cards");
 
+            migrationBuilder.Sql(
+                """
+                CREATE TEMP TABLE "_CardConsolidation" AS
+                SELECT
+                    c."Id" AS "DuplicateCardId",
+                    MIN(c."Id") OVER (PARTITION BY c."GameId", c."Name") AS "CanonicalCardId"
+                FROM "Cards" c
+                WHERE c."GameId" IS NOT NULL;
+
+                CREATE TEMP TABLE "_PrintingConsolidation" AS
+                WITH RankedPrintings AS (
+                    SELECT
+                        p."Id",
+                        FIRST_VALUE(p."Id") OVER (
+                            PARTITION BY map."CanonicalCardId", p."Set", p."Number", p."TreatmentId"
+                            ORDER BY
+                                (SELECT COUNT(*) FROM "UserCards" uc WHERE uc."CardPrintingId" = p."Id") +
+                                (SELECT COUNT(*) FROM "DeckCards" dc WHERE dc."CardPrintingId" = p."Id") DESC,
+                                p."Id"
+                        ) AS "CanonicalPrintingId"
+                    FROM "CardPrintings" p
+                    JOIN "_CardConsolidation" map ON map."DuplicateCardId" = p."CardId"
+                    WHERE p."TreatmentId" IS NOT NULL
+                )
+                SELECT "Id" AS "DuplicatePrintingId", "CanonicalPrintingId"
+                FROM RankedPrintings
+                WHERE "Id" <> "CanonicalPrintingId";
+
+                INSERT INTO "UserCards"
+                    ("UserId", "CardPrintingId", "QuantityOwned", "QuantityWanted", "QuantityProxyOwned")
+                SELECT
+                    entry."UserId", map."CanonicalPrintingId",
+                    entry."QuantityOwned", entry."QuantityWanted", entry."QuantityProxyOwned"
+                FROM "_PrintingConsolidation" map
+                JOIN "UserCards" entry ON entry."CardPrintingId" = map."DuplicatePrintingId"
+                WHERE 1
+                ON CONFLICT ("UserId", "CardPrintingId") DO UPDATE SET
+                    "QuantityOwned" = "UserCards"."QuantityOwned" + excluded."QuantityOwned",
+                    "QuantityWanted" = "UserCards"."QuantityWanted" + excluded."QuantityWanted",
+                    "QuantityProxyOwned" = "UserCards"."QuantityProxyOwned" + excluded."QuantityProxyOwned";
+
+                INSERT INTO "DeckCards"
+                    ("DeckId", "CardPrintingId", "QuantityInDeck", "QuantityIdea", "QuantityProxy", "QuantityAcquire")
+                SELECT
+                    entry."DeckId", map."CanonicalPrintingId",
+                    entry."QuantityInDeck", entry."QuantityIdea", entry."QuantityProxy", entry."QuantityAcquire"
+                FROM "_PrintingConsolidation" map
+                JOIN "DeckCards" entry ON entry."CardPrintingId" = map."DuplicatePrintingId"
+                WHERE 1
+                ON CONFLICT ("DeckId", "CardPrintingId") DO UPDATE SET
+                    "QuantityInDeck" = "DeckCards"."QuantityInDeck" + excluded."QuantityInDeck",
+                    "QuantityIdea" = "DeckCards"."QuantityIdea" + excluded."QuantityIdea",
+                    "QuantityProxy" = "DeckCards"."QuantityProxy" + excluded."QuantityProxy",
+                    "QuantityAcquire" = "DeckCards"."QuantityAcquire" + excluded."QuantityAcquire";
+
+                DELETE FROM "CardPriceHistories"
+                WHERE "CardPrintingId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation")
+                  AND EXISTS (
+                      SELECT 1
+                      FROM "_PrintingConsolidation" map
+                      JOIN "CardPriceHistories" existing
+                        ON existing."CardPrintingId" = map."CanonicalPrintingId"
+                       AND existing."CapturedAt" = "CardPriceHistories"."CapturedAt"
+                      WHERE map."DuplicatePrintingId" = "CardPriceHistories"."CardPrintingId");
+                UPDATE "CardPriceHistories"
+                SET "CardPrintingId" = (
+                    SELECT map."CanonicalPrintingId"
+                    FROM "_PrintingConsolidation" map
+                    WHERE map."DuplicatePrintingId" = "CardPriceHistories"."CardPrintingId"
+                )
+                WHERE "CardPrintingId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+
+                DELETE FROM "UserCards"
+                WHERE "CardPrintingId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+                DELETE FROM "DeckCards"
+                WHERE "CardPrintingId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+
+                UPDATE "CardPrintings"
+                SET "VariantOfId" = (
+                    SELECT map."CanonicalPrintingId"
+                    FROM "_PrintingConsolidation" map
+                    WHERE map."DuplicatePrintingId" = "CardPrintings"."VariantOfId"
+                )
+                WHERE "VariantOfId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+                UPDATE "CardPrintings"
+                SET "ReprintOfId" = (
+                    SELECT map."CanonicalPrintingId"
+                    FROM "_PrintingConsolidation" map
+                    WHERE map."DuplicatePrintingId" = "CardPrintings"."ReprintOfId"
+                )
+                WHERE "ReprintOfId" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+
+                DELETE FROM "CardPrintings"
+                WHERE "Id" IN (SELECT "DuplicatePrintingId" FROM "_PrintingConsolidation");
+                UPDATE "CardPrintings"
+                SET "CardId" = (
+                    SELECT map."CanonicalCardId"
+                    FROM "_CardConsolidation" map
+                    WHERE map."DuplicateCardId" = "CardPrintings"."CardId"
+                )
+                WHERE "CardId" IN (
+                    SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId"
+                );
+
+                INSERT INTO "CardCardTypes" ("CardId", "CardTypeId", "SourceRole")
+                SELECT map."CanonicalCardId", association."CardTypeId", association."SourceRole"
+                FROM "_CardConsolidation" map
+                JOIN "CardCardTypes" association ON association."CardId" = map."DuplicateCardId"
+                WHERE map."DuplicateCardId" <> map."CanonicalCardId"
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO "CardTraits" ("CardId", "TraitId")
+                SELECT map."CanonicalCardId", association."TraitId"
+                FROM "_CardConsolidation" map
+                JOIN "CardTraits" association ON association."CardId" = map."DuplicateCardId"
+                WHERE map."DuplicateCardId" <> map."CanonicalCardId"
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO "CardKeywords" ("CardId", "KeywordId")
+                SELECT map."CanonicalCardId", association."KeywordId"
+                FROM "_CardConsolidation" map
+                JOIN "CardKeywords" association ON association."CardId" = map."DuplicateCardId"
+                WHERE map."DuplicateCardId" <> map."CanonicalCardId"
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO "CardArenas" ("CardId", "ArenaId")
+                SELECT map."CanonicalCardId", association."ArenaId"
+                FROM "_CardConsolidation" map
+                JOIN "CardArenas" association ON association."CardId" = map."DuplicateCardId"
+                WHERE map."DuplicateCardId" <> map."CanonicalCardId"
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO "CardAspects" ("CardId", "AspectId", "Count")
+                SELECT map."CanonicalCardId", association."AspectId", association."Count"
+                FROM "_CardConsolidation" map
+                JOIN "CardAspects" association ON association."CardId" = map."DuplicateCardId"
+                WHERE map."DuplicateCardId" <> map."CanonicalCardId"
+                ON CONFLICT ("CardId", "AspectId")
+                DO UPDATE SET "Count" = "CardAspects"."Count" + excluded."Count";
+
+                DELETE FROM "CardCardTypes"
+                WHERE "CardId" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+                DELETE FROM "CardTraits"
+                WHERE "CardId" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+                DELETE FROM "CardKeywords"
+                WHERE "CardId" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+                DELETE FROM "CardArenas"
+                WHERE "CardId" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+                DELETE FROM "CardAspects"
+                WHERE "CardId" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+                DELETE FROM "Cards"
+                WHERE "Id" IN (SELECT "DuplicateCardId" FROM "_CardConsolidation"
+                    WHERE "DuplicateCardId" <> "CanonicalCardId");
+
+                DROP TABLE "_CardConsolidation";
+                DROP TABLE "_PrintingConsolidation";
+                """);
+
             migrationBuilder.DropColumn(
                 name: "GameNorm",
                 table: "Cards");

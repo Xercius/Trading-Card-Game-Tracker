@@ -118,7 +118,7 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal(hyperspaceTreatment.Id, duplicateCardPrinting.TreatmentId);
         Assert.Equal(3, printing.CardId);
         Assert.Equal(3, duplicateCardPrinting.CardId);
-        Assert.Equal(3, await db.Cards.CountAsync());
+        Assert.Equal(2, await db.Cards.CountAsync());
         Assert.Null(otherGamePrinting.SetId);
         Assert.Equal(otherGameTreatment.Id, otherGamePrinting.TreatmentId);
         Assert.Equal(3, copiedAspect.CardId);
@@ -145,7 +145,7 @@ public sealed class AppDbContextSwuConfigurationTests
                 "Traits", "Keywords", "ApiCreatedAt", "ApiUpdatedAt", "BaseCardId",
                 "BaseStrapiId", "StrapiId"
             }.Contains(column));
-        Assert.Equal(10, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
+        Assert.Equal(4, (await db.CardPrintings.SingleAsync(item => item.Id == 11)).CardId);
         Assert.Equal("higher priority", (await db.Cards.SingleAsync(item => item.Id == 3)).Text);
     }
 
@@ -182,8 +182,8 @@ public sealed class AppDbContextSwuConfigurationTests
         var owned = await db.UserCards.SingleAsync();
         var printing = await db.CardPrintings.SingleAsync(item => item.Id == 9);
         Assert.Equal(9, owned.CardPrintingId);
-        Assert.Equal(5, printing.CardId);
-        Assert.Contains(await db.Cards.Select(item => item.Id).ToListAsync(), id => id == 5);
+        Assert.Equal(3, printing.CardId);
+        Assert.Contains(await db.Cards.Select(item => item.Id).ToListAsync(), id => id == 3);
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class AppDbContextSwuConfigurationTests
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
 
         db.ChangeTracker.Clear();
-        var secondCard = new Card { Game = game, Name = "Second card" };
+        var secondCard = new Card { GameId = game.Id, Name = "Second card" };
         db.Cards.Add(secondCard);
         await db.SaveChangesAsync();
         db.CardAspects.Add(new CardAspect { CardId = secondCard.Id, AspectId = aspectId, Count = 0 });
