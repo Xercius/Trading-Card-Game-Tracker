@@ -33,7 +33,7 @@ public sealed class SwuSharedImporterRegressionTests
                 Set = "SOR",
                 Number = "one",
                 Rarity = "Common",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(seed, card.Game, "Standard"),
                 DetailsJson = """{"sourceId":1,"cardUid":"legacy-1","serialCode":"one"}"""
             };
             var second = new CardPrinting
@@ -42,7 +42,7 @@ public sealed class SwuSharedImporterRegressionTests
                 Set = "SOR",
                 Number = "two",
                 Rarity = "Common",
-                Style = "Standard",
+                Treatment = TreatmentLookup.Upsert(seed, card.Game, "Standard"),
                 DetailsJson = """{"sourceId":2,"cardUid":"legacy-2","serialCode":"two"}"""
             };
             seed.CardPrintings.AddRange(first, second);
@@ -159,7 +159,7 @@ public sealed class SwuSharedImporterRegressionTests
         attrs["traits"] = JsonNode.Parse("""["Imperial","Imperial"]""");
         attrs["keywords"] = JsonNode.Parse("""["Sentinel"]""");
         attrs["arenas"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Ground"}}]}""");
-        attrs["variantTypes"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Hyperspace","variantId":"03","foil":false}}]}""");
+        attrs["variantTypes"] = JsonNode.Parse("""{"data":[{"id":1,"attributes":{"name":"Hyperspace","variantId":"03","foil":false,"icon":{"data":{"id":8,"attributes":{"url":"https://example.invalid/hyperspace.svg"}}}}}]}""");
         attrs["artFront"] = JsonNode.Parse("""{"data":{"id":1,"attributes":{"url":"https://example.invalid/front.png"}}}""");
         attrs["artBack"] = JsonNode.Parse("""{"data":{"id":2,"attributes":{"url":"https://example.invalid/back.png"}}}""");
         attrs["artFrontHorizontal"] = true;
@@ -192,8 +192,9 @@ public sealed class SwuSharedImporterRegressionTests
             Assert.Single(await db.Set<CardTrait>().ToListAsync());
             Assert.Single(await db.Set<CardKeyword>().ToListAsync());
             Assert.Single(await db.Set<CardArena>().ToListAsync());
-            var printing = await db.CardPrintings.Include(p => p.CatalogSet).SingleAsync();
-            Assert.Equal("Hyperspace", printing.Style);
+            var printing = await db.CardPrintings.Include(p => p.CatalogSet).Include(p => p.Treatment).SingleAsync();
+            Assert.Equal("Hyperspace", printing.Treatment!.Name);
+            Assert.Equal("https://example.invalid/hyperspace.svg", printing.Treatment.IconUrl);
             Assert.False(printing.IsFoil);
             Assert.Equal("https://example.invalid/front.png", printing.ImageUrl);
             Assert.Equal("https://example.invalid/back.png", printing.BackImageUrl);
@@ -226,10 +227,8 @@ public sealed class SwuSharedImporterRegressionTests
         Assert.Empty(await verify.Set<CardArena>().ToListAsync());
         Assert.Null((await verify.CardPrintings.SingleAsync()).ImageUrl);
         Assert.Equal(8, (await verify.Cards.SingleAsync()).Hp);
-        var changedPrinting = await verify.CardPrintings.SingleAsync();
-        Assert.Equal("Hyperspace, Showcase", changedPrinting.Style);
-        Assert.True(changedPrinting.Hyperspace);
-        Assert.True(changedPrinting.Showcase);
+        var changedPrinting = await verify.CardPrintings.Include(p => p.Treatment).SingleAsync();
+        Assert.Equal("Hyperspace", changedPrinting.Treatment!.Name);
     }
 
     [Fact]

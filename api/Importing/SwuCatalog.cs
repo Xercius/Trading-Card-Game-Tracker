@@ -16,6 +16,7 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase)) ?? new Game { Name = "Star Wars Unlimited" };
         if (db.Entry(_game).State == EntityState.Detached) db.Games.Add(_game);
         await db.Sets.LoadAsync(ct);
+        await db.Treatments.LoadAsync(ct);
         await db.Rarities.LoadAsync(ct);
         await db.CardTypes.LoadAsync(ct);
         await db.Traits.LoadAsync(ct);
@@ -60,6 +61,12 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             MarkModified(set, nameof(Set.LastSyncedAt));
         }
         db.Entry(printing).Reference(entity => entity.CatalogSet).CurrentValue = set;
+
+        var variantType = attrs.VariantTypes?.Data?
+            .Select(variant => variant.Attributes)
+            .FirstOrDefault(attributes => !string.IsNullOrWhiteSpace(attributes?.Name));
+        db.Entry(printing).Reference(entity => entity.Treatment).CurrentValue =
+            UpsertTreatment(variantType?.Name, variantType?.Icon?.Data?.Attributes?.Url);
 
         var rarity = Lookup(printing.Rarity, name => new Rarity { Game = _game, Name = name });
         if (!string.IsNullOrWhiteSpace(attrs.RarityDetails?.Character)
@@ -158,6 +165,24 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         entity = create(name);
         db.Set<T>().Add(entity);
         return entity;
+    }
+
+    internal Treatment UpsertTreatment(string? name, string? iconUrl = null)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "Standard" : name.Trim();
+        var treatment = db.Treatments.Local.FirstOrDefault(candidate =>
+            candidate.Game == _game && string.Equals(candidate.Name.Trim(), name, StringComparison.OrdinalIgnoreCase));
+        if (treatment is null)
+        {
+            treatment = new Treatment { Game = _game, Name = name, IconUrl = iconUrl };
+            db.Treatments.Add(treatment);
+        }
+        else if (treatment.IconUrl != iconUrl)
+        {
+            treatment.IconUrl = iconUrl;
+            MarkModified(treatment, nameof(Treatment.IconUrl));
+        }
+        return treatment;
     }
 
     private void MarkModified<TEntity>(TEntity entity, string propertyName) where TEntity : class

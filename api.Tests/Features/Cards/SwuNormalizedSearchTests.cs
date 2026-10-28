@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using api.Data;
 using api.Features.Cards.Dtos;
+using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -67,6 +68,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Contains(facets.Arenas, option => option.Value == "Ground");
         Assert.Contains(facets.Aspects, option => option.Value == "Heroism");
         Assert.Contains(facets.Traits, option => option.Value == "Rebel");
+        Assert.Contains(facets.Treatments, option => option.Value == "Standard");
 
         var details = await client.GetFromJsonAsync<CardDetailResponse>($"/api/cards/{cardId}");
         Assert.NotNull(details);
@@ -100,9 +102,9 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             var card = new Card { Game = SwuGame, Name = "Reprinted Card", CardType = "Unit" };
             card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
             db.Cards.Add(card);
-            AddPrinting(card, game, "LATE", "Late set", new DateOnly(2024, 1, 1), "2018-01-01");
-            AddPrinting(card, game, "EARLY", "Early set", new DateOnly(2021, 1, 1), "2030-01-01");
-            AddPrinting(card, game, "UNDATED", "Undated set", null, "2010-01-01");
+            AddPrinting(db, card, game, "LATE", "Late set", new DateOnly(2024, 1, 1), "2018-01-01");
+            AddPrinting(db, card, game, "EARLY", "Early set", new DateOnly(2021, 1, 1), "2030-01-01");
+            AddPrinting(db, card, game, "UNDATED", "Undated set", null, "2010-01-01");
 
             var secondCard = new Card { Game = SwuGame, Name = "Undated Preferred", CardType = "Unit" };
             secondCard.CardTypes.Add(new CardCardType
@@ -112,13 +114,13 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
                 SourceRole = "Type"
             });
             db.Cards.Add(secondCard);
-            AddPrinting(secondCard, game, "UNKNOWN", "Unknown date", null, "2010-01-01");
-            AddPrinting(secondCard, game, "KNOWN", "Known date", new DateOnly(2025, 1, 1), "2025-01-01");
+            AddPrinting(db, secondCard, game, "UNKNOWN", "Unknown date", null, "2010-01-01");
+            AddPrinting(db, secondCard, game, "KNOWN", "Known date", new DateOnly(2025, 1, 1), "2025-01-01");
 
             var setOnlyCard = new Card { Game = "Legacy Game", Name = "Set-associated card", CardType = "Unit" };
             db.Cards.Add(setOnlyCard);
-            AddPrinting(setOnlyCard, game, "SET-LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
-            AddPrinting(setOnlyCard, game, "SET-EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
+            AddPrinting(db, setOnlyCard, game, "SET-LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
+            AddPrinting(db, setOnlyCard, game, "SET-EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
             await db.SaveChangesAsync();
         }
 
@@ -146,11 +148,11 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             var card = new Card { Game = SwuGame, Name = "Ordered Reprints", CardType = "Unit" };
             card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
             db.Cards.Add(card);
-            AddPrinting(card, game, "LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
-            AddPrinting(card, game, "TIE-Z", "Zulu set", new DateOnly(2024, 1, 1), "2010-01-01");
-            AddPrinting(card, game, "EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
-            AddPrinting(card, game, "TIE-A", "Alpha set", new DateOnly(2024, 1, 1), "2010-01-01");
-            AddPrinting(card, game, "UNDATED", "Undated set", null, "2010-01-01");
+            AddPrinting(db, card, game, "LATE", "Later set", new DateOnly(2024, 1, 1), "2018-01-01");
+            AddPrinting(db, card, game, "TIE-Z", "Zulu set", new DateOnly(2024, 1, 1), "2010-01-01");
+            AddPrinting(db, card, game, "EARLY", "Earlier set", new DateOnly(2021, 1, 1), "2030-01-01");
+            AddPrinting(db, card, game, "TIE-A", "Alpha set", new DateOnly(2024, 1, 1), "2010-01-01");
+            AddPrinting(db, card, game, "UNDATED", "Undated set", null, "2010-01-01");
 
             var legacyCard = new Card { Game = "Legacy Game", Name = "Legacy Reprints", CardType = "Unit" };
             legacyCard.Printings.Add(new CardPrinting
@@ -159,7 +161,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
                 Set = "Zulu",
                 Number = "2",
                 Rarity = "Rare",
-                Style = "Standard"
+                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard")
             });
             legacyCard.Printings.Add(new CardPrinting
             {
@@ -167,7 +169,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
                 Set = "Alpha",
                 Number = "1",
                 Rarity = "Rare",
-                Style = "Standard"
+                Treatment = TreatmentLookup.Upsert(db, legacyCard.Game, "Standard")
             });
             db.Cards.Add(legacyCard);
             await db.SaveChangesAsync();
@@ -253,7 +255,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             Set = "Legacy set",
             Number = "SOR-001",
             Rarity = "Common",
-            Style = "Standard",
+            Treatment = TreatmentLookup.Upsert(db, SwuGame, "Standard"),
             ImageUrl = "/front.png",
             BackImageUrl = "/back.png",
             ArtFrontHorizontal = true,
@@ -266,6 +268,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
     }
 
     private static void AddPrinting(
+        AppDbContext db,
         Card card,
         Game game,
         string setCode,
@@ -279,7 +282,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             Set = setCode,
             Number = $"{setCode}-001",
             Rarity = "Common",
-            Style = "Standard",
+            Treatment = TreatmentLookup.Upsert(db, card.Game, "Standard"),
             CatalogSet = new Set
             {
                 Game = game,

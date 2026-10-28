@@ -121,6 +121,7 @@ public sealed class ScryfallImporter : ISourceImporter
             .Where(p => p.Set == set && p.Number == number)
             .Join(_db.Cards.Where(x => x.Game == game), p => p.CardId, cc => cc.Id, (p, _) => p)
             .FirstOrDefaultAsync(ct);
+        var treatment = TreatmentLookup.Upsert(_db, card.Game, style);
 
         if (printing is null)
         {
@@ -130,7 +131,7 @@ public sealed class ScryfallImporter : ISourceImporter
                 Set = set,
                 Number = number,
                 Rarity = rarity,
-                Style = style,
+                Treatment = treatment,
                 ReleasedAt = c.ReleasedAt,
                 ImageUrl = imageUrl
             };
@@ -142,7 +143,7 @@ public sealed class ScryfallImporter : ISourceImporter
             bool changed = false;
             if (printing.CardId != card.Id) { printing.CardId = card.Id; changed = true; }
             if (printing.Rarity != rarity) { printing.Rarity = rarity; changed = true; }
-            if (printing.Style != style) { printing.Style = style; changed = true; }
+            if (printing.Treatment != treatment) { printing.Treatment = treatment; changed = true; }
             if (c.ReleasedAt is not null && printing.ReleasedAt != c.ReleasedAt) { printing.ReleasedAt = c.ReleasedAt; changed = true; }
             if (printing.ImageUrl != imageUrl && imageUrl is not null) { printing.ImageUrl = imageUrl; changed = true; }
             if (changed) summary.PrintingsUpdated++;

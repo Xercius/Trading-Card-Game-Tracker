@@ -55,7 +55,7 @@ public sealed class DecksMappingProfile : Profile
             .ForCtorParam(nameof(DeckCardItemResponse.Style),
                 opt => opt.MapFrom(dc =>
                     dc.CardPrinting != null
-                        ? dc.CardPrinting.Style
+                        ? dc.CardPrinting.Treatment == null ? "Standard" : dc.CardPrinting.Treatment.Name
                         : string.Empty))
 
             .ForCtorParam(nameof(DeckCardItemResponse.ImageUrl),

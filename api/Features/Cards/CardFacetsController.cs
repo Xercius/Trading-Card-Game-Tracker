@@ -243,6 +243,20 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
         var traitFacets = BuildFacets(traitAssociations.Select(a => (a.CardId, a.Name)), traitPrintingCounts);
 
+        var treatmentQuery = ApplyGameFilter(baseQuery, gamesNormalized, swuGameIds);
+        treatmentQuery = ApplySetFilter(treatmentQuery, sets);
+        treatmentQuery = ApplyRarityFilter(treatmentQuery, rarities);
+        treatmentQuery = ApplyTypeFilter(treatmentQuery, types);
+        treatmentQuery = ApplyArenaFilter(treatmentQuery, arenas);
+        treatmentQuery = ApplyAspectFilter(treatmentQuery, aspects);
+        treatmentQuery = ApplyTraitFilter(treatmentQuery, traits);
+        var treatmentFacets = await treatmentQuery
+            .Where(printing => printing.Treatment != null)
+            .GroupBy(printing => printing.Treatment!.Name)
+            .Select(group => new FacetOption { Value = group.Key, Count = group.Count() })
+            .OrderBy(facet => facet.Value)
+            .ToListAsync(ct);
+
         var response = new CardsFacetResponse
         {
             Games = gameFacets,
@@ -252,6 +266,7 @@ public sealed class CardFacetsController : ControllerBase
             Arenas = arenaFacets,
             Aspects = aspectFacets,
             Traits = traitFacets,
+            Treatments = treatmentFacets,
         };
 
         return Ok(response);

@@ -1,4 +1,5 @@
 using api.Data;
+using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -93,7 +94,7 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
                 Set = "Proxy Trials",
                 Number = "PX1",
                 Rarity = "Common",
-                Style = "Proxy",
+                Treatment = TreatmentLookup.Upsert(db, "Magic", "Proxy"),
                 ImageUrl = null
             };
             db.CardPrintings.Add(proxyPrinting);

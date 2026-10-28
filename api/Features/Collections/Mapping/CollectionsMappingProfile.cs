@@ -22,7 +22,9 @@ public sealed class CollectionsMappingProfile : Profile
             .ForCtorParam(nameof(UserCardItemResponse.Set), opt => opt.MapFrom(uc => uc.CardPrinting.Set))
             .ForCtorParam(nameof(UserCardItemResponse.Number), opt => opt.MapFrom(uc => uc.CardPrinting.Number))
             .ForCtorParam(nameof(UserCardItemResponse.Rarity), opt => opt.MapFrom(uc => uc.CardPrinting.Rarity))
-            .ForCtorParam(nameof(UserCardItemResponse.Style), opt => opt.MapFrom(uc => uc.CardPrinting.Style))
+            .ForCtorParam(nameof(UserCardItemResponse.Style), opt => opt.MapFrom(uc => uc.CardPrinting.Treatment == null
+                ? "Standard"
+                : uc.CardPrinting.Treatment.Name))
             .ForCtorParam(nameof(UserCardItemResponse.ImageUrl), opt => opt.MapFrom(uc => uc.CardPrinting.ImageUrl));
     }
 }

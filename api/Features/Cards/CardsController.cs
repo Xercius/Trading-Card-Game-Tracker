@@ -238,6 +238,7 @@ public class CardsController : ControllerBase
             .Where(cp => cardIds.Contains(cp.CardId))
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
+            .Include(cp => cp.Treatment)
             .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
             .ToListAsync(ct);
 
@@ -283,6 +284,7 @@ public class CardsController : ControllerBase
             .Where(cp => cp.CardId == cardId)
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
+            .Include(cp => cp.Treatment)
             .OrderBy(cp => cp.Set).ThenBy(cp => cp.Number)
             .ToListAsync();
 
@@ -330,7 +332,7 @@ public class CardsController : ControllerBase
     /// </returns>
     /// <remarks>
     /// If dto.Id is provided, updates the existing printing with that ID.
-    /// If dto.Id is null, attempts to find an existing printing by CardId, Set, Number, and Style.
+    /// If dto.Id is null, attempts to find an existing printing by CardId, Set, Number, and treatment.
     /// If no match is found, creates a new printing record.
     /// Set and Number are required when Id is not provided.
     /// </remarks>
@@ -350,20 +352,22 @@ public class CardsController : ControllerBase
             return this.CreateValidationProblem(nameof(dto.CardId), "CardId must be provided.");
         }
 
-        if (await _db.Cards.FindAsync(dto.CardId) is null)
+        var card = await _db.Cards.FindAsync(dto.CardId);
+        if (card is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {dto.CardId} was not found.");
         }
 
         string? set = dto.Set?.Trim();
         string? number = dto.Number?.Trim();
-        string? style = dto.Style?.Trim();
+        string? treatmentName = dto.Style?.Trim();
 
         CardPrinting? cp = null;
 
         if (dto.Id.HasValue)
         {
-            cp = await _db.CardPrintings.FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
+            cp = await _db.CardPrintings.Include(x => x.Treatment).Include(x => x.Card)
+                .FirstOrDefaultAsync(x => x.Id == dto.Id.Value);
             if (cp is null)
             {
                 return this.CreateProblem(
@@ -383,11 +387,19 @@ public class CardsController : ControllerBase
                 return this.CreateValidationProblem(errors);
             }
 
+        }
+
+        var treatment = dto.Id.HasValue && dto.Style is null
+            ? null
+            : await GetOrCreateTreatmentAsync(cp?.Card.Game ?? card.Game, treatmentName);
+
+        if (!dto.Id.HasValue)
+        {
             cp = await _db.CardPrintings.FirstOrDefaultAsync(x =>
                 x.CardId == dto.CardId &&
                 x.Set == set &&
                 x.Number == number &&
-                (x.Style ?? "") == (style ?? "")
+                treatment != null && x.TreatmentId == treatment.Id
             );
         }
 
@@ -399,7 +411,7 @@ public class CardsController : ControllerBase
                 Set = set!,
                 Number = number!,
                 Rarity = dto.Rarity?.Trim() ?? "",
-                Style = style ?? "",
+                Treatment = treatment!,
                 ImageUrl = dto.ImageUrl
             };
             _db.CardPrintings.Add(cp);
@@ -409,7 +421,7 @@ public class CardsController : ControllerBase
             if (dto.Set is not null) cp.Set = set!;
             if (dto.Number is not null) cp.Number = number!;
             if (dto.Rarity is not null) cp.Rarity = dto.Rarity.Trim();
-            if (dto.Style is not null) cp.Style = style ?? "";
+            if (treatment is not null) cp.Treatment = treatment;
             if (dto.ImageUrlSet) cp.ImageUrl = dto.ImageUrl;
         }
 
@@ -429,7 +441,7 @@ public class CardsController : ControllerBase
     /// or 400 Bad Request for invalid input.
     /// </returns>
     /// <remarks>
-    /// For each item, if a printing with matching Set, Number, and Style exists, it updates that printing.
+    /// For each item, if a printing with matching Set, Number, and treatment exists, it updates that printing.
     /// Otherwise, creates a new printing record. Items missing Set or Number are skipped silently.
     /// </remarks>
     private async Task<IActionResult> BulkImportPrintingsCore(int cardId, IEnumerable<UpsertPrintingRequest> items)
@@ -457,22 +469,24 @@ public class CardsController : ControllerBase
         if (list.Count == 0) return NoContent();
 
         var existing = await _db.CardPrintings
+            .Include(cp => cp.Treatment)
             .Where(cp => cp.CardId == cardId)
             .ToListAsync();
+        var card = await _db.Cards.FindAsync(cardId);
 
         foreach (var dto in list)
         {
             var set = dto.Set?.Trim();
             var number = dto.Number?.Trim();
-            var style = dto.Style?.Trim();
 
             if (string.IsNullOrWhiteSpace(set) || string.IsNullOrWhiteSpace(number))
                 continue;
 
+            var treatment = await GetOrCreateTreatmentAsync(card!.Game, dto.Style);
             var match = existing.FirstOrDefault(x =>
                 x.Set == set &&
                 x.Number == number &&
-                (x.Style ?? "") == (style ?? "")
+                treatment.Id != 0 && x.TreatmentId == treatment.Id
             );
 
             if (match is null)
@@ -483,7 +497,7 @@ public class CardsController : ControllerBase
                     Set = set!,
                     Number = number!,
                     Rarity = dto.Rarity?.Trim() ?? "",
-                    Style = style ?? "",
+                    Treatment = treatment,
                     ImageUrl = dto.ImageUrl
                 };
                 _db.CardPrintings.Add(created);
@@ -606,7 +620,7 @@ public class CardsController : ControllerBase
             printing.CatalogSet == null ? printing.Set : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
             printing.Number,
             printing.RarityLookup?.Name ?? printing.Rarity,
-            printing.Style,
+            printing.Treatment?.Name ?? "Standard",
             printing.ImageUrl,
             printing.CatalogSet?.Code,
             printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
@@ -627,7 +641,7 @@ public class CardsController : ControllerBase
             printing.Card.Name,
             printing.Card.Game)
         {
-            Style = printing.Style,
+            Style = printing.Treatment?.Name ?? "Standard",
             ReleaseDate = printing.CatalogSet == null ? printing.ReleasedAt : printing.CatalogSet.ReleasedAt,
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = GetOrientation(printing.ArtFrontHorizontal),
@@ -637,6 +651,34 @@ public class CardsController : ControllerBase
             Aspects = printing.Card.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
         };
+
+    private async Task<Treatment> GetOrCreateTreatmentAsync(string gameName, string? name)
+    {
+        var treatmentName = string.IsNullOrWhiteSpace(name) ? "Standard" : name.Trim();
+        var normalizedName = SqliteCaseNormalizer.Normalize(treatmentName);
+        var normalizedGame = SqliteCaseNormalizer.Normalize(gameName);
+        var game = _db.Games.Local.FirstOrDefault(candidate =>
+                SqliteCaseNormalizer.Normalize(candidate.Name) == normalizedGame)
+            ?? await _db.Games.FirstOrDefaultAsync(candidate => candidate.NameNormalized == normalizedGame)
+            ?? new Game { Name = gameName.Trim() };
+        if (_db.Entry(game).State == EntityState.Detached)
+            _db.Games.Add(game);
+
+        var treatment = _db.Treatments.Local.FirstOrDefault(candidate =>
+            (candidate.Game == game || (game.Id != 0 && candidate.GameId == game.Id))
+            && SqliteCaseNormalizer.Normalize(candidate.Name) == normalizedName);
+        if (treatment is null && game.Id != 0)
+        {
+            treatment = await _db.Treatments.FirstOrDefaultAsync(candidate =>
+                candidate.GameId == game.Id && candidate.NameNormalized == normalizedName);
+        }
+        if (treatment is not null)
+            return treatment;
+
+        treatment = new Treatment { Game = game, Name = treatmentName };
+        _db.Treatments.Add(treatment);
+        return treatment;
+    }
 
     private static string? GetOrientation(bool? horizontal)
         => horizontal switch { true => "horizontal", false => "vertical", _ => null };

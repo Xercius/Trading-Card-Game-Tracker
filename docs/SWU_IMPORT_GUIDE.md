@@ -39,7 +39,7 @@ Today SWU is implemented as a generic importer:
 The importer writes into the shared normalized tables:
 
 - logical card data goes into `Card` (keyed by `(Game, Name)` built from `(Title, Subtitle)`, so all printings of a card share a single `Card` row)
-- printing data goes into `CardPrinting` (each printing retains its own `StrapiId`, `CardUid`, `Number`, `Style`, and relationship metadata in `CardPrinting.DetailsJson`)
+- printing data goes into `CardPrinting` (each printing retains its own `StrapiId`, `CardUid`, `Number`, `TreatmentId`, and relationship metadata in `CardPrinting.DetailsJson`)
 - expansion codes, names, and `publishedAt` dates are upserted into `Sets` (`Sets.ReleasedAt`)
 - aspect names and colors are upserted into `Aspects` (`Aspects.Color`)
 - rarity names, characters, and colors are upserted into `Rarities` (`Rarities.Character`, `Rarities.Color`)
@@ -204,7 +204,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | `serialCode` | Preferred printing identity and stored as `CardPrinting.Number` when present. |
 | `cardNumber` | Used as fallback printing number; if missing, record `id` is used. |
 | `rarity` | Game-scoped rarity (`Rarities.Name`, `Rarities.Character`, `Rarities.Color`) and printing `RarityId`; legacy name falls back to `Unknown`. |
-| `variantTypes` | Sorted source names form `Style`; any source `foil: true` sets `IsFoil`. Variant IDs remain in `CardPrinting.DetailsJson`. |
+| `variantTypes` | The first named source variant is upserted as the printing treatment with its optional icon URL; an empty relation defaults to `Standard`. Any source `foil: true` sets `IsFoil`. Variant IDs remain in `CardPrinting.DetailsJson`. |
 | `artFront` / `artBack` | Separate `ImageUrl` / `BackImageUrl`; each uses its original URL, card format, then thumbnail. Back art never substitutes for front art. |
 | `artFrontHorizontal` / `artBackHorizontal` | Nullable boolean printing columns. |
 | `variantOf` / `reprintOf` | Distinct printing relationships `VariantOfId` / `ReprintOfId` resolved by source record ID. Unresolved upstream IDs/UIDs remain in `CardPrinting.DetailsJson` for subsequent syncs. |

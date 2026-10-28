@@ -18,6 +18,7 @@ namespace api.Data
         public DbSet<ImportSyncHistory> ImportSyncHistories => Set<ImportSyncHistory>();
         public DbSet<Game> Games => Set<Game>();
         public DbSet<Set> Sets => Set<Set>();
+        public DbSet<Treatment> Treatments => Set<Treatment>();
         public DbSet<CardType> CardTypes => Set<CardType>();
         public DbSet<Trait> Traits => Set<Trait>();
         public DbSet<Keyword> Keywords => Set<Keyword>();
@@ -93,7 +94,6 @@ namespace api.Data
                 e.Property(p => p.Set).IsRequired().HasMaxLength(64);
                 e.Property(p => p.Number).IsRequired().HasMaxLength(32);
                 e.Property(p => p.Rarity).IsRequired().HasMaxLength(32);
-                e.Property(p => p.Style).IsRequired().HasMaxLength(64);
                 e.Property(p => p.BackImageUrl).HasMaxLength(1024);
                 e.Property(p => p.Artist).HasMaxLength(256);
                 e.Property(p => p.CardUid).HasMaxLength(64);
@@ -114,13 +114,8 @@ namespace api.Data
                  .HasComputedColumnSql("LOWER(TRIM([Rarity]))", stored: true);
                 e.HasIndex("RarityNorm");
 
-                // normalized style for case-insensitive search
-                e.Property<string>("StyleNorm")
-                 .HasComputedColumnSql("LOWER(TRIM([Style]))", stored: true);
-                e.HasIndex("StyleNorm");
-
-                // one logical printing per (Card, Set, Number, Style)
-                e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.Style })
+                // one logical printing per (Card, Set, Number, Treatment)
+                e.HasIndex(p => new { p.CardId, p.Set, p.Number, p.TreatmentId })
                  .IsUnique();
 
                 e.HasOne(p => p.CatalogSet)
@@ -136,6 +131,12 @@ namespace api.Data
                     .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(p => p.RarityId);
+                e.HasOne(p => p.Treatment)
+                    .WithMany(t => t.CardPrintings)
+                    .HasForeignKey(p => p.TreatmentId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(p => p.TreatmentId);
                 e.HasIndex(p => p.StrapiId)
                     .IsUnique()
                     .HasFilter("\"StrapiId\" IS NOT NULL");
@@ -249,6 +250,22 @@ namespace api.Data
                 e.HasOne(s => s.Game)
                     .WithMany(g => g.Sets)
                     .HasForeignKey(s => s.GameId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            b.Entity<Treatment>(e =>
+            {
+                e.ToTable("Treatments");
+                e.HasKey(t => t.Id);
+                e.Property(t => t.Name).IsRequired().HasMaxLength(128);
+                e.Property(t => t.NameNormalized)
+                    .HasComputedColumnSql("LOWER(TRIM([Name]))", stored: true);
+                e.HasIndex(t => new { t.GameId, t.NameNormalized })
+                    .IsUnique()
+                    .HasDatabaseName("UX_Treatments_GameId_NameNormalized");
+                e.HasOne(t => t.Game)
+                    .WithMany(g => g.Treatments)
+                    .HasForeignKey(t => t.GameId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 

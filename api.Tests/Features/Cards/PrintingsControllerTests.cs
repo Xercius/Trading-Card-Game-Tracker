@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using api.Data;
 using api.Features.Cards.Dtos;
+using api.Importing;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,14 +45,45 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Get_with_style_filter_matches_individual_values_in_composite_style()
+    public async Task Upsert_with_mismatched_card_id_uses_existing_printing_game_for_treatment()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var request = new UpsertPrintingRequest(
+            TestDataSeeder.GoblinGuidePrintingId,
+            TestDataSeeder.ElsaCardId,
+            null,
+            null,
+            null,
+            "Showcase",
+            null);
+
+        var response = await client.PostAsJsonAsync("/api/cards/printing", request);
+
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var printing = await db.CardPrintings
+            .Include(p => p.Treatment)
+            .SingleAsync(p => p.Id == TestDataSeeder.GoblinGuidePrintingId);
+        var magicGameId = await db.Games
+            .Where(game => game.NameNormalized == "magic")
+            .Select(game => game.Id)
+            .SingleAsync();
+
+        Assert.Equal("Showcase", printing.Treatment!.Name);
+        Assert.Equal(magicGameId, printing.Treatment.GameId);
+    }
+
+    [Fact]
+    public async Task Get_with_style_filter_matches_treatment_name()
     {
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var printing = await db.CardPrintings.SingleAsync(
                 p => p.Id == TestDataSeeder.GoblinGuidePrintingId);
-            printing.Style = "Hyperspace, Showcase";
+            printing.Treatment = TreatmentLookup.Upsert(db, "Magic", "Hyperspace");
             await db.SaveChangesAsync();
         }
 
@@ -66,7 +98,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             "/api/cards/printings?style=space");
 
         Assert.Contains(hyperspace!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
-        Assert.Contains(showcase!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
+        Assert.DoesNotContain(showcase!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
         Assert.Contains(both!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
         Assert.DoesNotContain(partial!, p => p.PrintingId == TestDataSeeder.GoblinGuidePrintingId);
     }

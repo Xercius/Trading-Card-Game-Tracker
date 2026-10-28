@@ -20,4 +20,5 @@ public sealed class Game
     public ICollection<Arena> Arenas { get; set; } = new List<Arena>();
     public ICollection<Aspect> Aspects { get; set; } = new List<Aspect>();
     public ICollection<Rarity> Rarities { get; set; } = new List<Rarity>();
+    public ICollection<Treatment> Treatments { get; set; } = new List<Treatment>();
 }

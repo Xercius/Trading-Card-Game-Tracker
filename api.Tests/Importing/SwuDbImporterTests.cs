@@ -151,7 +151,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("Legendary", printing.Rarity);
         Assert.Equal("SOR", printing.Set);
         Assert.Equal("1", printing.Number);
-        Assert.Equal("Standard", printing.Style);
+        Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == printing.TreatmentId)).Name);
         Assert.Equal("https://example.invalid/card.png", printing.ImageUrl);
         Assert.Equal("Legendary", (await db.Rarities.SingleAsync(r => r.Id == printing.RarityId)).Name);
     }
@@ -176,9 +176,11 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             foil: false,
             imageUrl: "https://cdn.starwarsunlimited.com/06010001_EN.png",
             text: "Deploy: exhaust this leader.");
+        var payload = JsonNode.Parse(json)!;
+        payload["data"]![0]!["attributes"]!["variantTypes"] = null;
 
         var options = new ImportOptions(DryRun: false, SetCode: "SOR");
-        var summary = await importer.ImportFromFileAsync(ToStream(json), options);
+        var summary = await importer.ImportFromFileAsync(ToStream(payload.ToJsonString()), options);
 
         Assert.Equal(0, summary.Errors);
         Assert.Equal(1, summary.CardsCreated);
@@ -196,7 +198,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("SOR", printing.Set);
         Assert.Equal("Legendary", printing.Rarity);
         Assert.Equal("1", printing.Number);
-        Assert.Equal("Standard", printing.Style);
+        Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == printing.TreatmentId)).Name);
         Assert.Equal("https://cdn.starwarsunlimited.com/06010001_EN.png", printing.ImageUrl);
     }
 
@@ -227,7 +229,7 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, summary.PrintingsCreated);
 
         var printing = await db.CardPrintings.SingleAsync(p => p.CardUid == "2579145458");
-        Assert.Equal("Foil", printing.Style);
+        Assert.Equal("Foil", (await db.Treatments.SingleAsync(t => t.Id == printing.TreatmentId)).Name);
     }
 
     [Fact]

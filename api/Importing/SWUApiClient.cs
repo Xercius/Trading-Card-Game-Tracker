@@ -479,7 +479,11 @@ internal sealed record SwuExpansionAttributes(
 internal sealed record SwuVariantTypeAttributes(
     [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("variantId")] string? VariantId,
-    [property: JsonPropertyName("foil")] bool? Foil);
+    [property: JsonPropertyName("foil")] bool? Foil)
+{
+    [JsonPropertyName("icon")]
+    public StrapiRelation<SwuImageAttributes>? Icon { get; set; }
+}
 
 internal sealed record SwuVariantRefAttributes(
     [property: JsonPropertyName("title")] string? Title,

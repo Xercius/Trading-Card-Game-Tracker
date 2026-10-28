@@ -1,4 +1,5 @@
 using api.Models;
+using api.Importing;
 
 namespace api.Data;
 
@@ -22,13 +23,13 @@ public static class MinimalDbSeeder
             return;
         }
 
-        var cards = CreateSampleCards();
+        var cards = CreateSampleCards(context);
         context.Cards.AddRange(cards);
         context.SaveChanges();
         Console.WriteLine("Minimal seed complete: added sample cards and printings.");
     }
 
-    private static IReadOnlyList<Card> CreateSampleCards() => new List<Card>
+    private static IReadOnlyList<Card> CreateSampleCards(AppDbContext context) => new List<Card>
     {
         new()
         {
@@ -42,7 +43,7 @@ public static class MinimalDbSeeder
                     Set = "Limited Edition Alpha",
                     Number = "150",
                     Rarity = "Common",
-                    Style = "Standard",
+                    Treatment = TreatmentLookup.Upsert(context, "Magic: The Gathering", "Standard"),
                 },
             },
         },
@@ -58,7 +59,7 @@ public static class MinimalDbSeeder
                     Set = "Base Set",
                     Number = "58",
                     Rarity = "Common",
-                    Style = "Standard",
+                    Treatment = TreatmentLookup.Upsert(context, "Pokemon TCG", "Standard"),
                 },
             },
         },
@@ -74,7 +75,7 @@ public static class MinimalDbSeeder
                     Set = "Spark of Rebellion",
                     Number = "001",
                     Rarity = "Legendary",
-                    Style = "Standard",
+                    Treatment = TreatmentLookup.Upsert(context, "Star Wars Unlimited", "Standard"),
                 },
             },
         },

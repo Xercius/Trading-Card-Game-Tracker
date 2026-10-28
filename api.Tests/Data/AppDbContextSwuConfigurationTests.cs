@@ -87,8 +87,14 @@ public sealed class AppDbContextSwuConfigurationTests
 
         await migrator.MigrateAsync();
 
-        var game = await db.Games.SingleAsync();
+        var game = await db.Games.SingleAsync(item => item.Name == "Star Wars Unlimited");
         var set = await db.Sets.SingleAsync();
+        var standardTreatment = await db.Treatments.SingleAsync(item =>
+            item.GameId == game.Id && item.Name == "Standard");
+        var hyperspaceTreatment = await db.Treatments.SingleAsync(item =>
+            item.GameId == game.Id && item.Name == "Hyperspace");
+        var otherGameTreatment = await db.Treatments.Include(item => item.Game).SingleAsync(item =>
+            item.Game.Name == "Pokémon" && item.Name == "Standard");
         var syncLog = await db.SyncLogs.Include(log => log.Set).SingleAsync();
         var printing = await db.CardPrintings.SingleAsync(item => item.Id == 7);
         var duplicateCardPrinting = await db.CardPrintings.SingleAsync(item => item.Id == 9);
@@ -101,10 +107,13 @@ public sealed class AppDbContextSwuConfigurationTests
         Assert.Equal(set.Id, syncLog.SetId);
         Assert.Equal(set.Id, syncLog.Set!.Id);
         Assert.Equal(set.Id, printing.SetId);
+        Assert.Equal(standardTreatment.Id, printing.TreatmentId);
+        Assert.Equal(hyperspaceTreatment.Id, duplicateCardPrinting.TreatmentId);
         Assert.Equal(3, printing.CardId);
         Assert.Equal(3, duplicateCardPrinting.CardId);
         Assert.Equal(3, await db.Cards.CountAsync());
         Assert.Null(otherGamePrinting.SetId);
+        Assert.Equal(otherGameTreatment.Id, otherGamePrinting.TreatmentId);
         Assert.Equal(3, copiedAspect.CardId);
         Assert.Equal(2, copiedAspect.Count);
         Assert.Equal("Heroism", copiedAspect.Aspect.Name);
