@@ -54,6 +54,9 @@ public class CardsController : ControllerBase
     /// <param name="aspect">Optional comma-separated list of associated card aspects to filter.</param>
     /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated list of associated card traits to filter.</param>
+    /// <param name="traitMethod">Filtering method for traits ('or', 'and', 'exclude').</param>
+    /// <param name="keyword">Optional comma-separated list of associated card keywords to filter.</param>
+    /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
     /// <param name="skip">Number of records to skip for pagination (default: 0).</param>
     /// <param name="take">Number of records to take per page (default: 60, max: 200).</param>
     /// <param name="includeTotal">Whether to include the total count of matching cards (default: false).</param>
@@ -72,6 +75,9 @@ public class CardsController : ControllerBase
         [FromQuery] string? aspect = null,
         [FromQuery] string? aspectMethod = null,
         [FromQuery] string? trait = null,
+        [FromQuery] string? traitMethod = null,
+        [FromQuery] string? keyword = null,
+        [FromQuery] string? keywordMethod = null,
         [FromQuery] int skip = 0,
         [FromQuery] int take = 60,
         [FromQuery] bool includeTotal = false,
@@ -87,6 +93,7 @@ public class CardsController : ControllerBase
         var arenas = CsvUtils.Parse(arena);
         var aspects = CsvUtils.ParsePreservingDuplicates(aspect);
         var traits = CsvUtils.Parse(trait);
+        var keywords = CsvUtils.Parse(keyword);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
             .Where(g => normalizedGames.Contains(g.NameNormalized))
@@ -95,7 +102,7 @@ public class CardsController : ControllerBase
 
         var query = _db.Cards
             .AsNoTracking()
-            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod)
+            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod, traitMethod, keywords, keywordMethod)
             .OrderBy(c => c.Game == null ? string.Empty : c.Game.Name)
             .ThenBy(c => c.Name)
             .ThenBy(c => c.Id);
@@ -170,6 +177,9 @@ public class CardsController : ControllerBase
     /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
     /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
+    /// <param name="traitMethod">Filtering method for traits ('or', 'and', 'exclude').</param>
+    /// <param name="keyword">Optional comma-separated associated card-keyword filter.</param>
+    /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
     /// <param name="includePrintings">If true, includes all printings for each card in the response.</param>
     /// <param name="page">Page number for pagination (default: 1).</param>
     /// <param name="pageSize">Number of results per page (default: 50, max: 200).</param>
@@ -188,7 +198,10 @@ public class CardsController : ControllerBase
         string? trait,
         bool includePrintings,
         int page, int pageSize,
-        string? aspectMethod = null)
+        string? aspectMethod = null,
+        string? traitMethod = null,
+        string? keyword = null,
+        string? keywordMethod = null)
     {
         if (page <= 0) page = DefaultPageNumber;
         if (pageSize <= 0 || pageSize > SearchMaxPageSize) pageSize = SearchDefaultPageSize;
@@ -202,12 +215,13 @@ public class CardsController : ControllerBase
         var arenas = CsvUtils.Parse(arena);
         var aspects = CsvUtils.ParsePreservingDuplicates(aspect);
         var traits = CsvUtils.Parse(trait);
+        var keywords = CsvUtils.Parse(keyword);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
-        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod);
+        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod, traitMethod, keywords, keywordMethod);
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -549,6 +563,9 @@ public class CardsController : ControllerBase
     /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
     /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
+    /// <param name="traitMethod">Filtering method for traits ('or', 'and', 'exclude').</param>
+    /// <param name="keyword">Optional comma-separated associated card-keyword filter.</param>
+    /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
     /// <param name="includePrintings">If true, includes all printings for each card (default: false).</param>
     /// <param name="page">Page number, starting from 1 (default: 1).</param>
     /// <param name="pageSize">Results per page (default: 50, max: 200).</param>
@@ -567,10 +584,13 @@ public class CardsController : ControllerBase
         [FromQuery] string? aspect = null,
         [FromQuery] string? aspectMethod = null,
         [FromQuery] string? trait = null,
+        [FromQuery] string? traitMethod = null,
+        [FromQuery] string? keyword = null,
+        [FromQuery] string? keywordMethod = null,
         [FromQuery] bool includePrintings = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
-        => await ListCardsCore(game, name, set, rarity, type, arena, aspect, trait, includePrintings, page, pageSize, aspectMethod);
+        => await ListCardsCore(game, name, set, rarity, type, arena, aspect, trait, includePrintings, page, pageSize, aspectMethod, traitMethod, keyword, keywordMethod);
 
     /// <summary>
     /// Retrieves detailed information for a specific card, including all its printings.

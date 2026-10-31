@@ -9,6 +9,8 @@ type MultiSelectProps = {
   placeholder?: string;
   onChange: (values: string[]) => void;
   className?: string;
+  method?: "or" | "and" | "exclude";
+  onMethodChange?: (method: "or" | "and" | "exclude") => void;
 };
 
 type IconProps = { className?: string };
@@ -62,13 +64,22 @@ export function MultiSelect({
   placeholder = "Search…",
   onChange,
   className,
+  method,
+  onMethodChange,
 }: MultiSelectProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
-  const summary = values.length > 0 ? `${label} (${values.length})` : label;
+  const summary = React.useMemo(() => {
+    if (values.length === 0) return label;
+    if (method && method !== "or") {
+      const prefix = method === "exclude" ? "Exclude: " : "AND: ";
+      return `${label} (${prefix}${values.length})`;
+    }
+    return `${label} (${values.length})`;
+  }, [label, method, values.length]);
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredOptions = React.useMemo(() => {
@@ -79,20 +90,28 @@ export function MultiSelect({
   const toggleValue = React.useCallback(
     (value: string) => {
       if (values.includes(value)) {
-        onChange(values.filter((item) => item !== value));
+        const next = values.filter((item) => item !== value);
+        onChange(next);
+        if (next.length === 0 && onMethodChange) {
+          onMethodChange("or");
+        }
       } else {
         onChange([...values, value]);
       }
     },
-    [onChange, values]
+    [onChange, onMethodChange, values]
   );
 
   const removeValue = React.useCallback(
     (value: string) => {
       if (!values.includes(value)) return;
-      onChange(values.filter((item) => item !== value));
+      const next = values.filter((item) => item !== value);
+      onChange(next);
+      if (next.length === 0 && onMethodChange) {
+        onMethodChange("or");
+      }
     },
-    [onChange, values]
+    [onChange, onMethodChange, values]
   );
 
   React.useEffect(() => {
@@ -145,6 +164,39 @@ export function MultiSelect({
               className?.includes("w-full") ? "w-full" : "w-72"
             }`}
           >
+            {method && onMethodChange && (
+              <div className="border-b border-white/10 p-2.5">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Filter Method
+                </div>
+                <div
+                  className="flex rounded-md border border-white/20 bg-black/30 p-0.5"
+                  role="group"
+                  aria-label={`${label} Filter Method`}
+                >
+                  {(["or", "and", "exclude"] as const).map((m) => {
+                    const isActive = method === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => onMethodChange(m)}
+                        className={`flex-1 py-1 px-2 text-xs font-semibold rounded transition-colors ${
+                          isActive
+                            ? m === "exclude"
+                              ? "bg-red-600 text-white shadow-sm"
+                              : "bg-white/20 text-white shadow-sm"
+                            : "text-muted-foreground hover:text-white hover:bg-white/5"
+                        }`}
+                      >
+                        {m.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div className="border-b border-input px-3 py-2">
               <input
                 ref={inputRef}
@@ -190,8 +242,12 @@ export function MultiSelect({
       {values.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {values.map((value) => (
-            <Badge key={value} variant="secondary" className="gap-1">
-              <span>{value}</span>
+            <Badge
+              key={value}
+              variant={method === "exclude" ? "destructive" : "secondary"}
+              className="gap-1"
+            >
+              <span>{method === "exclude" ? `NOT ${value}` : value}</span>
               <button
                 type="button"
                 aria-label={`Remove ${value}`}

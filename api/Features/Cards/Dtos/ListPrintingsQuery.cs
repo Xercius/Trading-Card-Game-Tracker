@@ -74,6 +74,21 @@ public sealed class ListPrintingsQuery
     public string? Trait { get; init; }
 
     /// <summary>
+    /// Method for trait filtering: "or" (default), "and", or "exclude".
+    /// </summary>
+    public string? TraitMethod { get; init; }
+
+    /// <summary>
+    /// Optional filter by card keyword (e.g., "Sentinel", "Grit", "Overwhelm").
+    /// </summary>
+    public string? Keyword { get; init; }
+
+    /// <summary>
+    /// Method for keyword filtering: "or" (default), "and", or "exclude".
+    /// </summary>
+    public string? KeywordMethod { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

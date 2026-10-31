@@ -90,12 +90,48 @@ export default function PillsBar() {
   });
 
   filters.traits.forEach((trait) => {
+    const label =
+      filters.traitMethod === "exclude"
+        ? `Exclude Trait: ${trait}`
+        : filters.traitMethod === "and"
+          ? `Trait (AND): ${trait}`
+          : `Trait: ${trait}`;
     tokens.push({
       key: `trait:${trait}`,
-      label: `Trait: ${trait}`,
+      label,
       ariaLabel: `Remove trait filter ${trait}`,
       onRemove: () =>
-        setFilters((prev) => ({ ...prev, traits: prev.traits.filter((value) => value !== trait) })),
+        setFilters((prev) => {
+          const nextTraits = prev.traits.filter((value) => value !== trait);
+          return {
+            ...prev,
+            traits: nextTraits,
+            ...(nextTraits.length === 0 ? { traitMethod: "or" as const } : {}),
+          };
+        }),
+    });
+  });
+
+  filters.keywords.forEach((keyword) => {
+    const label =
+      filters.keywordMethod === "exclude"
+        ? `Exclude Keyword: ${keyword}`
+        : filters.keywordMethod === "and"
+          ? `Keyword (AND): ${keyword}`
+          : `Keyword: ${keyword}`;
+    tokens.push({
+      key: `keyword:${keyword}`,
+      label,
+      ariaLabel: `Remove keyword filter ${keyword}`,
+      onRemove: () =>
+        setFilters((prev) => {
+          const nextKeywords = prev.keywords.filter((value) => value !== keyword);
+          return {
+            ...prev,
+            keywords: nextKeywords,
+            ...(nextKeywords.length === 0 ? { keywordMethod: "or" as const } : {}),
+          };
+        }),
     });
   });
 

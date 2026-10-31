@@ -441,4 +441,96 @@ describe("CardModal", () => {
     await screen.findByText("Failed to load card details.");
     expect(screen.getByRole("dialog", { name: "Card details" })).toBeInTheDocument();
   });
+
+  it("displays upgradePower and upgradeHp when base power and hp are absent", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 201,
+              name: "Electrostaff",
+              game: "Star Wars Unlimited",
+              cardType: "Upgrade",
+              cardTypes: ["Upgrade"],
+              cost: 2,
+              power: null,
+              hp: null,
+              upgradePower: 1,
+              upgradeHp: 2,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 201 });
+
+    const statsRow = await screen.findByLabelText("Card stats");
+    expect(within(statsRow).getByAltText("Cost badge")).toBeInTheDocument();
+    expect(within(statsRow).getByText("2")).toBeInTheDocument();
+
+    expect(within(statsRow).getByAltText("Power badge")).toBeInTheDocument();
+    expect(within(statsRow).getByText("+1")).toBeInTheDocument();
+
+    expect(within(statsRow).getByAltText("HP badge")).toBeInTheDocument();
+    expect(within(statsRow).getByText("+2")).toBeInTheDocument();
+  });
+
+  it("omits power and hp badges completely when card has neither base nor upgrade stats", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 202,
+              name: "Superlaser Blast",
+              game: "Star Wars Unlimited",
+              cardType: "Event",
+              cardTypes: ["Event"],
+              cost: 8,
+              power: null,
+              hp: null,
+              upgradePower: null,
+              upgradeHp: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 202 });
+
+    const statsRow = await screen.findByLabelText("Card stats");
+    expect(within(statsRow).getByAltText("Cost badge")).toBeInTheDocument();
+    expect(within(statsRow).getByText("8")).toBeInTheDocument();
+
+    expect(within(statsRow).queryByAltText("Power badge")).toBeNull();
+    expect(within(statsRow).queryByAltText("HP badge")).toBeNull();
+  });
+
+  it("omits card stats container completely when cost, power, hp, and upgrade stats are all null", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 203,
+              name: "Catacombs of Cadera",
+              game: "Star Wars Unlimited",
+              cardType: "Base",
+              cardTypes: ["Base"],
+              cost: null,
+              power: null,
+              hp: null,
+              upgradePower: null,
+              upgradeHp: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 203 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Catacombs of Cadera");
+    expect(screen.queryByLabelText("Card stats")).toBeNull();
+  });
 });

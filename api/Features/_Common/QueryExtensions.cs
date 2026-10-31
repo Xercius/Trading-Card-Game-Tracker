@@ -214,6 +214,158 @@ internal static class QueryExtensions
         }
     }
 
+    internal static IQueryable<Card> ApplyTraitFilter(
+        this IQueryable<Card> query,
+        IReadOnlyCollection<string>? traits,
+        string? traitMethod = null)
+    {
+        if (traits is null || traits.Count == 0) return query;
+
+        var method = (traitMethod ?? "or").Trim().ToLowerInvariant();
+        var normalizedTraits = traits
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(SqliteCaseNormalizer.Normalize)
+            .Distinct()
+            .ToList();
+
+        if (normalizedTraits.Count == 0) return query;
+
+        switch (method)
+        {
+            case "and":
+                foreach (var trait in normalizedTraits)
+                {
+                    var t = trait;
+                    query = query.Where(c => c.CardTraits.Any(ct =>
+                        EF.Functions.Collate(ct.Trait.Name, "NOCASE") == t));
+                }
+                return query;
+
+            case "exclude":
+                return query.Where(c => !c.CardTraits.Any(ct =>
+                    normalizedTraits.Contains(EF.Functions.Collate(ct.Trait.Name, "NOCASE"))));
+
+            case "or":
+            default:
+                return query.Where(c => c.CardTraits.Any(ct =>
+                    normalizedTraits.Contains(EF.Functions.Collate(ct.Trait.Name, "NOCASE"))));
+        }
+    }
+
+    internal static IQueryable<CardPrinting> ApplyTraitFilter(
+        this IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string>? traits,
+        string? traitMethod = null)
+    {
+        if (traits is null || traits.Count == 0) return query;
+
+        var method = (traitMethod ?? "or").Trim().ToLowerInvariant();
+        var normalizedTraits = traits
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(SqliteCaseNormalizer.Normalize)
+            .Distinct()
+            .ToList();
+
+        if (normalizedTraits.Count == 0) return query;
+
+        switch (method)
+        {
+            case "and":
+                foreach (var trait in normalizedTraits)
+                {
+                    var t = trait;
+                    query = query.Where(p => p.Card.CardTraits.Any(ct =>
+                        EF.Functions.Collate(ct.Trait.Name, "NOCASE") == t));
+                }
+                return query;
+
+            case "exclude":
+                return query.Where(p => !p.Card.CardTraits.Any(ct =>
+                    normalizedTraits.Contains(EF.Functions.Collate(ct.Trait.Name, "NOCASE"))));
+
+            case "or":
+            default:
+                return query.Where(p => p.Card.CardTraits.Any(ct =>
+                    normalizedTraits.Contains(EF.Functions.Collate(ct.Trait.Name, "NOCASE"))));
+        }
+    }
+
+    internal static IQueryable<Card> ApplyKeywordFilter(
+        this IQueryable<Card> query,
+        IReadOnlyCollection<string>? keywords,
+        string? keywordMethod = null)
+    {
+        if (keywords is null || keywords.Count == 0) return query;
+
+        var method = (keywordMethod ?? "or").Trim().ToLowerInvariant();
+        var normalizedKeywords = keywords
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(SqliteCaseNormalizer.Normalize)
+            .Distinct()
+            .ToList();
+
+        if (normalizedKeywords.Count == 0) return query;
+
+        switch (method)
+        {
+            case "and":
+                foreach (var keyword in normalizedKeywords)
+                {
+                    var k = keyword;
+                    query = query.Where(c => c.CardKeywords.Any(ck =>
+                        EF.Functions.Collate(ck.Keyword.Name, "NOCASE") == k));
+                }
+                return query;
+
+            case "exclude":
+                return query.Where(c => !c.CardKeywords.Any(ck =>
+                    normalizedKeywords.Contains(EF.Functions.Collate(ck.Keyword.Name, "NOCASE"))));
+
+            case "or":
+            default:
+                return query.Where(c => c.CardKeywords.Any(ck =>
+                    normalizedKeywords.Contains(EF.Functions.Collate(ck.Keyword.Name, "NOCASE"))));
+        }
+    }
+
+    internal static IQueryable<CardPrinting> ApplyKeywordFilter(
+        this IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string>? keywords,
+        string? keywordMethod = null)
+    {
+        if (keywords is null || keywords.Count == 0) return query;
+
+        var method = (keywordMethod ?? "or").Trim().ToLowerInvariant();
+        var normalizedKeywords = keywords
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(SqliteCaseNormalizer.Normalize)
+            .Distinct()
+            .ToList();
+
+        if (normalizedKeywords.Count == 0) return query;
+
+        switch (method)
+        {
+            case "and":
+                foreach (var keyword in normalizedKeywords)
+                {
+                    var k = keyword;
+                    query = query.Where(p => p.Card.CardKeywords.Any(ck =>
+                        EF.Functions.Collate(ck.Keyword.Name, "NOCASE") == k));
+                }
+                return query;
+
+            case "exclude":
+                return query.Where(p => !p.Card.CardKeywords.Any(ck =>
+                    normalizedKeywords.Contains(EF.Functions.Collate(ck.Keyword.Name, "NOCASE"))));
+
+            case "or":
+            default:
+                return query.Where(p => p.Card.CardKeywords.Any(ck =>
+                    normalizedKeywords.Contains(EF.Functions.Collate(ck.Keyword.Name, "NOCASE"))));
+        }
+    }
+
     internal static IQueryable<Card> ApplyCardSearchFilters(
         this IQueryable<Card> query,
         string? searchTerm,
@@ -225,7 +377,10 @@ internal static class QueryExtensions
         IReadOnlyCollection<string>? arenas = null,
         IReadOnlyCollection<string>? aspects = null,
         IReadOnlyCollection<string>? traits = null,
-        string? aspectMethod = null)
+        string? aspectMethod = null,
+        string? traitMethod = null,
+        IReadOnlyCollection<string>? keywords = null,
+        string? keywordMethod = null)
     {
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -289,14 +444,8 @@ internal static class QueryExtensions
         }
 
         query = query.ApplyAspectFilter(aspects, aspectMethod);
-
-        if (traits is { Count: > 0 })
-        {
-            var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(c =>
-                c.CardTraits.Any(trait =>
-                    normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
-        }
+        query = query.ApplyTraitFilter(traits, traitMethod);
+        query = query.ApplyKeywordFilter(keywords, keywordMethod);
 
         return query;
     }

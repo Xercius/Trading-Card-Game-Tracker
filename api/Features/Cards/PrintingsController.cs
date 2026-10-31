@@ -131,13 +131,10 @@ public sealed class PrintingsController : ControllerBase
         query = query.ApplyAspectFilter(aspects, qp.AspectMethod);
 
         var traits = CsvUtils.Parse(qp.Trait);
-        if (traits.Count > 0)
-        {
-            var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(p =>
-                p.Card.CardTraits.Any(trait =>
-                    normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
-        }
+        query = query.ApplyTraitFilter(traits, qp.TraitMethod);
+
+        var keywords = CsvUtils.Parse(qp.Keyword);
+        query = query.ApplyKeywordFilter(keywords, qp.KeywordMethod);
 
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);

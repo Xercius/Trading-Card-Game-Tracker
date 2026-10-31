@@ -398,6 +398,24 @@ export default function CardModal({
     return hasMeaningfulContent(rulingsSource);
   }, [rulingsSource]);
 
+  const powerValue = useMemo(() => {
+    if (!details) return null;
+    if (details.power != null) return details.power;
+    if (details.upgradePower != null) {
+      return details.upgradePower > 0 ? `+${details.upgradePower}` : `${details.upgradePower}`;
+    }
+    return null;
+  }, [details]);
+
+  const hpValue = useMemo(() => {
+    if (!details) return null;
+    if (details.hp != null) return details.hp;
+    if (details.upgradeHp != null) {
+      return details.upgradeHp > 0 ? `+${details.upgradeHp}` : `${details.upgradeHp}`;
+    }
+    return null;
+  }, [details]);
+
   useEffect(() => {
     if (!open) return;
     setSelectedPrintingId(initialPrintingId ?? null);
@@ -624,29 +642,35 @@ export default function CardModal({
                       )}
 
                       {/* 2. Stat Row (Cost, Power, HP with SWU Icon Badges) */}
-                      {(details.cost != null || details.power != null || details.hp != null) && (
+                      {(details.cost != null || powerValue != null || hpValue != null) && (
                         <div
                           aria-label="Card stats"
                           className="flex items-center gap-1.5 mt-2"
                         >
-                          <StatBadge
-                            label="Cost"
-                            value={details.cost}
-                            iconPath="/images/swu/icons/cost.png"
-                            textColor="text-white font-black drop-shadow-sm"
-                          />
-                          <StatBadge
-                            label="Power"
-                            value={details.power}
-                            iconPath="/images/swu/icons/power.png"
-                            textColor="text-white font-black drop-shadow-sm"
-                          />
-                          <StatBadge
-                            label="HP"
-                            value={details.hp}
-                            iconPath="/images/swu/icons/hp.png"
-                            textColor="text-white font-black drop-shadow-sm"
-                          />
+                          {details.cost != null && (
+                            <StatBadge
+                              label="Cost"
+                              value={details.cost}
+                              iconPath="/images/swu/icons/cost.png"
+                              textColor="text-white font-black drop-shadow-sm"
+                            />
+                          )}
+                          {powerValue != null && (
+                            <StatBadge
+                              label="Power"
+                              value={powerValue}
+                              iconPath="/images/swu/icons/power.png"
+                              textColor="text-white font-black drop-shadow-sm"
+                            />
+                          )}
+                          {hpValue != null && (
+                            <StatBadge
+                              label="HP"
+                              value={hpValue}
+                              iconPath="/images/swu/icons/hp.png"
+                              textColor="text-white font-black drop-shadow-sm"
+                            />
+                          )}
                         </div>
                       )}
 

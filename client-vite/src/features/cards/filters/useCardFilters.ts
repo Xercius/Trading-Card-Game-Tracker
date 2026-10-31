@@ -2,6 +2,8 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
 export type AspectMethod = "or" | "and" | "exclude";
+export type TraitMethod = "or" | "and" | "exclude";
+export type KeywordMethod = "or" | "and" | "exclude";
 
 export type CardFilters = {
   q: string;
@@ -13,6 +15,9 @@ export type CardFilters = {
   aspects: string[];
   aspectMethod: AspectMethod;
   traits: string[];
+  traitMethod: TraitMethod;
+  keywords: string[];
+  keywordMethod: KeywordMethod;
   page: number;
   pageSize: number;
   sort?: string;
@@ -27,6 +32,9 @@ const filterKeys = [
   "aspect",
   "aspectMethod",
   "trait",
+  "traitMethod",
+  "keyword",
+  "keywordMethod",
   "q",
   "page",
   "pageSize",
@@ -52,6 +60,9 @@ type UseCardFiltersResult = {
     number,
     string,
     AspectMethod,
+    TraitMethod,
+    string,
+    KeywordMethod,
   ];
 };
 
@@ -68,6 +79,9 @@ const emptyFilters: CardFilters = {
   aspects: [],
   aspectMethod: "or",
   traits: [],
+  traitMethod: "or",
+  keywords: [],
+  keywordMethod: "or",
   page: DEFAULT_PAGE,
   pageSize: DEFAULT_PAGE_SIZE,
   sort: undefined,
@@ -98,6 +112,14 @@ function sanitizeFilters(input: CardFilters): CardFilters {
   const validMethod: AspectMethod =
     rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
 
+  const rawTraitMethod = (input.traitMethod || "or").toLowerCase();
+  const validTraitMethod: TraitMethod =
+    rawTraitMethod === "and" || rawTraitMethod === "exclude" ? rawTraitMethod : "or";
+
+  const rawKeywordMethod = (input.keywordMethod || "or").toLowerCase();
+  const validKeywordMethod: KeywordMethod =
+    rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";
+
   return {
     q: input.q.trim(),
     games: sanitizeList(input.games ?? []),
@@ -111,6 +133,9 @@ function sanitizeFilters(input: CardFilters): CardFilters {
       .filter((a) => a && a.toLowerCase() !== "all"),
     aspectMethod: validMethod,
     traits: sanitizeList(input.traits ?? []),
+    traitMethod: validTraitMethod,
+    keywords: sanitizeList(input.keywords ?? []),
+    keywordMethod: validKeywordMethod,
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
     sort: input.sort?.trim() || undefined,
@@ -131,6 +156,13 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const aspectMethod: AspectMethod =
     rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
   const traits = parseCsv(params.get("trait"));
+  const rawTraitMethod = params.get("traitMethod")?.toLowerCase();
+  const traitMethod: TraitMethod =
+    rawTraitMethod === "and" || rawTraitMethod === "exclude" ? rawTraitMethod : "or";
+  const keywords = parseCsv(params.get("keyword"));
+  const rawKeywordMethod = params.get("keywordMethod")?.toLowerCase();
+  const keywordMethod: KeywordMethod =
+    rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";
 
   const pageStr = params.get("page");
   const page = pageStr ? Math.max(1, parseInt(pageStr, 10) || DEFAULT_PAGE) : DEFAULT_PAGE;
@@ -152,6 +184,9 @@ function parseFilters(params: URLSearchParams): CardFilters {
     aspects,
     aspectMethod,
     traits,
+    traitMethod,
+    keywords,
+    keywordMethod,
     page,
     pageSize,
     sort,
@@ -188,6 +223,15 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   if (filters.traits.length > 0) {
     next.set("trait", filters.traits.join(","));
   }
+  if (filters.traitMethod && filters.traitMethod !== "or") {
+    next.set("traitMethod", filters.traitMethod);
+  }
+  if (filters.keywords.length > 0) {
+    next.set("keyword", filters.keywords.join(","));
+  }
+  if (filters.keywordMethod && filters.keywordMethod !== "or") {
+    next.set("keywordMethod", filters.keywordMethod);
+  }
   if (filters.q.length > 0) {
     next.set("q", filters.q);
   }
@@ -219,6 +263,7 @@ export function useCardFilters(): UseCardFiltersResult {
   const arenasKey = filters.arenas.join("|");
   const aspectsKey = filters.aspects.join("|");
   const traitsKey = filters.traits.join("|");
+  const keywordsKey = filters.keywords.join("|");
 
   const stableKey = useMemo(
     () =>
@@ -235,6 +280,9 @@ export function useCardFilters(): UseCardFiltersResult {
         filters.pageSize,
         filters.sort ?? "",
         filters.aspectMethod,
+        filters.traitMethod,
+        keywordsKey,
+        filters.keywordMethod,
       ] as const,
     [
       filters.q,
@@ -245,10 +293,13 @@ export function useCardFilters(): UseCardFiltersResult {
       arenasKey,
       aspectsKey,
       traitsKey,
+      keywordsKey,
       filters.page,
       filters.pageSize,
       filters.sort,
       filters.aspectMethod,
+      filters.traitMethod,
+      filters.keywordMethod,
     ]
   );
 

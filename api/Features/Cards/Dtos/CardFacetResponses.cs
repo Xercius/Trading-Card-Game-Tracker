@@ -71,6 +71,11 @@ public sealed record CardsFacetResponse
     public IReadOnlyList<FacetOption> Traits { get; init; } = Array.Empty<FacetOption>();
 
     /// <summary>
+    /// List of available keyword facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Keywords { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
     /// List of available printing treatment facets with counts based on current filters.
     /// </summary>
     public IReadOnlyList<FacetOption> Treatments { get; init; } = Array.Empty<FacetOption>();

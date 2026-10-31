@@ -29,6 +29,9 @@ export type PrintingQuery = {
   aspects?: string[];
   aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
+  traitMethod?: "or" | "and" | "exclude";
+  keywords?: string[];
+  keywordMethod?: "or" | "and" | "exclude";
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -52,6 +55,10 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.aspectMethod && query.aspectMethod !== "or")
     params.set("aspectMethod", query.aspectMethod);
   if (query.traits?.length) params.set("trait", query.traits.join(","));
+  if (query.traitMethod && query.traitMethod !== "or") params.set("traitMethod", query.traitMethod);
+  if (query.keywords?.length) params.set("keyword", query.keywords.join(","));
+  if (query.keywordMethod && query.keywordMethod !== "or")
+    params.set("keywordMethod", query.keywordMethod);
   if (query.sort) params.set("sort", query.sort);
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));

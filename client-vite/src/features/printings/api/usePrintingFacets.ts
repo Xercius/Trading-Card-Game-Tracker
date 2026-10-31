@@ -11,6 +11,7 @@ export type PrintingFacets = {
   arenas: string[];
   aspects: string[];
   traits: string[];
+  keywords: string[];
 };
 
 /**
@@ -28,6 +29,13 @@ export function usePrintingFacets(filters: CardFilters) {
       ? { aspectMethod: filters.aspectMethod }
       : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
+    ...(filters.traitMethod && filters.traitMethod !== "or"
+      ? { traitMethod: filters.traitMethod }
+      : {}),
+    ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
+    ...(filters.keywordMethod && filters.keywordMethod !== "or"
+      ? { keywordMethod: filters.keywordMethod }
+      : {}),
     q: filters.q || undefined,
     printingSearch: true,
   };
@@ -43,6 +51,7 @@ export function usePrintingFacets(filters: CardFilters) {
       arenas: (facets.arenas ?? []).map((facet) => facet.value),
       aspects: (facets.aspects ?? []).map((facet) => facet.value),
       traits: (facets.traits ?? []).map((facet) => facet.value),
+      keywords: (facets.keywords ?? []).map((facet) => facet.value),
     }),
     staleTime: 60_000,
   });

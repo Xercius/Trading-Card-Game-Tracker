@@ -14,6 +14,9 @@ const defaultFilters: CardFilters = {
   aspects: [],
   aspectMethod: "or",
   traits: [],
+  traitMethod: "or",
+  keywords: [],
+  keywordMethod: "or",
   page: 1,
   pageSize: 60,
 };
@@ -26,6 +29,7 @@ const defaultFacets: PrintingFacets = {
   arenas: ["Ground", "Space"],
   aspects: ["Aggression", "Command"],
   traits: ["Rebel", "Imperial"],
+  keywords: ["Sentinel", "Grit"],
 };
 
 describe("CardFiltersDrawer", () => {
@@ -77,6 +81,7 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("button", { name: "Rarity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arena" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Traits" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keywords" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear Filters" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
