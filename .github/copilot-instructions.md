@@ -11,7 +11,7 @@ A local web application for tracking trading card collections, deck building, wi
 
 ## Current Game Scope
 - Implement, fix, and validate application behavior for **Star Wars Unlimited only**.
-- Treat all non-SWU game code, importers, tests, documentation, and references as out of scope. Leave them in place and do not edit, remove, refactor, extend, or otherwise maintain them unless this instruction is updated.
+- Treat all non-SWU game code, importers, tests, documentation, and references as out of scope. Leave them in place and do not edit, remove, refactor, extend, or otherwise maintain them unless this instruction is updated or the user explicitly allows it.
 - The only exception is a non-SWU component that prevents the application from running or functioning for SWU. In that case, make only the smallest necessary change and avoid unrelated changes to that game's behavior.
 - Do not broaden a SWU task to clean up or modernize other game systems.
 
