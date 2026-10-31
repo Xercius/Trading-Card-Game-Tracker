@@ -1,8 +1,9 @@
 using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore;
+using api.Data;
 using api.Features.Cards.Dtos;
 using api.Models;
 using api.Shared;
-using Microsoft.EntityFrameworkCore;
 
 namespace api.Features._Common;
 
@@ -318,7 +319,12 @@ internal static class QueryExtensions
                     .OrderByDescending(p => !string.IsNullOrEmpty(p.ImageUrl))
                     .ThenByDescending(p => p.Treatment != null
                         && p.Treatment.NameNormalized == "standard")
+                    .ThenBy(p => p.ApiCreatedAt == null)
+                    .ThenBy(p => AppDbContext.SqliteJulianDay(p.ApiCreatedAt))
+                    .ThenBy(p => p.CatalogSet == null || p.CatalogSet.ReleasedAt == null)
+                    .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt)
                     .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.Name ?? p.CatalogSet.Code)
+                    .ThenBy(p => p.Number == null ? 0 : p.Number.Length)
                     .ThenBy(p => p.Number)
                     .ThenBy(p => p.Id)
                     .Select(p => new CardListItemResponse.PrimaryPrintingResponse

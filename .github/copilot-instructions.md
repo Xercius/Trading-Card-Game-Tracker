@@ -26,8 +26,6 @@ A local web application for tracking trading card collections, deck building, wi
   ```bash
   dotnet restore ./api/api.csproj
   dotnet build ./api/api.csproj
-  # Seed sample data (optional)
-  cd api && dotnet run seed
   # Start API (HTTPS :7226, HTTP :5229)
   dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"
   ```

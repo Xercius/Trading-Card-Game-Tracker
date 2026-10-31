@@ -84,7 +84,7 @@ dotnet ef migrations script --project api/api.csproj --output migration.sql
 
 ## Environment & Seeding
 
-- Development seed data is loaded via `cd api && dotnet run seed`.
+- Development seed command (`cd api && dotnet run seed`) runs migrations and ensures the default user exists.
 - Tests use a per-test SQLite database (in-memory or file) created by `WebApplicationFactory`.
 - Never seed production data via application startup code; use explicit migration data seeds instead.
 - Keep seed data minimal and deterministic for tests (fixed IDs, stable names).
