@@ -366,4 +366,148 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             },
         });
     }
+
+    [Fact]
+    public async Task UniqueCards_PrioritizesStandardTreatment_WithEarliestCreatedDate()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
+            var cardType = new CardType { Game = game, Name = "Unit" };
+            var card = new Card { Game = game, Name = "Prioritized Card" };
+            card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
+            db.Cards.Add(card);
+
+            var sorSet = new Set { Game = game, Code = "SOR", Name = "Spark of Rebellion", ReleasedAt = new DateOnly(2024, 3, 8) };
+            var promoSet = new Set { Game = game, Code = "2024CE", Name = "2024 Convention Exclusive", ReleasedAt = null };
+            var shdSet = new Set { Game = game, Code = "SHD", Name = "Shadows of the Galaxy", ReleasedAt = new DateOnly(2023, 12, 1) };
+
+            // 1. Promo / special treatment created EARLIER than standard (should NOT be chosen because it's not standard)
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = promoSet,
+                Number = "1",
+                Treatment = TreatmentLookup.Upsert(db, game, "Convention Exclusive"),
+                ApiCreatedAt = new DateTimeOffset(2024, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/promo.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Special")
+            });
+
+            // 2. Earliest standard treatment (SHOULD be chosen)
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = sorSet,
+                Number = "100",
+                Treatment = TreatmentLookup.Upsert(db, game, "Standard"),
+                ApiCreatedAt = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/standard_sor.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Common")
+            });
+
+            // 3. Hyperspace variant in same set created slightly later
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = sorSet,
+                Number = "400",
+                Treatment = TreatmentLookup.Upsert(db, game, "Hyperspace"),
+                ApiCreatedAt = new DateTimeOffset(2024, 2, 2, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/hyperspace.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Common")
+            });
+
+            // 4. Later standard treatment reprint
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = shdSet,
+                Number = "100",
+                Treatment = TreatmentLookup.Upsert(db, game, "Standard"),
+                ApiCreatedAt = new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/standard_shd.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Common")
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?game=Star+Wars+Unlimited&uniqueCards=true");
+
+        Assert.NotNull(printings);
+        var selected = Assert.Single(printings!, item => item.CardName == "Prioritized Card");
+        Assert.Equal("SOR", selected.SetCode);
+        Assert.Equal("100", selected.Number);
+        Assert.Equal("Standard", selected.Style);
+        Assert.Equal("/standard_sor.png", selected.ImageUrl);
+
+        // Also verify GET /api/cards uses the same selection
+        var cardsResponse = await client.GetFromJsonAsync<CardListPageResponse>(
+            "/api/cards?game=Star+Wars+Unlimited&q=Prioritized");
+        Assert.NotNull(cardsResponse);
+        var cardItem = Assert.Single(cardsResponse!.Items);
+        Assert.Equal("SOR", cardItem.Primary!.SetCode);
+        Assert.Equal("100", cardItem.Primary.Number);
+        Assert.Equal("Standard", cardItem.Primary.Style);
+        Assert.Equal("/standard_sor.png", cardItem.Primary.ImageUrl);
+    }
+
+    [Fact]
+    public async Task UniqueCards_FallsBackToEarliestCreatedDate_WhenNoStandardTreatmentExists()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
+            var cardType = new CardType { Game = game, Name = "Unit" };
+            var card = new Card { Game = game, Name = "Special Only Card" };
+            card.CardTypes.Add(new CardCardType { Card = card, CardType = cardType, SourceRole = "Type" });
+            db.Cards.Add(card);
+
+            var promoSet = new Set { Game = game, Code = "2024P", Name = "2024 Promo", ReleasedAt = null };
+
+            // Earliest special treatment (SHOULD be chosen as backup)
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = promoSet,
+                Number = "50",
+                Treatment = TreatmentLookup.Upsert(db, game, "Hyperspace"),
+                ApiCreatedAt = new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/hyperspace_early.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Special")
+            });
+
+            // Later special treatment
+            card.Printings.Add(new CardPrinting
+            {
+                Card = card,
+                CatalogSet = promoSet,
+                Number = "51",
+                Treatment = TreatmentLookup.Upsert(db, game, "Showcase"),
+                ApiCreatedAt = new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero),
+                ImageUrl = "/showcase_late.png",
+                RarityLookup = TreatmentLookup.UpsertRarity(db, game, "Special")
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
+            "/api/cards/printings?game=Star+Wars+Unlimited&uniqueCards=true");
+
+        Assert.NotNull(printings);
+        var selected = Assert.Single(printings!, item => item.CardName == "Special Only Card");
+        Assert.Equal("50", selected.Number);
+        Assert.Equal("Hyperspace", selected.Style);
+        Assert.Equal("/hyperspace_early.png", selected.ImageUrl);
+    }
+
 }

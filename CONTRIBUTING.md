@@ -54,7 +54,7 @@ The API falls back to a deterministic dev key when no secret is configured in `D
 
 ```bash
 cd api
-dotnet run seed   # runs migrations then inserts sample cards/sets; exits without starting the server
+dotnet run seed   # runs migrations and ensures default user exists; exits without starting the server
 ```
 
 ### 4. Start the servers

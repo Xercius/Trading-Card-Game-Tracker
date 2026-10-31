@@ -1,5 +1,6 @@
-using api.Models;
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using api.Models;
 
 namespace api.Data
 {
@@ -35,6 +36,12 @@ namespace api.Data
         protected override void OnModelCreating(ModelBuilder b)
         {
             base.OnModelCreating(b);
+
+            b.HasDbFunction(typeof(AppDbContext).GetMethod(
+                    nameof(SqliteJulianDay),
+                    BindingFlags.NonPublic | BindingFlags.Static)!)
+                .HasName("julianday")
+                .IsBuiltIn();
 
             // --- Card (unique card) ---
             b.Entity<Card>(e =>
@@ -343,5 +350,8 @@ namespace api.Data
                 .HasForeignKey("GameId")
                 .OnDelete(DeleteBehavior.Restrict);
         }
+
+        internal static double? SqliteJulianDay(DateTimeOffset? value)
+            => throw new NotSupportedException();
     }
 }
