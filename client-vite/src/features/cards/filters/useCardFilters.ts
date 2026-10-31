@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
+export type AspectMethod = "or" | "and" | "exclude";
+
 export type CardFilters = {
   q: string;
   games: string[];
@@ -9,6 +11,7 @@ export type CardFilters = {
   types: string[];
   arenas: string[];
   aspects: string[];
+  aspectMethod: AspectMethod;
   traits: string[];
   page: number;
   pageSize: number;
@@ -22,6 +25,7 @@ const filterKeys = [
   "type",
   "arena",
   "aspect",
+  "aspectMethod",
   "trait",
   "q",
   "page",
@@ -47,11 +51,12 @@ type UseCardFiltersResult = {
     number,
     number,
     string,
+    AspectMethod,
   ];
 };
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 60;
+const DEFAULT_PAGE_SIZE = 20;
 
 const emptyFilters: CardFilters = {
   q: "",
@@ -61,6 +66,7 @@ const emptyFilters: CardFilters = {
   types: [],
   arenas: [],
   aspects: [],
+  aspectMethod: "or",
   traits: [],
   page: DEFAULT_PAGE,
   pageSize: DEFAULT_PAGE_SIZE,
@@ -88,6 +94,10 @@ function sanitizeList(values: string[]): string[] {
 }
 
 function sanitizeFilters(input: CardFilters): CardFilters {
+  const rawMethod = (input.aspectMethod || "or").toLowerCase();
+  const validMethod: AspectMethod =
+    rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
+
   return {
     q: input.q.trim(),
     games: sanitizeList(input.games ?? []),
@@ -95,7 +105,11 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     rarities: sanitizeList(input.rarities ?? []),
     types: sanitizeList(input.types ?? []),
     arenas: sanitizeList(input.arenas ?? []),
-    aspects: sanitizeList((input.aspects ?? []).filter((a) => a.trim().toLowerCase() !== "all")),
+    // Do NOT deduplicate aspects to support multiplicity (e.g., Aggression x2)
+    aspects: (input.aspects ?? [])
+      .map((a) => a.trim())
+      .filter((a) => a && a.toLowerCase() !== "all"),
+    aspectMethod: validMethod,
     traits: sanitizeList(input.traits ?? []),
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
@@ -113,6 +127,9 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const types = parseCsv(params.get("type"));
   const arenas = parseCsv(params.get("arena"));
   const aspects = parseCsv(params.get("aspect"));
+  const rawMethod = params.get("aspectMethod")?.toLowerCase();
+  const aspectMethod: AspectMethod =
+    rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
   const traits = parseCsv(params.get("trait"));
 
   const pageStr = params.get("page");
@@ -133,6 +150,7 @@ function parseFilters(params: URLSearchParams): CardFilters {
     types,
     arenas,
     aspects,
+    aspectMethod,
     traits,
     page,
     pageSize,
@@ -163,6 +181,9 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   }
   if (filters.aspects.length > 0) {
     next.set("aspect", filters.aspects.join(","));
+  }
+  if (filters.aspectMethod && filters.aspectMethod !== "or") {
+    next.set("aspectMethod", filters.aspectMethod);
   }
   if (filters.traits.length > 0) {
     next.set("trait", filters.traits.join(","));
@@ -213,6 +234,7 @@ export function useCardFilters(): UseCardFiltersResult {
         filters.page,
         filters.pageSize,
         filters.sort ?? "",
+        filters.aspectMethod,
       ] as const,
     [
       filters.q,
@@ -226,6 +248,7 @@ export function useCardFilters(): UseCardFiltersResult {
       filters.page,
       filters.pageSize,
       filters.sort,
+      filters.aspectMethod,
     ]
   );
 

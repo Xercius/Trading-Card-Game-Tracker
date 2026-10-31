@@ -122,6 +122,8 @@ public sealed class SwuDbImporter : ISourceImporter
             var identity = new SwuSharedIdentity(printings);
             var cardChanges = new SwuSharedCardChanges(summary);
             var updatedPrintings = new HashSet<int>();
+            // Printings created during this import must not also be reported as updated by relationship repair.
+            var preexistingPrintingIds = printings.Select(p => p.Id).ToHashSet();
             var autoDetectChangesEnabled = _db.ChangeTracker.AutoDetectChangesEnabled;
             _db.ChangeTracker.AutoDetectChangesEnabled = false;
             try
@@ -151,7 +153,11 @@ public sealed class SwuDbImporter : ISourceImporter
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        _logger.LogError(ex, "Failed to import SWU card record {SourceId}.", record?.Id);
+                        var failedAttrs = record?.Attributes;
+                        _logger.LogError(ex,
+                            "Failed to import SWU card record {SourceId} (serialCode={SerialCode}, cardUid={CardUid}, set={SetCode}, number={CardNumber}, title={Title}).",
+                            record?.Id, failedAttrs?.SerialCode, failedAttrs?.CardUid,
+                            failedAttrs?.Expansion?.Data?.Attributes?.Code, failedAttrs?.CardNumber, failedAttrs?.Title);
                         // A failed record can include lookup/association changes as well as scalars.
                         // Discard all unsaved tracked changes; committed records remain in the transaction.
                         _db.ChangeTracker.Clear();
@@ -181,7 +187,7 @@ public sealed class SwuDbImporter : ISourceImporter
                     if (entry.State == EntityState.Added) continue;
                     entry.Property(entity => entity.VariantOfId).IsModified = true;
                     entry.Property(entity => entity.ReprintOfId).IsModified = true;
-                    if (updatedPrintings.Add(printing.Id))
+                    if (preexistingPrintingIds.Contains(printing.Id) && updatedPrintings.Add(printing.Id))
                         summary.PrintingsUpdated++;
                 }
                 await _db.SaveChangesAsync(ct);
@@ -232,11 +238,11 @@ public sealed class SwuDbImporter : ISourceImporter
 
         string? variantOfCardUid = attrs.VariantOf?.Data?.Attributes?.CardUid;
         string? reprintOfCardUid = attrs.ReprintOf?.Data?.Attributes?.CardUid;
+        // ID-only relationships carry no nested UID; keep the source ID so they can still be resolved.
+        int? variantOfSourceId = attrs.VariantOf?.Data?.Id;
+        int? reprintOfSourceId = attrs.ReprintOf?.Data?.Id;
 
-        var variantType = attrs.VariantTypes?.Data?
-            .Select(variant => variant.Attributes)
-            .FirstOrDefault(attributes => !string.IsNullOrWhiteSpace(attributes?.Name));
-        string treatmentName = variantType?.Name?.Trim() ?? "Standard";
+        string treatmentName = SwuCatalog.ResolveTreatmentName(attrs);
         bool isFoil = attrs.VariantTypes?.Data?.Any(vt => vt.Attributes?.Foil == true) == true;
 
         string? imageUrl = attrs.ArtFront?.Data?.Attributes?.Url
@@ -251,11 +257,12 @@ public sealed class SwuDbImporter : ISourceImporter
             ?? printing?.Card;
 
         bool isBasePrinting = string.IsNullOrWhiteSpace(variantOfCardUid)
-            && string.IsNullOrWhiteSpace(reprintOfCardUid);
+            && string.IsNullOrWhiteSpace(reprintOfCardUid)
+            && variantOfSourceId is null && reprintOfSourceId is null;
         bool isCanonicalForCard = card is null
             || !card.Printings.Any(p => p != printing && IsHigherPriorityPrinting(p, isBasePrinting, sourceId));
 
-        var printingJson = JsonSerializer.Serialize(new
+        var printingNode = JsonSerializer.SerializeToNode(new
         {
             sourceId,
             cardUid,
@@ -269,8 +276,16 @@ public sealed class SwuDbImporter : ISourceImporter
                 v.Attributes?.Foil
             }).OrderBy(v => v.Id),
             variantOfCardUid,
-            reprintOfCardUid
-        }, JsonOptions);
+            variantOfSourceId,
+            reprintOfCardUid,
+            reprintOfSourceId
+        }, JsonOptions)!.AsObject();
+        // Source IDs are persisted only for ID-only relationships; UID-bearing ones resolve by UID.
+        if (variantOfSourceId is null || !string.IsNullOrWhiteSpace(variantOfCardUid))
+            printingNode.Remove("variantOfSourceId");
+        if (reprintOfSourceId is null || !string.IsNullOrWhiteSpace(reprintOfCardUid))
+            printingNode.Remove("reprintOfSourceId");
+        var printingJson = printingNode.ToJsonString(JsonOptions);
 
         // All preparation above must finish before changing tracked entities.
         if (card is null)
@@ -340,8 +355,9 @@ public sealed class SwuDbImporter : ISourceImporter
         {
             bool changed = false;
             if (printing.Number != number) { printing.Number = number; changed = true; }
-            if (printing.CatalogSet != setLookup) { printing.CatalogSet = setLookup; changed = true; }
-            if (printing.Treatment != treatmentLookup) { printing.Treatment = treatmentLookup; changed = true; }
+            // AutoDetectChanges is off, so assign lookups through reference entries to fix up SetId/TreatmentId.
+            if (printing.CatalogSet != setLookup) { _db.Entry(printing).Reference(entity => entity.CatalogSet).CurrentValue = setLookup; changed = true; }
+            if (printing.Treatment != treatmentLookup) { _db.Entry(printing).Reference(entity => entity.Treatment).CurrentValue = treatmentLookup; changed = true; }
             if (printing.ImageUrl != imageUrl) { printing.ImageUrl = imageUrl; changed = true; }
             if (printing.DetailsJson != printingJson) { printing.DetailsJson = printingJson; changed = true; }
             if (changed)

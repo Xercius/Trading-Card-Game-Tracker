@@ -62,8 +62,9 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         var variantType = attrs.VariantTypes?.Data?
             .Select(variant => variant.Attributes)
             .FirstOrDefault(attributes => !string.IsNullOrWhiteSpace(attributes?.Name));
+        var treatmentName = ResolveTreatmentName(attrs);
         db.Entry(printing).Reference(entity => entity.Treatment).CurrentValue =
-            UpsertTreatment(variantType?.Name, variantType?.Icon?.Data?.Attributes?.Url);
+            UpsertTreatment(treatmentName, variantType?.Icon?.Data?.Attributes?.Url);
 
         var rarity = Lookup(attrs.Rarity ?? "Unknown", name => new Rarity { Game = _game, Name = name });
         if (!string.IsNullOrWhiteSpace(attrs.RarityDetails?.Character)
@@ -110,7 +111,8 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
             Card = card,
             Keyword = Lookup(name, n => new Keyword { Game = _game, Name = n })
         }), x => x.Keyword);
-        associationsChanged |= Sync(card.CardArenas, Names(attrs.Arenas ?? (attrs.Arena is null ? [] : [attrs.Arena]))
+        // An empty arenas[] with a populated scalar arena must still produce an association.
+        associationsChanged |= Sync(card.CardArenas, Names(attrs.Arenas is { Length: > 0 } ? attrs.Arenas : attrs.Arena is null ? [] : [attrs.Arena])
             .Select(name => new CardArena
             {
                 Card = card,
@@ -162,6 +164,41 @@ internal sealed class SwuCatalog(AppDbContext db, TimeProvider clock)
         entity = create(name);
         db.Set<T>().Add(entity);
         return entity;
+    }
+
+    internal static string ResolveTreatmentName(SwuCardAttributes attrs)
+    {
+        var variantName = attrs.VariantTypes?.Data?
+            .Select(variant => variant.Attributes?.Name)
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+        if (!string.IsNullOrWhiteSpace(variantName))
+            return variantName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(attrs.SerialCode))
+
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(attrs.SerialCode.Trim(), @"^\d{2}(\d{2})\d{3,4}$");
+            if (match.Success)
+
+            {
+                return match.Groups[1].Value switch
+
+                {
+                    "36" => "Rose Gold Prestige",
+                    "37" => "Gold Prestige",
+                    "34" => "Serialized Prestige",
+                    "33" => "Foil Prestige",
+                    "06" => "Standard Prestige",
+                    "02" => "Hyperspace",
+                    "03" => "Showcase",
+                    "31" => "Standard Foil",
+                    "32" => "Hyperspace Foil",
+                    _ => "Standard"
+                };
+            }
+        }
+
+        return "Standard";
     }
 
     internal Treatment UpsertTreatment(string? name, string? iconUrl = null)

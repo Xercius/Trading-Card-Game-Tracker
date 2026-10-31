@@ -1,7 +1,9 @@
 # Cards Filter State Architecture
 
 ## Overview
+
 The Cards page uses a centralized filter state management system that ensures:
+
 - Single source of truth for all filter values
 - URL synchronization (filters persist in URL)
 - Proper debouncing for text search
@@ -10,9 +12,11 @@ The Cards page uses a centralized filter state management system that ensures:
 ## Key Components
 
 ### 1. `useCardFilters` Hook
+
 Location: `client-vite/src/features/cards/filters/useCardFilters.ts`
 
 This is the **single source of truth** for all filter state. It manages:
+
 - `q`: text search query (string)
 - `games`: selected games (string[])
 - `sets`: selected sets (string[])
@@ -22,38 +26,46 @@ This is the **single source of truth** for all filter state. It manages:
 - `sort`: sort field (string | undefined)
 
 **Features:**
+
 - Automatically syncs with URL search parameters
 - Uses `replace: true` to avoid polluting browser history
 - Provides stable query keys via `toQueryKey()`
 - Sanitizes and validates all inputs
 
 ### 2. Query Keys
+
 Location: `client-vite/src/features/cards/queryKeys.ts`
 
 Centralized query key factory that ensures:
+
 - Predictable, stable keys for caching
 - No unnecessary refetches
 - Proper invalidation patterns
 
 ### 3. CardsPage Integration
+
 Location: `client-vite/src/features/printings/pages/CardsPage.tsx`
 
 The main Cards listing page uses `useCardFilters` for all filter state:
+
 ```tsx
 const { filters, setFilters } = useCardFilters();
 const { data, isLoading, isError, error } = usePrintings(filters);
 ```
 
 **Debounced Search:**
+
 - User input is stored in local state
 - Debounced by 250ms before updating filters
 - Preserves input value during typing
 - Handles browser back/forward navigation
 
 ### 4. API Integration
+
 Location: `client-vite/src/features/printings/api/usePrintings.ts`
 
 Converts CardFilters to API query format:
+
 ```tsx
 const query: PrintingQuery = {
   q: filters.q || undefined,
@@ -68,7 +80,7 @@ const query: PrintingQuery = {
 ## Data Flow
 
 ```
-User Action → Local State (immediate) 
+User Action → Local State (immediate)
            ↓
            Debounce (250ms for text search)
            ↓
@@ -82,34 +94,37 @@ User Action → Local State (immediate)
 ## Usage Examples
 
 ### Setting a single filter
+
 ```tsx
 setFilters((prev) => ({ ...prev, games: ["Magic"], page: 1 }));
 ```
 
 ### Updating search text (debounced in component)
+
 ```tsx
 const [searchInput, setSearchInput] = useState(filters.q);
 const setSearch = useDebouncedCallback((q: string) => {
   setFilters((prev) => ({ ...prev, q, page: 1 }));
 }, 250);
 
-<input 
+<input
   value={searchInput}
   onChange={(e) => {
     setSearchInput(e.target.value);
     setSearch(e.target.value);
   }}
-/>
+/>;
 ```
 
 ### Clearing filters
+
 ```tsx
-setFilters((prev) => ({ 
-  ...prev, 
-  games: [], 
-  sets: [], 
-  rarities: [], 
-  page: 1 
+setFilters((prev) => ({
+  ...prev,
+  games: [],
+  sets: [],
+  rarities: [],
+  page: 1,
 }));
 ```
 
@@ -124,6 +139,6 @@ setFilters((prev) => ({
 
 ## Migration Notes
 
-Previously, CardsPage used `usePrintingSearch` which maintained separate state. 
-This has been replaced with `useCardFilters` for consistency with other 
+Previously, CardsPage used `usePrintingSearch` which maintained separate state.
+This has been replaced with `useCardFilters` for consistency with other
 components like `FiltersRail` and `DeckBuilderPage`.

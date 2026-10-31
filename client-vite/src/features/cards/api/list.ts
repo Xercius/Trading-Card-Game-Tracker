@@ -12,6 +12,7 @@ export type CardsPageParams = {
   types?: string[];
   arenas?: string[];
   aspects?: string[];
+  aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
   skip: number;
   take: number;
@@ -93,6 +94,7 @@ export async function fetchCardsPage({
   types,
   arenas,
   aspects,
+  aspectMethod,
   traits,
   skip,
   take,
@@ -105,6 +107,7 @@ export async function fetchCardsPage({
   if (types?.length) params.set("type", types.join(","));
   if (arenas?.length) params.set("arena", arenas.join(","));
   if (aspects?.length) params.set("aspect", aspects.join(","));
+  if (aspectMethod && aspectMethod !== "or") params.set("aspectMethod", aspectMethod);
   if (traits?.length) params.set("trait", traits.join(","));
   params.set("skip", String(skip));
   params.set("take", String(take));
@@ -315,6 +318,7 @@ export async function fetchCardFacets({
   types,
   arenas,
   aspects,
+  aspectMethod,
   traits,
   q,
   printingSearch,
@@ -325,6 +329,7 @@ export async function fetchCardFacets({
   types?: string[];
   arenas?: string[];
   aspects?: string[];
+  aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
   q?: string;
   printingSearch?: boolean;
@@ -336,6 +341,7 @@ export async function fetchCardFacets({
   if (types?.length) params.set("type", types.join(","));
   if (arenas?.length) params.set("arena", arenas.join(","));
   if (aspects?.length) params.set("aspect", aspects.join(","));
+  if (aspectMethod && aspectMethod !== "or") params.set("aspectMethod", aspectMethod);
   if (traits?.length) params.set("trait", traits.join(","));
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");

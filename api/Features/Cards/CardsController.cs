@@ -52,6 +52,7 @@ public class CardsController : ControllerBase
     /// <param name="type">Optional comma-separated list of associated card types to filter.</param>
     /// <param name="arena">Optional comma-separated list of associated card arenas to filter.</param>
     /// <param name="aspect">Optional comma-separated list of associated card aspects to filter.</param>
+    /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated list of associated card traits to filter.</param>
     /// <param name="skip">Number of records to skip for pagination (default: 0).</param>
     /// <param name="take">Number of records to take per page (default: 60, max: 200).</param>
@@ -69,6 +70,7 @@ public class CardsController : ControllerBase
         [FromQuery] string? type,
         [FromQuery] string? arena = null,
         [FromQuery] string? aspect = null,
+        [FromQuery] string? aspectMethod = null,
         [FromQuery] string? trait = null,
         [FromQuery] int skip = 0,
         [FromQuery] int take = 60,
@@ -83,7 +85,7 @@ public class CardsController : ControllerBase
         var rarities = CsvUtils.Parse(rarity);
         var types = CsvUtils.Parse(type);
         var arenas = CsvUtils.Parse(arena);
-        var aspects = CsvUtils.Parse(aspect);
+        var aspects = CsvUtils.ParsePreservingDuplicates(aspect);
         var traits = CsvUtils.Parse(trait);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
@@ -93,7 +95,7 @@ public class CardsController : ControllerBase
 
         var query = _db.Cards
             .AsNoTracking()
-            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits)
+            .ApplyCardSearchFilters(q, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod)
             .OrderBy(c => c.Game == null ? string.Empty : c.Game.Name)
             .ThenBy(c => c.Name)
             .ThenBy(c => c.Id);
@@ -166,6 +168,7 @@ public class CardsController : ControllerBase
     /// <param name="type">Optional comma-separated associated card-type filter.</param>
     /// <param name="arena">Optional comma-separated associated card-arena filter.</param>
     /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
+    /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
     /// <param name="includePrintings">If true, includes all printings for each card in the response.</param>
     /// <param name="page">Page number for pagination (default: 1).</param>
@@ -184,7 +187,8 @@ public class CardsController : ControllerBase
         string? aspect,
         string? trait,
         bool includePrintings,
-        int page, int pageSize)
+        int page, int pageSize,
+        string? aspectMethod = null)
     {
         if (page <= 0) page = DefaultPageNumber;
         if (pageSize <= 0 || pageSize > SearchMaxPageSize) pageSize = SearchDefaultPageSize;
@@ -196,14 +200,14 @@ public class CardsController : ControllerBase
         var rarities = CsvUtils.Parse(rarity);
         var types = CsvUtils.Parse(type);
         var arenas = CsvUtils.Parse(arena);
-        var aspects = CsvUtils.Parse(aspect);
+        var aspects = CsvUtils.ParsePreservingDuplicates(aspect);
         var traits = CsvUtils.Parse(trait);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
-        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds, arenas, aspects, traits);
+        q = q.ApplyCardSearchFilters(null, games, sets, rarities, types, gameIds, arenas, aspects, traits, aspectMethod);
 
         if (!string.IsNullOrWhiteSpace(name))
         {
@@ -318,7 +322,10 @@ public class CardsController : ControllerBase
             c.Hp,
             c.Power,
             c.UpgradeHp,
-            c.UpgradePower);
+            c.UpgradePower,
+            c.Subtitle,
+            c.Rules,
+            c.RulesStyled);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.
@@ -540,6 +547,7 @@ public class CardsController : ControllerBase
     /// <param name="type">Optional comma-separated associated card-type filter.</param>
     /// <param name="arena">Optional comma-separated associated card-arena filter.</param>
     /// <param name="aspect">Optional comma-separated associated card-aspect filter.</param>
+    /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated associated card-trait filter.</param>
     /// <param name="includePrintings">If true, includes all printings for each card (default: false).</param>
     /// <param name="page">Page number, starting from 1 (default: 1).</param>
@@ -557,11 +565,12 @@ public class CardsController : ControllerBase
         [FromQuery] string? type,
         [FromQuery] string? arena = null,
         [FromQuery] string? aspect = null,
+        [FromQuery] string? aspectMethod = null,
         [FromQuery] string? trait = null,
         [FromQuery] bool includePrintings = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
-        => await ListCardsCore(game, name, set, rarity, type, arena, aspect, trait, includePrintings, page, pageSize);
+        => await ListCardsCore(game, name, set, rarity, type, arena, aspect, trait, includePrintings, page, pageSize, aspectMethod);
 
     /// <summary>
     /// Retrieves detailed information for a specific card, including all its printings.
@@ -608,6 +617,7 @@ public class CardsController : ControllerBase
             .Where(cp => cp.CardId == cardId)
             .Include(cp => cp.CatalogSet)
             .Include(cp => cp.RarityLookup)
+            .Include(cp => cp.Treatment)
             .Include(cp => cp.Card).ThenInclude(card => card.Game)
             .Include(cp => cp.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(cp => cp.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect);

@@ -1,5 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { fetchPrintings, type PrintingQuery, type PrintingListItem } from "./printings";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPrintings, type PrintingQuery, type PrintingsResult } from "./printings";
 import { cardsQueryKeys } from "@/features/cards/queryKeys";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 
@@ -16,30 +16,23 @@ export function usePrintings(filters: CardFilters) {
     types: filters.types.length > 0 ? filters.types : undefined,
     ...(filters.arenas?.length ? { arenas: filters.arenas } : {}),
     ...(filters.aspects?.length ? { aspects: filters.aspects } : {}),
+    ...(filters.aspectMethod && filters.aspectMethod !== "or"
+      ? { aspectMethod: filters.aspectMethod }
+      : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
+    ...(filters.sort ? { sort: filters.sort } : {}),
     pageSize,
     uniqueCards: true,
   };
 
-  return useInfiniteQuery<
-    PrintingListItem[],
-    Error,
-    PrintingListItem[],
-    ReturnType<typeof cardsQueryKeys.list>,
-    number
-  >({
+  return useQuery<PrintingsResult, Error>({
     queryKey: cardsQueryKeys.list(filters),
-    queryFn: ({ pageParam }) => fetchPrintings({ ...query, page: pageParam }),
-    initialPageParam: filters.page,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length === pageSize ? filters.page + allPages.length : undefined,
-    select: (result) => {
-      const seen = new Set<PrintingListItem["printingId"]>();
-      return result.pages.flat().filter((printing) => {
-        if (seen.has(printing.printingId)) return false;
-        seen.add(printing.printingId);
-        return true;
-      });
+    queryFn: async () => {
+      const res = await fetchPrintings({ ...query, page: filters.page });
+      if (Array.isArray(res)) {
+        return { items: res, total: (res as unknown[]).length };
+      }
+      return res;
     },
     staleTime: 60_000,
   });

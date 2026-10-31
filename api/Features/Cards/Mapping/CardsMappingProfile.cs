@@ -105,6 +105,9 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.Hp), o => o.MapFrom(s => s.Hp))
             .ForCtorParam(nameof(CardDetailResponse.Power), o => o.MapFrom(s => s.Power))
             .ForCtorParam(nameof(CardDetailResponse.UpgradeHp), o => o.MapFrom(s => s.UpgradeHp))
-            .ForCtorParam(nameof(CardDetailResponse.UpgradePower), o => o.MapFrom(s => s.UpgradePower));
+            .ForCtorParam(nameof(CardDetailResponse.UpgradePower), o => o.MapFrom(s => s.UpgradePower))
+            .ForCtorParam(nameof(CardDetailResponse.Subtitle), o => o.MapFrom(s => s.Subtitle))
+            .ForCtorParam(nameof(CardDetailResponse.Rules), o => o.MapFrom(s => s.Rules))
+            .ForCtorParam(nameof(CardDetailResponse.RulesStyled), o => o.MapFrom(s => s.RulesStyled));
     }
 }

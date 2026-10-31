@@ -356,4 +356,16 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(allPrintings.Select(p => p.PrintingId), pagedPrintings.Select(p => p.PrintingId));
         Assert.Equal(pagedPrintings.Count, pagedPrintings.Select(p => p.PrintingId).Distinct().Count());
     }
+
+    [Fact]
+    public async Task Get_with_game_and_q_and_sort_name_and_unique_cards()
+    {
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var response = await client.GetAsync("/api/cards/printings?game=Magic&uniqueCards=true&sort=name&q=Lightning");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        var printings = await response.Content.ReadFromJsonAsync<List<PrintingDto>>();
+        Assert.NotNull(printings);
+        Assert.NotEmpty(printings);
+    }
 }

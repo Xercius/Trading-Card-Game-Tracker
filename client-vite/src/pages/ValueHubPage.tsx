@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/state/useUser";
+import { useGame } from "@/state/useGame";
 import { useQueryState } from "@/hooks/useQueryState";
 import http from "@/lib/http";
 
@@ -9,13 +10,13 @@ type CollectionSummaryDto = { totalCents: number; byGame: GameSliceDto[] };
 export default function ValueHubPage() {
   const { userId } = useUser();
   const [q] = useQueryState("q", "");
-  const [gameCsv] = useQueryState("game", "");
+  const { activeGame } = useGame();
 
   const { data, isLoading, error } = useQuery<CollectionSummaryDto>({
-    queryKey: ["value", userId, q, gameCsv],
+    queryKey: ["value", userId, q, activeGame],
     queryFn: async () => {
       const res = await http.get<CollectionSummaryDto>("value/collection/summary", {
-        params: { q, game: gameCsv },
+        params: { q, game: activeGame },
       });
       return res.data;
     },
@@ -36,7 +37,7 @@ export default function ValueHubPage() {
       <h1 className="mb-2 text-xl font-semibold">Collection Value</h1>
       <p>Latest total: {formattedTotal}</p>
       <div className="mt-4">
-        <h2 className="mb-2 text-lg font-medium">By Game</h2>
+        <h2 className="mb-2 text-lg font-medium">{activeGame} Breakdown</h2>
         {data.byGame.length === 0 ? (
           <p className="text-sm text-gray-500">No game breakdown available.</p>
         ) : (

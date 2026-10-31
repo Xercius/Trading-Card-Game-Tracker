@@ -42,7 +42,9 @@ describe("deck api", () => {
       },
     });
 
-    const error = await postDeckQuantityDelta(1, false, { printingId: 7, qtyDelta: 4 }).catch((err) => err);
+    const error = await postDeckQuantityDelta(1, false, { printingId: 7, qtyDelta: 4 }).catch(
+      (err) => err
+    );
     expect(error).toBeInstanceOf(ProblemDetailsError);
     expect(error).toMatchObject({
       message: "Not enough copies available.",

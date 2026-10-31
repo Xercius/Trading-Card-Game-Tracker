@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/state/useUser";
+import { useGame } from "@/state/useGame";
 import http from "@/lib/http";
 import { useQueryState } from "@/hooks/useQueryState";
 
@@ -26,7 +27,7 @@ type Paged<T> = {
 export default function DecksPage() {
   const { userId } = useUser();
   const [q] = useQueryState("q", "");
-  const [gameCsv] = useQueryState("game", "");
+  const { activeGame } = useGame();
   const [pageParamRaw, setPageParam] = useQueryState("page", "1");
   const [pageSizeParamRaw] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
 
@@ -38,28 +39,28 @@ export default function DecksPage() {
       ? Math.floor(parsedPageSize)
       : DEFAULT_PAGE_SIZE;
 
-  const previousFiltersRef = useRef({ q, gameCsv });
+  const previousFiltersRef = useRef({ q, game: activeGame });
   const shouldResetPage =
     pageParamRaw !== "1" &&
-    (previousFiltersRef.current.q !== q || previousFiltersRef.current.gameCsv !== gameCsv);
+    (previousFiltersRef.current.q !== q || previousFiltersRef.current.game !== activeGame);
 
   useEffect(() => {
     if (shouldResetPage) {
       setPageParam("1");
     }
-    previousFiltersRef.current = { q, gameCsv };
-  }, [shouldResetPage, setPageParam, q, gameCsv]);
+    previousFiltersRef.current = { q, game: activeGame };
+  }, [shouldResetPage, setPageParam, q, activeGame]);
 
   const updatePage = (nextPage: number) => {
     const safeNext = nextPage < 1 ? 1 : nextPage;
     setPageParam(String(safeNext));
   };
   const { data, isLoading, error } = useQuery<Paged<DeckDto>>({
-    queryKey: ["decks", userId, page, pageSize, q, gameCsv],
+    queryKey: ["decks", userId, page, pageSize, q, activeGame],
     queryFn: async () => {
       if (!userId) throw new Error("User not selected");
       const res = await http.get<Paged<DeckDto>>(`user/${userId}/deck`, {
-        params: { page, pageSize, q, game: gameCsv },
+        params: { page, pageSize, q, game: activeGame },
       });
       return res.data;
     },

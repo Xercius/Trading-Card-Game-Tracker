@@ -46,8 +46,7 @@ const noUnusedImportsRule = {
     ],
     messages: {
       allUnused: "All imports from '{{module}}' are unused.",
-      partiallyUnused:
-        "The following imports are unused and can be removed: {{names}}.",
+      partiallyUnused: "The following imports are unused and can be removed: {{names}}.",
     },
   },
   create(context) {

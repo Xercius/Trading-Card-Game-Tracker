@@ -46,6 +46,15 @@ vi.mock("@/state/useUser", () => ({
   useUser: () => ({ userId: 1 }),
 }));
 
+vi.mock("@/state/useGame", () => ({
+  useGame: () => ({
+    activeGame: "Star Wars Unlimited",
+    setActiveGame: vi.fn(),
+    games: ["Star Wars Unlimited"],
+    isLoadingGames: false,
+  }),
+}));
+
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: () => ({
     getTotalSize: () => 72,

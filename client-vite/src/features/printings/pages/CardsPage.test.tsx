@@ -21,6 +21,15 @@ vi.mock("@/features/cards/components/CardModal", () => ({
   default: (props: unknown) => CardModalMock(props),
 }));
 
+vi.mock("@/state/useGame", () => ({
+  useGame: () => ({
+    activeGame: "Star Wars Unlimited",
+    setActiveGame: vi.fn(),
+    games: ["Star Wars Unlimited"],
+    isLoadingGames: false,
+  }),
+}));
+
 import CardsPage from "./CardsPage";
 import * as printingsApi from "../api/usePrintings";
 
@@ -72,16 +81,17 @@ describe("CardsPage", () => {
     expect(usePrintingsMock).toHaveBeenCalled();
     expect(usePrintingsMock.mock.calls[0]?.[0]).toEqual({
       q: "",
-      games: [],
+      games: ["Star Wars Unlimited"],
       sets: [],
       rarities: [],
       types: [],
       arenas: [],
       aspects: [],
+      aspectMethod: "or",
       traits: [],
       page: 1,
-      pageSize: 60,
-      sort: undefined,
+      pageSize: 20,
+      sort: "name",
     });
   });
 
@@ -137,7 +147,7 @@ describe("CardsPage", () => {
     });
 
     // Card tiles no longer show visible text - verify aria-label for accessibility
-    const cardButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    const cardButton = container.querySelector<HTMLButtonElement>("ul button[aria-label]");
     expect(cardButton).not.toBeNull();
     expect(cardButton?.getAttribute("aria-label")).toBe("Sample Card — Set A #001");
     expect(container.querySelector("input[type='search']")).toBeNull();
@@ -214,7 +224,7 @@ describe("CardsPage", () => {
     });
 
     // Find and click the printing card button
-    const printingButton = container.querySelector<HTMLButtonElement>("button[aria-label]");
+    const printingButton = container.querySelector<HTMLButtonElement>("ul button[aria-label]");
     expect(printingButton).not.toBeNull();
     expect(printingButton?.getAttribute("aria-label")).toBe("Test Card — Alpha #001");
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useUser } from "@/state/useUser";
+import { useGame } from "@/state/useGame";
 import { useQueryState } from "@/hooks/useQueryState";
 import { DEFAULT_PAGE_SIZE } from "@/constants";
 import { getAvailabilityDisplay, formatAvailability } from "@/lib/availability";
@@ -23,14 +24,14 @@ const EMPTY_VALUE_HISTORY_POINTS: { d: string; v: number | null }[] = [];
 export default function CollectionPage() {
   const { userId } = useUser();
   const [q, setQ] = useQueryState("q", "");
-  const [game, setGame] = useQueryState("game", "");
+  const { activeGame } = useGame();
   const [setName, setSetName] = useQueryState("set", "");
   const [rarity, setRarity] = useQueryState("rarity", "");
   const [pageParam, setPageParam] = useQueryState("page", "1");
   const [pageSizeParam] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
 
-  const previousFilters = useRef({ q, game, setName, rarity });
+  const previousFilters = useRef({ q, game: activeGame, setName, rarity });
 
   const page = useMemo(() => {
     const parsed = Number(pageParam);
@@ -45,19 +46,19 @@ export default function CollectionPage() {
   useEffect(() => {
     const filtersChanged =
       previousFilters.current.q !== q ||
-      previousFilters.current.game !== game ||
+      previousFilters.current.game !== activeGame ||
       previousFilters.current.setName !== setName ||
       previousFilters.current.rarity !== rarity;
-    previousFilters.current = { q, game, setName, rarity };
+    previousFilters.current = { q, game: activeGame, setName, rarity };
 
     if (filtersChanged) setPageParam("1");
-  }, [q, game, setName, rarity, setPageParam]);
+  }, [q, activeGame, setName, rarity, setPageParam]);
 
   const queryKey = collectionKeys.list({
     userId,
     page,
     pageSize,
-    filters: { q, game, set: setName, rarity },
+    filters: { q, game: activeGame, set: setName, rarity },
     includeProxies,
   });
 
@@ -65,7 +66,7 @@ export default function CollectionPage() {
     userId,
     page,
     pageSize,
-    filters: { q, game, set: setName, rarity },
+    filters: { q, game: activeGame, set: setName, rarity },
     includeProxies,
   });
 
@@ -134,21 +135,6 @@ export default function CollectionPage() {
             onChange={(event) => setQ(event.target.value)}
             className="w-60 rounded border border-input bg-background px-3 py-2 text-sm"
             placeholder="Name contains…"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label
-            className="text-xs font-medium uppercase text-muted-foreground"
-            htmlFor="collection-game"
-          >
-            Game
-          </label>
-          <input
-            id="collection-game"
-            value={game}
-            onChange={(event) => setGame(event.target.value)}
-            className="w-40 rounded border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Magic"
           />
         </div>
         <div className="flex flex-col gap-2">

@@ -5,18 +5,7 @@ type CardImagesProps = CardPrintingImages & {
   name: string;
 };
 
-export default function CardImages({
-  name,
-  imageUrl,
-  backImageUrl,
-  imageOrientation,
-  backImageOrientation,
-}: CardImagesProps) {
-  const stacked =
-    imageUrl &&
-    backImageUrl &&
-    imageOrientation === "horizontal" &&
-    backImageOrientation === "horizontal";
+export default function CardImages({ name, imageUrl, backImageUrl }: CardImagesProps) {
   const images = [
     { url: imageUrl, face: "front" },
     { url: backImageUrl, face: "back" },
@@ -27,11 +16,7 @@ export default function CardImages({
       role="group"
       aria-label="Card images"
       className={`grid h-full min-h-0 w-full min-w-0 gap-2 overflow-hidden rounded-xl border bg-muted p-2 [@media(max-height:500px)]:p-1 ${
-        images.length === 2
-          ? stacked
-            ? "grid-cols-1 grid-rows-2"
-            : "grid-cols-2 grid-rows-1"
-          : "grid-cols-1 grid-rows-1"
+        images.length === 2 ? "grid-cols-1 grid-rows-2" : "grid-cols-1 grid-rows-1"
       }`}
     >
       {images.length ? (

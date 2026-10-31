@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
@@ -52,27 +52,17 @@ describe("usePrintings pagination", () => {
     fetchPrintingsMock.mockReset();
   });
 
-  it("preserves filters across pages and removes duplicate printing IDs", async () => {
-    fetchPrintingsMock
-      .mockResolvedValueOnce([printing("1"), printing("2")])
-      .mockResolvedValueOnce([printing("2"), printing("3")])
-      .mockResolvedValueOnce([printing("4")]);
+  it("queries the requested page with filters", async () => {
+    fetchPrintingsMock.mockResolvedValueOnce({
+      items: [printing("1"), printing("2")],
+      total: 4,
+    });
 
     const { result } = renderHook(() => usePrintings(filters), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.data).toHaveLength(2));
-    await act(async () => {
-      await result.current.fetchNextPage();
-    });
-
-    await waitFor(() => expect(result.current.data).toHaveLength(3));
-    await act(async () => {
-      await result.current.fetchNextPage();
-    });
-
-    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
-    expect(result.current.data?.map(({ printingId }) => printingId)).toEqual(["1", "2", "3", "4"]);
-    expect(fetchPrintingsMock).toHaveBeenNthCalledWith(1, {
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(2));
+    expect(result.current.data?.total).toBe(4);
+    expect(fetchPrintingsMock).toHaveBeenCalledWith({
       q: "droid",
       game: ["Star Wars Unlimited"],
       set: ["SOR"],
@@ -80,26 +70,6 @@ describe("usePrintings pagination", () => {
       types: ["Leader Unit"],
       pageSize: 2,
       page: 1,
-      uniqueCards: true,
-    });
-    expect(fetchPrintingsMock).toHaveBeenNthCalledWith(2, {
-      q: "droid",
-      game: ["Star Wars Unlimited"],
-      set: ["SOR"],
-      rarity: ["Rare"],
-      types: ["Leader Unit"],
-      pageSize: 2,
-      page: 2,
-      uniqueCards: true,
-    });
-    expect(fetchPrintingsMock).toHaveBeenNthCalledWith(3, {
-      q: "droid",
-      game: ["Star Wars Unlimited"],
-      set: ["SOR"],
-      rarity: ["Rare"],
-      types: ["Leader Unit"],
-      pageSize: 2,
-      page: 3,
       uniqueCards: true,
     });
   });
@@ -111,7 +81,7 @@ describe("usePrintings pagination", () => {
       { initialProps: { activeFilters: filters }, wrapper: createWrapper() }
     );
 
-    await waitFor(() => expect(result.current.data).toHaveLength(1));
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(1));
     rerender({ activeFilters: { ...filters, q: "new query", page: 1 } });
 
     await waitFor(() => expect(fetchPrintingsMock).toHaveBeenCalledTimes(2));

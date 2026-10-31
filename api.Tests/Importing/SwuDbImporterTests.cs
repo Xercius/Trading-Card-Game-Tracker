@@ -1634,4 +1634,66 @@ public sealed class SwuDbImporterTests(CustomWebApplicationFactory factory)
             meta = new { pagination = new { page, pageSize = count, pageCount, total = pageCount * count } }
         });
     }
+
+    [Fact]
+    public async Task ImportFromFileAsync_RecordsWithEmptyVariantTypes_ResolvesPrestigeTreatmentsFromSerialCode_WithoutConflict()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = CreateImporter(db);
+
+        var json = """
+        {
+          "data": [
+            {
+              "id": 51387,
+              "attributes": {
+                "title": "Senator Chuchi",
+                "subtitle": "Voice for the Voiceless",
+                "serialCode": "06361125",
+                "cardUid": "2437821363",
+                "cardNumber": 1125,
+                "locale": "en",
+                "rarity": "Uncommon",
+                "expansion": { "data": { "id": 73, "attributes": { "name": "Secrets of Power", "code": "SEC" } } },
+                "variantTypes": { "data": [] },
+                "type": { "data": { "id": 9, "attributes": { "name": "Unit", "value": "Unit" } } }
+              }
+            },
+            {
+              "id": 51492,
+              "attributes": {
+                "title": "Senator Chuchi",
+                "subtitle": "Voice for the Voiceless",
+                "serialCode": "06371125",
+                "cardUid": "5372118662",
+                "cardNumber": 1125,
+                "locale": "en",
+                "rarity": "Uncommon",
+                "expansion": { "data": { "id": 73, "attributes": { "name": "Secrets of Power", "code": "SEC" } } },
+                "variantTypes": { "data": [] },
+                "type": { "data": { "id": 9, "attributes": { "name": "Unit", "value": "Unit" } } }
+              }
+            }
+          ]
+        }
+        """;
+
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false, SetCode: "SEC"));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(2, summary.PrintingsCreated);
+
+        var printings = await db.CardPrintings
+            .Where(p => p.CatalogSet!.Code == "SEC")
+            .Include(p => p.Treatment)
+            .OrderBy(p => p.Id)
+            .ToListAsync();
+
+        Assert.Equal(2, printings.Count);
+        Assert.Equal("Rose Gold Prestige", printings[0].Treatment?.Name);
+        Assert.Equal("Gold Prestige", printings[1].Treatment?.Name);
+    }
 }

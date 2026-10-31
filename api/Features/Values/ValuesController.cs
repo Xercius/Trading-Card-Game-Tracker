@@ -113,12 +113,26 @@ public class ValuesController : ControllerBase
         return Ok(new SeriesResponse(id, points));
     }
 
+    /// <summary>
+    /// Computes the aggregate collection summary across owned printings, optionally scoped to a single game.
+    /// </summary>
+    /// <param name="game">Optional game name to filter owned printings by.</param>
     [HttpGet("collection/summary")]
-    public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary()
+    public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary([FromQuery] string? game = null)
     {
         var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
 
-        var data = await _db.UserCards
+        var query = _db.UserCards
+            .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
+            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0);
+
+        if (!string.IsNullOrWhiteSpace(game))
+        {
+            var normalizedGame = SqliteCaseNormalizer.Normalize(game);
+            query = query.Where(uc => uc.CardPrinting.Card.Game!.NameNormalized == normalizedGame);
+        }
+
+        var data = await query
             .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
             .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
             .Select(uc => new

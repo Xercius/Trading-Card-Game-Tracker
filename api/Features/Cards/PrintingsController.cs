@@ -33,7 +33,8 @@ public sealed class PrintingsController : ControllerBase
     /// <param name="ct">Cancellation token for request cancellation.</param>
     /// <returns>
     /// 200 OK with a collection of <see cref="PrintingDto"/> matching the filter criteria.
-    /// Results are sorted by Set, Number, then Card Name and paginated.
+    /// Returns the total matching record count in the X-Total-Count response header.
+    /// Results are sorted by Set, Number, then Card Name (or Card Name when Sort=name) and paginated.
     /// </returns>
     /// <remarks>
     /// Performance considerations:
@@ -126,26 +127,16 @@ public sealed class PrintingsController : ControllerBase
                     normalizedArenas.Contains(EF.Functions.Collate(arena.Arena.Name, "NOCASE"))));
         }
 
-        var aspects = CsvUtils.Parse(qp.Aspect);
-        if (aspects.Count > 0)
-        {
-            var normalizedAspects = aspects
-                .Select(SqliteCaseNormalizer.Normalize)
-                .Where(a => a != "all")
-                .ToList();
-            if (normalizedAspects.Count > 0)
-            {
-                query = query.Where(p => p.Card.CardAspects.Any(aspect =>
-                    normalizedAspects.Contains(EF.Functions.Collate(aspect.Aspect.Name, "NOCASE"))));
-            }
-        }
+        var aspects = CsvUtils.ParsePreservingDuplicates(qp.Aspect);
+        query = query.ApplyAspectFilter(aspects, qp.AspectMethod);
 
         var traits = CsvUtils.Parse(qp.Trait);
         if (traits.Count > 0)
         {
             var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
-            query = query.Where(p => p.Card.CardTraits.Any(trait =>
-                normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
+            query = query.Where(p =>
+                p.Card.CardTraits.Any(trait =>
+                    normalizedTraits.Contains(EF.Functions.Collate(trait.Trait.Name, "NOCASE"))));
         }
 
         // Filter by style(s) - supports comma-separated list
@@ -201,8 +192,31 @@ public sealed class PrintingsController : ControllerBase
                     .FirstOrDefault());
         }
 
+        if (string.Equals(qp.Sort, "name", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(qp.Sort, "name_asc", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(qp.Sort, "alpha", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(qp.Sort, "alphabetical", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query
+                .OrderBy(p => EF.Functions.Collate(p.Card.Name, "NOCASE"))
+                .ThenBy(p => p.CatalogSet == null || p.CatalogSet.ReleasedAt == null)
+                .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt)
+                .ThenBy(p => p.CatalogSet == null ? string.Empty : p.CatalogSet.Code)
+                .ThenBy(p => p.Number)
+                .ThenBy(p => p.Id);
+        }
+        else if (string.Equals(qp.Sort, "name_desc", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query
+                .OrderByDescending(p => EF.Functions.Collate(p.Card.Name, "NOCASE"))
+                .ThenBy(p => p.CatalogSet == null || p.CatalogSet.ReleasedAt == null)
+                .ThenBy(p => p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt)
+                .ThenBy(p => p.CatalogSet == null ? string.Empty : p.CatalogSet.Code)
+                .ThenBy(p => p.Number)
+                .ThenBy(p => p.Id);
+        }
         // SWU cards use the verified set release date; generic card browsing keeps its legacy order.
-        if (requestedGames.Contains("star wars unlimited"))
+        else if (requestedGames.Contains("star wars unlimited"))
         {
             query = query
                 .OrderBy(p => p.CatalogSet == null || p.CatalogSet.ReleasedAt == null)
@@ -220,6 +234,9 @@ public sealed class PrintingsController : ControllerBase
                 .ThenBy(p => p.Card.Name)
                 .ThenBy(p => p.Id);
         }
+
+        var total = await query.CountAsync(ct);
+        Response.Headers["X-Total-Count"] = total.ToString();
 
         // Apply pagination with bounds checking
         var page = Math.Max(1, qp.Page);
@@ -270,5 +287,4 @@ public sealed class PrintingsController : ControllerBase
             Aspects = printing.Card.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
                 .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
         };
-
 }
