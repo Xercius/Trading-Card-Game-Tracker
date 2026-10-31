@@ -108,7 +108,7 @@ export function CardPagination({
   }, [safeTotalPages]);
 
   return (
-    <div className={`flex items-center gap-1.5 text-sm ${className}`.trim()}>
+    <div className={`flex flex-wrap items-center gap-1.5 text-sm ${className}`.trim()}>
       {/* First Page (<<) */}
       <Button
         variant="outline"

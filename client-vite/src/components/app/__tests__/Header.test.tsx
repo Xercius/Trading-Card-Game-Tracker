@@ -100,6 +100,33 @@ describe("Header", () => {
     ).toBeTruthy();
   });
 
+  it("keeps the mobile drawer open when debounced search updates the URL", async () => {
+    vi.useFakeTimers();
+    let currentLoc: Location | null = null;
+    renderHeader(["/cards"], (loc) => {
+      currentLoc = loc;
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle navigation" }));
+    const mobileSearch = screen.getAllByPlaceholderText("Search cards, decks...").at(-1)!;
+    fireEvent.change(mobileSearch, { target: { value: "vader" } });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(new URLSearchParams(currentLoc!.search).get("q")).toBe("vader");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mobileSearch).toHaveValue("vader");
+    vi.useRealTimers();
+  });
+
+  it("renders a text brand when no logo asset is available", () => {
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "TCG Tracker" })).toHaveTextContent("TCG Tracker");
+  });
+
   it("allows selecting Star Wars Unlimited and updates state and localStorage", async () => {
     renderHeader();
 

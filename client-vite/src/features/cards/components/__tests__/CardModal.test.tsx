@@ -12,7 +12,7 @@ import {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import CardModal from "../CardModal";
 import { api } from "@/lib/api";
 
@@ -411,6 +411,7 @@ describe("CardModal", () => {
     expect(within(metadata).getByText("Common")).toBeInTheDocument();
     expect(within(metadata).getByText("#001")).toBeInTheDocument();
     expect(within(metadata).getByText("Standard")).toBeInTheDocument();
+    fireEvent.error(within(metadata).getByAltText("Alpha Set"));
 
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(2);
@@ -426,5 +427,18 @@ describe("CardModal", () => {
     expect(within(metadata).getByText("Legendary")).toBeInTheDocument();
     expect(within(metadata).getByText("#002")).toBeInTheDocument();
     expect(within(metadata).getByText("Hyperspace Foil")).toBeInTheDocument();
+  });
+
+  it("keeps the dialog accessibly named when card details fail to load", async () => {
+    getSpy.mockImplementation((url: string) =>
+      url.endsWith("/printings")
+        ? Promise.resolve({ data: [] })
+        : Promise.reject(new Error("Request failed"))
+    );
+
+    await renderModal({ cardId: 100 });
+
+    await screen.findByText("Failed to load card details.");
+    expect(screen.getByRole("dialog", { name: "Card details" })).toBeInTheDocument();
   });
 });

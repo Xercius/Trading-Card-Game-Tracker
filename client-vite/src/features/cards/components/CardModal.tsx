@@ -64,6 +64,10 @@ function SetLogo({
   const [failed, setFailed] = useState(false);
   const logoUrl = getSetLogoUrl(setCode, setName);
 
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
   if (!logoUrl || failed) {
     return (
       <span
@@ -464,6 +468,9 @@ export default function CardModal({
         labelledBy="card-modal-card-name"
         className="relative flex h-[min(calc(100%-20px),62rem)] max-h-[calc(100%-20px)] w-[min(calc(100%-16px),90rem)] max-w-[calc(100%-16px)] flex-col overflow-hidden bg-[#242424] text-card-foreground p-0 gap-0 my-auto mx-2"
       >
+        <h2 id="card-modal-card-name" className="sr-only">
+          {details ? displayName || details.name : "Card details"}
+        </h2>
         {/* Floating Close Button in top right */}
         <DialogClose
           aria-label="Close card dialog"
@@ -565,7 +572,6 @@ export default function CardModal({
                     <div>
                       <div className="flex items-center flex-wrap gap-2.5">
                         <h2
-                          id="card-modal-card-name"
                           data-testid="card-modal-card-name"
                           className="text-2xl font-bold tracking-tight text-foreground"
                         >

@@ -186,7 +186,7 @@ export default function Header() {
   useEffect(() => {
     setMobileOpen(false);
     setAdminOpen(false);
-  }, [location]);
+  }, [location.pathname]);
 
   // Close Admin dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -240,11 +240,7 @@ export default function Header() {
             className="shrink-0 flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
             aria-label="TCG Tracker"
           >
-            <img
-              src={resolveImageUrl("/images/tcg_tracker_logo.png")}
-              alt="TCG Tracker"
-              className="h-9 w-auto max-h-9 object-contain"
-            />
+            <span className="text-xl font-bold tracking-tight">TCG Tracker</span>
           </NavLink>
 
           <nav className="hidden md:flex gap-1 ml-4 items-center">
