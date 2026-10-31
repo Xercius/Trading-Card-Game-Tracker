@@ -31,6 +31,7 @@ describe("usePrintings", () => {
       types: [],
       arenas: [],
       aspects: [],
+      aspectMethod: "or",
       traits: [],
       page: 1,
       pageSize: 60,

@@ -73,7 +73,7 @@ export default function CardsPage() {
   }, [filters.q, filters.page, setFilters]);
 
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
-  const effectivePageSize = viewMode === "table" ? 200 : filters.pageSize || 20;
+  const effectivePageSize = Math.min(viewMode === "table" ? 200 : filters.pageSize || 20, 500);
 
   const scopedFilters = React.useMemo(
     () => ({

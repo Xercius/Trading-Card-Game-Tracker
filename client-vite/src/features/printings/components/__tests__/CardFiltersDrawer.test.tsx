@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardFiltersDrawer } from "../CardFiltersDrawer";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
@@ -142,6 +142,41 @@ describe("CardFiltersDrawer", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(handleOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("moves focus into the drawer, contains Tab, and restores focus on close", async () => {
+    const handleOpenChange = vi.fn();
+    const renderDrawer = (open: boolean) => (
+      <>
+        <button type="button">Open filters</button>
+        <CardFiltersDrawer
+          open={open}
+          onOpenChange={handleOpenChange}
+          filters={defaultFilters}
+          setFilters={vi.fn()}
+          availableFacets={defaultFacets}
+          isFacetsLoading={false}
+          isFacetsError={false}
+          onRetryFacets={vi.fn()}
+          onClearFilters={vi.fn()}
+          hasActiveFilters={false}
+        />
+      </>
+    );
+    const { rerender } = render(renderDrawer(false));
+    const opener = screen.getByRole("button", { name: "Open filters" });
+    opener.focus();
+    rerender(renderDrawer(true));
+
+    const first = screen.getByRole("button", { name: "Close filters" });
+    await waitFor(() => expect(first).toHaveFocus());
+
+    screen.getByRole("button", { name: "Close", exact: true }).focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(first).toHaveFocus();
+
+    rerender(renderDrawer(false));
+    expect(opener).toHaveFocus();
   });
 
   it("enables and triggers Clear Filters when hasActiveFilters is true", () => {

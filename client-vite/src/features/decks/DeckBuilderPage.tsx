@@ -54,8 +54,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
   const filterKey = toQueryKey();
   const cardsQueryKey = useMemo(
-    () => ["cards", { userId, filters: filterKey }],
-    [userId, filterKey]
+    () => ["cards", { userId, game: activeGame, filters: filterKey }],
+    [userId, activeGame, filterKey]
   );
 
   const cardsQuery = useInfiniteQuery({

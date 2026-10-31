@@ -19,6 +19,15 @@ export type CardFiltersDrawerProps = {
   hasActiveFilters: boolean;
 };
 
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "textarea:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 function CloseIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -54,6 +63,26 @@ export function CardFiltersDrawer({
   hasActiveFilters,
 }: CardFiltersDrawerProps) {
   const drawerRef = React.useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    lastFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => {
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const focusables = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE));
+      (focusables[0] ?? drawer).focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open) return;
+    const previous = lastFocusedRef.current;
+    if (previous?.isConnected) previous.focus();
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -65,6 +94,26 @@ export function CardFiltersDrawer({
       if (event.key === "Escape") {
         event.preventDefault();
         onOpenChange(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const focusables = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusables.length === 0) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !drawer.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !drawer.contains(active))) {
+        event.preventDefault();
+        first.focus();
       }
     };
 

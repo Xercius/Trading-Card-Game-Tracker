@@ -83,6 +83,29 @@ public sealed class SwuSharedImporterRegressionTests
     }
 
     [Fact]
+    public void Track_ChangedSourceId_DoesNotResolveRelationshipsToStaleId()
+    {
+        var target = new CardPrinting
+        {
+            Number = "target",
+            DetailsJson = """{"sourceId":1,"cardUid":"stable"}"""
+        };
+        var relationship = new CardPrinting
+        {
+            Number = "relationship",
+            DetailsJson = """{"variantOfSourceId":1}"""
+        };
+        var identity = new SwuSharedIdentity([target, relationship]);
+
+        target.DetailsJson = """{"sourceId":101,"cardUid":"stable"}""";
+        identity.Track(target);
+        identity.ResolveRelationships(out _);
+
+        Assert.Null(relationship.VariantOf);
+        Assert.Null(relationship.VariantOfId);
+    }
+
+    [Fact]
     public async Task Import_VariantAndReprintTargets_ResolveIndependentlyAcrossSyncs()
     {
         await using var database = await Database.CreateAsync();

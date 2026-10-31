@@ -23,6 +23,7 @@ const filters: CardFilters = {
   types: ["Leader Unit"],
   arenas: [],
   aspects: [],
+  aspectMethod: "or",
   traits: [],
   page: 1,
   pageSize: 2,

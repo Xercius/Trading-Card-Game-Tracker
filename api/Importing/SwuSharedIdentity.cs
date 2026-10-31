@@ -43,16 +43,20 @@ internal sealed class SwuSharedIdentity
                 RemoveIfOwned(_byUid, oldKeys.CardUid, printing);
             if (oldKeys.SetNumberAndTreatment is { } oldFallbackKey)
                 RemoveIfOwned(_bySetNumberAndTreatment, oldFallbackKey, printing);
+            if (oldKeys.SourceId is > 0 and var oldSourceId)
+                RemoveIfOwned(_bySourceId, oldSourceId, printing);
         }
 
         var cardUid = SourceUid(printing);
         PrintingKey? fallbackKey = printing.CatalogSet is null || printing.Treatment is null
             ? null
             : Key(printing.SetId, printing.CatalogSet, printing.Number, printing.TreatmentId, printing.Treatment);
-        var keys = new PrintingKeys(cardUid, fallbackKey);
+        var sourceId = SourceId(printing);
+        var keys = new PrintingKeys(cardUid, fallbackKey, sourceId is > 0 ? sourceId : null);
         _keysByPrinting[printing] = keys;
         if (cardUid is not null) _byUid[cardUid] = printing;
-        if (SourceId(printing) is > 0 and var sourceId) _bySourceId[sourceId] = printing;
+        if (sourceId is int validSourceId && validSourceId > 0)
+            _bySourceId[validSourceId] = printing;
         if (fallbackKey is not null)
         {
             if (_bySetNumberAndTreatment.TryGetValue(fallbackKey.Value, out var other) && !ReferenceEquals(other, printing))
@@ -132,7 +136,7 @@ internal sealed class SwuSharedIdentity
 
     private readonly record struct PrintingKey(object SetId, string Number, object TreatmentId);
 
-    private sealed record PrintingKeys(string? CardUid, PrintingKey? SetNumberAndTreatment);
+    private sealed record PrintingKeys(string? CardUid, PrintingKey? SetNumberAndTreatment, int? SourceId);
 
     private static bool HasRelationshipFields(string? json)
         => Read(json, "variantOfCardUid") is not null

@@ -140,6 +140,24 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.sort).toBe("name");
   });
 
+  it("caps grid page size to the request limit for pagination", () => {
+    const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
+    mockUsePrintings.mockReturnValue({
+      data: { items: [], total: 750 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(["/cards?pageSize=1000"]),
+    });
+
+    expect(mockUsePrintings.mock.calls[0][0].pageSize).toBe(500);
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+  });
+
   it("clearly styles and updates the selected view mode button", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
