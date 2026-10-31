@@ -382,7 +382,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
 
             var sorSet = new Set { Game = game, Code = "SOR", Name = "Spark of Rebellion", ReleasedAt = new DateOnly(2024, 3, 8) };
             var promoSet = new Set { Game = game, Code = "2024CE", Name = "2024 Convention Exclusive", ReleasedAt = null };
-            var shdSet = new Set { Game = game, Code = "SHD", Name = "Shadows of the Galaxy", ReleasedAt = new DateOnly(2024, 7, 12) };
+            var shdSet = new Set { Game = game, Code = "SHD", Name = "Shadows of the Galaxy", ReleasedAt = new DateOnly(2023, 12, 1) };
 
             // 1. Promo / special treatment created EARLIER than standard (should NOT be chosen because it's not standard)
             card.Printings.Add(new CardPrinting

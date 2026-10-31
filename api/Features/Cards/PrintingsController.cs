@@ -182,7 +182,7 @@ public sealed class PrintingsController : ControllerBase
                     .ThenByDescending(candidate => candidate.Treatment != null
                         && candidate.Treatment.NameNormalized == "standard")
                     .ThenBy(candidate => candidate.ApiCreatedAt == null)
-                    .ThenBy(candidate => candidate.ApiCreatedAt.ToString())
+                    .ThenBy(candidate => AppDbContext.SqliteJulianDay(candidate.ApiCreatedAt))
                     .ThenBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)
                     .ThenBy(candidate => candidate.CatalogSet == null
                         ? null
