@@ -108,33 +108,33 @@ export function CardPagination({
   }, [safeTotalPages]);
 
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 text-sm ${className}`.trim()}>
+    <div className={`flex items-center gap-1.5 text-sm ${className}`.trim()}>
       {/* First Page (<<) */}
       <Button
         variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
+        size="icon"
+        className="h-9 w-9 p-0 px-0 shrink-0 inline-flex items-center justify-center"
         onClick={() => onPageChange(1)}
         disabled={currentPage <= 1}
         aria-label="First page"
       >
-        <ChevronsLeftIcon className="h-4 w-4" />
+        <ChevronsLeftIcon className="h-4 w-4 shrink-0" />
       </Button>
 
       {/* Previous Page (<) */}
       <Button
         variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
+        size="icon"
+        className="h-9 w-9 p-0 px-0 shrink-0 inline-flex items-center justify-center"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
         aria-label="Previous page"
       >
-        <ChevronLeftIcon className="h-4 w-4" />
+        <ChevronLeftIcon className="h-4 w-4 shrink-0" />
       </Button>
 
       {/* Page Selector Dropdown */}
-      <div className="w-28">
+      <div className="shrink-0">
         <Select
           value={String(currentPage)}
           onValueChange={(val) => {
@@ -144,12 +144,15 @@ export function CardPagination({
             }
           }}
         >
-          <SelectTrigger aria-label="Select page" className="h-8 w-full text-xs">
-            <SelectValue>{`Page ${currentPage} of ${safeTotalPages}`}</SelectValue>
+          <SelectTrigger
+            aria-label="Select page"
+            className="h-9 w-auto min-w-[8.5rem] px-3 text-xs whitespace-nowrap shrink-0"
+          >
+            <SelectValue className="whitespace-nowrap">{`Page ${currentPage} of ${safeTotalPages}`}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-60 min-w-[8.5rem]">
             {pageOptions.map((p) => (
-              <SelectItem key={p} value={String(p)}>
+              <SelectItem key={p} value={String(p)} className="text-xs py-1.5 whitespace-nowrap">
                 Page {p} of {safeTotalPages}
               </SelectItem>
             ))}
@@ -160,29 +163,29 @@ export function CardPagination({
       {/* Next Page (>) */}
       <Button
         variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
+        size="icon"
+        className="h-9 w-9 p-0 px-0 shrink-0 inline-flex items-center justify-center"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= safeTotalPages}
         aria-label="Next page"
       >
-        <ChevronRightIcon className="h-4 w-4" />
+        <ChevronRightIcon className="h-4 w-4 shrink-0" />
       </Button>
 
       {/* Last Page (>>) */}
       <Button
         variant="outline"
-        size="sm"
-        className="h-8 w-8 p-0"
+        size="icon"
+        className="h-9 w-9 p-0 px-0 shrink-0 inline-flex items-center justify-center"
         onClick={() => onPageChange(safeTotalPages)}
         disabled={currentPage >= safeTotalPages}
         aria-label="Last page"
       >
-        <ChevronsRightIcon className="h-4 w-4" />
+        <ChevronsRightIcon className="h-4 w-4 shrink-0" />
       </Button>
 
       {/* Page Size Dropdown */}
-      <div className="w-24 ml-1">
+      <div className="shrink-0 ml-1">
         <Select
           value={isTableView ? "200" : String(pageSize)}
           onValueChange={(val) => {
@@ -195,17 +198,30 @@ export function CardPagination({
           }}
           disabled={isTableView}
         >
-          <SelectTrigger aria-label="Cards per page" className="h-8 w-full text-xs">
-            <SelectValue>{isTableView ? "200 / page" : `${pageSize} / page`}</SelectValue>
+          <SelectTrigger
+            aria-label="Cards per page"
+            className="h-9 w-auto min-w-[7rem] px-3 text-xs whitespace-nowrap shrink-0"
+          >
+            <SelectValue className="whitespace-nowrap">
+              {isTableView ? "200 / page" : `${pageSize} / page`}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="min-w-[7.5rem]">
             {isTableView ? (
-              <SelectItem value="200">200 / page</SelectItem>
+              <SelectItem value="200" className="text-xs py-1.5 whitespace-nowrap">
+                200 / page
+              </SelectItem>
             ) : (
               <>
-                <SelectItem value="20">20 / page</SelectItem>
-                <SelectItem value="40">40 / page</SelectItem>
-                <SelectItem value="100">100 / page</SelectItem>
+                <SelectItem value="20" className="text-xs py-1.5 whitespace-nowrap">
+                  20 / page
+                </SelectItem>
+                <SelectItem value="40" className="text-xs py-1.5 whitespace-nowrap">
+                  40 / page
+                </SelectItem>
+                <SelectItem value="100" className="text-xs py-1.5 whitespace-nowrap">
+                  100 / page
+                </SelectItem>
               </>
             )}
           </SelectContent>

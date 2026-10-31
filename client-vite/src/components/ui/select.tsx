@@ -313,7 +313,8 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
         position: "absolute",
         top: `${position.top + 8}px`,
         left: `${position.left}px`,
-        width: `${position.width}px`,
+        minWidth: `${position.width}px`,
+        width: "max-content",
       }}
       {...props}
     >
@@ -338,7 +339,7 @@ export function SelectItem({ value, className = "", children, ...props }: Select
   }, [isSelected, children, setSelectedLabel]);
 
   const classes = [
-    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm border-0 border-none outline-none transition-colors",
+    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-1.5 text-sm whitespace-nowrap border-0 border-none outline-none transition-colors",
     "focus:outline-none focus-visible:outline-none focus:bg-white/10 focus:text-white",
     "hover:bg-white/10 hover:text-white",
     isSelected ? "bg-white/15 text-white font-medium" : "text-foreground",
