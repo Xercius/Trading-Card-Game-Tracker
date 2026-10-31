@@ -92,14 +92,11 @@ export function MultiSelect({
       if (values.includes(value)) {
         const next = values.filter((item) => item !== value);
         onChange(next);
-        if (next.length === 0 && onMethodChange) {
-          onMethodChange("or");
-        }
       } else {
         onChange([...values, value]);
       }
     },
-    [onChange, onMethodChange, values]
+    [onChange, values]
   );
 
   const removeValue = React.useCallback(
@@ -107,11 +104,8 @@ export function MultiSelect({
       if (!values.includes(value)) return;
       const next = values.filter((item) => item !== value);
       onChange(next);
-      if (next.length === 0 && onMethodChange) {
-        onMethodChange("or");
-      }
     },
-    [onChange, onMethodChange, values]
+    [onChange, values]
   );
 
   React.useEffect(() => {

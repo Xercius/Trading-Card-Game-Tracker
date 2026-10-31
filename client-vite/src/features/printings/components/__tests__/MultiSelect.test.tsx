@@ -17,20 +17,45 @@ describe("MultiSelect", () => {
   it("supports toggling individual options and does not render an All option", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
+    const onMethodChange = vi.fn();
     render(
       <MultiSelect
         label="Aspects"
         values={["Heroism"]}
         options={["Heroism", "Command"]}
         onChange={onChange}
+        method="exclude"
+        onMethodChange={onMethodChange}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Aspects (1)" }));
+    await user.click(screen.getByRole("button", { name: "Aspects (Exclude: 1)" }));
     expect(screen.queryByRole("option", { name: "All" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("option", { name: "Heroism" }));
     expect(onChange).toHaveBeenCalledWith([]);
+    expect(onMethodChange).not.toHaveBeenCalled();
+  });
+
+  it("does not separately reset the method when removing the final badge", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onMethodChange = vi.fn();
+    render(
+      <MultiSelect
+        label="Keywords"
+        values={["Sentinel"]}
+        options={["Sentinel"]}
+        onChange={onChange}
+        method="exclude"
+        onMethodChange={onMethodChange}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Sentinel" }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(onMethodChange).not.toHaveBeenCalled();
   });
 
   it("renders filter method selector and notifies on change", async () => {

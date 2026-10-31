@@ -139,6 +139,7 @@ export default function CardsPage() {
     arenas: [],
     aspects: [],
     traits: [],
+    keywords: [],
   };
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState(false);

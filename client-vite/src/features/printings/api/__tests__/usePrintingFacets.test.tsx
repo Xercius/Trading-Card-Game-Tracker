@@ -48,6 +48,9 @@ describe("usePrintingFacets", () => {
       aspects: ["Heroism"],
       aspectMethod: "or",
       traits: ["Force"],
+      traitMethod: "or",
+      keywords: [],
+      keywordMethod: "or",
       page: 1,
       pageSize: 60,
     };
