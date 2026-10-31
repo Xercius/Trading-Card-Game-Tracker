@@ -14,6 +14,9 @@ export type CardsPageParams = {
   aspects?: string[];
   aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
+  traitMethod?: "or" | "and" | "exclude";
+  keywords?: string[];
+  keywordMethod?: "or" | "and" | "exclude";
   skip: number;
   take: number;
 };
@@ -96,6 +99,9 @@ export async function fetchCardsPage({
   aspects,
   aspectMethod,
   traits,
+  traitMethod,
+  keywords,
+  keywordMethod,
   skip,
   take,
 }: CardsPageParams): Promise<CardsPage> {
@@ -109,6 +115,9 @@ export async function fetchCardsPage({
   if (aspects?.length) params.set("aspect", aspects.join(","));
   if (aspectMethod && aspectMethod !== "or") params.set("aspectMethod", aspectMethod);
   if (traits?.length) params.set("trait", traits.join(","));
+  if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
+  if (keywords?.length) params.set("keyword", keywords.join(","));
+  if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
   params.set("skip", String(skip));
   params.set("take", String(take));
 
@@ -195,6 +204,7 @@ export type CardsFacetResponse = {
   arenas?: FacetOption[];
   aspects?: FacetOption[];
   traits?: FacetOption[];
+  keywords?: FacetOption[];
   treatments?: FacetOption[];
 };
 
@@ -320,6 +330,9 @@ export async function fetchCardFacets({
   aspects,
   aspectMethod,
   traits,
+  traitMethod,
+  keywords,
+  keywordMethod,
   q,
   printingSearch,
 }: {
@@ -331,6 +344,9 @@ export async function fetchCardFacets({
   aspects?: string[];
   aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
+  traitMethod?: "or" | "and" | "exclude";
+  keywords?: string[];
+  keywordMethod?: "or" | "and" | "exclude";
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -343,6 +359,9 @@ export async function fetchCardFacets({
   if (aspects?.length) params.set("aspect", aspects.join(","));
   if (aspectMethod && aspectMethod !== "or") params.set("aspectMethod", aspectMethod);
   if (traits?.length) params.set("trait", traits.join(","));
+  if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
+  if (keywords?.length) params.set("keyword", keywords.join(","));
+  if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 
@@ -356,6 +375,7 @@ export async function fetchCardFacets({
       arenas: [],
       aspects: [],
       traits: [],
+      keywords: [],
     }
   );
 }

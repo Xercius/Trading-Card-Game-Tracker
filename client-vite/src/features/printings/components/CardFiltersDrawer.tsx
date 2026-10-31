@@ -232,7 +232,46 @@ export function CardFiltersDrawer({
             values={filters.traits ?? []}
             options={availableFacets.traits ?? []}
             placeholder="Search traits…"
-            onChange={(values) => setFilters((prev) => ({ ...prev, traits: values, page: 1 }))}
+            method={filters.traitMethod ?? "or"}
+            onMethodChange={(method) =>
+              setFilters((prev) => ({
+                ...prev,
+                traitMethod: method,
+                page: 1,
+              }))
+            }
+            onChange={(values) =>
+              setFilters((prev) => ({
+                ...prev,
+                traits: values,
+                ...(values.length === 0 ? { traitMethod: "or" as const } : {}),
+                page: 1,
+              }))
+            }
+          />
+
+          <MultiSelect
+            label="Keywords"
+            className="w-full justify-between"
+            values={filters.keywords ?? []}
+            options={availableFacets.keywords ?? []}
+            placeholder="Search keywords…"
+            method={filters.keywordMethod ?? "or"}
+            onMethodChange={(method) =>
+              setFilters((prev) => ({
+                ...prev,
+                keywordMethod: method,
+                page: 1,
+              }))
+            }
+            onChange={(values) =>
+              setFilters((prev) => ({
+                ...prev,
+                keywords: values,
+                ...(values.length === 0 ? { keywordMethod: "or" as const } : {}),
+                page: 1,
+              }))
+            }
           />
         </div>
 

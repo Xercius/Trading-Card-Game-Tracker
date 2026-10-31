@@ -40,6 +40,9 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="aspect">Optional comma-separated list of associated card aspects to filter by.</param>
     /// <param name="aspectMethod">Filtering method for aspects ('or', 'and', 'exclude').</param>
     /// <param name="trait">Optional comma-separated list of associated card traits to filter by.</param>
+    /// <param name="traitMethod">Filtering method for traits ('or', 'and', 'exclude').</param>
+    /// <param name="keyword">Optional comma-separated list of associated card keywords to filter by.</param>
+    /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -58,6 +61,9 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? aspect = null,
         [FromQuery] string? aspectMethod = null,
         [FromQuery] string? trait = null,
+        [FromQuery] string? traitMethod = null,
+        [FromQuery] string? keyword = null,
+        [FromQuery] string? keywordMethod = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -71,6 +77,7 @@ public sealed class CardFacetsController : ControllerBase
             .Where(a => !string.Equals(a, "All", StringComparison.OrdinalIgnoreCase))
             .ToList();
         var traits = CsvUtils.Parse(trait);
+        var keywords = CsvUtils.Parse(keyword);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameLookupQuery = _db.Games.AsQueryable();
         if (games.Count > 0)
@@ -116,7 +123,8 @@ public sealed class CardFacetsController : ControllerBase
         gameQuery = ApplyTypeFilter(gameQuery, types);
         gameQuery = ApplyArenaFilter(gameQuery, arenas);
         gameQuery = ApplyAspectFilter(gameQuery, aspects, aspectMethod);
-        gameQuery = ApplyTraitFilter(gameQuery, traits);
+        gameQuery = ApplyTraitFilter(gameQuery, traits, traitMethod);
+        gameQuery = ApplyKeywordFilter(gameQuery, keywords, keywordMethod);
 
         var gameFacets = await gameQuery
             .GroupBy(cp => cp.Card.Game!.Name)
@@ -130,7 +138,8 @@ public sealed class CardFacetsController : ControllerBase
         setQuery = ApplyTypeFilter(setQuery, types);
         setQuery = ApplyArenaFilter(setQuery, arenas);
         setQuery = ApplyAspectFilter(setQuery, aspects, aspectMethod);
-        setQuery = ApplyTraitFilter(setQuery, traits);
+        setQuery = ApplyTraitFilter(setQuery, traits, traitMethod);
+        setQuery = ApplyKeywordFilter(setQuery, keywords, keywordMethod);
 
         var setFacets = await setQuery
             .Where(cp => cp.CatalogSet != null && !string.IsNullOrWhiteSpace(cp.CatalogSet.Code))
@@ -145,7 +154,8 @@ public sealed class CardFacetsController : ControllerBase
         rarityQuery = ApplyTypeFilter(rarityQuery, types);
         rarityQuery = ApplyArenaFilter(rarityQuery, arenas);
         rarityQuery = ApplyAspectFilter(rarityQuery, aspects, aspectMethod);
-        rarityQuery = ApplyTraitFilter(rarityQuery, traits);
+        rarityQuery = ApplyTraitFilter(rarityQuery, traits, traitMethod);
+        rarityQuery = ApplyKeywordFilter(rarityQuery, keywords, keywordMethod);
 
         var rarityFacets = await rarityQuery
             .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.Name))
@@ -160,7 +170,8 @@ public sealed class CardFacetsController : ControllerBase
         typeQuery = ApplyRarityFilter(typeQuery, rarities);
         typeQuery = ApplyArenaFilter(typeQuery, arenas);
         typeQuery = ApplyAspectFilter(typeQuery, aspects, aspectMethod);
-        typeQuery = ApplyTraitFilter(typeQuery, traits);
+        typeQuery = ApplyTraitFilter(typeQuery, traits, traitMethod);
+        typeQuery = ApplyKeywordFilter(typeQuery, keywords, keywordMethod);
 
         var typePrintingCounts = await GetPrintingCountsByCardAsync(typeQuery, ct);
         var typeCardIds = typePrintingCounts.Keys.ToList();
@@ -179,7 +190,8 @@ public sealed class CardFacetsController : ControllerBase
         arenaQuery = ApplyRarityFilter(arenaQuery, rarities);
         arenaQuery = ApplyTypeFilter(arenaQuery, types);
         arenaQuery = ApplyAspectFilter(arenaQuery, aspects, aspectMethod);
-        arenaQuery = ApplyTraitFilter(arenaQuery, traits);
+        arenaQuery = ApplyTraitFilter(arenaQuery, traits, traitMethod);
+        arenaQuery = ApplyKeywordFilter(arenaQuery, keywords, keywordMethod);
 
         var arenaPrintingCounts = await GetPrintingCountsByCardAsync(arenaQuery, ct);
         var arenaCardIds = arenaPrintingCounts.Keys.ToList();
@@ -198,7 +210,8 @@ public sealed class CardFacetsController : ControllerBase
         aspectQuery = ApplyRarityFilter(aspectQuery, rarities);
         aspectQuery = ApplyTypeFilter(aspectQuery, types);
         aspectQuery = ApplyArenaFilter(aspectQuery, arenas);
-        aspectQuery = ApplyTraitFilter(aspectQuery, traits);
+        aspectQuery = ApplyTraitFilter(aspectQuery, traits, traitMethod);
+        aspectQuery = ApplyKeywordFilter(aspectQuery, keywords, keywordMethod);
 
         var aspectPrintingCounts = await GetPrintingCountsByCardAsync(aspectQuery, ct);
         var aspectCardIds = aspectPrintingCounts.Keys.ToList();
@@ -216,6 +229,7 @@ public sealed class CardFacetsController : ControllerBase
         traitQuery = ApplyTypeFilter(traitQuery, types);
         traitQuery = ApplyArenaFilter(traitQuery, arenas);
         traitQuery = ApplyAspectFilter(traitQuery, aspects, aspectMethod);
+        traitQuery = ApplyKeywordFilter(traitQuery, keywords, keywordMethod);
 
         var traitPrintingCounts = await GetPrintingCountsByCardAsync(traitQuery, ct);
         var traitCardIds = traitPrintingCounts.Keys.ToList();
@@ -226,13 +240,32 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
         var traitFacets = BuildFacets(traitAssociations.Select(a => (a.CardId, a.Name)), traitPrintingCounts);
 
+        // Compute keyword facets
+        var keywordQuery = ApplyGameFilter(baseQuery, gameIds);
+        keywordQuery = ApplySetFilter(keywordQuery, sets);
+        keywordQuery = ApplyRarityFilter(keywordQuery, rarities);
+        keywordQuery = ApplyTypeFilter(keywordQuery, types);
+        keywordQuery = ApplyArenaFilter(keywordQuery, arenas);
+        keywordQuery = ApplyAspectFilter(keywordQuery, aspects, aspectMethod);
+        keywordQuery = ApplyTraitFilter(keywordQuery, traits, traitMethod);
+
+        var keywordPrintingCounts = await GetPrintingCountsByCardAsync(keywordQuery, ct);
+        var keywordCardIds = keywordPrintingCounts.Keys.ToList();
+        var keywordAssociations = await _db.CardKeywords
+            .AsNoTracking()
+            .Where(association => keywordCardIds.Contains(association.CardId))
+            .Select(association => new { association.CardId, association.Keyword.Name })
+            .ToListAsync(ct);
+        var keywordFacets = BuildFacets(keywordAssociations.Select(a => (a.CardId, a.Name)), keywordPrintingCounts);
+
         var treatmentQuery = ApplyGameFilter(baseQuery, gameIds);
         treatmentQuery = ApplySetFilter(treatmentQuery, sets);
         treatmentQuery = ApplyRarityFilter(treatmentQuery, rarities);
         treatmentQuery = ApplyTypeFilter(treatmentQuery, types);
         treatmentQuery = ApplyArenaFilter(treatmentQuery, arenas);
         treatmentQuery = ApplyAspectFilter(treatmentQuery, aspects, aspectMethod);
-        treatmentQuery = ApplyTraitFilter(treatmentQuery, traits);
+        treatmentQuery = ApplyTraitFilter(treatmentQuery, traits, traitMethod);
+        treatmentQuery = ApplyKeywordFilter(treatmentQuery, keywords, keywordMethod);
         var treatmentFacets = await treatmentQuery
             .Where(printing => printing.Treatment != null)
             .GroupBy(printing => printing.Treatment!.Name)
@@ -249,6 +282,7 @@ public sealed class CardFacetsController : ControllerBase
             Arenas = arenaFacets,
             Aspects = aspectFacets,
             Traits = traitFacets,
+            Keywords = keywordFacets,
             Treatments = treatmentFacets,
         };
 
@@ -450,11 +484,13 @@ public sealed class CardFacetsController : ControllerBase
 
     private static IQueryable<CardPrinting> ApplyTraitFilter(
         IQueryable<CardPrinting> query,
-        IReadOnlyCollection<string> traits)
-    {
-        if (traits.Count == 0) return query;
-        var normalizedTraits = traits.Select(SqliteCaseNormalizer.Normalize).ToList();
-        return query.Where(printing => printing.Card.CardTraits.Any(cardTrait =>
-            normalizedTraits.Contains(EF.Functions.Collate(cardTrait.Trait.Name, "NOCASE"))));
-    }
+        IReadOnlyCollection<string> traits,
+        string? traitMethod = null)
+        => query.ApplyTraitFilter(traits, traitMethod);
+
+    private static IQueryable<CardPrinting> ApplyKeywordFilter(
+        IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string> keywords,
+        string? keywordMethod = null)
+        => query.ApplyKeywordFilter(keywords, keywordMethod);
 }

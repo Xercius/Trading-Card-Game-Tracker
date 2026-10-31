@@ -25,6 +25,9 @@ const filters: CardFilters = {
   aspects: [],
   aspectMethod: "or",
   traits: [],
+  traitMethod: "or",
+  keywords: [],
+  keywordMethod: "or",
   page: 1,
   pageSize: 2,
 };

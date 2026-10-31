@@ -14,7 +14,8 @@ import CardModal from "@/features/cards/components/CardModal";
 import type { PrintingListItem } from "../api/printings";
 
 type ViewMode = "grid" | "table";
-type FilterArrayKey = "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits";
+type FilterArrayKey =
+  "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits" | "keywords";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -138,6 +139,7 @@ export default function CardsPage() {
     arenas: [],
     aspects: [],
     traits: [],
+    keywords: [],
   };
 
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState(false);
@@ -189,6 +191,9 @@ export default function CardsPage() {
       aspects: [],
       aspectMethod: "or",
       traits: [],
+      traitMethod: "or",
+      keywords: [],
+      keywordMethod: "or",
       page: 1,
     }));
   }, [setFilters, activeGame]);
@@ -201,6 +206,8 @@ export default function CardsPage() {
           ...prev,
           [key]: nextList,
           ...(key === "aspects" && nextList.length === 0 ? { aspectMethod: "or" as const } : {}),
+          ...(key === "traits" && nextList.length === 0 ? { traitMethod: "or" as const } : {}),
+          ...(key === "keywords" && nextList.length === 0 ? { keywordMethod: "or" as const } : {}),
           page: 1,
         };
       });
@@ -268,8 +275,23 @@ export default function CardsPage() {
       },
       {
         key: "traits" as const,
-        label: "Trait",
+        label:
+          filters.traitMethod === "exclude"
+            ? "Exclude Trait"
+            : filters.traitMethod === "and"
+              ? "Trait (AND)"
+              : "Trait",
         items: (filters.traits ?? []).map((v) => ({ display: v, value: v })),
+      },
+      {
+        key: "keywords" as const,
+        label:
+          filters.keywordMethod === "exclude"
+            ? "Exclude Keyword"
+            : filters.keywordMethod === "and"
+              ? "Keyword (AND)"
+              : "Keyword",
+        items: (filters.keywords ?? []).map((v) => ({ display: v, value: v })),
       },
     ],
     [
@@ -280,6 +302,9 @@ export default function CardsPage() {
       filters.aspectMethod,
       groupedAspects,
       filters.traits,
+      filters.traitMethod,
+      filters.keywords,
+      filters.keywordMethod,
     ]
   );
 

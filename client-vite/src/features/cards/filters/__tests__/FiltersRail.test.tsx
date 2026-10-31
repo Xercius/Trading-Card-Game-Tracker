@@ -23,6 +23,7 @@ describe("FiltersRail", () => {
       arenas: [{ value: "Ground", count: 1 }],
       aspects: [{ value: "Heroism", count: 1 }],
       traits: [{ value: "Jedi", count: 1 }],
+      keywords: [{ value: "Sentinel", count: 1 }],
     });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -30,7 +31,11 @@ describe("FiltersRail", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/cards?arena=ground&aspect=heroism&trait=jedi"]}>
+        <MemoryRouter
+          initialEntries={[
+            "/cards?arena=ground&aspect=heroism&trait=jedi&traitMethod=exclude&keyword=Sentinel&keywordMethod=and",
+          ]}
+        >
           <FiltersRail />
         </MemoryRouter>
       </QueryClientProvider>
@@ -41,6 +46,14 @@ describe("FiltersRail", () => {
       expect(screen.getByRole("checkbox", { name: "Heroism" })).toHaveProperty("checked", true);
       expect(screen.getByRole("checkbox", { name: "Jedi" })).toHaveProperty("checked", true);
     });
+    expect(fetchCardFacetsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traits: ["jedi"],
+        traitMethod: "exclude",
+        keywords: ["Sentinel"],
+        keywordMethod: "and",
+      })
+    );
 
     queryClient.clear();
   });

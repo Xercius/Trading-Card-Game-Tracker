@@ -20,6 +20,13 @@ export function usePrintings(filters: CardFilters) {
       ? { aspectMethod: filters.aspectMethod }
       : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
+    ...(filters.traitMethod && filters.traitMethod !== "or"
+      ? { traitMethod: filters.traitMethod }
+      : {}),
+    ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
+    ...(filters.keywordMethod && filters.keywordMethod !== "or"
+      ? { keywordMethod: filters.keywordMethod }
+      : {}),
     ...(filters.sort ? { sort: filters.sort } : {}),
     pageSize,
     uniqueCards: true,

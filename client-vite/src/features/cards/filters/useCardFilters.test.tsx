@@ -86,6 +86,9 @@ describe("useCardFilters", () => {
       30,
       "",
       "or",
+      "or",
+      "",
+      "or",
     ]);
 
     await act(async () => {
@@ -111,6 +114,48 @@ describe("useCardFilters", () => {
     expect(latest?.filters.aspectMethod).toBe("exclude");
     expect(latest?.search).toContain("aspect=Aggression%2CAggression");
     expect(latest?.search).toContain("aspectMethod=exclude");
+  });
+
+  it("parses traitMethod and serializes correctly", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards?trait=Force,Imperial&traitMethod=and"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    expect(latest?.filters.traits).toEqual(["Force", "Imperial"]);
+    expect(latest?.filters.traitMethod).toBe("and");
+    expect(latest?.search).toContain("trait=Force%2CImperial");
+    expect(latest?.search).toContain("traitMethod=and");
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
+
+  it("parses keywordMethod and serializes correctly", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards?keyword=Sentinel,Grit&keywordMethod=exclude"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    expect(latest?.filters.keywords).toEqual(["Sentinel", "Grit"]);
+    expect(latest?.filters.keywordMethod).toBe("exclude");
+    expect(latest?.search).toContain("keyword=Sentinel%2CGrit");
+    expect(latest?.search).toContain("keywordMethod=exclude");
 
     await act(async () => {
       root.unmount();

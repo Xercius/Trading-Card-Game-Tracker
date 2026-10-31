@@ -8,6 +8,9 @@ type OptionalExtraFilterFields = {
   aspects?: string[];
   aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
+  traitMethod?: "or" | "and" | "exclude";
+  keywords?: string[];
+  keywordMethod?: "or" | "and" | "exclude";
 };
 
 export const cardsQueryKeys = {
@@ -34,6 +37,9 @@ export const cardsQueryKeys = {
         aspects: filters.aspects ?? [],
         aspectMethod: filters.aspectMethod ?? "or",
         traits: filters.traits ?? [],
+        traitMethod: filters.traitMethod ?? "or",
+        keywords: filters.keywords ?? [],
+        keywordMethod: filters.keywordMethod ?? "or",
         page: filters.page,
         pageSize: filters.pageSize,
         sort: filters.sort,
