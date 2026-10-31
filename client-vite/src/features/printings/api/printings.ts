@@ -27,13 +27,20 @@ export type PrintingQuery = {
   types?: string[];
   arenas?: string[];
   aspects?: string[];
+  aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
+  sort?: string;
   page?: number;
   pageSize?: number;
   uniqueCards?: boolean;
 };
 
-export async function fetchPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
+export type PrintingsResult = {
+  items: PrintingListItem[];
+  total: number;
+};
+
+export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsResult> {
   const params = new URLSearchParams();
   if (query.q) params.set("q", query.q);
   if (query.game?.length) params.set("game", query.game.join(","));
@@ -42,7 +49,10 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   if (query.types?.length) params.set("type", query.types.join(","));
   if (query.arenas?.length) params.set("arena", query.arenas.join(","));
   if (query.aspects?.length) params.set("aspect", query.aspects.join(","));
+  if (query.aspectMethod && query.aspectMethod !== "or")
+    params.set("aspectMethod", query.aspectMethod);
   if (query.traits?.length) params.set("trait", query.traits.join(","));
+  if (query.sort) params.set("sort", query.sort);
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
   if (query.uniqueCards) params.set("uniqueCards", "true");
@@ -51,5 +61,8 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingList
   const res = await api.get<PrintingListItem[]>(
     `cards/printings${paramString ? `?${paramString}` : ""}`
   );
-  return res.data;
+  const totalHeader = res.headers?.["x-total-count"] ?? res.headers?.["X-Total-Count"];
+  const parsedTotal = totalHeader ? Number(totalHeader) : NaN;
+  const total = !Number.isNaN(parsedTotal) ? parsedTotal : res.data.length;
+  return { items: res.data, total };
 }

@@ -9,10 +9,10 @@ import {
   vi,
   type MockInstance,
 } from "vitest";
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import CardModal from "../CardModal";
 import { api } from "@/lib/api";
 
@@ -21,7 +21,6 @@ let container: HTMLDivElement;
 let root: Root;
 let queryClient: QueryClient;
 let getSpy: MockInstance<(url: string) => Promise<unknown>>;
-let postSpy: MockInstance<(url: string, body: unknown) => Promise<unknown>>;
 
 beforeAll(() => {
   Object.defineProperty(HTMLImageElement.prototype, "loading", {
@@ -57,7 +56,6 @@ beforeEach(() => {
   root = createRoot(container);
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   getSpy = vi.spyOn(api, "get");
-  postSpy = vi.spyOn(api, "post");
 });
 
 afterEach(() => {
@@ -65,7 +63,6 @@ afterEach(() => {
   queryClient.clear();
   container.remove();
   getSpy.mockRestore();
-  postSpy.mockRestore();
 });
 
 function renderModal(props: { cardId: number; initialPrintingId?: number }) {
@@ -84,7 +81,7 @@ function renderModal(props: { cardId: number; initialPrintingId?: number }) {
 }
 
 describe("CardModal", () => {
-  it("renders normalized types, aspect multiplicity, set, rarity, and release date", async () => {
+  it("renders 3-column layout when card rulings exist", async () => {
     getSpy.mockImplementation((url: string) =>
       Promise.resolve({
         data: url.endsWith("/printings")
@@ -93,31 +90,32 @@ describe("CardModal", () => {
                 printingId: 1001,
                 setName: "Spark of Rebellion",
                 setCode: "SOR",
-                number: "SOR-001",
+                number: "001",
                 rarity: "Rare",
                 style: "Standard",
                 releaseDate: "2025-10-03",
                 imageUrl: "/front.png",
+                backImageUrl: "/back.png",
               },
             ]
           : {
               id: 100,
-              name: "Luke Skywalker",
+              name: "Darth Vader \u2014 Dark Lord of the Sith",
+              subtitle: "Dark Lord of the Sith",
               game: "Star Wars Unlimited",
               cardType: "Leader",
               cardType2: "Leader Unit",
               cardTypes: ["Leader", "Leader Unit"],
               arena: "Ground",
-              aspects: [{ name: "Heroism", count: 2 }],
-              traits: ["Force", "Rebel"],
-              cost: 6,
-              power: 4,
-              hp: 7,
-              textStyled:
-                "<p><strong>On Attack:</strong> Give an Experience token to a friendly <strong><i>Vehicle</i></strong> or <strong><i>Droid</i></strong> unit.</p>",
+              aspects: [{ name: "Villainy", count: 1 }],
+              traits: ["Force", "Imperial", "Sith"],
+              cost: 7,
+              power: 5,
+              hp: 8,
+              textStyled: "<p><strong>Action:</strong> Deal 1 damage.</p>",
               epicActionStyled: "<p><strong>Epic Action:</strong> Deploy this leader.</p>",
-              deployBoxStyled: "<p><strong>When Deployed:</strong> Give a Shield token.</p>",
-              text: null,
+              deployBoxStyled: "<p><strong>When Deployed:</strong> Ready this unit.</p>",
+              rulesStyled: "<p>If an ability refers to this leader...</p>",
               printings: [],
             },
       })
@@ -125,32 +123,118 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
-    expect(await screen.findByText("Leader")).toBeInTheDocument();
-    expect(screen.getByText("Type 2:")).toBeInTheDocument();
+    // Center Column: Title without duplicate subtitle, Subtitle beneath
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Darth Vader");
+    expect(screen.getByText("Dark Lord of the Sith")).toBeInTheDocument();
+
+    // Stats row
+    const statsRow = screen.getByLabelText("Card stats");
+    expect(within(statsRow).getByText("Cost")).toBeInTheDocument();
+    expect(within(statsRow).getByText("7")).toBeInTheDocument();
+    expect(within(statsRow).getByText("Power")).toBeInTheDocument();
+    expect(within(statsRow).getByText("5")).toBeInTheDocument();
+    expect(within(statsRow).getByText("HP")).toBeInTheDocument();
+    expect(within(statsRow).getByText("8")).toBeInTheDocument();
+
+    // Center column listed top to bottom order: Type(s), Traits, Card text, Epic Action, Back text
+    expect(screen.getByRole("heading", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByText("Leader")).toBeInTheDocument();
     expect(screen.getByText("Leader Unit")).toBeInTheDocument();
-    expect(screen.getByText("Arena:")).toBeInTheDocument();
     expect(screen.getByText("Ground")).toBeInTheDocument();
-    expect(screen.getByText("Heroism ×2")).toBeInTheDocument();
-    expect(screen.getByText("Force, Rebel")).toBeInTheDocument();
-    expect(screen.getByText("Cost:")).toBeInTheDocument();
-    expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByText("Power:")).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
-    expect(screen.getByText("HP:")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Rules Text" })).toBeInTheDocument();
-    expect(screen.getByText("On Attack:").tagName.toLowerCase()).toBe("strong");
-    expect(screen.getByText("Vehicle").tagName.toLowerCase()).toBe("i");
+    expect(screen.getByText("Villainy")).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { name: "Traits" })).toBeInTheDocument();
+    expect(screen.getByText("Force, Imperial, Sith")).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { name: "Card Text" })).toBeInTheDocument();
+    expect(screen.getByText("Action:").tagName.toLowerCase()).toBe("strong");
+
     expect(screen.getByRole("heading", { name: "Epic Action" })).toBeInTheDocument();
     expect(screen.getByText("Deploy this leader.", { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Deploy Box" })).toBeInTheDocument();
-    expect(screen.getByText("Give a Shield token.", { exact: false })).toBeInTheDocument();
-    expect(screen.getByTestId("selected-printing-label").textContent).toContain(
-      "Spark of Rebellion (SOR) • #SOR-001 • Rare • 2025-10-03 • Standard"
+
+    expect(screen.getByRole("heading", { name: "Back Text" })).toBeInTheDocument();
+    expect(screen.getByText("Ready this unit.", { exact: false })).toBeInTheDocument();
+
+    // Left Column: Front on top, Back on bottom
+    const imageGroup = screen.getByRole("group", { name: "Card images" });
+    const images = within(imageGroup).getAllByRole("img");
+    expect(images).toHaveLength(2);
+    expect(images[0].getAttribute("alt")).toBe("Darth Vader — Dark Lord of the Sith (front)");
+    expect(images[1].getAttribute("alt")).toBe("Darth Vader — Dark Lord of the Sith (back)");
+    expect(imageGroup.classList.contains("grid-rows-2")).toBe(true);
+
+    // Left Column: Printing metadata below card image
+    const metadata = screen.getByTestId("selected-printing-metadata");
+    expect(within(metadata).getByText("Rarity")).toBeInTheDocument();
+    expect(within(metadata).getByText("Rare")).toBeInTheDocument();
+    expect(within(metadata).getByText("Set Name")).toBeInTheDocument();
+    expect(within(metadata).getByText("Spark of Rebellion")).toBeInTheDocument();
+    expect(within(metadata).getByText("Set Number")).toBeInTheDocument();
+    expect(within(metadata).getByText("#001")).toBeInTheDocument();
+    expect(within(metadata).getByText("Card Treatment")).toBeInTheDocument();
+    expect(within(metadata).getByText("Standard")).toBeInTheDocument();
+
+    // Right Column: Rulings section present
+    const rulingsSection = screen.getByRole("region", { name: "Card rulings" });
+    expect(rulingsSection).toBeInTheDocument();
+    expect(
+      within(rulingsSection).getByText("If an ability refers to this leader...")
+    ).toBeInTheDocument();
+
+    // Bottom section: Printings list with set code and set number
+    const printingsSection = screen.getByRole("region", { name: "Card printings" });
+    expect(within(printingsSection).getByText("SOR #001")).toBeInTheDocument();
+
+    // Verify Collection & Wishlist quick-add buttons and quantity inputs are removed
+    expect(screen.queryByLabelText("Add to collection")).toBeNull();
+    expect(screen.queryByLabelText("Add to wishlist")).toBeNull();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+  });
+
+  it("renders table-based rulings from RulesStyled with date and description columns", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 102,
+              name: "A Fine Addition",
+              game: "Star Wars Unlimited",
+              cardType: "Event",
+              cardTypes: ["Event"],
+              text: "Play a unit or upgrade...",
+              rulesStyled:
+                '<figure class="table"><table><tbody><tr><td>10/31/2024</td><td>Abilities that let you play a card require you to pay that card\'s cost unless specified otherwise.</td></tr><tr><td>07/20/2026</td><td>(ERRATA) Templating update: "Aspect penalty" becomes "aspect penalties" when referring to multiple.</td></tr></tbody></table></figure>',
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 102 });
+
+    const rulingsSection = await screen.findByRole("region", { name: "Card rulings" });
+    expect(rulingsSection).toBeInTheDocument();
+
+    const table = within(rulingsSection).getByRole("table");
+    expect(table).toBeInTheDocument();
+
+    const rows = within(table).getAllByRole("row");
+    expect(rows).toHaveLength(2);
+
+    const firstRowCells = within(rows[0]).getAllByRole("cell");
+    expect(firstRowCells[0]).toHaveTextContent("10/31/2024");
+    expect(firstRowCells[1]).toHaveTextContent(
+      "Abilities that let you play a card require you to pay that card's cost unless specified otherwise."
+    );
+
+    const secondRowCells = within(rows[1]).getAllByRole("cell");
+    expect(secondRowCells[0]).toHaveTextContent("07/20/2026");
+    expect(secondRowCells[1]).toHaveTextContent(
+      '(ERRATA) Templating update: "Aspect penalty" becomes "aspect penalties" when referring to multiple.'
     );
   });
 
-  it("hides Type 2 when absent and hides Arena when card type does not contain Unit", async () => {
+  it("omits 3rd rulings column when rulesStyled is absent or whitespace", async () => {
     getSpy.mockImplementation((url: string) =>
       Promise.resolve({
         data: url.endsWith("/printings")
@@ -161,8 +245,9 @@ describe("CardModal", () => {
               game: "Star Wars Unlimited",
               cardType: "Event",
               cardTypes: ["Event"],
-              arena: "Ground",
-              text: "Defeat a unit.",
+              text: "Defeat a unit with 5 or less remaining HP.",
+              rulesStyled: null,
+              rules: null,
               printings: [],
             },
       })
@@ -170,101 +255,39 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 101 });
 
-    expect(await screen.findByText("Event")).toBeInTheDocument();
-    expect(screen.queryByText("Type 2:")).toBeNull();
-    expect(screen.queryByText("Arena:")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Epic Action" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Deploy Box" })).toBeNull();
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Takedown");
+    expect(screen.queryByRole("region", { name: "Card rulings" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Rulings" })).toBeNull();
   });
 
-  it.each([
-    ["vertical", "vertical", false],
-    ["horizontal", "horizontal", true],
-    ["vertical", "horizontal", false],
-    ["horizontal", "vertical", false],
-    ["horizontal", null, false],
-    [null, "horizontal", false],
-    [null, null, false],
-    ["unknown", "horizontal", false],
-  ])(
-    "orders front/back images with orientations %s/%s (stacked: %s)",
-    async (imageOrientation, backImageOrientation, stacked) => {
-      getSpy.mockImplementation((url: string) =>
-        Promise.resolve({
-          data: url.endsWith("/printings")
-            ? [
-                {
-                  printingId: 1001,
-                  setName: "Alpha",
-                  number: "1",
-                  rarity: "Rare",
-                  imageUrl: "/front.png",
-                  backImageUrl: "/back.png",
-                  imageOrientation,
-                  backImageOrientation,
-                },
-                {
-                  printingId: 1002,
-                  setName: "Beta",
-                  number: "2",
-                  rarity: "Common",
-                  imageUrl: "/single.png",
-                },
-              ]
-            : {
-                cardId: 100,
-                name: "Two-sided Card",
-                game: "Magic",
-                cardType: "Creature",
-                text: null,
-                printings: [],
-              },
-        })
-      );
-
-      await renderModal({ cardId: 100, initialPrintingId: 1001 });
-
-      const group = await screen.findByRole("group", { name: "Card images" });
-      await waitFor(() => expect(within(group).getAllByRole("img")).toHaveLength(2));
-      const images = within(group).getAllByRole("img");
-      expect(images[0].getAttribute("alt")).toBe("Two-sided Card (front)");
-      expect(images[0].getAttribute("src")).toMatch(/\/front.png$/);
-      expect(images[1].getAttribute("alt")).toBe("Two-sided Card (back)");
-      expect(images[1].getAttribute("src")).toMatch(/\/back.png$/);
-      expect(group.classList.contains(stacked ? "grid-rows-2" : "grid-cols-2")).toBe(true);
-
-      await act(async () => {
-        screen.getByRole("option", { name: "Beta #2" }).click();
-      });
-
-      const singleImage = within(group).getAllByRole("img");
-      expect(singleImage).toHaveLength(1);
-      expect(singleImage[0].getAttribute("src")).toMatch(/\/single.png$/);
-      expect(group.classList.contains("grid-cols-1")).toBe(true);
-      expect(group.classList.contains("grid-rows-1")).toBe(true);
-    }
-  );
-
-  it("uses image metadata from card details when printing summaries omit it", async () => {
+  it("stacks front and back images with front on top and back on bottom", async () => {
     getSpy.mockImplementation((url: string) =>
       Promise.resolve({
         data: url.endsWith("/printings")
-          ? [{ printingId: 1001, setName: "Alpha", number: "1", rarity: "Rare" }]
+          ? [
+              {
+                printingId: 1001,
+                setName: "Alpha",
+                number: "1",
+                rarity: "Rare",
+                imageUrl: "/front.png",
+                backImageUrl: "/back.png",
+              },
+              {
+                printingId: 1002,
+                setName: "Beta",
+                number: "2",
+                rarity: "Common",
+                imageUrl: "/single.png",
+              },
+            ]
           : {
               cardId: 100,
               name: "Two-sided Card",
               game: "Magic",
               cardType: "Creature",
               text: null,
-              printings: [
-                {
-                  id: 1001,
-                  imageUrl: "/front.png",
-                  backImageUrl: "/back.png",
-                  imageOrientation: "horizontal",
-                  backImageOrientation: "horizontal",
-                },
-              ],
+              printings: [],
             },
       })
     );
@@ -273,43 +296,35 @@ describe("CardModal", () => {
 
     const group = await screen.findByRole("group", { name: "Card images" });
     await waitFor(() => expect(within(group).getAllByRole("img")).toHaveLength(2));
+    const images = within(group).getAllByRole("img");
+    expect(images[0].getAttribute("alt")).toBe("Two-sided Card (front)");
+    expect(images[0].getAttribute("src")).toMatch(/\/front.png$/);
+    expect(images[1].getAttribute("alt")).toBe("Two-sided Card (back)");
+    expect(images[1].getAttribute("src")).toMatch(/\/back.png$/);
     expect(group.classList.contains("grid-rows-2")).toBe(true);
+
+    // Switching to single-sided printing
+    await act(async () => {
+      screen.getByRole("option", { name: "Beta #2" }).click();
+    });
+
+    const singleImage = within(group).getAllByRole("img");
+    expect(singleImage).toHaveLength(1);
+    expect(singleImage[0].getAttribute("src")).toMatch(/\/single.png$/);
+    expect(group.classList.contains("grid-cols-1")).toBe(true);
+    expect(group.classList.contains("grid-rows-1")).toBe(true);
   });
 
-  it("keeps the placeholder when neither image is available", async () => {
-    getSpy.mockImplementation((url: string) =>
-      Promise.resolve({
-        data: url.endsWith("/printings")
-          ? []
-          : {
-              cardId: 100,
-              name: "No Image Card",
-              game: "Magic",
-              cardType: "Creature",
-              text: null,
-              printings: [],
-            },
-      })
-    );
-
-    await renderModal({ cardId: 100 });
-
-    const group = screen.getByRole("group", { name: "Card images" });
-    expect(within(group).queryByRole("img")).toBeNull();
-    expect(within(group).getByText("No image available")).toBeInTheDocument();
-  });
-
-  it("loads details, printings, and shows them inline", async () => {
+  it("updates selected printing metadata and images when a printing is selected from the bottom carousel", async () => {
     getSpy.mockImplementation((url: string) => {
       if (url === "cards/100") {
         return Promise.resolve({
           data: {
             cardId: 100,
             name: "Test Card",
-            game: "Magic",
+            game: "Star Wars Unlimited",
             cardType: "Spell",
-            description:
-              "Deal 3 damage.\nSecond line.\nThird line.\nFourth line.\nFifth line.\nSixth line.\nSeventh line remains readable.",
+            text: "Deal 3 damage.",
             printings: [],
           },
         });
@@ -319,18 +334,20 @@ describe("CardModal", () => {
           data: [
             {
               printingId: 1001,
-              setName: "Alpha",
-              setCode: null,
-              number: "A1",
+              setName: "Alpha Set",
+              setCode: "ALP",
+              number: "001",
               rarity: "Common",
+              style: "Standard",
               imageUrl: "/alpha.png",
             },
             {
               printingId: 1002,
-              setName: "Beta",
-              setCode: null,
-              number: "B2",
-              rarity: "Uncommon",
+              setName: "Beta Set",
+              setCode: "BET",
+              number: "002",
+              rarity: "Legendary",
+              style: "Hyperspace Foil",
               imageUrl: "/beta.png",
             },
           ],
@@ -341,95 +358,25 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
-    const label = await screen.findByTestId("selected-printing-label");
-    await waitFor(() => expect(label.textContent).toContain("Alpha"));
+    const metadata = await screen.findByTestId("selected-printing-metadata");
+    await waitFor(() => expect(within(metadata).getByText("Alpha Set")).toBeInTheDocument());
+    expect(within(metadata).getByText("Common")).toBeInTheDocument();
+    expect(within(metadata).getByText("#001")).toBeInTheDocument();
+    expect(within(metadata).getByText("Standard")).toBeInTheDocument();
 
-    const dialog = screen.getByRole("dialog");
-    const detailsSection = dialog?.querySelector('[aria-label="Card details and actions"]');
-    const imageSection = dialog?.querySelector('[aria-label="Selected card image"]');
-    const printingsSection = dialog?.querySelector('[aria-label="Card printings"]');
-    const rulesText = detailsSection?.querySelector("p.whitespace-pre-line");
-    expect(dialog?.classList.contains("bg-[#242424]")).toBe(true);
-    expect(rulesText?.textContent).toContain("Seventh line remains readable.");
-    expect(rulesText?.classList.contains("line-clamp-6")).toBe(false);
-    expect(rulesText?.closest(".overflow-y-auto")).not.toBeNull();
-    expect(detailsSection?.querySelector('input[type="number"]')).not.toBeNull();
-    expect(detailsSection?.querySelector('[aria-label="Add to collection"]')).not.toBeNull();
-    expect(detailsSection?.querySelector('[aria-label="Add to wishlist"]')).not.toBeNull();
-    expect(detailsSection?.nextElementSibling).toBe(imageSection);
-    expect(detailsSection?.contains(printingsSection)).toBe(true);
-    expect(printingsSection?.previousElementSibling?.textContent).toContain(
-      "Seventh line remains readable."
-    );
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(within(options[0]).getByText("ALP #001")).toBeInTheDocument();
+    expect(within(options[1]).getByText("BET #002")).toBeInTheDocument();
 
-    const optionButtons = screen.getAllByRole("option");
-    expect(optionButtons).toHaveLength(2);
-
+    // Select second printing
     await act(async () => {
-      optionButtons[1].click();
+      options[1].click();
     });
 
-    await waitFor(() => expect(label.textContent).toContain("Beta"));
-  });
-
-  it("posts wishlist quick add with provided quantity", async () => {
-    getSpy.mockImplementation((url: string) => {
-      if (url === "cards/200") {
-        return Promise.resolve({
-          data: {
-            cardId: 200,
-            name: "Wishlist Card",
-            game: "Magic",
-            cardType: "Creature",
-            text: "Test",
-            printings: [],
-          },
-        });
-      }
-      if (url === "cards/200/printings") {
-        return Promise.resolve({
-          data: [
-            {
-              printingId: 2001,
-              setName: "Gamma",
-              setCode: null,
-              number: "G1",
-              rarity: "Rare",
-              imageUrl: "/gamma.png",
-            },
-          ],
-        });
-      }
-      throw new Error(`Unexpected GET ${url}`);
-    });
-
-    postSpy.mockImplementation((url: string, body: unknown) => {
-      if (url === "wishlist/items") {
-        return Promise.resolve({
-          data: {
-            printingId: (body as { printingId: number }).printingId,
-            quantityWanted: (body as { quantity: number }).quantity,
-          },
-        });
-      }
-      throw new Error(`Unexpected POST ${url}`);
-    });
-
-    await renderModal({ cardId: 200, initialPrintingId: 2001 });
-
-    const input = await screen.findByRole("spinbutton");
-
-    fireEvent.change(input, { target: { value: "2" } });
-
-    const wishlistButton = screen.getByRole("button", { name: "Add to wishlist" });
-
-    await act(async () => {
-      wishlistButton.click();
-    });
-
-    await waitFor(() => {
-      const call = postSpy.mock.calls.find((entry) => entry[0] === "wishlist/items");
-      expect(call?.[1]).toEqual({ printingId: 2001, quantity: 2 });
-    });
+    await waitFor(() => expect(within(metadata).getByText("Beta Set")).toBeInTheDocument());
+    expect(within(metadata).getByText("Legendary")).toBeInTheDocument();
+    expect(within(metadata).getByText("#002")).toBeInTheDocument();
+    expect(within(metadata).getByText("Hyperspace Foil")).toBeInTheDocument();
   });
 });

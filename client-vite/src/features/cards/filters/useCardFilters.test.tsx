@@ -49,6 +49,7 @@ describe("useCardFilters", () => {
     expect(latest?.filters.types).toEqual(["Leader", "Leader Unit"]);
     expect(latest?.filters.arenas).toEqual(["Ground"]);
     expect(latest?.filters.aspects).toEqual(["Heroism", "Command"]);
+    expect(latest?.filters.aspectMethod).toBe("or");
     expect(latest?.filters.traits).toEqual(["Force", "Rebel"]);
     expect(latest?.filters.q).toBe("bolt");
     expect(latest?.filters.page).toBe(2);
@@ -84,7 +85,32 @@ describe("useCardFilters", () => {
       2,
       30,
       "",
+      "or",
     ]);
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
+
+  it("preserves aspect multiplicity and parses aspectMethod", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards?aspect=Aggression,Aggression&aspectMethod=exclude"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    expect(latest?.filters.aspects).toEqual(["Aggression", "Aggression"]);
+    expect(latest?.filters.aspectMethod).toBe("exclude");
+    expect(latest?.search).toContain("aspect=Aggression%2CAggression");
+    expect(latest?.search).toContain("aspectMethod=exclude");
 
     await act(async () => {
       root.unmount();
@@ -110,12 +136,13 @@ describe("useCardFilters", () => {
     expect(latest?.filters.games).toEqual(["Pokemon"]);
     expect(latest?.filters.q).toBe("pikachu");
     expect(latest?.filters.page).toBe(3);
-    expect(latest?.filters.pageSize).toBe(60); // default
+    expect(latest?.filters.pageSize).toBe(20); // default
     expect(latest?.filters.sets).toEqual([]);
     expect(latest?.filters.rarities).toEqual([]);
     expect(latest?.filters.types).toEqual([]);
     expect(latest?.filters.arenas).toEqual([]);
     expect(latest?.filters.aspects).toEqual([]);
+    expect(latest?.filters.aspectMethod).toBe("or");
     expect(latest?.filters.traits).toEqual([]);
 
     await act(async () => {
@@ -146,9 +173,10 @@ describe("useCardFilters", () => {
     expect(latest?.filters.types).toEqual([]);
     expect(latest?.filters.arenas).toEqual([]);
     expect(latest?.filters.aspects).toEqual([]);
+    expect(latest?.filters.aspectMethod).toBe("or");
     expect(latest?.filters.traits).toEqual([]);
     expect(latest?.filters.page).toBe(1);
-    expect(latest?.filters.pageSize).toBe(60);
+    expect(latest?.filters.pageSize).toBe(20);
     expect(latest?.filters.sort).toBeUndefined();
 
     await act(async () => {

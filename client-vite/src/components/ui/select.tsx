@@ -163,16 +163,19 @@ export function SelectTrigger({ className = "", children, ...props }: SelectTrig
 type SelectValueProps = {
   placeholder?: ReactNode;
   className?: string;
+  children?: ReactNode;
 };
 
-export function SelectValue({ placeholder, className = "" }: SelectValueProps) {
+export function SelectValue({ placeholder, className = "", children }: SelectValueProps) {
   const { selectedLabel, value } = useSelectContext();
-  const showPlaceholder = !selectedLabel && !value;
+  const showPlaceholder = !children && !selectedLabel && !value;
   const classes = [showPlaceholder ? "text-muted-foreground" : "", className]
     .filter(Boolean)
     .join(" ");
   return (
-    <span className={classes}>{selectedLabel ?? (showPlaceholder ? placeholder : value)}</span>
+    <span className={classes}>
+      {children ?? selectedLabel ?? (showPlaceholder ? placeholder : value)}
+    </span>
   );
 }
 
@@ -290,9 +293,9 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
   if (!open || !position) return null;
 
   const classes = [
-    "absolute max-h-60 overflow-auto rounded-md border border-input",
-    "bg-background",
-    "text-popover-foreground shadow-lg ring-1 ring-black/5",
+    "absolute max-h-60 overflow-auto rounded-md border border-white/20",
+    "bg-[#242424] p-1",
+    "text-foreground shadow-xl ring-1 ring-black/5",
     "z-50",
     className,
   ]
@@ -335,10 +338,10 @@ export function SelectItem({ value, className = "", children, ...props }: Select
   }, [isSelected, children, setSelectedLabel]);
 
   const classes = [
-    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm",
-    "outline-none focus:bg-accent focus:text-accent-foreground",
-    "hover:bg-accent hover:text-accent-foreground",
-    isSelected ? "bg-accent text-accent-foreground" : "",
+    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm border-0 border-none outline-none transition-colors",
+    "focus:outline-none focus-visible:outline-none focus:bg-white/10 focus:text-white",
+    "hover:bg-white/10 hover:text-white",
+    isSelected ? "bg-white/15 text-white font-medium" : "text-foreground",
     className,
   ]
     .filter(Boolean)

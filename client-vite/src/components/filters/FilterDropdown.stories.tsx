@@ -30,11 +30,18 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    trigger: <Button variant="outline" size="sm">Rarity ▾</Button>,
+    trigger: (
+      <Button variant="outline" size="sm">
+        Rarity ▾
+      </Button>
+    ),
     children: (
       <div className="p-2 space-y-1 min-w-40">
         {["Common", "Uncommon", "Rare", "Holo Rare", "Secret Rare"].map((r) => (
-          <button key={r} className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 rounded">
+          <button
+            key={r}
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 rounded"
+          >
             {r}
           </button>
         ))}
@@ -97,11 +104,18 @@ export const RightAligned: Story = {
   ],
   args: {
     align: "right",
-    trigger: <Button variant="outline" size="sm">Sort ▾</Button>,
+    trigger: (
+      <Button variant="outline" size="sm">
+        Sort ▾
+      </Button>
+    ),
     children: (
       <div className="p-2 space-y-1 min-w-40">
         {["Name A–Z", "Name Z–A", "Newest", "Price ↑", "Price ↓"].map((opt) => (
-          <button key={opt} className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 rounded">
+          <button
+            key={opt}
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-white/10 rounded"
+          >
             {opt}
           </button>
         ))}

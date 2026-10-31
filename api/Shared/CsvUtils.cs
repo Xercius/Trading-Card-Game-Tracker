@@ -30,4 +30,26 @@ public static class CsvUtils
 
         return results;
     }
+
+    public static IReadOnlyList<string> ParsePreservingDuplicates(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<string>();
+        }
+
+        var segments = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        var results = new List<string>(segments.Length);
+
+        foreach (var segment in segments)
+        {
+            var normalized = segment.Trim();
+            if (normalized.Length > 0)
+            {
+                results.Add(normalized);
+            }
+        }
+
+        return results;
+    }
 }

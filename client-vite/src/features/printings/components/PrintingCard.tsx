@@ -1,4 +1,5 @@
 import type { PrintingListItem } from "@/features/printings/api/printings";
+import { isHorizontalPrinting } from "../utils/cardOrientation";
 
 type Props = { p: PrintingListItem; onClick?: (p: PrintingListItem) => void };
 
@@ -6,6 +7,7 @@ export function PrintingCard({ p, onClick }: Props) {
   const ariaLabel = `${p.cardName} — ${p.setName}${p.number ? ` #${p.number}` : ""}`;
   const hasArtwork =
     Boolean(p.imageUrl) && !p.imageUrl?.includes("/images/placeholders/card-3x4.png");
+  const isHorizontal = isHorizontalPrinting(p);
 
   return (
     <button
@@ -22,7 +24,11 @@ export function PrintingCard({ p, onClick }: Props) {
             loading="lazy"
           />
         ) : (
-          <div className="aspect-[63/88] grid w-full place-items-center gap-1 p-2 text-center text-xs text-muted-foreground">
+          <div
+            className={`${
+              isHorizontal ? "aspect-[88/63]" : "aspect-[63/88]"
+            } grid w-full place-items-center gap-1 p-2 text-center text-xs text-muted-foreground`}
+          >
             <span className="font-medium text-foreground">{p.cardName}</span>
             <span>{p.setName}</span>
             No image

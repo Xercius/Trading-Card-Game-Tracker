@@ -13,9 +13,7 @@ const config: StorybookConfig = {
     config.resolve.alias = {
       ...((config.resolve.alias as Record<string, string>) ?? {}),
       "@": fileURLToPath(new URL("../src", import.meta.url)),
-      "use-debounce": fileURLToPath(
-        new URL("../src/lib/use-debounce.ts", import.meta.url)
-      ),
+      "use-debounce": fileURLToPath(new URL("../src/lib/use-debounce.ts", import.meta.url)),
     };
     return config;
   },

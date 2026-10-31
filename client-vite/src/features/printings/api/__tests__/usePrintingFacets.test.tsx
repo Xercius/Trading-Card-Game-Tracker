@@ -46,6 +46,7 @@ describe("usePrintingFacets", () => {
       types: ["Leader Unit"],
       arenas: ["Ground"],
       aspects: ["Heroism"],
+      aspectMethod: "or",
       traits: ["Force"],
       page: 1,
       pageSize: 60,

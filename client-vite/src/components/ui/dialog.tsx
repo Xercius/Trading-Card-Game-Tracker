@@ -108,30 +108,29 @@ export function DialogContent({
   if (!open) return null;
 
   return createPortal(
-  <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
-    {/* Backdrop */}
-    <div
-      className="absolute inset-0 bg-black/60"
-      aria-hidden="true"
-      onClick={() => onOpenChange(false)}
-    />
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60"
+        aria-hidden="true"
+        onClick={() => onOpenChange(false)}
+      />
 
-    {/* Modal surface */}
-    <div
-      ref={contentRef}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={labelledBy}
-      aria-describedby={describedBy}
-      tabIndex={-1}
-      className={`relative z-10 max-h-[90vh] w-full max-w-4xl overflow-auto rounded-md border border-input bg-background shadow-lg ring-1 ring-black/5 focus:outline-none ${className}`}
-    >
-      {children}
-    </div>
-  </div>,
-  document.body
-);
-
+      {/* Modal surface */}
+      <div
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
+        tabIndex={-1}
+        className={`relative z-10 max-h-[90vh] w-full max-w-4xl overflow-auto rounded-md border border-input bg-background shadow-lg ring-1 ring-black/5 focus:outline-none ${className}`}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 export function DialogHeader({

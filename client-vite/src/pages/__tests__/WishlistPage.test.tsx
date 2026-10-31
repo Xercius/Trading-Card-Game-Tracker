@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import { act } from "react-dom/test-utils";
 import WishlistPage from "../WishlistPage";
+import { GameProvider } from "@/state/GameProvider";
 import http from "@/lib/http";
 import {
   collectionKeys,
@@ -39,7 +40,7 @@ type WishlistPaged = {
   pageSize: number;
 };
 
-const wishlistQueryKey = ["wishlist", 1, 1, 50, "", ""] as const;
+const wishlistQueryKey = ["wishlist", 1, 1, 50, "", "Star Wars Unlimited"] as const;
 
 function createClient() {
   return new QueryClient({
@@ -62,7 +63,15 @@ async function renderPage(client: QueryClient, initialEntries: string[] = ["/wis
     root.render(
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={client}>
-          <WishlistPage />
+          <GameProvider
+            defaultGame={
+              initialEntries[0]?.includes("?")
+                ? new URLSearchParams(initialEntries[0].split("?")[1]).get("game") || undefined
+                : undefined
+            }
+          >
+            <WishlistPage />
+          </GameProvider>
         </QueryClientProvider>
       </MemoryRouter>
     );
@@ -326,9 +335,7 @@ describe("WishlistPage", () => {
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
 
-    await waitFor(() =>
-      expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(2)
-    );
+    await waitFor(() => expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(2));
     const checkboxes = Array.from(
       container.querySelectorAll<HTMLInputElement>("input[type=checkbox]")
     );

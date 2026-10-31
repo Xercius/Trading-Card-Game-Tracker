@@ -59,8 +59,14 @@ public sealed class ListPrintingsQuery
 
     /// <summary>
     /// Optional filter by card aspect (e.g., "Vigilance", "Command", "Aggression").
+    /// Repetitions indicate multiplicity (e.g., "Aggression,Aggression" for Double Aggression).
     /// </summary>
     public string? Aspect { get; init; }
+
+    /// <summary>
+    /// Method for aspect filtering: "or" (default), "and", or "exclude".
+    /// </summary>
+    public string? AspectMethod { get; init; }
 
     /// <summary>
     /// Optional filter by card trait (e.g., "Rebel", "Imperial", "Vehicle").
@@ -97,4 +103,11 @@ public sealed class ListPrintingsQuery
     /// Reimport Scryfall sets to populate release dates for existing printings.
     /// </summary>
     public bool UniqueCards { get; init; }
+
+    /// <summary>
+    /// Optional sort order for the printings list (e.g. "name", "name_asc", "name_desc").
+    /// When set to "name" or "name_asc", results are sorted alphabetically by card name.
+    /// Defaults to null, preserving set release date / set code and collector number order.
+    /// </summary>
+    public string? Sort { get; init; }
 }

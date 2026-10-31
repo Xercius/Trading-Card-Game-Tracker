@@ -35,6 +35,9 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Power">Optional power of the card.</param>
 /// <param name="UpgradeHp">Optional hit points granted when this card is attached as an upgrade.</param>
 /// <param name="UpgradePower">Optional power granted when this card is attached as an upgrade.</param>
+/// <param name="Subtitle">Optional card subtitle.</param>
+/// <param name="Rules">Optional plain-text rules.</param>
+/// <param name="RulesStyled">Optional HTML-styled rules when provided by the source catalog.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
@@ -56,6 +59,9 @@ public sealed record CardDetailResponse(
     int? Hp = null,
     int? Power = null,
     int? UpgradeHp = null,
-    int? UpgradePower = null);
+    int? UpgradePower = null,
+    string? Subtitle = null,
+    string? Rules = null,
+    string? RulesStyled = null);
 
 public sealed record CardAspectResponse(string Name, int Count);

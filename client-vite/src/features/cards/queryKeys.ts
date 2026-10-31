@@ -6,6 +6,7 @@ import type { CardFilters } from "./filters/useCardFilters";
 type OptionalExtraFilterFields = {
   arenas?: string[];
   aspects?: string[];
+  aspectMethod?: "or" | "and" | "exclude";
   traits?: string[];
 };
 
@@ -31,6 +32,7 @@ export const cardsQueryKeys = {
         types: filters.types,
         arenas: filters.arenas ?? [],
         aspects: filters.aspects ?? [],
+        aspectMethod: filters.aspectMethod ?? "or",
         traits: filters.traits ?? [],
         page: filters.page,
         pageSize: filters.pageSize,

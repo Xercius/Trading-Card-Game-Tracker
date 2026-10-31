@@ -8,6 +8,7 @@ type MultiSelectProps = {
   options: string[];
   placeholder?: string;
   onChange: (values: string[]) => void;
+  className?: string;
 };
 
 type IconProps = { className?: string };
@@ -60,13 +61,14 @@ export function MultiSelect({
   options,
   placeholder = "Search…",
   onChange,
+  className,
 }: MultiSelectProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
-  const summary = values.length > 0 ? `${label} (${values.length})` : `${label} (All)`;
+  const summary = values.length > 0 ? `${label} (${values.length})` : label;
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredOptions = React.useMemo(() => {
@@ -123,11 +125,11 @@ export function MultiSelect({
   }, [open]);
 
   return (
-    <div className="space-y-2">
+    <div>
       <div ref={containerRef} className="relative">
         <Button
           variant="outline"
-          className="flex w-56 items-center justify-between truncate"
+          className={`flex items-center justify-between truncate ${className ?? "w-56"}`}
           aria-expanded={open}
           aria-haspopup="listbox"
           onClick={() => setOpen((prev) => !prev)}
@@ -138,7 +140,11 @@ export function MultiSelect({
           />
         </Button>
         {open && (
-          <div className="absolute left-0 z-50 mt-2 w-72 rounded-lg border border-white/20 bg-[#242424] shadow-xl">
+          <div
+            className={`absolute left-0 z-50 mt-2 rounded-lg border border-white/20 bg-[#242424] shadow-xl ${
+              className?.includes("w-full") ? "w-full" : "w-72"
+            }`}
+          >
             <div className="border-b border-input px-3 py-2">
               <input
                 ref={inputRef}
@@ -155,20 +161,6 @@ export function MultiSelect({
               aria-multiselectable="true"
               className="max-h-60 overflow-auto py-1 text-sm"
             >
-              {!normalizedSearch && options.length > 0 && (
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={values.length === 0}
-                  onClick={() => onChange([])}
-                  className={`flex w-full items-center justify-between px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground ${
-                    values.length === 0 ? "font-semibold" : ""
-                  }`}
-                >
-                  <span className="truncate">All</span>
-                  <CheckIcon className={values.length === 0 ? "text-accent-foreground" : "opacity-0"} />
-                </button>
-              )}
               {filteredOptions.length === 0 ? (
                 <div className="px-3 py-2 text-muted-foreground">No results.</div>
               ) : (
@@ -195,21 +187,23 @@ export function MultiSelect({
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        {values.map((value) => (
-          <Badge key={value} variant="secondary" className="gap-1">
-            <span>{value}</span>
-            <button
-              type="button"
-              aria-label={`Remove ${value}`}
-              className="ml-1 inline-flex items-center justify-center rounded-full p-0.5 hover:bg-secondary/80"
-              onClick={() => removeValue(value)}
-            >
-              <XIcon />
-            </button>
-          </Badge>
-        ))}
-      </div>
+      {values.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {values.map((value) => (
+            <Badge key={value} variant="secondary" className="gap-1">
+              <span>{value}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${value}`}
+                className="ml-1 inline-flex items-center justify-center rounded-full p-0.5 hover:bg-secondary/80"
+                onClick={() => removeValue(value)}
+              >
+                <XIcon />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -24,6 +24,9 @@ export function usePrintingFacets(filters: CardFilters) {
     types: filters.types.length > 0 ? filters.types : undefined,
     ...(filters.arenas?.length ? { arenas: filters.arenas } : {}),
     ...(filters.aspects?.length ? { aspects: filters.aspects } : {}),
+    ...(filters.aspectMethod && filters.aspectMethod !== "or"
+      ? { aspectMethod: filters.aspectMethod }
+      : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
     q: filters.q || undefined,
     printingSearch: true,

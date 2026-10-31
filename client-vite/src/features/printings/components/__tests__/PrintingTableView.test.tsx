@@ -43,9 +43,7 @@ describe("PrintingTableView", () => {
       root.render(<PrintingTableView printings={mockPrintings} />);
     });
 
-    const headers = Array.from(container.querySelectorAll("th")).map(
-      (th) => th.textContent
-    );
+    const headers = Array.from(container.querySelectorAll("th")).map((th) => th.textContent);
     expect(headers).toContain("Name");
     expect(headers).toContain("Game");
     expect(headers).toContain("Set");
@@ -71,9 +69,7 @@ describe("PrintingTableView", () => {
     const rows = container.querySelectorAll("tbody tr");
     expect(rows).toHaveLength(2);
 
-    const firstRowCells = Array.from(rows[0].querySelectorAll("td")).map(
-      (td) => td.textContent
-    );
+    const firstRowCells = Array.from(rows[0].querySelectorAll("td")).map((td) => td.textContent);
     expect(firstRowCells[0]).toBe("Alpha Dragon");
     expect(firstRowCells[1]).toBe("Test Game");
     expect(firstRowCells[2]).toBe("Base Set");
@@ -97,9 +93,7 @@ describe("PrintingTableView", () => {
     });
 
     const rows = container.querySelectorAll("tbody tr");
-    const secondRowCells = Array.from(rows[1].querySelectorAll("td")).map(
-      (td) => td.textContent
-    );
+    const secondRowCells = Array.from(rows[1].querySelectorAll("td")).map((td) => td.textContent);
     expect(secondRowCells[3]).toBe("—"); // setCode
     expect(secondRowCells[4]).toBe("—"); // number
     expect(secondRowCells[5]).toBe("—"); // rarity
@@ -117,9 +111,7 @@ describe("PrintingTableView", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(
-        <PrintingTableView printings={mockPrintings} onRowClick={handleClick} />
-      );
+      root.render(<PrintingTableView printings={mockPrintings} onRowClick={handleClick} />);
     });
 
     const firstRow = container.querySelector<HTMLTableRowElement>("tbody tr");
@@ -142,9 +134,7 @@ describe("PrintingTableView", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(
-        <PrintingTableView printings={mockPrintings} onRowClick={vi.fn()} />
-      );
+      root.render(<PrintingTableView printings={mockPrintings} onRowClick={vi.fn()} />);
     });
 
     const rows = container.querySelectorAll<HTMLTableRowElement>("tbody tr");
@@ -166,16 +156,12 @@ describe("PrintingTableView", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(
-        <PrintingTableView printings={mockPrintings} onRowClick={handleClick} />
-      );
+      root.render(<PrintingTableView printings={mockPrintings} onRowClick={handleClick} />);
     });
 
     const firstRow = container.querySelector<HTMLTableRowElement>("tbody tr");
     await act(async () => {
-      firstRow?.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
-      );
+      firstRow?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
 
     expect(handleClick).toHaveBeenCalledTimes(1);

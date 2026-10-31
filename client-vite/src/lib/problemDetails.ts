@@ -152,12 +152,15 @@ export class ProblemDetailsError extends Error {
   traceId?: string;
   override cause?: unknown;
 
-  constructor(message: string, options: {
-    status?: number;
-    problem?: ParsedProblemDetails | null;
-    traceId?: string;
-    cause?: unknown;
-  } = {}) {
+  constructor(
+    message: string,
+    options: {
+      status?: number;
+      problem?: ParsedProblemDetails | null;
+      traceId?: string;
+      cause?: unknown;
+    } = {}
+  ) {
     super(message);
     this.name = "ProblemDetailsError";
     this.status = options.status ?? options.problem?.status;
@@ -169,7 +172,10 @@ export class ProblemDetailsError extends Error {
   }
 }
 
-export function toProblemDetailsError(error: unknown, fallback = "Something went wrong."): ProblemDetailsError {
+export function toProblemDetailsError(
+  error: unknown,
+  fallback = "Something went wrong."
+): ProblemDetailsError {
   if (error instanceof ProblemDetailsError) {
     return error;
   }

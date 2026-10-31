@@ -78,6 +78,9 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Equal("<p><strong>On Attack:</strong> Give a Shield token.</p>", details.TextStyled);
         Assert.Equal("<p><strong>Epic Action:</strong> Deploy Luke.</p>", details.EpicActionStyled);
         Assert.Equal("<p><strong>When Deployed:</strong> Give a Shield token.</p>", details.DeployBoxStyled);
+        Assert.Equal("Faithful Friend", details.Subtitle);
+        Assert.Equal("Test rules", details.Rules);
+        Assert.Equal("<p>Test rules</p>", details.RulesStyled);
         Assert.Equal(6, details.Cost);
         Assert.Equal(7, details.Hp);
         Assert.Equal(4, details.Power);
@@ -136,6 +139,70 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Equal("EARLY", Assert.Single(printings!, item => item.CardName == "Reprinted Card").SetCode);
         Assert.Equal("KNOWN", Assert.Single(printings, item => item.CardName == "Undated Preferred").SetCode);
         Assert.Equal("SET-EARLY", Assert.Single(printings, item => item.CardName == "Set-associated card").SetCode);
+    }
+
+    [Fact]
+    public async Task GetCardPrintings_ReturnsDistinctTreatments_WhenCardHasMultipleTreatments()
+    {
+        await factory.ResetDatabaseAsync();
+        int cardId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var game = await db.Games.SingleAsync(candidate => candidate.Name == SwuGame);
+            var set = new Set { Game = game, Code = "TWI", Name = "Twilight of the Republic", ReleasedAt = new DateOnly(2024, 11, 8) };
+            var rarity = new Rarity { Game = game, Name = "Rare" };
+            var card = new Card
+            {
+                Game = game,
+                Name = "A Fine Addition",
+            };
+            db.Cards.Add(card);
+
+            db.CardPrintings.Add(new CardPrinting
+            {
+                Card = card,
+                Number = "313",
+                Treatment = TreatmentLookup.Upsert(db, SwuGame, "Standard"),
+                CatalogSet = set,
+                RarityLookup = rarity
+            });
+            db.CardPrintings.Add(new CardPrinting
+            {
+                Card = card,
+                Number = "313",
+                Treatment = TreatmentLookup.Upsert(db, SwuGame, "Foil"),
+                CatalogSet = set,
+                RarityLookup = rarity
+            });
+            db.CardPrintings.Add(new CardPrinting
+            {
+                Card = card,
+                Number = "40",
+                Treatment = TreatmentLookup.Upsert(db, SwuGame, "Hyperspace"),
+                CatalogSet = set,
+                RarityLookup = rarity
+            });
+            db.CardPrintings.Add(new CardPrinting
+            {
+                Card = card,
+                Number = "40",
+                Treatment = TreatmentLookup.Upsert(db, SwuGame, "Hyperspace Foil"),
+                CatalogSet = set,
+                RarityLookup = rarity
+            });
+            await db.SaveChangesAsync();
+            cardId = card.Id;
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var printings = await client.GetFromJsonAsync<List<PrintingDto>>($"/api/cards/{cardId}/printings");
+        Assert.NotNull(printings);
+        Assert.Equal(4, printings.Count);
+        Assert.Contains(printings, p => p.Style == "Standard");
+        Assert.Contains(printings, p => p.Style == "Foil");
+        Assert.Contains(printings, p => p.Style == "Hyperspace");
+        Assert.Contains(printings, p => p.Style == "Hyperspace Foil");
     }
 
     [Fact]
@@ -218,7 +285,10 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             Hp = 7,
             TextStyled = "<p><strong>On Attack:</strong> Give a Shield token.</p>",
             EpicActionStyled = "<p><strong>Epic Action:</strong> Deploy Luke.</p>",
-            DeployBoxStyled = "<p><strong>When Deployed:</strong> Give a Shield token.</p>"
+            DeployBoxStyled = "<p><strong>When Deployed:</strong> Give a Shield token.</p>",
+            Subtitle = "Faithful Friend",
+            Rules = "Test rules",
+            RulesStyled = "<p>Test rules</p>"
         };
         card.CardTypes.Add(new CardCardType
         {

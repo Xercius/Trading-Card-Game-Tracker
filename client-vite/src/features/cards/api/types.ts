@@ -43,6 +43,9 @@ export type CardDetail = {
   power?: number | null;
   upgradeHp?: number | null;
   upgradePower?: number | null;
+  subtitle?: string | null;
+  rules?: string | null;
+  rulesStyled?: string | null;
   printings: CardPrintingDetail[];
 };
 

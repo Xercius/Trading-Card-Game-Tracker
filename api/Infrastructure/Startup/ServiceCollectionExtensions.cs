@@ -224,6 +224,8 @@ internal static class ServiceCollectionExtensions
                     policy.AllowCredentials();
                 }
 
+                policy.WithExposedHeaders("X-Total-Count");
+
                 if (corsPolicyOptions.PreflightMaxAge is { } maxAge)
                 {
                     policy.SetPreflightMaxAge(maxAge);

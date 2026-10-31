@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/state/useUser";
+import { useGame } from "@/state/useGame";
 import http from "@/lib/http";
 import { useQueryState } from "@/hooks/useQueryState";
 import {
@@ -70,7 +71,7 @@ function formatMovedMessage(count: number) {
 export default function WishlistPage() {
   const { userId } = useUser();
   const [q] = useQueryState("q", "");
-  const [gameCsv] = useQueryState("game", "");
+  const { activeGame } = useGame();
   const [pageParamRaw, setPageParam] = useQueryState("page", "1");
   const [pageSizeParamRaw] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
 
@@ -82,17 +83,17 @@ export default function WishlistPage() {
       ? Math.floor(parsedPageSize)
       : DEFAULT_PAGE_SIZE;
 
-  const previousFiltersRef = useRef({ q, gameCsv });
+  const previousFiltersRef = useRef({ q, game: activeGame });
   const shouldResetPage =
     pageParamRaw !== "1" &&
-    (previousFiltersRef.current.q !== q || previousFiltersRef.current.gameCsv !== gameCsv);
+    (previousFiltersRef.current.q !== q || previousFiltersRef.current.game !== activeGame);
 
   useEffect(() => {
     if (shouldResetPage) {
       setPageParam("1");
     }
-    previousFiltersRef.current = { q, gameCsv };
-  }, [shouldResetPage, setPageParam, q, gameCsv]);
+    previousFiltersRef.current = { q, game: activeGame };
+  }, [shouldResetPage, setPageParam, q, activeGame]);
 
   const updatePage = (nextPage: number) => {
     const safeNext = nextPage < 1 ? 1 : nextPage;
@@ -100,8 +101,8 @@ export default function WishlistPage() {
   };
 
   const wishlistQueryKey = useMemo(
-    () => ["wishlist", userId, page, pageSize, q, gameCsv] as const,
-    [userId, page, pageSize, q, gameCsv]
+    () => ["wishlist", userId, page, pageSize, q, activeGame] as const,
+    [userId, page, pageSize, q, activeGame]
   );
 
   const queryClient = useQueryClient();
@@ -120,7 +121,7 @@ export default function WishlistPage() {
     queryFn: async () => {
       if (!userId) throw new Error("User not selected");
       const res = await http.get<Paged<WishlistItemDto>>(`user/${userId}/wishlist`, {
-        params: { page, pageSize, name: q || undefined, game: gameCsv },
+        params: { page, pageSize, name: q || undefined, game: activeGame },
       });
       return res.data;
     },

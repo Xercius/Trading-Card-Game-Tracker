@@ -8,13 +8,13 @@ describe("MultiSelect", () => {
     const user = userEvent.setup();
     render(<MultiSelect label="Set" values={[]} options={["Set A"]} onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Set (All)" }));
+    await user.click(screen.getByRole("button", { name: "Set" }));
 
     const menu = screen.getByRole("listbox").parentElement;
     expect(menu).toHaveClass("bg-[#242424]");
   });
 
-  it("supports selecting All or individual options", async () => {
+  it("supports toggling individual options and does not render an All option", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -27,8 +27,9 @@ describe("MultiSelect", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Aspects (1)" }));
-    await user.click(screen.getByRole("option", { name: "All" }));
+    expect(screen.queryByRole("option", { name: "All" })).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole("option", { name: "Heroism" }));
     expect(onChange).toHaveBeenCalledWith([]);
   });
 });

@@ -3,7 +3,7 @@
  * Returns undefined if the resulting string is empty.
  */
 export function arrayToCsvOrUndefined(values: string[]): string | undefined {
-  if (!values.some(v => v.length > 0)) {
+  if (!values.some((v) => v.length > 0)) {
     return undefined;
   }
   const csv = values.join(",");
