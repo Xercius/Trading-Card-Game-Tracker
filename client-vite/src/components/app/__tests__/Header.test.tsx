@@ -50,41 +50,91 @@ describe("Header", () => {
     localStorage.clear();
   });
 
-  it("renders the game filter to the left of the search bar with Star Wars Unlimited selected by default", async () => {
+  it("renders the game logo buttons in the required order with Star Wars Unlimited selected by default", async () => {
     renderHeader();
 
-    const gameSelect = screen.getByRole("combobox", { name: "Game" });
+    const expectedGames = [
+      "Star Wars Unlimited",
+      "Star Wars CCG",
+      "Hellbreak TCG",
+      "Magic The Gathering",
+      "Pokemon TCG",
+    ];
+
+    const buttons = expectedGames.map((name) =>
+      screen.getByRole("button", { name: new RegExp(`^${name}`, "i") })
+    );
+
+    // Verify presence and ordering
+    buttons.forEach((btn) => expect(btn).toBeInTheDocument());
+    for (let i = 0; i < buttons.length - 1; i++) {
+      expect(
+        buttons[i].compareDocumentPosition(buttons[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+
+    // Star Wars Unlimited is active and selectable
+    const swuButton = buttons[0];
+    expect(swuButton).toHaveAttribute("aria-pressed", "true");
+    expect(swuButton).toBeEnabled();
+
+    // The other games are disabled (not selectable)
+    for (let i = 1; i < buttons.length; i++) {
+      expect(buttons[i]).toBeDisabled();
+      expect(buttons[i]).toHaveAttribute("aria-pressed", "false");
+    }
+  });
+
+  it("renders the search bar to the right of the Admin dropdown in the top row", async () => {
+    renderHeader();
+
+    const adminTrigger = screen.getByRole("button", { name: /^Admin/i });
     const searchInput = screen.getByPlaceholderText("Search cards, decks...");
 
-    expect(gameSelect).toBeInTheDocument();
+    expect(adminTrigger).toBeInTheDocument();
     expect(searchInput).toBeInTheDocument();
-    expect(gameSelect).toHaveTextContent("Star Wars Unlimited");
 
-    // Check order in DOM: gameSelect before searchInput
+    // In DOM order, search bar follows the Admin dropdown
     expect(
-      gameSelect.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING
+      adminTrigger.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
 
-  it("restores the last selected game from localStorage", async () => {
-    localStorage.setItem(STORAGE_KEY_ACTIVE_GAME, "Lorcana");
-    renderHeader();
+  it("keeps the mobile drawer open when debounced search updates the URL", async () => {
+    vi.useFakeTimers();
+    let currentLoc: Location | null = null;
+    renderHeader(["/cards"], (loc) => {
+      currentLoc = loc;
+    });
 
-    const gameSelect = screen.getByRole("combobox", { name: "Game" });
-    expect(gameSelect).toHaveTextContent("Lorcana");
+    fireEvent.click(screen.getByRole("button", { name: "Toggle navigation" }));
+    const mobileSearch = screen.getAllByPlaceholderText("Search cards, decks...").at(-1)!;
+    fireEvent.change(mobileSearch, { target: { value: "vader" } });
+
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+
+    expect(new URLSearchParams(currentLoc!.search).get("q")).toBe("vader");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mobileSearch).toHaveValue("vader");
+    vi.useRealTimers();
   });
 
-  it("allows selecting another game and updates state and localStorage", async () => {
+  it("renders a text brand when no logo asset is available", () => {
     renderHeader();
 
-    const gameSelect = screen.getByRole("combobox", { name: "Game" });
-    fireEvent.click(gameSelect);
+    expect(screen.getByRole("link", { name: "TCG Tracker" })).toHaveTextContent("TCG Tracker");
+  });
 
-    const lorcanaOption = await screen.findByRole("option", { name: "Lorcana" });
-    fireEvent.click(lorcanaOption);
+  it("allows selecting Star Wars Unlimited and updates state and localStorage", async () => {
+    renderHeader();
 
-    expect(gameSelect).toHaveTextContent("Lorcana");
-    expect(localStorage.getItem(STORAGE_KEY_ACTIVE_GAME)).toBe("Lorcana");
+    const swuButton = screen.getByRole("button", { name: new RegExp(`^Star Wars Unlimited`, "i") });
+    fireEvent.click(swuButton);
+
+    expect(swuButton).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem(STORAGE_KEY_ACTIVE_GAME)).toBe("Star Wars Unlimited");
   });
 
   it("updates search query on debounce and resets page to 1", async () => {

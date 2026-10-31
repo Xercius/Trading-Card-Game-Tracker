@@ -27,6 +27,20 @@ describe("CardPagination", () => {
     expect(screen.getByRole("button", { name: "Last page" })).toBeEnabled();
   });
 
+  it("allows pagination controls to wrap on narrow screens", () => {
+    const { container } = render(
+      <CardPagination
+        page={1}
+        totalPages={5}
+        pageSize={20}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />
+    );
+
+    expect(container.firstElementChild).toHaveClass("flex-wrap");
+  });
+
   it("disables next and last buttons on the last page", () => {
     const onPageChange = vi.fn();
     const onPageSizeChange = vi.fn();

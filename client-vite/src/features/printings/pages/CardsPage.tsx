@@ -17,7 +17,7 @@ type ViewMode = "grid" | "table";
 type FilterArrayKey = "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
-const MIN_CARD_SIZE = 120;
+const MIN_CARD_SIZE = 80;
 const MAX_CARD_SIZE = 320;
 const DEFAULT_CARD_SIZE = 180;
 const STORAGE_KEY_CARD_SIZE = "cards-grid-card-size";
@@ -321,7 +321,7 @@ export default function CardsPage() {
   }, [printings]);
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-4">
       {/* Top Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -459,7 +459,6 @@ export default function CardsPage() {
 
       {!isLoading && data && (
         <>
-          <div className="text-sm text-muted-foreground">{printings.length} cards</div>
           {viewMode === "grid" ? (
             <ul
               className="grid gap-1"

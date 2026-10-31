@@ -1,12 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { resolveImageUrl } from "@/lib/http";
-import {
-  Dialog,
-  DialogContent,
-  DialogClose,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { useCardDetails, useCardPrintings, type PrintingSummary } from "../api";
 import CardImages from "./CardImages";
 
@@ -19,6 +13,127 @@ type CardModalProps = {
 
 const EMPTY_PRINTINGS: PrintingSummary[] = [];
 const BLOCKED_TAGS = new Set(["script", "style", "iframe", "object", "embed"]);
+
+const ASPECT_IMAGE_MAP: Record<string, string> = {
+  aggression: "SWH_Aspects_Aggression.png",
+  command: "SWH_Aspects_Command.png",
+  cunning: "SWH_Aspects_Cunning.png",
+  heroism: "SWH_Aspects_Heroism.png",
+  vigilance: "SWH_Aspects_Vigilance.png",
+  villainy: "SWH_Aspects_Villainy.png",
+};
+
+const SET_CODE_TO_LOGO: Record<string, string> = {
+  sor: "logo_spark_of_rebellion.png",
+  shd: "logo_shadows_of_the_galaxy.png",
+  twi: "logo_twilight_of_the_republic.png",
+  jtl: "logo_jump_to_lightspeed.png",
+  lof: "logo_legends_of_the_force.png",
+  sec: "logo_secrets_of_power.png",
+  sop: "logo_secrets_of_power.png",
+  law: "logo_a_lawless_time.png",
+  alt: "logo_a_lawless_time.png",
+  ash: "logo_ashes_of_the_empire.png",
+  hom: "logo_homeworlds.png",
+  hth: "logo_intro_battle_hoth.png",
+  icn: "logo_icons_2027.png",
+};
+
+function getSetLogoUrl(setCode?: string | null, setName?: string | null): string | null {
+  if (setCode) {
+    const filename = SET_CODE_TO_LOGO[setCode.toLowerCase().trim()];
+    if (filename) {
+      return resolveImageUrl(`/images/swu/sets/${filename}`);
+    }
+  }
+  if (setName) {
+    const slug = setName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const filename = `logo_${slug}.png`;
+    return resolveImageUrl(`/images/swu/sets/${filename}`);
+  }
+  return null;
+}
+
+function SetLogo({
+  setCode,
+  setName,
+}: {
+  setCode?: string | null;
+  setName?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = getSetLogoUrl(setCode, setName);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
+  if (!logoUrl || failed) {
+    return (
+      <span
+        className="font-semibold text-sm truncate max-w-[170px]"
+        title={setName || setCode || undefined}
+      >
+        {setName || setCode || "—"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={setName || setCode || "Set logo"}
+      title={setName || setCode || undefined}
+      className="max-h-7 max-w-[150px] object-contain object-left"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function StatBadge({
+  label,
+  value,
+  iconPath,
+  textColor = "text-white font-black drop-shadow-sm",
+}: {
+  label: string;
+  value: number | string | null | undefined;
+  iconPath: string;
+  textColor?: string;
+}) {
+  const displayValue = value != null ? value : "—";
+  return (
+    <div
+      className="relative flex items-center justify-center h-10 w-10 shrink-0"
+      aria-label={`${label}: ${displayValue}`}
+      title={`${label}: ${displayValue}`}
+    >
+      <img
+        src={resolveImageUrl(iconPath)}
+        alt={`${label} badge`}
+        className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none drop-shadow"
+      />
+      <span
+        className={`relative z-10 font-black text-lg leading-none select-none ${textColor} ${
+          label === "Power" ? "-translate-y-0.5" : ""
+        }`}
+      >
+        <span className="sr-only">{label}: </span>
+        {displayValue}
+      </span>
+    </div>
+  );
+}
+
+function hasMeaningfulContent(content: string | null | undefined): boolean {
+  if (!content || !content.trim()) return false;
+  const stripped = content
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  const hasImages = /<img\b[^>]*>/i.test(content);
+  return stripped.length > 0 || hasImages;
+}
 
 function domNodeToReact(node: ChildNode, key: string): ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -36,6 +151,20 @@ function domNodeToReact(node: ChildNode, key: string): ReactNode {
 
   if (tag === "br") {
     return <br key={key} />;
+  }
+
+  if (tag === "img") {
+    const src = element.getAttribute("src") || "";
+    const alt = element.getAttribute("alt") || "";
+    return (
+      <img
+        key={key}
+        src={src}
+        alt={alt}
+        className="inline-block h-4 w-4 align-text-bottom object-contain mx-0.5"
+        loading="lazy"
+      />
+    );
   }
 
   const children = Array.from(element.childNodes).map((child, idx) =>
@@ -76,6 +205,7 @@ function domNodeToReact(node: ChildNode, key: string): ReactNode {
     case "li":
       return <li key={key}>{children}</li>;
     case "span":
+    case "skey":
       return <span key={key}>{children}</span>;
     case "figure":
       return (
@@ -97,7 +227,7 @@ function domNodeToReact(node: ChildNode, key: string): ReactNode {
       );
     case "tbody":
       return (
-        <tbody key={key} className="divide-y divide-border/60">
+        <tbody key={key} className="divide-y border-border/60">
           {children}
         </tbody>
       );
@@ -135,18 +265,22 @@ function domNodeToReact(node: ChildNode, key: string): ReactNode {
 
 /**
  * Safely renders styled card text containing basic HTML formatting tags
- * (`<p>`, `<strong>`, `<i>`, `<em>`, `<br>`, etc.) as React elements without raw `dangerouslySetInnerHTML`.
+ * (`<p>`, `<strong>`, `<i>`, `<em>`, `<img>`, `<br>`, etc.) as React elements without raw `dangerouslySetInnerHTML`.
  */
 function renderStyledCardText(
-  content: string | null | undefined,
-  fallbackText?: string
+  source: string | null | undefined,
+  fallbackMessage?: string
 ): ReactNode {
-  const trimmed = content?.trim();
+  if (!source) {
+    return fallbackMessage ? (
+      <p className="text-sm italic text-muted-foreground">{fallbackMessage}</p>
+    ) : null;
+  }
+
+  const trimmed = source.trim();
   if (!trimmed) {
-    return fallbackText ? (
-      <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-        {fallbackText}
-      </p>
+    return fallbackMessage ? (
+      <p className="text-sm italic text-muted-foreground">{fallbackMessage}</p>
     ) : null;
   }
 
@@ -221,19 +355,47 @@ export default function CardModal({
     return allTypes.some((type) => type.toLowerCase().includes("unit"));
   }, [details, primaryType, secondaryType]);
 
-  const rulesTextSource =
-    details?.textStyled?.trim() ||
-    details?.text?.trim() ||
-    (details as { description?: string })?.description?.trim() ||
-    null;
-  const epicActionSource = details?.epicActionStyled?.trim() || details?.epicAction?.trim() || null;
-  const deployBoxSource = details?.deployBoxStyled?.trim() || details?.deployBox?.trim() || null;
-  const rulingsSource = details?.rulesStyled?.trim() || details?.rules?.trim() || null;
+  const frontTypeHeader = useMemo(() => {
+    const parts = [primaryType];
+    if (isUnitCard && details?.arena) {
+      parts.push(details.arena);
+    }
+    return parts.filter(Boolean).join(" • ");
+  }, [primaryType, isUnitCard, details]);
+
+  const backTypeHeader = useMemo(() => {
+    return secondaryType || details?.cardType2 || "Back Text";
+  }, [secondaryType, details]);
+
+  const rulesTextSource = useMemo(() => {
+    if (hasMeaningfulContent(details?.textStyled)) return details!.textStyled!.trim();
+    if (hasMeaningfulContent(details?.text)) return details!.text!.trim();
+    const desc = (details as { description?: string })?.description;
+    if (hasMeaningfulContent(desc)) return desc!.trim();
+    return null;
+  }, [details]);
+
+  const epicActionSource = useMemo(() => {
+    if (hasMeaningfulContent(details?.epicActionStyled)) return details!.epicActionStyled!.trim();
+    if (hasMeaningfulContent(details?.epicAction)) return details!.epicAction!.trim();
+    return null;
+  }, [details]);
+
+  const deployBoxSource = useMemo(() => {
+    if (hasMeaningfulContent(details?.deployBoxStyled)) return details!.deployBoxStyled!.trim();
+    if (hasMeaningfulContent(details?.deployBox)) return details!.deployBox!.trim();
+    return null;
+  }, [details]);
+
+  const rulingsSource = useMemo(() => {
+    if (hasMeaningfulContent(details?.rulesStyled)) return details!.rulesStyled!.trim();
+    if (hasMeaningfulContent(details?.rules)) return details!.rules!.trim();
+    return null;
+  }, [details]);
 
   const hasRulings = useMemo(() => {
     if (!rulingsSource) return false;
-    const stripped = rulingsSource.replace(/<[^>]*>/g, "").trim();
-    return stripped.length > 0;
+    return hasMeaningfulContent(rulingsSource);
   }, [rulingsSource]);
 
   useEffect(() => {
@@ -303,22 +465,24 @@ export default function CardModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        labelledBy="card-modal-title"
-        className="flex h-[min(calc(100%-20px),62rem)] max-h-[calc(100%-20px)] w-[min(calc(100%-16px),90rem)] max-w-[calc(100%-16px)] flex-col overflow-hidden bg-[#242424] text-card-foreground p-0 gap-0 my-auto mx-2"
+        labelledBy="card-modal-card-name"
+        className="relative flex h-[min(calc(100%-20px),62rem)] max-h-[calc(100%-20px)] w-[min(calc(100%-16px),90rem)] max-w-[calc(100%-16px)] flex-col overflow-hidden bg-[#242424] text-card-foreground p-0 gap-0 my-auto mx-2"
       >
-        <DialogHeader className="px-6 py-4 border-b shrink-0 flex flex-row items-center justify-between">
-          <DialogTitle id="card-modal-title" className="text-xl font-semibold">
-            {details?.name ?? "Loading card..."}
-          </DialogTitle>
-          <DialogClose aria-label="Close card dialog" />
-        </DialogHeader>
+        <h2 id="card-modal-card-name" className="sr-only">
+          {details ? displayName || details.name : "Card details"}
+        </h2>
+        {/* Floating Close Button in top right */}
+        <DialogClose
+          aria-label="Close card dialog"
+          className="absolute right-4 top-4 z-30 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/70 transition"
+        />
 
         {/* Main Content Area: Left column takes full height, Right area holds Center/Right columns and bottom Printings */}
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)] gap-5 p-4 overflow-hidden">
           {/* Left Column: Full Height Card images + Printing metadata */}
           <section
             aria-label="Selected card image"
-            className="flex min-h-0 flex-col gap-4 overflow-hidden"
+            className="flex min-h-0 flex-col gap-3 overflow-hidden"
           >
             <div className="min-h-0 flex-1 w-full">
               <CardImages
@@ -336,34 +500,32 @@ export default function CardModal({
 
             {/* Printing metadata below card image */}
             <div
-              className="rounded-lg border bg-card/60 p-3 text-xs space-y-2 shrink-0"
+              className="rounded-lg border bg-muted/40 p-3 text-xs space-y-2 shrink-0"
               data-testid="selected-printing-metadata"
             >
-              <div className="flex justify-between items-baseline gap-2">
-                <span className="font-medium text-muted-foreground">Rarity</span>
-                <span className="font-semibold text-right">
-                  {selectedPrinting?.rarity || printingDetail?.rarity || "—"}
+              {/* Row 1: Rarity and Card Treatment (spaced apart, no subtitles) */}
+              <div className="flex items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                <span>{selectedPrinting?.rarity || printingDetail?.rarity || "—"}</span>
+                <span className="text-right text-muted-foreground font-medium">
+                  {activeTreatment}
                 </span>
               </div>
-              <div className="flex justify-between items-baseline gap-2">
-                <span className="font-medium text-muted-foreground">Set Name</span>
-                <span className="font-semibold text-right">
-                  {selectedPrinting?.setName || printingDetail?.set || "—"}
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline gap-2">
-                <span className="font-medium text-muted-foreground">Set Number</span>
-                <span className="font-semibold text-right">
+
+              {/* Row 2: Card Set Image with Set Number to the right */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
+                <div className="flex items-center min-w-0 pr-2">
+                  <SetLogo
+                    setCode={selectedPrinting?.setCode || printingDetail?.set}
+                    setName={selectedPrinting?.setName || printingDetail?.set}
+                  />
+                </div>
+                <span className="font-semibold text-sm shrink-0 text-foreground">
                   {selectedPrinting?.number
                     ? `#${selectedPrinting.number}`
                     : printingDetail?.number
                       ? `#${printingDetail.number}`
                       : "—"}
                 </span>
-              </div>
-              <div className="flex justify-between items-baseline gap-2">
-                <span className="font-medium text-muted-foreground">Card Treatment</span>
-                <span className="font-semibold text-right">{activeTreatment}</span>
               </div>
             </div>
 
@@ -406,125 +568,119 @@ export default function CardModal({
 
                 {details && (
                   <div className="space-y-4 text-sm" aria-live="polite">
-                    {/* 1. Card Name & Subtitle */}
+                    {/* 1. Header (Name with Aspect Logos right next to it, Subtitle underneath, Stats & Traits) */}
                     <div>
-                      <h2
-                        data-testid="card-modal-card-name"
-                        className="text-2xl font-bold tracking-tight text-foreground"
-                      >
-                        {displayName || details.name}
-                      </h2>
-                      {subtitle && (
-                        <p className="text-lg font-medium text-muted-foreground mt-0.5">
-                          {subtitle}
-                        </p>
-                      )}
-                    </div>
+                      <div className="flex items-center flex-wrap gap-2.5">
+                        <h2
+                          data-testid="card-modal-card-name"
+                          className="text-2xl font-bold tracking-tight text-foreground"
+                        >
+                          {displayName || details.name}
+                        </h2>
 
-                    {/* 2. Stat Row (Cost, Power, HP) */}
-                    {(details.cost != null || details.power != null || details.hp != null) && (
-                      <div
-                        aria-label="Card stats"
-                        className="flex items-center gap-6 rounded-lg border bg-muted/40 px-4 py-2 w-fit"
-                      >
-                        <div className="flex flex-col items-center min-w-[2.5rem]">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Cost
-                          </span>
-                          <span className="text-lg font-bold">
-                            {details.cost != null ? details.cost : "—"}
-                          </span>
-                        </div>
-                        <div className="h-7 w-px bg-border" />
-                        <div className="flex flex-col items-center min-w-[2.5rem]">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Power
-                          </span>
-                          <span className="text-lg font-bold">
-                            {details.power != null ? details.power : "—"}
-                          </span>
-                        </div>
-                        <div className="h-7 w-px bg-border" />
-                        <div className="flex flex-col items-center min-w-[2.5rem]">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            HP
-                          </span>
-                          <span className="text-lg font-bold">
-                            {details.hp != null ? details.hp : "—"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. Listed top to bottom in exact order: */}
-
-                    {/* A. Type(s) */}
-                    <div className="space-y-1">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Type
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-                        <span>{primaryType}</span>
-                        {secondaryType && (
-                          <>
-                            <span className="text-muted-foreground">•</span>
-                            <span>{secondaryType}</span>
-                          </>
-                        )}
-                        {isUnitCard && details.arena && (
-                          <>
-                            <span className="text-muted-foreground">•</span>
-                            <span>{details.arena}</span>
-                          </>
-                        )}
+                        {/* Aspect Logos right next to the card title */}
                         {details.aspects && details.aspects.length > 0 && (
-                          <>
-                            <span className="text-muted-foreground">•</span>
-                            <span>
+                          <div
+                            className="flex items-center gap-1.5 shrink-0"
+                            aria-label="Card aspects"
+                          >
+                            {details.aspects.flatMap(({ name, count }) => {
+                              const filename = ASPECT_IMAGE_MAP[name.toLowerCase()];
+                              const src = filename
+                                ? resolveImageUrl(`/images/swu/aspects/${filename}`)
+                                : null;
+                              return Array.from({ length: count || 1 }, (_, idx) =>
+                                src ? (
+                                  <img
+                                    key={`${name}-${idx}`}
+                                    src={src}
+                                    alt={name}
+                                    title={name}
+                                    className="h-7 w-7 object-contain drop-shadow-sm"
+                                  />
+                                ) : (
+                                  <span
+                                    key={`${name}-${idx}`}
+                                    className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold"
+                                  >
+                                    {name}
+                                  </span>
+                                )
+                              );
+                            })}
+                            <span className="sr-only">
                               {details.aspects
                                 .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
                                 .join(", ")}
                             </span>
-                          </>
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    {/* B. Traits */}
-                    {details.traits && details.traits.length > 0 && (
-                      <div className="space-y-1">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Traits
-                        </h3>
-                        <p className="text-sm italic text-foreground/90">
+                      {subtitle && (
+                        <p className="text-base font-medium text-muted-foreground mt-0.5">
+                          {subtitle}
+                        </p>
+                      )}
+
+                      {/* 2. Stat Row (Cost, Power, HP with SWU Icon Badges) */}
+                      {(details.cost != null || details.power != null || details.hp != null) && (
+                        <div
+                          aria-label="Card stats"
+                          className="flex items-center gap-1.5 mt-2"
+                        >
+                          <StatBadge
+                            label="Cost"
+                            value={details.cost}
+                            iconPath="/images/swu/icons/cost.png"
+                            textColor="text-white font-black drop-shadow-sm"
+                          />
+                          <StatBadge
+                            label="Power"
+                            value={details.power}
+                            iconPath="/images/swu/icons/power.png"
+                            textColor="text-white font-black drop-shadow-sm"
+                          />
+                          <StatBadge
+                            label="HP"
+                            value={details.hp}
+                            iconPath="/images/swu/icons/hp.png"
+                            textColor="text-white font-black drop-shadow-sm"
+                          />
+                        </div>
+                      )}
+
+                      {/* Traits (just beneath cost/power/hp images, no "Traits" subtitle) */}
+                      {details.traits && details.traits.length > 0 && (
+                        <p className="text-sm italic text-foreground/90 mt-2">
                           {details.traits.join(", ")}
                         </p>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
-                    {/* C. Card text (Cards.TextStyled) */}
+                    {/* Front Rules Text (subtitle replaced with front card type + arena) */}
                     <div className="space-y-1">
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Card Text
+                        {frontTypeHeader || "Card Text"}
                       </h3>
                       {renderStyledCardText(rulesTextSource, "No card text available.")}
                     </div>
 
-                    {/* D. Epic Action (Cards.EpicActionStyled) */}
+                    {/* Epic Action (Cards.EpicActionStyled) */}
                     {epicActionSource && (
                       <div className="space-y-1">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Epic Action
-                        </h3>
-                        {renderStyledCardText(epicActionSource)}
+                        <h3 className="sr-only">Epic Action</h3>
+                        <div className="rounded-md border border-amber-500/70 bg-amber-500/10 p-3 text-sm text-foreground">
+                          {renderStyledCardText(epicActionSource)}
+                        </div>
                       </div>
                     )}
 
-                    {/* E. Back text (Cards.DeployBoxStyled) */}
+                    {/* Back Rules Text (subtitle replaced with back card type) */}
                     {deployBoxSource && (
                       <div className="space-y-1">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Back Text
+                          {backTypeHeader}
                         </h3>
                         {renderStyledCardText(deployBoxSource)}
                       </div>

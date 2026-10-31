@@ -12,7 +12,7 @@ import {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import CardModal from "../CardModal";
 import { api } from "@/lib/api";
 
@@ -112,7 +112,8 @@ describe("CardModal", () => {
               cost: 7,
               power: 5,
               hp: 8,
-              textStyled: "<p><strong>Action:</strong> Deal 1 damage.</p>",
+              textStyled:
+                '<p><strong>Action [</strong><img src="https://example.com/cost1.png" alt="1"><strong>]:</strong> Deal 1 damage.</p>',
               epicActionStyled: "<p><strong>Epic Action:</strong> Deploy this leader.</p>",
               deployBoxStyled: "<p><strong>When Deployed:</strong> Ready this unit.</p>",
               rulesStyled: "<p>If an ability refers to this leader...</p>",
@@ -127,32 +128,41 @@ describe("CardModal", () => {
     expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Darth Vader");
     expect(screen.getByText("Dark Lord of the Sith")).toBeInTheDocument();
 
-    // Stats row
+    // Aspects rendered as image to the right of card name
+    const aspectContainer = screen.getByLabelText("Card aspects");
+    expect(within(aspectContainer).getByAltText("Villainy")).toBeInTheDocument();
+
+    // Stats row with SWU badge images and overlaid values
     const statsRow = screen.getByLabelText("Card stats");
-    expect(within(statsRow).getByText("Cost")).toBeInTheDocument();
-    expect(within(statsRow).getByText("7")).toBeInTheDocument();
-    expect(within(statsRow).getByText("Power")).toBeInTheDocument();
-    expect(within(statsRow).getByText("5")).toBeInTheDocument();
-    expect(within(statsRow).getByText("HP")).toBeInTheDocument();
-    expect(within(statsRow).getByText("8")).toBeInTheDocument();
+    expect(within(statsRow).getByAltText("Cost badge")).toBeInTheDocument();
+    const costValue = within(statsRow).getByText("7");
+    expect(costValue).toBeInTheDocument();
+    expect(costValue.className).toContain("text-white");
 
-    // Center column listed top to bottom order: Type(s), Traits, Card text, Epic Action, Back text
-    expect(screen.getByRole("heading", { name: "Type" })).toBeInTheDocument();
-    expect(screen.getByText("Leader")).toBeInTheDocument();
-    expect(screen.getByText("Leader Unit")).toBeInTheDocument();
-    expect(screen.getByText("Ground")).toBeInTheDocument();
-    expect(screen.getByText("Villainy")).toBeInTheDocument();
+    expect(within(statsRow).getByAltText("Power badge")).toBeInTheDocument();
+    const powerValue = within(statsRow).getByText("5");
+    expect(powerValue).toBeInTheDocument();
+    expect(powerValue.className).toContain("text-white");
 
-    expect(screen.getByRole("heading", { name: "Traits" })).toBeInTheDocument();
+    expect(within(statsRow).getByAltText("HP badge")).toBeInTheDocument();
+    const hpValue = within(statsRow).getByText("8");
+    expect(hpValue).toBeInTheDocument();
+    expect(hpValue.className).toContain("text-white");
+
+    // Traits placed directly beneath stats without subtitle
     expect(screen.getByText("Force, Imperial, Sith")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Traits" })).toBeNull();
 
-    expect(screen.getByRole("heading", { name: "Card Text" })).toBeInTheDocument();
-    expect(screen.getByText("Action:").tagName.toLowerCase()).toBe("strong");
+    // Front text headed by card type + arena (replaces "Card Text" subtitle)
+    expect(screen.getByRole("heading", { name: "Leader • Ground" })).toBeInTheDocument();
+    expect(screen.getByText("Action [").tagName.toLowerCase()).toBe("strong");
+    expect(screen.getByAltText("1")).toBeInTheDocument();
 
-    expect(screen.getByRole("heading", { name: "Epic Action" })).toBeInTheDocument();
+    // Epic Action rendered
     expect(screen.getByText("Deploy this leader.", { exact: false })).toBeInTheDocument();
 
-    expect(screen.getByRole("heading", { name: "Back Text" })).toBeInTheDocument();
+    // Back text headed by back card type (replaces "Back Text" subtitle)
+    expect(screen.getByRole("heading", { name: "Leader Unit" })).toBeInTheDocument();
     expect(screen.getByText("Ready this unit.", { exact: false })).toBeInTheDocument();
 
     // Left Column: Front on top, Back on bottom
@@ -163,16 +173,17 @@ describe("CardModal", () => {
     expect(images[1].getAttribute("alt")).toBe("Darth Vader — Dark Lord of the Sith (back)");
     expect(imageGroup.classList.contains("grid-rows-2")).toBe(true);
 
-    // Left Column: Printing metadata below card image
+    // Left Column: Printing metadata below card image (Row 1: Rarity & Treatment; Row 2: Set Logo & Number)
     const metadata = screen.getByTestId("selected-printing-metadata");
-    expect(within(metadata).getByText("Rarity")).toBeInTheDocument();
     expect(within(metadata).getByText("Rare")).toBeInTheDocument();
-    expect(within(metadata).getByText("Set Name")).toBeInTheDocument();
-    expect(within(metadata).getByText("Spark of Rebellion")).toBeInTheDocument();
-    expect(within(metadata).getByText("Set Number")).toBeInTheDocument();
-    expect(within(metadata).getByText("#001")).toBeInTheDocument();
-    expect(within(metadata).getByText("Card Treatment")).toBeInTheDocument();
     expect(within(metadata).getByText("Standard")).toBeInTheDocument();
+    expect(within(metadata).getByAltText("Spark of Rebellion")).toBeInTheDocument();
+    expect(within(metadata).getByText("#001")).toBeInTheDocument();
+    // Subtitles omitted per spec
+    expect(within(metadata).queryByText("Rarity")).toBeNull();
+    expect(within(metadata).queryByText("Set Name")).toBeNull();
+    expect(within(metadata).queryByText("Set Number")).toBeNull();
+    expect(within(metadata).queryByText("Card Treatment")).toBeNull();
 
     // Right Column: Rulings section present
     const rulingsSection = screen.getByRole("region", { name: "Card rulings" });
@@ -185,10 +196,47 @@ describe("CardModal", () => {
     const printingsSection = screen.getByRole("region", { name: "Card printings" });
     expect(within(printingsSection).getByText("SOR #001")).toBeInTheDocument();
 
+    // Close button present and accessible
+    expect(screen.getByLabelText("Close card dialog")).toBeInTheDocument();
+
     // Verify Collection & Wishlist quick-add buttons and quantity inputs are removed
     expect(screen.queryByLabelText("Add to collection")).toBeNull();
     expect(screen.queryByLabelText("Add to wishlist")).toBeNull();
     expect(screen.queryByRole("spinbutton")).toBeNull();
+  });
+
+  it("omits Epic Action section when card has empty epicActionStyled or empty string (e.g. 4-LOM)", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 105,
+              name: "4-LOM \u2014 Devious",
+              subtitle: "Devious",
+              game: "Star Wars Unlimited",
+              cardType: "Unit",
+              arena: "Ground",
+              traits: ["Bounty Hunter", "Droid", "Underworld"],
+              cost: 5,
+              power: 4,
+              hp: 5,
+              textStyled:
+                "<p><strong>When Played:</strong> You may attack with a friendly <i>Bounty Hunter</i> unit.</p>",
+              epicAction: "",
+              epicActionStyled: "<p></p>",
+              rulesStyled: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 105 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("4-LOM");
+    // Ensure Epic Action is completely omitted when empty
+    expect(screen.queryByRole("heading", { name: "Epic Action" })).toBeNull();
+    expect(screen.queryByText("Epic Action")).toBeNull();
   });
 
   it("renders table-based rulings from RulesStyled with date and description columns", async () => {
@@ -359,10 +407,11 @@ describe("CardModal", () => {
     await renderModal({ cardId: 100, initialPrintingId: 1001 });
 
     const metadata = await screen.findByTestId("selected-printing-metadata");
-    await waitFor(() => expect(within(metadata).getByText("Alpha Set")).toBeInTheDocument());
+    await waitFor(() => expect(within(metadata).getByAltText("Alpha Set")).toBeInTheDocument());
     expect(within(metadata).getByText("Common")).toBeInTheDocument();
     expect(within(metadata).getByText("#001")).toBeInTheDocument();
     expect(within(metadata).getByText("Standard")).toBeInTheDocument();
+    fireEvent.error(within(metadata).getByAltText("Alpha Set"));
 
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(2);
@@ -374,9 +423,22 @@ describe("CardModal", () => {
       options[1].click();
     });
 
-    await waitFor(() => expect(within(metadata).getByText("Beta Set")).toBeInTheDocument());
+    await waitFor(() => expect(within(metadata).getByAltText("Beta Set")).toBeInTheDocument());
     expect(within(metadata).getByText("Legendary")).toBeInTheDocument();
     expect(within(metadata).getByText("#002")).toBeInTheDocument();
     expect(within(metadata).getByText("Hyperspace Foil")).toBeInTheDocument();
+  });
+
+  it("keeps the dialog accessibly named when card details fail to load", async () => {
+    getSpy.mockImplementation((url: string) =>
+      url.endsWith("/printings")
+        ? Promise.resolve({ data: [] })
+        : Promise.reject(new Error("Request failed"))
+    );
+
+    await renderModal({ cardId: 100 });
+
+    await screen.findByText("Failed to load card details.");
+    expect(screen.getByRole("dialog", { name: "Card details" })).toBeInTheDocument();
   });
 });

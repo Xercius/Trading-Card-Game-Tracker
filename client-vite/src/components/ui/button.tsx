@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "default" | "secondary" | "outline" | "ghost";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "icon";
 };
 
 const base =
@@ -19,6 +19,7 @@ const sizes: Record<NonNullable<ButtonProps["size"]>, string> = {
   sm: "h-8 px-3 text-sm",
   md: "h-9 px-4 text-sm",
   lg: "h-10 px-6 text-base",
+  icon: "h-9 w-9 p-0",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

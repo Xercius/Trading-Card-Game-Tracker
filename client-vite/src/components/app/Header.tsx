@@ -1,17 +1,10 @@
 import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { resolveImageUrl } from "@/lib/http";
 import { paths } from "@/routes/paths";
 
 type NavLinkItem = {
@@ -34,6 +27,98 @@ const ADMIN_LINKS: NavLinkItem[] = [
   { to: paths.adminImport, label: "Admin · Import" },
 ];
 
+type GameOption = {
+  id: string;
+  name: string;
+  logo: string;
+  selectable: boolean;
+};
+
+const GAME_OPTIONS: GameOption[] = [
+  {
+    id: "swu",
+    name: "Star Wars Unlimited",
+    logo: "/images/games/star_wars_unlimited_White.png",
+    selectable: true,
+  },
+  {
+    id: "swccg",
+    name: "Star Wars CCG",
+    logo: "/images/games/SWCCG-Logo.jpg",
+    selectable: false,
+  },
+  {
+    id: "hellbreak",
+    name: "Hellbreak TCG",
+    logo: "/images/games/hellbreak_logo.avif",
+    selectable: false,
+  },
+  {
+    id: "mtg",
+    name: "Magic The Gathering",
+    logo: "/images/games/mtg_logo.svg",
+    selectable: false,
+  },
+  {
+    id: "pokemon",
+    name: "Pokemon TCG",
+    logo: "/images/games/pokemon_logo.png",
+    selectable: false,
+  },
+];
+
+function GameLogoButton({
+  game,
+  isSelected,
+  onSelect,
+}: {
+  game: GameOption;
+  isSelected: boolean;
+  onSelect: (gameName: string) => void;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const logoUrl = resolveImageUrl(game.logo);
+
+  return (
+    <button
+      type="button"
+      role="button"
+      aria-label={game.name}
+      aria-pressed={isSelected}
+      disabled={!game.selectable}
+      title={game.selectable ? game.name : `${game.name} (Coming soon)`}
+      onClick={() => {
+        if (game.selectable) {
+          onSelect(game.name);
+        }
+      }}
+      className={`group relative flex items-center justify-center h-12 px-3 py-1 rounded-lg border transition-all shrink-0 ${
+        isSelected
+          ? "border-primary bg-primary/20 ring-2 ring-primary/60 shadow-md"
+          : game.selectable
+          ? "border-transparent bg-transparent hover:border-border hover:bg-card/60 cursor-pointer"
+          : "border-transparent bg-transparent opacity-40 hover:opacity-75 hover:border-border/40 hover:bg-card/20 cursor-not-allowed"
+      }`}
+    >
+      {!imgError && logoUrl ? (
+        <img
+          src={logoUrl}
+          alt={game.name}
+          className={`h-8 max-h-8 w-auto max-w-[120px] object-contain pointer-events-none select-none transition-transform ${
+            game.selectable ? "group-hover:scale-105" : ""
+          }`}
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <span className="text-xs font-semibold text-foreground/80 whitespace-nowrap">
+          {game.name}
+        </span>
+      )}
+      {!game.selectable && <span className="sr-only"> (Coming soon)</span>}
+    </button>
+  );
+}
+
 const linkCls = ({ isActive }: { isActive: boolean }) =>
   `block px-3 py-2 rounded-md text-sm font-medium ${
     isActive ? "bg-foreground text-background" : "text-foreground/70 hover:bg-foreground/10"
@@ -41,7 +126,7 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
 
 export default function Header() {
   const { users, userId } = useUser();
-  const { activeGame, setActiveGame, games } = useGame();
+  const { activeGame, setActiveGame } = useGame();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const location = useLocation();
@@ -101,7 +186,7 @@ export default function Header() {
   useEffect(() => {
     setMobileOpen(false);
     setAdminOpen(false);
-  }, [location]);
+  }, [location.pathname]);
 
   // Close Admin dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -147,10 +232,16 @@ export default function Header() {
 
   return (
     <header className="w-full border-b bg-background/60 backdrop-blur">
-      <div className="w-full px-4 sm:px-6 py-4 space-y-3">
-        {/* Top row: brand, nav, owner */}
+      <div className="w-full px-4 sm:px-6 pt-3.5 pb-3.5">
+        {/* Top row: brand, nav links, admin dropdown, search bar, owner */}
         <div className="flex items-center gap-3">
-          <div className="text-xl font-semibold">TCG Tracker</div>
+          <NavLink
+            to={paths.cards}
+            className="shrink-0 flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+            aria-label="TCG Tracker"
+          >
+            <span className="text-xl font-bold tracking-tight">TCG Tracker</span>
+          </NavLink>
 
           <nav className="hidden md:flex gap-1 ml-4 items-center">
             {filteredLinks.map((link) => (
@@ -216,9 +307,36 @@ export default function Header() {
                 </div>
               )}
             </div>
+
+            {/* Search bar directly to the right of Admin dropdown */}
+            <div className="flex items-center gap-2 ml-4">
+              <Input
+                placeholder="Search cards, decks..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applySearch(e.currentTarget.value);
+                  }
+                }}
+                className="w-48 lg:w-72 h-9"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-9 px-3"
+                onClick={() => {
+                  setSearch("");
+                  applySearch("");
+                }}
+              >
+                Clear
+              </Button>
+            </div>
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 shrink-0">
             <button
               ref={menuBtnRef}
               type="button"
@@ -241,50 +359,23 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Second row: game filter + search */}
-        <div className="flex items-center gap-2">
-          <div className="w-52 shrink-0">
-            <Select
-              value={activeGame}
-              onValueChange={(val) => {
-                if (val && val.trim()) {
-                  setActiveGame(val.trim());
-                }
-              }}
-            >
-              <SelectTrigger aria-label="Game" className="w-full">
-                <SelectValue placeholder="Select game" />
-              </SelectTrigger>
-              <SelectContent>
-                {games.map((gameName) => (
-                  <SelectItem key={gameName} value={gameName}>
-                    {gameName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            placeholder="Search cards, decks..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applySearch(e.currentTarget.value);
-              }
-            }}
-            className="max-w-lg"
-          />
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSearch("");
-              applySearch("");
-            }}
-          >
-            Clear
-          </Button>
+        {/* Second row: game logos */}
+        <div
+          role="region"
+          aria-label="Game selection"
+          className="mt-2.5 flex items-center gap-2.5 overflow-x-auto py-0.5"
+        >
+          {GAME_OPTIONS.map((game) => {
+            const isSelected = activeGame === game.name;
+            return (
+              <GameLogoButton
+                key={game.id}
+                game={game}
+                isSelected={isSelected}
+                onSelect={(name) => setActiveGame(name)}
+              />
+            );
+          })}
         </div>
 
         {mobileOpen && (
@@ -303,6 +394,34 @@ export default function Header() {
               onKeyDown={onMobileMenuKeyDown}
             >
               <div className="mb-3 text-sm font-medium text-muted-foreground">Navigate</div>
+
+              {/* Mobile search */}
+              <div className="mb-4 flex items-center gap-2">
+                <Input
+                  placeholder="Search cards, decks..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applySearch(e.currentTarget.value);
+                      setMobileOpen(false);
+                    }
+                  }}
+                  className="h-9 text-sm"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 px-3"
+                  onClick={() => {
+                    setSearch("");
+                    applySearch("");
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
               <ul className="space-y-1">
                 {filteredLinks.map((link) => (
                   <li key={link.to}>
@@ -330,8 +449,6 @@ export default function Header() {
             </nav>
           </>
         )}
-
-        <Separator />
       </div>
     </header>
   );

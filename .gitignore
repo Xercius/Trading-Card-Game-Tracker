@@ -52,4 +52,13 @@ pnpm-debug.log*
 Imports/
 
 # ---- Static assets (local images, not source-controlled) ----
-api/wwwroot/images/*
+api/wwwroot/images/**/*
+!api/wwwroot/images/**/
+!api/wwwroot/images/games/**
+!api/wwwroot/images/*/sets/**
+!api/wwwroot/images/*/aspects/**
+!api/wwwroot/images/*/arenas/**
+!api/wwwroot/images/*/icons/**
+!api/wwwroot/images/placeholders/**
+!api/wwwroot/images/**/*.svg
+!api/wwwroot/images/**/.gitkeep
