@@ -173,20 +173,25 @@ public sealed class PrintingsController : ControllerBase
             var matchingCardIds = query.Select(p => p.CardId).Distinct();
             var candidates = _db.Set<CardPrinting>()
                 .AsNoTracking()
-                .Include(p => p.Card).ThenInclude(card => card.Game);
+                .Include(p => p.Card).ThenInclude(card => card.Game)
+                .Include(p => p.Treatment);
             query = candidates
                 .Where(p => matchingCardIds.Contains(p.CardId))
                 .Where(p => p.Id == candidates.Where(candidate => candidate.CardId == p.CardId)
-                    .OrderBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)
+                    .OrderByDescending(candidate => !string.IsNullOrEmpty(candidate.ImageUrl))
+                    .ThenByDescending(candidate => candidate.Treatment != null
+                        && candidate.Treatment.NameNormalized == "standard")
+                    .ThenBy(candidate => candidate.ApiCreatedAt == null)
+                    .ThenBy(candidate => candidate.ApiCreatedAt.ToString())
+                    .ThenBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)
                     .ThenBy(candidate => candidate.CatalogSet == null
                         ? null
                         : candidate.CatalogSet.ReleasedAt)
                     .ThenBy(candidate => requestedGames.Contains("star wars unlimited")
                         ? candidate.CatalogSet == null ? string.Empty : candidate.CatalogSet.Code
                         : string.Empty)
-                    .ThenBy(candidate => requestedGames.Contains("star wars unlimited")
-                        ? candidate.Number
-                        : string.Empty)
+                    .ThenBy(candidate => candidate.Number == null ? 0 : candidate.Number.Length)
+                    .ThenBy(candidate => candidate.Number)
                     .ThenBy(candidate => candidate.Id)
                     .Select(candidate => candidate.Id)
                     .FirstOrDefault());
