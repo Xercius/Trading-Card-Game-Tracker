@@ -47,6 +47,7 @@ function FilterIcon({ className = "" }: { className?: string }) {
 export default function CardsPage() {
   const { activeGame } = useGame();
   const { filters, setFilters } = useCardFilters();
+  const isSwccg = activeGame === "Star Wars CCG";
 
   const previousGameRef = React.useRef(activeGame);
   React.useEffect(() => {
@@ -59,6 +60,12 @@ export default function CardsPage() {
       }));
     }
   }, [activeGame, setFilters]);
+
+  React.useEffect(() => {
+    if (activeGame === "Star Wars CCG" && !filters.side) {
+      setFilters((prev) => ({ ...prev, side: "Dark" }));
+    }
+  }, [activeGame, filters.side, setFilters]);
 
   const previousQRef = React.useRef(filters.q);
   React.useEffect(() => {
@@ -80,10 +87,11 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      side: isSwccg ? filters.side || "Dark" : undefined,
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, effectivePageSize]
+    [filters, activeGame, isSwccg, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -196,12 +204,20 @@ export default function CardsPage() {
       keywordMethod: "or",
       page: 1,
     }));
-  }, [setFilters, activeGame]);
+  }, [setFilters, isSwccg]);
 
   const removeFilterValue = React.useCallback(
-    (key: FilterArrayKey, value: string) => {
+    (key: FilterArrayKey | "side", value: string) => {
       setFilters((prev) => {
-        const nextList = prev[key].filter((item) => item.toLowerCase() !== value.toLowerCase());
+        if (key === "side") {
+          return {
+            ...prev,
+            side: "Dark",
+            page: 1,
+          };
+        }
+        const currentList = prev[key as FilterArrayKey] ?? [];
+        const nextList = currentList.filter((item) => item.toLowerCase() !== value.toLowerCase());
         return {
           ...prev,
           [key]: nextList,
@@ -241,8 +257,46 @@ export default function CardsPage() {
     return result;
   }, [filters.aspects]);
 
-  const activeFilters = React.useMemo(
-    () => [
+  const activeFilters = React.useMemo(() => {
+    if (isSwccg) {
+      const list: Array<{ key: FilterArrayKey | "side"; label: string; items: Array<{ display: string; value: string }> }> = [];
+      if (filters.side && filters.side.toLowerCase() !== "dark") {
+        list.push({
+          key: "side",
+          label: "Side",
+          items: [
+            {
+              display: filters.side.toLowerCase() === "light" ? "Light Side" : filters.side,
+              value: filters.side,
+            },
+          ],
+        });
+      }
+      if (filters.types?.length) {
+        list.push({
+          key: "types" as const,
+          label: "Type",
+          items: filters.types.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.personas?.length) {
+        list.push({
+          key: "personas" as const,
+          label: "Persona",
+          items: filters.personas.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.sets?.length) {
+        list.push({
+          key: "sets" as const,
+          label: "Set",
+          items: filters.sets.map((v) => ({ display: v, value: v })),
+        });
+      }
+      return list;
+    }
+
+    return [
       {
         key: "sets" as const,
         label: "Set",
@@ -293,20 +347,22 @@ export default function CardsPage() {
               : "Keyword",
         items: (filters.keywords ?? []).map((v) => ({ display: v, value: v })),
       },
-    ],
-    [
-      filters.sets,
-      filters.rarities,
-      filters.types,
-      filters.arenas,
-      filters.aspectMethod,
-      groupedAspects,
-      filters.traits,
-      filters.traitMethod,
-      filters.keywords,
-      filters.keywordMethod,
-    ]
-  );
+    ];
+  }, [
+    isSwccg,
+    filters.side,
+    filters.types,
+    filters.personas,
+    filters.sets,
+    filters.rarities,
+    filters.arenas,
+    filters.aspectMethod,
+    groupedAspects,
+    filters.traits,
+    filters.traitMethod,
+    filters.keywords,
+    filters.keywordMethod,
+  ]);
 
   const hasActiveFilters = activeFilters.some((filter) => filter.items.length > 0);
   const activeFilterCount = activeFilters.reduce((sum, filter) => sum + filter.items.length, 0);
@@ -549,6 +605,7 @@ export default function CardsPage() {
         onRetryFacets={() => void refetchFacets()}
         onClearFilters={clearFilters}
         hasActiveFilters={hasActiveFilters}
+        game={activeGame}
       />
     </div>
   );

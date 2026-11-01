@@ -52,11 +52,21 @@ namespace api.Data
                 e.Property(c => c.Subtitle).HasMaxLength(256);
                 e.Property(c => c.CardUid).HasMaxLength(64);
                 e.Property(c => c.Hp).HasColumnName("Hp");
+                e.Property(c => c.Side).HasMaxLength(16);
+                e.Property(c => c.Uniqueness).HasMaxLength(16);
+                e.Property(c => c.Destiny).HasMaxLength(16);
+                e.Property(c => c.Deploy).HasMaxLength(16);
+                e.Property(c => c.Forfeit).HasMaxLength(16);
+                e.Property(c => c.Armor).HasMaxLength(16);
+                e.Property(c => c.Ferocity).HasMaxLength(16);
+                e.Property(c => c.Persona).HasMaxLength(256);
+                e.Property(c => c.BackTitle).HasMaxLength(256);
 
                 // useful lookup index for list/search
                 e.HasIndex(c => new { c.GameId, c.Name })
-                    .IsUnique()
-                    .HasDatabaseName("UX_Cards_GameId_Name");
+                    .HasDatabaseName("IX_Cards_GameId_Name");
+                e.HasIndex(c => new { c.GameId, c.Persona })
+                    .HasDatabaseName("IX_Cards_GameId_Persona");
                 e.HasOne(c => c.Game)
                     .WithMany()
                     .HasForeignKey(c => c.GameId)

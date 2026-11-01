@@ -41,8 +41,8 @@ describe("GameProvider and useGame", () => {
     localStorage.clear();
   });
 
-  it("defaults to Star Wars Unlimited when no storage or prop is set", () => {
-    vi.spyOn(cardsApi, "fetchCardGames").mockResolvedValue(["Star Wars Unlimited"]);
+  it("defaults to Star Wars CCG when no storage or prop is set", () => {
+    vi.spyOn(cardsApi, "fetchCardGames").mockResolvedValue(["Star Wars CCG"]);
 
     renderWithClient(
       <GameProvider>
@@ -51,7 +51,7 @@ describe("GameProvider and useGame", () => {
     );
 
     expect(screen.getByTestId("active-game")).toHaveTextContent(DEFAULT_GAME);
-    expect(screen.getByTestId("active-game")).toHaveTextContent("Star Wars Unlimited");
+    expect(screen.getByTestId("active-game")).toHaveTextContent("Star Wars CCG");
   });
 
   it("restores active game from localStorage when available", () => {
@@ -92,7 +92,7 @@ describe("GameProvider and useGame", () => {
       </GameProvider>
     );
 
-    expect(screen.getByTestId("active-game")).toHaveTextContent("Star Wars Unlimited");
+    expect(screen.getByTestId("active-game")).toHaveTextContent(DEFAULT_GAME);
 
     act(() => {
       screen.getByRole("button", { name: "Select Lorcana" }).click();
@@ -116,8 +116,8 @@ describe("GameProvider and useGame", () => {
       screen.getByRole("button", { name: "Select Empty" }).click();
     });
 
-    // Should remain Star Wars Unlimited
-    expect(screen.getByTestId("active-game")).toHaveTextContent("Star Wars Unlimited");
+    // Should remain default game
+    expect(screen.getByTestId("active-game")).toHaveTextContent(DEFAULT_GAME);
   });
 
   it("throws an error when useGame is used outside GameProvider", () => {

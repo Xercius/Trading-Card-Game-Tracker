@@ -33,6 +33,7 @@ export type AdminSyncStatusResponse = {
 export const adminSyncKeys = {
   all: ["admin", "sync"] as const,
   starWarsUnlimitedStatus: () => [...adminSyncKeys.all, "star-wars-unlimited", "status"] as const,
+  starWarsCcgStatus: () => [...adminSyncKeys.all, "star-wars-ccg", "status"] as const,
 };
 
 type AdminSession = { authenticated: boolean; csrfToken: string };
@@ -122,6 +123,58 @@ export function useRunStarWarsUnlimitedSyncMutation() {
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() });
+    },
+  });
+}
+
+export type SwccgSyncOptions = {
+  dryRun?: boolean;
+  limit?: number;
+  reset?: boolean;
+};
+
+/**
+ * Loads the current Star Wars CCG sync status for the admin tools page.
+ */
+export function useStarWarsCcgSyncStatusQuery() {
+  return useQuery<AdminSyncStatusDetails>({
+    queryKey: adminSyncKeys.starWarsCcgStatus(),
+    queryFn: async () => {
+      try {
+        const response = await http.get<AdminSyncStatusDetails>(
+          "admin/sync/star-wars-ccg/status",
+          credentials
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Runs the Star Wars CCG admin sync and refreshes the cached status afterwards.
+ */
+export function useRunStarWarsCcgSyncMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AdminSyncStatusResponse, Error, SwccgSyncOptions | undefined>({
+    mutationFn: async (options) => {
+      try {
+        const response = await http.post<AdminSyncStatusResponse>(
+          "admin/sync/star-wars-ccg",
+          options ?? {},
+          await csrfConfig()
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsCcgStatus() });
     },
   });
 }

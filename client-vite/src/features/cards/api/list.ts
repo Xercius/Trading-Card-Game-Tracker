@@ -117,6 +117,8 @@ export async function fetchCardsPage({
   if (traits?.length) params.set("trait", traits.join(","));
   if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
   if (keywords?.length) params.set("keyword", keywords.join(","));
+  if (side) params.set("side", side);
+  if (personas?.length) params.set("persona", personas.join(","));
   if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
   params.set("skip", String(skip));
   params.set("take", String(take));
@@ -205,6 +207,7 @@ export type CardsFacetResponse = {
   aspects?: FacetOption[];
   traits?: FacetOption[];
   keywords?: FacetOption[];
+  personas?: FacetOption[];
   treatments?: FacetOption[];
 };
 
@@ -333,6 +336,8 @@ export async function fetchCardFacets({
   traitMethod,
   keywords,
   keywordMethod,
+  side,
+  personas,
   q,
   printingSearch,
 }: {
@@ -347,6 +352,8 @@ export async function fetchCardFacets({
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
   keywordMethod?: "or" | "and" | "exclude";
+  side?: string;
+  personas?: string[];
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -362,6 +369,8 @@ export async function fetchCardFacets({
   if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
   if (keywords?.length) params.set("keyword", keywords.join(","));
   if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
+  if (side) params.set("side", side);
+  if (personas?.length) params.set("persona", personas.join(","));
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 

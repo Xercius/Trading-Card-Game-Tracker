@@ -24,6 +24,8 @@ export function usePrintings(filters: CardFilters) {
       ? { traitMethod: filters.traitMethod }
       : {}),
     ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
+    ...(filters.side ? { side: filters.side } : {}),
+    ...(filters.personas?.length ? { personas: filters.personas } : {}),
     ...(filters.keywordMethod && filters.keywordMethod !== "or"
       ? { keywordMethod: filters.keywordMethod }
       : {}),

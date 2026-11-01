@@ -18,7 +18,7 @@ vi.mock("../../api/usePrintingFacets", () => ({
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
 
 // Helper function to wrap components with required providers
-function createTestWrapper(initialEntries: string[] = ["/"]) {
+function createTestWrapper(initialEntries: string[] = ["/"], defaultGame: string = "Star Wars Unlimited") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Infinity },
@@ -29,7 +29,7 @@ function createTestWrapper(initialEntries: string[] = ["/"]) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={queryClient}>
-          <GameProvider>{children}</GameProvider>
+          <GameProvider defaultGame={defaultGame}>{children}</GameProvider>
         </QueryClientProvider>
       </MemoryRouter>
     );
@@ -46,6 +46,25 @@ describe("CardsPage filter wiring", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+
+  it("defaults to Dark Side for Star Wars CCG and passes side filter", async () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"], "Star Wars CCG") });
+
+    expect(usePrintingsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        games: ["Star Wars CCG"],
+        side: "Dark",
+      })
+    );
   });
 
   it("syncs filters from URL to query parameters", () => {

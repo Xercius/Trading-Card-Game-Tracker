@@ -46,6 +46,24 @@ export type CardDetail = {
   subtitle?: string | null;
   rules?: string | null;
   rulesStyled?: string | null;
+  side?: string | null;
+  uniqueness?: string | null;
+  destiny?: string | null;
+  deploy?: string | null;
+  forfeit?: string | null;
+  ability?: number | null;
+  armor?: string | null;
+  maneuver?: number | null;
+  hyperspeed?: number | null;
+  landspeed?: number | null;
+  parsec?: number | null;
+  ferocity?: string | null;
+  politics?: number | null;
+  lore?: string | null;
+  extraCardDataJson?: string | null;
+  backTitle?: string | null;
+  backText?: string | null;
+  persona?: string | null;
   printings: CardPrintingDetail[];
 };
 

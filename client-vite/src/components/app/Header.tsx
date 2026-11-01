@@ -24,6 +24,7 @@ const NAV_LINKS: NavLinkItem[] = [
 
 const ADMIN_LINKS: NavLinkItem[] = [
   { to: paths.adminSync, label: "SWU Sync" },
+  { to: paths.adminSwccgSync, label: "SWCCG Sync" },
   { to: paths.adminImport, label: "Admin · Import" },
 ];
 
@@ -45,7 +46,7 @@ const GAME_OPTIONS: GameOption[] = [
     id: "swccg",
     name: "Star Wars CCG",
     logo: "/images/games/SWCCG-Logo.jpg",
-    selectable: false,
+    selectable: true,
   },
   {
     id: "hellbreak",

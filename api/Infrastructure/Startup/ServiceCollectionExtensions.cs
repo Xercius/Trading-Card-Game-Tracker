@@ -2,6 +2,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Importing.Swccg;
 using api.Infrastructure.Auth;
 using api.Models;
 using api.Shared.Importing;
@@ -252,11 +253,24 @@ internal static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromMinutes(5);
         });
 
+        // Typed HTTP client for Star Wars CCG catalog from swccg-card-json.
+        services.AddHttpClient<ISwccgApiClient, SwccgApiClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://raw.githubusercontent.com/swccgpc/swccg-card-json/main/");
+            client.Timeout = TimeSpan.FromMinutes(5);
+        });
+
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(
                 sp.GetRequiredService<AppDbContext>(),
                 sp.GetRequiredService<ISWUApiClient>(),
                 sp.GetRequiredService<ILogger<SwuDbImporter>>(),
+                sp.GetRequiredService<TimeProvider>()));
+        services.AddScoped<ISourceImporter>(sp =>
+            new SwccgJsonImporter(
+                sp.GetRequiredService<AppDbContext>(),
+                sp.GetRequiredService<ISwccgApiClient>(),
+                sp.GetRequiredService<ILogger<SwccgJsonImporter>>(),
                 sp.GetRequiredService<TimeProvider>()));
         services.AddScoped<ImporterRegistry>();
         services.AddScoped<FileParser>();

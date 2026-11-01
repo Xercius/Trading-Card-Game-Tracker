@@ -43,6 +43,8 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="traitMethod">Filtering method for traits ('or', 'and', 'exclude').</param>
     /// <param name="keyword">Optional comma-separated list of associated card keywords to filter by.</param>
     /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
+    /// <param name="side">Optional card side/alignment to filter by (e.g. 'Dark', 'Light').</param>
+    /// <param name="persona">Optional comma-separated list of character personas to filter by.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -64,6 +66,8 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? traitMethod = null,
         [FromQuery] string? keyword = null,
         [FromQuery] string? keywordMethod = null,
+        [FromQuery] string? side = null,
+        [FromQuery] string? persona = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -78,6 +82,7 @@ public sealed class CardFacetsController : ControllerBase
             .ToList();
         var traits = CsvUtils.Parse(trait);
         var keywords = CsvUtils.Parse(keyword);
+        var personas = CsvUtils.Parse(persona);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameLookupQuery = _db.Games.AsQueryable();
         if (games.Count > 0)
@@ -125,6 +130,8 @@ public sealed class CardFacetsController : ControllerBase
         gameQuery = ApplyAspectFilter(gameQuery, aspects, aspectMethod);
         gameQuery = ApplyTraitFilter(gameQuery, traits, traitMethod);
         gameQuery = ApplyKeywordFilter(gameQuery, keywords, keywordMethod);
+        gameQuery = ApplySideFilter(gameQuery, side);
+        gameQuery = ApplyPersonaFilter(gameQuery, personas);
 
         var gameFacets = await gameQuery
             .GroupBy(cp => cp.Card.Game!.Name)
@@ -140,6 +147,8 @@ public sealed class CardFacetsController : ControllerBase
         setQuery = ApplyAspectFilter(setQuery, aspects, aspectMethod);
         setQuery = ApplyTraitFilter(setQuery, traits, traitMethod);
         setQuery = ApplyKeywordFilter(setQuery, keywords, keywordMethod);
+        setQuery = ApplySideFilter(setQuery, side);
+        setQuery = ApplyPersonaFilter(setQuery, personas);
 
         var setFacets = await setQuery
             .Where(cp => cp.CatalogSet != null && !string.IsNullOrWhiteSpace(cp.CatalogSet.Code))
@@ -156,6 +165,8 @@ public sealed class CardFacetsController : ControllerBase
         rarityQuery = ApplyAspectFilter(rarityQuery, aspects, aspectMethod);
         rarityQuery = ApplyTraitFilter(rarityQuery, traits, traitMethod);
         rarityQuery = ApplyKeywordFilter(rarityQuery, keywords, keywordMethod);
+        rarityQuery = ApplySideFilter(rarityQuery, side);
+        rarityQuery = ApplyPersonaFilter(rarityQuery, personas);
 
         var rarityFacets = await rarityQuery
             .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.Name))
@@ -172,6 +183,8 @@ public sealed class CardFacetsController : ControllerBase
         typeQuery = ApplyAspectFilter(typeQuery, aspects, aspectMethod);
         typeQuery = ApplyTraitFilter(typeQuery, traits, traitMethod);
         typeQuery = ApplyKeywordFilter(typeQuery, keywords, keywordMethod);
+        typeQuery = ApplySideFilter(typeQuery, side);
+        typeQuery = ApplyPersonaFilter(typeQuery, personas);
 
         var typePrintingCounts = await GetPrintingCountsByCardAsync(typeQuery, ct);
         var typeCardIds = typePrintingCounts.Keys.ToList();
@@ -192,6 +205,8 @@ public sealed class CardFacetsController : ControllerBase
         arenaQuery = ApplyAspectFilter(arenaQuery, aspects, aspectMethod);
         arenaQuery = ApplyTraitFilter(arenaQuery, traits, traitMethod);
         arenaQuery = ApplyKeywordFilter(arenaQuery, keywords, keywordMethod);
+        arenaQuery = ApplySideFilter(arenaQuery, side);
+        arenaQuery = ApplyPersonaFilter(arenaQuery, personas);
 
         var arenaPrintingCounts = await GetPrintingCountsByCardAsync(arenaQuery, ct);
         var arenaCardIds = arenaPrintingCounts.Keys.ToList();
@@ -212,6 +227,8 @@ public sealed class CardFacetsController : ControllerBase
         aspectQuery = ApplyArenaFilter(aspectQuery, arenas);
         aspectQuery = ApplyTraitFilter(aspectQuery, traits, traitMethod);
         aspectQuery = ApplyKeywordFilter(aspectQuery, keywords, keywordMethod);
+        aspectQuery = ApplySideFilter(aspectQuery, side);
+        aspectQuery = ApplyPersonaFilter(aspectQuery, personas);
 
         var aspectPrintingCounts = await GetPrintingCountsByCardAsync(aspectQuery, ct);
         var aspectCardIds = aspectPrintingCounts.Keys.ToList();
@@ -230,6 +247,8 @@ public sealed class CardFacetsController : ControllerBase
         traitQuery = ApplyArenaFilter(traitQuery, arenas);
         traitQuery = ApplyAspectFilter(traitQuery, aspects, aspectMethod);
         traitQuery = ApplyKeywordFilter(traitQuery, keywords, keywordMethod);
+        traitQuery = ApplySideFilter(traitQuery, side);
+        traitQuery = ApplyPersonaFilter(traitQuery, personas);
 
         var traitPrintingCounts = await GetPrintingCountsByCardAsync(traitQuery, ct);
         var traitCardIds = traitPrintingCounts.Keys.ToList();
@@ -248,6 +267,8 @@ public sealed class CardFacetsController : ControllerBase
         keywordQuery = ApplyArenaFilter(keywordQuery, arenas);
         keywordQuery = ApplyAspectFilter(keywordQuery, aspects, aspectMethod);
         keywordQuery = ApplyTraitFilter(keywordQuery, traits, traitMethod);
+        keywordQuery = ApplySideFilter(keywordQuery, side);
+        keywordQuery = ApplyPersonaFilter(keywordQuery, personas);
 
         var keywordPrintingCounts = await GetPrintingCountsByCardAsync(keywordQuery, ct);
         var keywordCardIds = keywordPrintingCounts.Keys.ToList();
@@ -266,12 +287,45 @@ public sealed class CardFacetsController : ControllerBase
         treatmentQuery = ApplyAspectFilter(treatmentQuery, aspects, aspectMethod);
         treatmentQuery = ApplyTraitFilter(treatmentQuery, traits, traitMethod);
         treatmentQuery = ApplyKeywordFilter(treatmentQuery, keywords, keywordMethod);
+        treatmentQuery = ApplySideFilter(treatmentQuery, side);
+        treatmentQuery = ApplyPersonaFilter(treatmentQuery, personas);
         var treatmentFacets = await treatmentQuery
             .Where(printing => printing.Treatment != null)
             .GroupBy(printing => printing.Treatment!.Name)
             .Select(group => new FacetOption { Value = group.Key, Count = group.Count() })
             .OrderBy(facet => facet.Value)
             .ToListAsync(ct);
+
+        // Compute persona facets
+        var personaQuery = ApplyGameFilter(baseQuery, gameIds);
+        personaQuery = ApplySideFilter(personaQuery, side);
+        personaQuery = ApplySetFilter(personaQuery, sets);
+        personaQuery = ApplyRarityFilter(personaQuery, rarities);
+        personaQuery = ApplyTypeFilter(personaQuery, types);
+        personaQuery = ApplyArenaFilter(personaQuery, arenas);
+        personaQuery = ApplyAspectFilter(personaQuery, aspects, aspectMethod);
+        personaQuery = ApplyTraitFilter(personaQuery, traits, traitMethod);
+        personaQuery = ApplyKeywordFilter(personaQuery, keywords, keywordMethod);
+
+        var rawPersonas = await personaQuery
+            .Where(p => p.Card.Persona != null && p.Card.Persona != "")
+            .Select(p => p.Card.Persona!)
+            .ToListAsync(ct);
+
+        var personaCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in rawPersonas)
+        {
+            var parts = p.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                personaCounts[part] = personaCounts.GetValueOrDefault(part, 0) + 1;
+            }
+        }
+
+        var personaFacets = personaCounts
+            .Select(kvp => new FacetOption { Value = kvp.Key, Count = kvp.Value })
+            .OrderBy(f => f.Value)
+            .ToList();
 
         var response = new CardsFacetResponse
         {
@@ -284,6 +338,7 @@ public sealed class CardFacetsController : ControllerBase
             Traits = traitFacets,
             Keywords = keywordFacets,
             Treatments = treatmentFacets,
+            Personas = personaFacets,
         };
 
         return Ok(response);
@@ -493,4 +548,22 @@ public sealed class CardFacetsController : ControllerBase
         IReadOnlyCollection<string> keywords,
         string? keywordMethod = null)
         => query.ApplyKeywordFilter(keywords, keywordMethod);
+
+    private static IQueryable<CardPrinting> ApplySideFilter(
+        IQueryable<CardPrinting> query,
+        string? side)
+    {
+        if (string.IsNullOrWhiteSpace(side)) return query;
+        var s = side.Trim();
+        return query.Where(p => p.Card.Side != null && EF.Functions.Collate(p.Card.Side, "NOCASE") == s);
+    }
+
+    private static IQueryable<CardPrinting> ApplyPersonaFilter(
+        IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string> personas)
+    {
+        if (personas.Count == 0) return query;
+        return query.Where(p => p.Card.Persona != null &&
+            personas.Any(persona => EF.Functions.Like(p.Card.Persona, "%" + persona + "%")));
+    }
 }

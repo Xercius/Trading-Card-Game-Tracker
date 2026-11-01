@@ -71,6 +71,20 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("Ability")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Armor")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackText")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackTitle")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CardUid")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -78,16 +92,35 @@ namespace api.Migrations
                     b.Property<int?>("Cost")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Deploy")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DeployBox")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeployBoxStyled")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Destiny")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EpicAction")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EpicActionStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraCardDataJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Ferocity")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Forfeit")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("GameId")
@@ -97,8 +130,20 @@ namespace api.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("Hp");
 
+                    b.Property<int?>("Hyperspeed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Landspeed")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("Lore")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Maneuver")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -110,6 +155,16 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", true);
 
+                    b.Property<int?>("Parsec")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Persona")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Politics")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("Power")
                         .HasColumnType("INTEGER");
 
@@ -117,6 +172,10 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RulesStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Side")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Subtitle")
@@ -127,6 +186,10 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TextStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Uniqueness")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("UpgradeHp")
@@ -140,8 +203,10 @@ namespace api.Migrations
                     b.HasIndex("NameNormalized");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Cards_GameId_Name");
+                        .HasDatabaseName("IX_Cards_GameId_Name");
+
+                    b.HasIndex("GameId", "Persona")
+                        .HasDatabaseName("IX_Cards_GameId_Persona");
 
                     b.ToTable("Cards");
                 });

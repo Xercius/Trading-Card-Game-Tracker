@@ -13,6 +13,7 @@ const DecksPage = lazy(() => import("@/pages/DecksPage"));
 const DeckBuilderPage = lazy(() => import("@/pages/DeckBuilderPage"));
 const AdminImportPage = lazy(() => import("@/pages/AdminImportPage"));
 const AdminSyncPanel = lazy(() => import("@/features/admin/sync/AdminSyncPanel"));
+const AdminSwccgSyncPanel = lazy(() => import("@/features/admin/sync/AdminSwccgSyncPanel"));
 const UsersPage = lazy(() => import("@/pages/UsersPage"));
 const ValueHubPage = lazy(() => import("@/pages/ValueHubPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
         ),
       },
       { path: paths.adminSync, element: <AdminSyncPanel /> },
+      { path: paths.adminSwccgSync, element: <AdminSwccgSyncPanel /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

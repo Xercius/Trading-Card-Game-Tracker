@@ -108,6 +108,24 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.UpgradePower), o => o.MapFrom(s => s.UpgradePower))
             .ForCtorParam(nameof(CardDetailResponse.Subtitle), o => o.MapFrom(s => s.Subtitle))
             .ForCtorParam(nameof(CardDetailResponse.Rules), o => o.MapFrom(s => s.Rules))
-            .ForCtorParam(nameof(CardDetailResponse.RulesStyled), o => o.MapFrom(s => s.RulesStyled));
+            .ForCtorParam(nameof(CardDetailResponse.RulesStyled), o => o.MapFrom(s => s.RulesStyled))
+            .ForCtorParam(nameof(CardDetailResponse.Side), o => o.MapFrom(s => s.Side))
+            .ForCtorParam(nameof(CardDetailResponse.Uniqueness), o => o.MapFrom(s => s.Uniqueness))
+            .ForCtorParam(nameof(CardDetailResponse.Destiny), o => o.MapFrom(s => s.Destiny))
+            .ForCtorParam(nameof(CardDetailResponse.Deploy), o => o.MapFrom(s => s.Deploy))
+            .ForCtorParam(nameof(CardDetailResponse.Forfeit), o => o.MapFrom(s => s.Forfeit))
+            .ForCtorParam(nameof(CardDetailResponse.Ability), o => o.MapFrom(s => s.Ability))
+            .ForCtorParam(nameof(CardDetailResponse.Armor), o => o.MapFrom(s => s.Armor))
+            .ForCtorParam(nameof(CardDetailResponse.Maneuver), o => o.MapFrom(s => s.Maneuver))
+            .ForCtorParam(nameof(CardDetailResponse.Hyperspeed), o => o.MapFrom(s => s.Hyperspeed))
+            .ForCtorParam(nameof(CardDetailResponse.Landspeed), o => o.MapFrom(s => s.Landspeed))
+            .ForCtorParam(nameof(CardDetailResponse.Parsec), o => o.MapFrom(s => s.Parsec))
+            .ForCtorParam(nameof(CardDetailResponse.Ferocity), o => o.MapFrom(s => s.Ferocity))
+            .ForCtorParam(nameof(CardDetailResponse.Politics), o => o.MapFrom(s => s.Politics))
+            .ForCtorParam(nameof(CardDetailResponse.Lore), o => o.MapFrom(s => s.Lore))
+            .ForCtorParam(nameof(CardDetailResponse.ExtraCardDataJson), o => o.MapFrom(s => s.ExtraCardDataJson))
+            .ForCtorParam(nameof(CardDetailResponse.BackTitle), o => o.MapFrom(s => s.BackTitle))
+            .ForCtorParam(nameof(CardDetailResponse.BackText), o => o.MapFrom(s => s.BackText))
+            .ForCtorParam(nameof(CardDetailResponse.Persona), o => o.MapFrom(s => s.Persona));
     }
 }

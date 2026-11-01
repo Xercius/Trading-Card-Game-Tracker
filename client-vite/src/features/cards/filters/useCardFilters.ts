@@ -160,6 +160,8 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const traitMethod: TraitMethod =
     rawTraitMethod === "and" || rawTraitMethod === "exclude" ? rawTraitMethod : "or";
   const keywords = parseCsv(params.get("keyword"));
+  const side = params.get("side") || undefined;
+  const personas = parseCsv(params.get("persona"));
   const rawKeywordMethod = params.get("keywordMethod")?.toLowerCase();
   const keywordMethod: KeywordMethod =
     rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";

@@ -319,6 +319,7 @@ export default function CardModal({
 
   const printings = printingsQuery.data ?? EMPTY_PRINTINGS;
   const details = detailsQuery.data;
+  const isSwccg = details?.game === "Star Wars CCG";
 
   const { displayName, subtitle } = useMemo(() => {
     if (!details) return { displayName: "", subtitle: null };
@@ -585,7 +586,150 @@ export default function CardModal({
                 )}
 
                 {details && (
-                  <div className="space-y-4 text-sm" aria-live="polite">
+                  isSwccg ? (
+                    <div className="space-y-4 text-sm" aria-live="polite">
+                      {/* 1. Header: Name, Side Badge, Type */}
+                      <div>
+                        <div className="flex items-center flex-wrap gap-2.5">
+                          <h2
+                            data-testid="card-modal-card-name"
+                            className="text-2xl font-bold tracking-tight text-foreground"
+                          >
+                            {displayName || details.name}
+                          </h2>
+                          {details.side && (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                                details.side.toLowerCase().includes("dark")
+                                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                  : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                              }`}
+                            >
+                              {details.side.toLowerCase().includes("dark") ? "Dark Side" : "Light Side"}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-sm font-semibold text-muted-foreground mt-0.5">
+                          {details.cardType}{details.cardType2 ? ` • ${details.cardType2}` : ""}
+                        </p>
+
+                        {/* 2. SWCCG Stats Badges */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2" aria-label="SWCCG card stats">
+                          {details.destiny != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Destiny</span>
+                              <span className="text-base font-black text-amber-400">{details.destiny}</span>
+                            </div>
+                          )}
+                          {(details.deploy != null || details.cost != null) && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Deploy</span>
+                              <span className="text-base font-black text-foreground">{details.deploy ?? details.cost}</span>
+                            </div>
+                          )}
+                          {details.forfeit != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Forfeit</span>
+                              <span className="text-base font-black text-foreground">{details.forfeit}</span>
+                            </div>
+                          )}
+                          {details.power != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Power</span>
+                              <span className="text-base font-black text-red-400">{details.power}</span>
+                            </div>
+                          )}
+                          {details.ability != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Ability</span>
+                              <span className="text-base font-black text-sky-400">{details.ability}</span>
+                            </div>
+                          )}
+                          {details.armor != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Armor</span>
+                              <span className="text-base font-black text-foreground">{details.armor}</span>
+                            </div>
+                          )}
+                          {details.maneuver != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Maneuver</span>
+                              <span className="text-base font-black text-foreground">{details.maneuver}</span>
+                            </div>
+                          )}
+                          {details.hyperspeed != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Hyperspeed</span>
+                              <span className="text-base font-black text-foreground">{details.hyperspeed}</span>
+                            </div>
+                          )}
+                          {details.landspeed != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Landspeed</span>
+                              <span className="text-base font-black text-foreground">{details.landspeed}</span>
+                            </div>
+                          )}
+                          {details.parsec != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Parsec</span>
+                              <span className="text-base font-black text-foreground">{details.parsec}</span>
+                            </div>
+                          )}
+                          {details.ferocity != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Ferocity</span>
+                              <span className="text-base font-black text-foreground">{details.ferocity}</span>
+                            </div>
+                          )}
+                          {details.politics != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Politics</span>
+                              <span className="text-base font-black text-foreground">{details.politics}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Traits */}
+                        {details.traits && details.traits.length > 0 && (
+                          <p className="text-sm italic text-foreground/85 mt-2">
+                            {details.traits.join(", ")}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Gametext */}
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Gametext
+                        </h3>
+                        {renderStyledCardText(rulesTextSource, "No gametext available.")}
+                      </div>
+
+                      {/* Lore */}
+                      {details.lore && (
+                        <div className="space-y-1">
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Lore
+                          </h3>
+                          <p className="text-sm italic text-muted-foreground leading-relaxed">
+                            {details.lore}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Two-sided Objectives */}
+                      {(details.backTitle || details.backText) && (
+                        <div className="space-y-1.5 pt-3 border-t border-border/50">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                            Back: {details.backTitle || "Objective Back"}
+                          </h3>
+                          {renderStyledCardText(details.backText)}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4 text-sm" aria-live="polite">
                     {/* 1. Header (Name with Aspect Logos right next to it, Subtitle underneath, Stats & Traits) */}
                     <div>
                       <div className="flex items-center flex-wrap gap-2.5">
@@ -710,16 +854,17 @@ export default function CardModal({
                       </div>
                     )}
                   </div>
-                )}
+                )
+              )}
               </section>
 
               {/* Right Column: Card Rulings (Conditional) */}
               {hasRulings && (
                 <section
-                  aria-label="Card rulings"
+                  aria-label={isSwccg ? "Extra card data and rulings" : "Card rulings"}
                   className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card/40 p-4 overflow-y-auto"
                 >
-                  <h2 className="text-base font-semibold tracking-tight">Rulings</h2>
+                  <h2 className="text-base font-semibold tracking-tight">{isSwccg ? "Extra Card Data & Rulings" : "Rulings"}</h2>
                   <div className="space-y-2 text-sm text-foreground/90">
                     {renderStyledCardText(rulingsSource)}
                   </div>

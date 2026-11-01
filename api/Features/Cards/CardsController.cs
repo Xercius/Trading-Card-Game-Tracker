@@ -339,7 +339,25 @@ public class CardsController : ControllerBase
             c.UpgradePower,
             c.Subtitle,
             c.Rules,
-            c.RulesStyled);
+            c.RulesStyled,
+            c.Side,
+            c.Uniqueness,
+            c.Destiny,
+            c.Deploy,
+            c.Forfeit,
+            c.Ability,
+            c.Armor,
+            c.Maneuver,
+            c.Hyperspeed,
+            c.Landspeed,
+            c.Parsec,
+            c.Ferocity,
+            c.Politics,
+            c.Lore,
+            c.ExtraCardDataJson,
+            c.BackTitle,
+            c.BackText,
+            c.Persona);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.

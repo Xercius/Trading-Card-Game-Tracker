@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-export const DEFAULT_GAME = "Star Wars Unlimited";
+export const DEFAULT_GAME = "Star Wars CCG";
 export const STORAGE_KEY_ACTIVE_GAME = "active_game";
 export const STORAGE_KEY_SELECTED_GAME = "selected_game";
 

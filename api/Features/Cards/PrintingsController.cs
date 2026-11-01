@@ -136,6 +136,19 @@ public sealed class PrintingsController : ControllerBase
         var keywords = CsvUtils.Parse(qp.Keyword);
         query = query.ApplyKeywordFilter(keywords, qp.KeywordMethod);
 
+        if (!string.IsNullOrWhiteSpace(qp.Side))
+        {
+            var side = qp.Side.Trim();
+            query = query.Where(p => p.Card.Side != null && EF.Functions.Collate(p.Card.Side, "NOCASE") == side);
+        }
+
+        var personas = CsvUtils.Parse(qp.Persona);
+        if (personas.Count > 0)
+        {
+            query = query.Where(p => p.Card.Persona != null &&
+                personas.Any(persona => EF.Functions.Like(p.Card.Persona, "%" + persona + "%")));
+        }
+
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)

@@ -24,6 +24,24 @@ public sealed class Card
     public int? Hp { get; set; }
     public int? UpgradeHp { get; set; }
     public int? UpgradePower { get; set; }
+    public string? Side { get; set; }
+    public string? Uniqueness { get; set; }
+    public string? Destiny { get; set; }
+    public string? Deploy { get; set; }
+    public string? Forfeit { get; set; }
+    public int? Ability { get; set; }
+    public string? Armor { get; set; }
+    public int? Maneuver { get; set; }
+    public int? Hyperspeed { get; set; }
+    public int? Landspeed { get; set; }
+    public int? Parsec { get; set; }
+    public string? Ferocity { get; set; }
+    public int? Politics { get; set; }
+    public string? Persona { get; set; }
+    public string? Lore { get; set; }
+    public string? ExtraCardDataJson { get; set; }
+    public string? BackTitle { get; set; }
+    public string? BackText { get; set; }
     public DateTimeOffset? LastSyncedAt { get; set; }
 
     public ICollection<CardPrinting> Printings { get; set; } = new List<CardPrinting>();
