@@ -22,6 +22,18 @@ export type CardFiltersDrawerProps = {
   game?: string;
 };
 
+type NumericFilterKey = "powers" | "abilities" | "lightSideIcons" | "darkSideIcons";
+type NumericFilterDrafts = Record<NumericFilterKey, string>;
+
+function getNumericFilterDrafts(filters: CardFilters): NumericFilterDrafts {
+  return {
+    powers: filters.powers?.join(", ") ?? "",
+    abilities: filters.abilities?.join(", ") ?? "",
+    lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
+    darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+  };
+}
+
 const FOCUSABLE = [
   "a[href]",
   "button:not([disabled])",
@@ -68,6 +80,9 @@ export function CardFiltersDrawer({
 }: CardFiltersDrawerProps) {
   const drawerRef = React.useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = React.useRef<HTMLElement | null>(null);
+  const [numericFilterDrafts, setNumericFilterDrafts] = React.useState(() =>
+    getNumericFilterDrafts(filters)
+  );
   const isSwccg = game === "Star Wars CCG";
   const activeSide = filters.side
     ? filters.side.toLowerCase() === "light"
@@ -76,6 +91,23 @@ export function CardFiltersDrawer({
         ? "Dark"
         : null
     : null;
+
+  React.useEffect(() => {
+    setNumericFilterDrafts({
+      powers: filters.powers?.join(", ") ?? "",
+      abilities: filters.abilities?.join(", ") ?? "",
+      lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
+      darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+    });
+  }, [filters.powers, filters.abilities, filters.lightSideIcons, filters.darkSideIcons]);
+
+  const commitNumericFilter = (key: NumericFilterKey) => {
+    const values = numericFilterDrafts[key]
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    setFilters((prev) => ({ ...prev, [key]: values, page: 1 }));
+  };
 
   React.useEffect(() => {
     if (!open) return;
@@ -353,15 +385,11 @@ export function CardFiltersDrawer({
                     id="filter-power"
                     placeholder="e.g. >2"
                     className="h-8 text-xs bg-card/40 border-white/20"
-                    value={filters.powers?.[0] ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setFilters((prev) => ({
-                        ...prev,
-                        powers: val ? [val] : [],
-                        page: 1,
-                      }));
-                    }}
+                    value={numericFilterDrafts.powers}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, powers: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("powers")}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -372,15 +400,11 @@ export function CardFiltersDrawer({
                     id="filter-ability"
                     placeholder="e.g. >2"
                     className="h-8 text-xs bg-card/40 border-white/20"
-                    value={filters.abilities?.[0] ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setFilters((prev) => ({
-                        ...prev,
-                        abilities: val ? [val] : [],
-                        page: 1,
-                      }));
-                    }}
+                    value={numericFilterDrafts.abilities}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, abilities: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("abilities")}
                   />
                 </div>
               </div>
@@ -396,15 +420,14 @@ export function CardFiltersDrawer({
                     aria-label="Light Side Icons"
                     placeholder="e.g. >1"
                     className="h-8 text-xs bg-card/40 border-white/20"
-                    value={filters.lightSideIcons?.[0] ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setFilters((prev) => ({
+                    value={numericFilterDrafts.lightSideIcons}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({
                         ...prev,
-                        lightSideIcons: val ? [val] : [],
-                        page: 1,
-                      }));
-                    }}
+                        lightSideIcons: e.target.value,
+                      }))
+                    }
+                    onBlur={() => commitNumericFilter("lightSideIcons")}
                   />
                 </div>
                 <div className="flex items-center gap-2" title="Dark Side Icons">
@@ -416,15 +439,11 @@ export function CardFiltersDrawer({
                     aria-label="Dark Side Icons"
                     placeholder="e.g. >1"
                     className="h-8 text-xs bg-card/40 border-white/20"
-                    value={filters.darkSideIcons?.[0] ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value.trim();
-                      setFilters((prev) => ({
-                        ...prev,
-                        darkSideIcons: val ? [val] : [],
-                        page: 1,
-                      }));
-                    }}
+                    value={numericFilterDrafts.darkSideIcons}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, darkSideIcons: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("darkSideIcons")}
                   />
                 </div>
               </div>

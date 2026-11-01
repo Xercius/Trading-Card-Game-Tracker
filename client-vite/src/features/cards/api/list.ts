@@ -193,6 +193,7 @@ export type CardFacetRarities = {
 
 export type FacetOption = {
   value: string;
+  label?: string;
   count: number;
 };
 

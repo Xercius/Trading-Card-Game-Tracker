@@ -439,7 +439,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task GetFacets_DisplaysSetNameInsteadOfSetCode_ForBothSwuAndSwccg()
+    public async Task GetFacets_UsesSetCodeAsValueAndNameAsLabel_ForBothSwuAndSwccg()
     {
         await factory.ResetDatabaseAsync();
         using (var scope = factory.Services.CreateScope())
@@ -470,16 +470,15 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             swuResponse.EnsureSuccessStatusCode();
             var swuFacets = await swuResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
             Assert.NotNull(swuFacets);
-            Assert.Contains(swuFacets!.Sets, s => s.Value == "Spark of Rebellion");
-            Assert.DoesNotContain(swuFacets.Sets, s => s.Value == "SOR");
+            Assert.Contains(swuFacets!.Sets, s =>
+                s.Value == "SOR" && s.Label == "Spark of Rebellion");
 
             // SWCCG facets
             var swccgResponse = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
             swccgResponse.EnsureSuccessStatusCode();
             var swccgFacets = await swccgResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
             Assert.NotNull(swccgFacets);
-            Assert.Contains(swccgFacets!.Sets, s => s.Value == "Premiere");
-            Assert.DoesNotContain(swccgFacets.Sets, s => s.Value == "PRE");
+            Assert.Contains(swccgFacets!.Sets, s => s.Value == "PRE" && s.Label == "Premiere");
         }
         finally
         {

@@ -390,13 +390,20 @@ describe("CardFiltersDrawer", () => {
     expect(updater(defaultFilters)).toMatchObject({ side: undefined, page: 1 });
   });
 
-  it("updates numeric filters when typing values or comparison operators into Power, Ability, and Force icons", () => {
+  it("preserves and commits complete numeric-expression lists for all four inputs", () => {
     const handleSetFilters = vi.fn();
+    const filters = {
+      ...defaultFilters,
+      powers: ["2", "6"],
+      abilities: ["1", "3"],
+      lightSideIcons: ["0", "2"],
+      darkSideIcons: ["1", "4"],
+    };
     render(
       <CardFiltersDrawer
         open={true}
         onOpenChange={vi.fn()}
-        filters={defaultFilters}
+        filters={filters}
         setFilters={handleSetFilters}
         availableFacets={defaultFacets}
         isFacetsLoading={false}
@@ -408,25 +415,24 @@ describe("CardFiltersDrawer", () => {
       />
     );
 
-    // Power
-    fireEvent.change(screen.getByRole("textbox", { name: /^Power/i }), { target: { value: ">2" } });
-    expect(handleSetFilters).toHaveBeenCalled();
-    let updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
-    expect(updater(defaultFilters)).toMatchObject({ powers: [">2"], page: 1 });
+    const numericInputs = [
+      { name: /^Power/i, key: "powers" as const },
+      { name: /^Ability/i, key: "abilities" as const },
+      { name: /^Light Side Icons/i, key: "lightSideIcons" as const },
+      { name: /^Dark Side Icons/i, key: "darkSideIcons" as const },
+    ];
 
-    // Ability
-    fireEvent.change(screen.getByRole("textbox", { name: /^Ability/i }), { target: { value: "<5" } });
-    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
-    expect(updater(defaultFilters)).toMatchObject({ abilities: ["<5"], page: 1 });
+    for (const { name, key } of numericInputs) {
+      handleSetFilters.mockClear();
+      const input = screen.getByRole("textbox", { name });
+      expect(input).toHaveValue(filters[key].join(", "));
+      fireEvent.change(input, { target: { value: ">2, 6," } });
+      expect(input).toHaveValue(">2, 6,");
+      expect(handleSetFilters).not.toHaveBeenCalled();
+      fireEvent.blur(input);
 
-    // Light Side Icons
-    fireEvent.change(screen.getByRole("textbox", { name: /^Light Side Icons/i }), { target: { value: "2" } });
-    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
-    expect(updater(defaultFilters)).toMatchObject({ lightSideIcons: ["2"], page: 1 });
-
-    // Dark Side Icons
-    fireEvent.change(screen.getByRole("textbox", { name: /^Dark Side Icons/i }), { target: { value: ">1" } });
-    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
-    expect(updater(defaultFilters)).toMatchObject({ darkSideIcons: [">1"], page: 1 });
+      const updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+      expect(updater(filters)).toMatchObject({ [key]: [">2", "6"], page: 1 });
+    }
   });
 });

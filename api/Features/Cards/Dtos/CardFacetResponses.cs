@@ -14,6 +14,12 @@ public sealed record FacetOption
     public required string Value { get; init; }
 
     /// <summary>
+    /// Optional display label when it differs from the stable facet value.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; init; }
+
+    /// <summary>
     /// Number of cards that match this facet value with current filters applied.
     /// </summary>
     public required int Count { get; init; }

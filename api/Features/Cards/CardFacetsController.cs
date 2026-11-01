@@ -237,8 +237,12 @@ public sealed class CardFacetsController : ControllerBase
 
         var setFacets = await setQuery
             .Where(cp => cp.CatalogSet != null && (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) || !string.IsNullOrWhiteSpace(cp.CatalogSet.Code)))
-            .GroupBy(cp => !string.IsNullOrWhiteSpace(cp.CatalogSet!.Name) ? cp.CatalogSet.Name : cp.CatalogSet!.Code)
-            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .GroupBy(cp => new
+            {
+                Value = (!string.IsNullOrWhiteSpace(cp.CatalogSet!.Code) ? cp.CatalogSet.Code : cp.CatalogSet.Name)!,
+                Label = (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) ? cp.CatalogSet.Name : cp.CatalogSet.Code)!
+            })
+            .Select(g => new FacetOption { Value = g.Key.Value, Label = g.Key.Label, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
 
