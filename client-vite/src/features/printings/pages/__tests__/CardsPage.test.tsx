@@ -85,6 +85,68 @@ describe("CardsPage filter wiring", () => {
     );
   });
 
+  it("omits SWCCG filters from SWU printing and facet queries", () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+    const useFacetsSpy = vi.spyOn(printingFacetsApi, "usePrintingFacets");
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(
+        [
+          "/cards?side=Dark&persona=Vader&subType=Imperial&aspect=Vigilance&arena=Ground&keyword=Sentinel",
+        ],
+        "Star Wars Unlimited"
+      ),
+    });
+
+    for (const query of [usePrintingsSpy.mock.calls[0][0], useFacetsSpy.mock.calls[0][0]]) {
+      expect(query).toMatchObject({
+        games: ["Star Wars Unlimited"],
+        side: undefined,
+        personas: [],
+        subTypes: [],
+        aspects: ["Vigilance"],
+        arenas: ["Ground"],
+        keywords: ["Sentinel"],
+      });
+    }
+  });
+
+  it("omits SWU filters from SWCCG printing and facet queries", () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+    const useFacetsSpy = vi.spyOn(printingFacetsApi, "usePrintingFacets");
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(
+        ["/cards?side=Light&persona=Luke&subType=Jedi&aspect=Villainy&arena=Ground&keyword=Grit"],
+        "Star Wars CCG"
+      ),
+    });
+
+    for (const query of [usePrintingsSpy.mock.calls[0][0], useFacetsSpy.mock.calls[0][0]]) {
+      expect(query).toMatchObject({
+        games: ["Star Wars CCG"],
+        side: "Light",
+        personas: ["Luke"],
+        subTypes: ["Jedi"],
+        aspects: [],
+        arenas: [],
+        keywords: [],
+        aspectMethod: undefined,
+        keywordMethod: undefined,
+      });
+    }
+  });
+
   it("syncs filters from URL to query parameters", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     const mockPrintingsResult = {

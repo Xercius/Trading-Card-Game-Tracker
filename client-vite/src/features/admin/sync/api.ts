@@ -52,8 +52,7 @@ export function useAdminSyncLoginMutation() {
     mutationFn: async (login: { username: string; password: string }) => {
       await http.post(sessionRoute, login, await csrfConfig());
     },
-    onSuccess: () =>
-      queryClient.resetQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() }),
+    onSuccess: () => queryClient.resetQueries({ queryKey: adminSyncKeys.all }),
   });
 }
 
@@ -64,8 +63,7 @@ export function useAdminSyncLogoutMutation() {
     mutationFn: async () => {
       await http.delete(sessionRoute, await csrfConfig());
     },
-    onSuccess: () =>
-      queryClient.resetQueries({ queryKey: adminSyncKeys.starWarsUnlimitedStatus() }),
+    onSuccess: () => queryClient.resetQueries({ queryKey: adminSyncKeys.all }),
   });
 }
 
@@ -130,7 +128,6 @@ export function useRunStarWarsUnlimitedSyncMutation() {
 export type SwccgSyncOptions = {
   dryRun?: boolean;
   limit?: number;
-  reset?: boolean;
 };
 
 /**

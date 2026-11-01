@@ -6,6 +6,7 @@ using api.Importing;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Admin.Sync;
@@ -293,6 +294,7 @@ public sealed class AdminSyncController(
     [HttpPost("star-wars-ccg")]
     public async Task<ActionResult<AdminSyncStatusResponse>> RunStarWarsCcg(
         CancellationToken ct,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AdminSwccgSyncRequest? request = null,
         [FromQuery] bool forceFullSync = false)
     {
         var startedAt = timeProvider.GetUtcNow();
@@ -316,7 +318,7 @@ public sealed class AdminSyncController(
         var combined = new ImportSummary
         {
             Source = SwccgImporterKey,
-            DryRun = false
+            DryRun = request?.DryRun ?? false
         };
 
         try
@@ -338,13 +340,22 @@ public sealed class AdminSyncController(
             try
             {
                 var summary = await importer.ImportFromRemoteAsync(
-                    new ImportOptions(DryRun: false, Upsert: true, UpdatedSince: updatedSince), ct);
+                    new ImportOptions(
+                        DryRun: request?.DryRun ?? false,
+                        Upsert: true,
+                        Limit: request?.Limit,
+                        UpdatedSince: updatedSince), ct);
 
                 MergeSummary(combined, summary);
                 setCodes = await ResolveSetCodesAsync("star wars ccg", ct);
                 if (summary.Errors == 0)
                 {
-                    await RecordSuccessfulSyncAsync(syncLog, summary, startedAt, SwccgCatalogHistoryKey, ct);
+                    await RecordSuccessfulSyncAsync(
+                        syncLog,
+                        summary,
+                        startedAt,
+                        summary.DryRun ? null : SwccgCatalogHistoryKey,
+                        ct);
                 }
                 else
                 {
@@ -360,8 +371,8 @@ public sealed class AdminSyncController(
             {
                 logger.LogError(ex, "Admin catalog sync failed for {Source}.", SwccgImporterKey);
                 combined.Errors++;
-                combined.Messages.Add($"Catalog sync failed: {ex.Message}");
-                await UpdateSyncLogFailedAsync(syncLog, $"Import failed: {ex.Message}");
+                combined.Messages.Add("Catalog sync failed. Retry the sync; its checkpoint was not advanced.");
+                await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
             }
 
             var completedAt = timeProvider.GetUtcNow();
@@ -410,23 +421,26 @@ public sealed class AdminSyncController(
     }
 
     private async Task RecordSuccessfulSyncAsync(
-        SyncLog syncLog, ImportSummary summary, DateTimeOffset checkpoint, string historyKey, CancellationToken ct)
+        SyncLog syncLog, ImportSummary summary, DateTimeOffset checkpoint, string? historyKey, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var entry = await db.ImportSyncHistories
-            .SingleOrDefaultAsync(h => h.ImporterKey == historyKey && h.SetCode == "", ct);
-        if (entry is null)
+        if (historyKey is not null)
         {
-            db.ImportSyncHistories.Add(new ImportSyncHistory
+            var entry = await db.ImportSyncHistories
+                .SingleOrDefaultAsync(h => h.ImporterKey == historyKey && h.SetCode == "", ct);
+            if (entry is null)
             {
-                ImporterKey = historyKey,
-                SetCode = "",
-                LastSyncedAt = checkpoint
-            });
-        }
-        else
-        {
-            entry.LastSyncedAt = checkpoint;
+                db.ImportSyncHistories.Add(new ImportSyncHistory
+                {
+                    ImporterKey = historyKey,
+                    SetCode = "",
+                    LastSyncedAt = checkpoint
+                });
+            }
+            else
+            {
+                entry.LastSyncedAt = checkpoint;
+            }
         }
 
         syncLog.Status = "Succeeded";

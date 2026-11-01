@@ -161,7 +161,7 @@ public sealed class SwccgJsonImporter : ISourceImporter
                         _logger.LogError(ex, "Failed to import SWCCG card record {SourceId} ({Title}).",
                             record.Id, record.Front?.Title);
                         summary.Errors++;
-                        summary.Messages.Add($"Error [{record.Id}] {record.Front?.Title}: {ex.Message}");
+                        summary.Messages.Add($"Failed to import SWCCG record [{record.Id}].");
                     }
                 }
             }

@@ -26,7 +26,6 @@ export default function AdminSwccgSyncPanel() {
   const logout = useAdminSyncLogoutMutation();
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
   const [dryRun, setDryRun] = useState(false);
-  const [reset, setReset] = useState(false);
 
   const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
   const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
@@ -37,7 +36,6 @@ export default function AdminSwccgSyncPanel() {
 
     const options: SwccgSyncOptions = overrideOptions ?? {
       dryRun,
-      reset,
     };
 
     try {
@@ -203,16 +201,6 @@ export default function AdminSwccgSyncPanel() {
           />
           <span>Dry run (validate without committing changes)</span>
         </label>
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={reset}
-            onChange={(e) => setReset(e.target.checked)}
-            disabled={isRunning}
-            className="rounded border"
-          />
-          <span>Reset catalog (re-import all cards from scratch)</span>
-        </label>
       </div>
 
       <div
@@ -277,4 +265,3 @@ export default function AdminSwccgSyncPanel() {
     </section>
   );
 }
-

@@ -184,6 +184,31 @@ describe("CardFiltersDrawer", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("returns focus to the drawer when Tab is pressed while focus is outside", () => {
+    render(
+      <>
+        <button type="button">Outside control</button>
+        <CardFiltersDrawer
+          open={true}
+          onOpenChange={vi.fn()}
+          filters={defaultFilters}
+          setFilters={vi.fn()}
+          availableFacets={defaultFacets}
+          isFacetsLoading={false}
+          isFacetsError={false}
+          onRetryFacets={vi.fn()}
+          onClearFilters={vi.fn()}
+          hasActiveFilters={false}
+        />
+      </>
+    );
+
+    screen.getByRole("button", { name: "Outside control" }).focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(screen.getByRole("button", { name: "Close filters" })).toHaveFocus();
+  });
+
   it("enables and triggers Clear Filters when hasActiveFilters is true", () => {
     const handleClearFilters = vi.fn();
     render(

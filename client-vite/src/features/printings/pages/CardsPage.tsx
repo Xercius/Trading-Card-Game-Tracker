@@ -97,7 +97,13 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      arenas: isSwccg ? [] : filters.arenas,
+      aspects: isSwccg ? [] : filters.aspects,
+      aspectMethod: isSwccg ? undefined : filters.aspectMethod,
+      keywords: isSwccg ? [] : filters.keywords,
+      keywordMethod: isSwccg ? undefined : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,
+      personas: isSwccg ? filters.personas : [],
       subTypes: isSwccg ? filters.subTypes : [],
       destinies: isSwccg ? filters.destinies : [],
       deploys: isSwccg ? filters.deploys : [],

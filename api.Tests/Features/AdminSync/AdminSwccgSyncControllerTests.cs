@@ -166,6 +166,135 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
         Assert.Equal(1, logsPayload.TotalCount);
     }
 
+    [Fact]
+    public async Task RunStarWarsCcg_DryRunHonorsLimit_AndDoesNotPersistCatalogOrCheckpoint()
+    {
+        await factory.ResetDatabaseAsync();
+        var apiClient = new RecordingSwccgApiClient(
+            cards: [CreateCard(501, "Darth Vader"), CreateCard(502, "Luke Skywalker")]);
+        var (client, services) = CreateClientWithSwccgImporter(factory, apiClient);
+        client.AsAdmin();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/admin/sync/star-wars-ccg",
+            new { dryRun = true, limit = 1 });
+
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Succeeded", payload!.Status);
+        Assert.Equal(2, payload.Created);
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.Cards.Where(c => c.Game!.Name == "Star Wars CCG").ToListAsync());
+        Assert.Empty(await db.CardPrintings.Where(p => p.Card.Game!.Name == "Star Wars CCG").ToListAsync());
+        Assert.Null(await db.ImportSyncHistories.SingleOrDefaultAsync(h => h.ImporterKey == "swccg-catalog"));
+    }
+
+    [Fact]
+    public async Task RunStarWarsCcg_WhenLimitIsInvalid_ReturnsBadRequest()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _) = CreateClientWithSwccgImporter(factory);
+        client.AsAdmin();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/admin/sync/star-wars-ccg",
+            new { dryRun = false, limit = 0 });
+
+        Assert.True(
+            response.StatusCode == HttpStatusCode.BadRequest,
+            await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task RunStarWarsCcg_WhenImporterThrows_DoesNotExposeExceptionDetails()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, services) = CreateClientWithSwccgImporter(
+            factory,
+            new ThrowingSwccgApiClient("internal database detail"));
+        client.AsAdmin();
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-ccg", null);
+
+        response.EnsureSuccessStatusCode();
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("internal database detail", responseBody);
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var syncLog = await db.SyncLogs.SingleAsync(l => l.CatalogScope == "SwccgCatalog");
+        Assert.Equal("Import failed. See server logs for details.", syncLog.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task RunStarWarsCcg_WhenCardRecordFails_UsesGenericSourceIdMessage()
+    {
+        await factory.ResetDatabaseAsync();
+        var apiClient = new RecordingSwccgApiClient(cards: [CreateCard(99, null)]);
+        var (client, _) = CreateClientWithSwccgImporter(factory, apiClient);
+        client.AsAdmin();
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-ccg", null);
+        response.EnsureSuccessStatusCode();
+
+        var payload = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Contains("Failed to import SWCCG record [99].", payload!.Messages);
+        Assert.DoesNotContain(payload.Messages, message => message.Contains("missing face title"));
+    }
+
+    private static SwccgCardRecord CreateCard(int id, string? title)
+    {
+        return new SwccgCardRecord(
+            Id: id,
+            GempId: $"1_{id}",
+            Side: "Dark",
+            Rarity: null,
+            Set: "1",
+            Printings: null,
+            Abbr: null,
+            Combo: null,
+            Matching: null,
+            MatchingWeapon: null,
+            Pulls: null,
+            PulledBy: null,
+            UnderlyingCardFor: null,
+            Personas: null,
+            Rulings: null,
+            Misc: null,
+            Counterpart: null,
+            Legacy: false,
+            Front: title is null
+                ? null
+                : new SwccgFaceRecord(
+                    Title: title,
+                    Type: "Character",
+                    SubType: null,
+                    Uniqueness: null,
+                    Destiny: null,
+                    Deploy: null,
+                    Forfeit: null,
+                    Power: null,
+                    Ability: null,
+                    Armor: null,
+                    Maneuver: null,
+                    Hyperspeed: null,
+                    Landspeed: null,
+                    Parsec: null,
+                    Ferocity: null,
+                    Politics: null,
+                    Gametext: null,
+                    Lore: null,
+                    ImageUrl: null,
+                    Icons: null,
+                    Characteristics: null,
+                    ExtraText: null),
+            Back: null);
+    }
+
     private sealed class RecordingSwccgApiClient(
         List<SwccgSet>? sets = null,
         List<SwccgCardRecord>? cards = null) : ISwccgApiClient
@@ -184,5 +313,20 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
 
         public Task<List<SwccgCardRecord>> GetAllCardsAsync(CancellationToken ct = default)
             => Task.FromResult(_cards);
+    }
+
+    private sealed class ThrowingSwccgApiClient(string message) : ISwccgApiClient
+    {
+        public Task<List<SwccgSet>> GetSetsAsync(CancellationToken ct = default)
+            => throw new InvalidOperationException(message);
+
+        public Task<List<SwccgCardRecord>> GetDarkCardsAsync(CancellationToken ct = default)
+            => throw new InvalidOperationException(message);
+
+        public Task<List<SwccgCardRecord>> GetLightCardsAsync(CancellationToken ct = default)
+            => throw new InvalidOperationException(message);
+
+        public Task<List<SwccgCardRecord>> GetAllCardsAsync(CancellationToken ct = default)
+            => throw new InvalidOperationException(message);
     }
 }
