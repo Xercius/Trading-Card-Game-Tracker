@@ -13,7 +13,7 @@ type FiltersRailProps = {
 type ChecklistProps = {
   idPrefix: string;
   title: string;
-  options: readonly string[];
+  options: readonly (string | { value: string; label?: string })[];
   selected: readonly string[];
   onToggle: (value: string) => void;
   loading?: boolean;
@@ -66,11 +66,13 @@ function Checklist({
       </h3>
       <div className="space-y-2">
         {options.map((option) => {
-          const id = `${idPrefix}-${option.replace(/\s+/g, "-").toLowerCase()}`;
-          const isChecked = selected.includes(option);
+          const value = typeof option === "string" ? option : option.value;
+          const label = typeof option === "string" ? option : (option.label ?? option.value);
+          const id = `${idPrefix}-${value.replace(/\s+/g, "-").toLowerCase()}`;
+          const isChecked = selected.includes(value);
           return (
             <label
-              key={option}
+              key={value}
               htmlFor={id}
               className="flex cursor-pointer items-center gap-2 text-sm"
             >
@@ -78,10 +80,10 @@ function Checklist({
                 id={id}
                 type="checkbox"
                 checked={isChecked}
-                onChange={() => onToggle(option)}
+                onChange={() => onToggle(value)}
                 className="h-4 w-4 rounded border border-input text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
-              <span>{option}</span>
+              <span>{label}</span>
             </label>
           );
         })}
@@ -147,6 +149,10 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
   );
   const setOptions = useMemo(
     () => facetsQuery.data?.sets.map((f) => f.value) ?? [],
+    [facetsQuery.data?.sets]
+  );
+  const setDisplayOptions = useMemo(
+    () => facetsQuery.data?.sets.map((f) => ({ value: f.value, label: f.label })) ?? [],
     [facetsQuery.data?.sets]
   );
   const rarityOptions = useMemo(
@@ -351,7 +357,7 @@ export default function FiltersRail({ onClose, onClearAll }: FiltersRailProps) {
         <Checklist
           idPrefix="card-sets"
           title="Sets"
-          options={setOptions}
+          options={setDisplayOptions}
           selected={filters.sets}
           onToggle={handleSetToggle}
           loading={facetsQuery.isLoading}

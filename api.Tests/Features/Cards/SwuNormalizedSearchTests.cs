@@ -57,11 +57,13 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
         Assert.Single(codeSearch!);
         var codeSearchFacets = await client.GetFromJsonAsync<CardsFacetResponse>(
             "/api/cards/facets?game=Star+Wars+Unlimited&q=SOR&printingSearch=true");
-        Assert.Contains(codeSearchFacets!.Sets, option => option.Value == "SOR");
+        Assert.Contains(codeSearchFacets!.Sets, option =>
+            option.Value == "SOR" && option.Label == "Spark of Rebellion");
 
         var facets = await client.GetFromJsonAsync<CardsFacetResponse>(
             "/api/cards/facets?game=Star+Wars+Unlimited");
-        Assert.Contains(facets!.Sets, option => option.Value == "SOR");
+        Assert.Contains(facets!.Sets, option =>
+            option.Value == "SOR" && option.Label == "Spark of Rebellion");
         Assert.Contains(facets.Rarities, option => option.Value == "Rare");
         Assert.Contains(facets.Types, option => option.Value == "Leader");
         Assert.Contains(facets.Types, option => option.Value == "Leader Unit");

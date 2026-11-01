@@ -14,6 +14,35 @@ vi.mock("../../api", () => ({
 import FiltersRail from "../FiltersRail";
 
 describe("FiltersRail", () => {
+  it("preserves set-code URL selections while displaying set names", async () => {
+    fetchCardFacetsMock.mockResolvedValue({
+      games: [],
+      sets: [{ value: "SOR", label: "Spark of Rebellion", count: 1 }],
+      rarities: [],
+      types: [],
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/cards?set=SOR"]}>
+          <FiltersRail />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: "Spark of Rebellion" })).toHaveProperty(
+        "checked",
+        true
+      );
+    });
+
+    queryClient.clear();
+  });
+
   it("canonicalizes case-insensitive URL selections to facet values", async () => {
     fetchCardFacetsMock.mockResolvedValue({
       games: [],

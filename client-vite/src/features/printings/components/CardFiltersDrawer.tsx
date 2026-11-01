@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "./MultiSelect";
 import { AspectFilter } from "./AspectFilter";
+import { Input } from "@/components/ui/input";
+import { LightsaberBlade } from "@/features/cards/components/SwccgForceIcons";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 import type { PrintingFacets } from "../api/usePrintingFacets";
 
@@ -19,6 +21,18 @@ export type CardFiltersDrawerProps = {
   hasActiveFilters: boolean;
   game?: string;
 };
+
+type NumericFilterKey = "powers" | "abilities" | "lightSideIcons" | "darkSideIcons";
+type NumericFilterDrafts = Record<NumericFilterKey, string>;
+
+function getNumericFilterDrafts(filters: CardFilters): NumericFilterDrafts {
+  return {
+    powers: filters.powers?.join(", ") ?? "",
+    abilities: filters.abilities?.join(", ") ?? "",
+    lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
+    darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+  };
+}
 
 const FOCUSABLE = [
   "a[href]",
@@ -66,6 +80,9 @@ export function CardFiltersDrawer({
 }: CardFiltersDrawerProps) {
   const drawerRef = React.useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = React.useRef<HTMLElement | null>(null);
+  const [numericFilterDrafts, setNumericFilterDrafts] = React.useState(() =>
+    getNumericFilterDrafts(filters)
+  );
   const isSwccg = game === "Star Wars CCG";
   const activeSide = filters.side
     ? filters.side.toLowerCase() === "light"
@@ -74,6 +91,23 @@ export function CardFiltersDrawer({
         ? "Dark"
         : null
     : null;
+
+  React.useEffect(() => {
+    setNumericFilterDrafts({
+      powers: filters.powers?.join(", ") ?? "",
+      abilities: filters.abilities?.join(", ") ?? "",
+      lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
+      darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+    });
+  }, [filters.powers, filters.abilities, filters.lightSideIcons, filters.darkSideIcons]);
+
+  const commitNumericFilter = (key: NumericFilterKey) => {
+    const values = numericFilterDrafts[key]
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    setFilters((prev) => ({ ...prev, [key]: values, page: 1 }));
+  };
 
   React.useEffect(() => {
     if (!open) return;
@@ -341,45 +375,78 @@ export function CardFiltersDrawer({
                 onChange={(vals) => setFilters((prev) => ({ ...prev, forfeits: vals, page: 1 }))}
               />
 
-              {/* Power */}
-              <MultiSelect
-                label="Power"
-                className="w-full justify-between"
-                values={filters.powers ?? []}
-                options={availableFacets.powers ?? []}
-                placeholder="Search powers…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, powers: vals, page: 1 }))}
-              />
+              {/* Power & Ability */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="filter-power" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                    Power
+                  </label>
+                  <Input
+                    id="filter-power"
+                    placeholder="e.g. >2"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={numericFilterDrafts.powers}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, powers: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("powers")}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="filter-ability" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                    Ability
+                  </label>
+                  <Input
+                    id="filter-ability"
+                    placeholder="e.g. >2"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={numericFilterDrafts.abilities}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, abilities: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("abilities")}
+                  />
+                </div>
+              </div>
 
-              {/* Ability */}
-              <MultiSelect
-                label="Ability"
-                className="w-full justify-between"
-                values={filters.abilities ?? []}
-                options={availableFacets.abilities ?? []}
-                placeholder="Search abilities…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, abilities: vals, page: 1 }))}
-              />
-
-              {/* Light Side Icons */}
-              <MultiSelect
-                label="Light Side Icons"
-                className="w-full justify-between"
-                values={filters.lightSideIcons ?? []}
-                options={availableFacets.lightSideIcons ?? []}
-                placeholder="Search light side icons…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, lightSideIcons: vals, page: 1 }))}
-              />
-
-              {/* Dark Side Icons */}
-              <MultiSelect
-                label="Dark Side Icons"
-                className="w-full justify-between"
-                values={filters.darkSideIcons ?? []}
-                options={availableFacets.darkSideIcons ?? []}
-                placeholder="Search dark side icons…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, darkSideIcons: vals, page: 1 }))}
-              />
+              {/* Light Side & Dark Side Icons */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2" title="Light Side Icons">
+                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
+                    <LightsaberBlade side="light" size="sm" />
+                  </div>
+                  <Input
+                    id="filter-light-side-icons"
+                    aria-label="Light Side Icons"
+                    placeholder="e.g. >1"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={numericFilterDrafts.lightSideIcons}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({
+                        ...prev,
+                        lightSideIcons: e.target.value,
+                      }))
+                    }
+                    onBlur={() => commitNumericFilter("lightSideIcons")}
+                  />
+                </div>
+                <div className="flex items-center gap-2" title="Dark Side Icons">
+                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
+                    <LightsaberBlade side="dark" size="sm" />
+                  </div>
+                  <Input
+                    id="filter-dark-side-icons"
+                    aria-label="Dark Side Icons"
+                    placeholder="e.g. >1"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={numericFilterDrafts.darkSideIcons}
+                    onChange={(e) =>
+                      setNumericFilterDrafts((prev) => ({ ...prev, darkSideIcons: e.target.value }))
+                    }
+                    onBlur={() => commitNumericFilter("darkSideIcons")}
+                  />
+                </div>
+              </div>
             </>
           ) : (
             <>

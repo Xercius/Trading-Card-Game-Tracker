@@ -427,4 +427,253 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await factory.ResetDatabaseAsync();
         }
     }
+
+    [Fact]
+    public async Task Get_with_persona_exact_match_does_not_partial_match_unrelated_words()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var swccg = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var set = TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+            var rarity = TreatmentLookup.UpsertRarity(db, swccg, "Rare");
+
+            var hanSolo = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Han Solo",
+                Persona = "Han",
+            };
+            db.Cards.Add(hanSolo);
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = hanSolo,
+                CatalogSet = set,
+                RarityLookup = rarity,
+                Number = "101",
+            });
+
+            var falcon = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Millennium Falcon",
+                Persona = "Falcon, Han",
+            };
+            db.Cards.Add(falcon);
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = falcon,
+                CatalogSet = set,
+                RarityLookup = rarity,
+                Number = "102",
+            });
+
+            var invisibleHand = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Invisible Hand: Bridge",
+                Persona = "Invisible Hand",
+            };
+            db.Cards.Add(invisibleHand);
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = invisibleHand,
+                CatalogSet = set,
+                RarityLookup = rarity,
+                Number = "103",
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        try
+        {
+            // Searching for "Han" should match "Han Solo" and "Millennium Falcon", but NOT "Invisible Hand: Bridge"
+            var hanResults = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&persona=Han");
+            Assert.NotNull(hanResults);
+            Assert.Equal(2, hanResults!.Count);
+            Assert.Contains(hanResults, p => p.CardName == "Han Solo");
+            Assert.Contains(hanResults, p => p.CardName == "Millennium Falcon");
+            Assert.DoesNotContain(hanResults, p => p.CardName == "Invisible Hand: Bridge");
+
+            // Searching for "Invisible Hand" should match only "Invisible Hand: Bridge"
+            var handResults = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&persona=Invisible+Hand");
+            Assert.NotNull(handResults);
+            Assert.Single(handResults!);
+            Assert.Equal("Invisible Hand: Bridge", handResults[0].CardName);
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Get_with_rarity_matching_rarity_type_returns_expected_cards()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var swccg = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var set = TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+            var rare1 = new api.Models.Rarity { Game = swccg, Name = "Rare 1", RarityType = "Rare" };
+            var common1 = new api.Models.Rarity { Game = swccg, Name = "Common 1", RarityType = "Common" };
+            db.Rarities.AddRange(rare1, common1);
+
+            var cardRare = new api.Models.Card { Game = swccg, Name = "Obi-Wan Kenobi" };
+            var cardCommon = new api.Models.Card { Game = swccg, Name = "Rebel Trooper" };
+            db.Cards.AddRange(cardRare, cardCommon);
+
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = cardRare,
+                CatalogSet = set,
+                RarityLookup = rare1,
+                Number = "101",
+            });
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = cardCommon,
+                CatalogSet = set,
+                RarityLookup = common1,
+                Number = "102",
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            var results = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&rarity=Rare");
+            Assert.NotNull(results);
+            Assert.Single(results!);
+            Assert.Equal("Obi-Wan Kenobi", results[0].CardName);
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Get_with_comparison_operators_on_numeric_stats()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var swccg = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var set = TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+            var rarity = TreatmentLookup.UpsertRarity(db, swccg, "Rare");
+
+            var weakCard = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Jawa",
+                Power = 2,
+                Ability = 1,
+                LightSideIcons = 0,
+                DarkSideIcons = 2,
+            };
+            var strongCard = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Darth Vader",
+                Power = 6,
+                Ability = 6,
+                LightSideIcons = 3,
+                DarkSideIcons = 0,
+            };
+            db.Cards.AddRange(weakCard, strongCard);
+
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = weakCard,
+                CatalogSet = set,
+                RarityLookup = rarity,
+                Number = "201",
+            });
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = strongCard,
+                CatalogSet = set,
+                RarityLookup = rarity,
+                Number = "202",
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            // Greater than
+            var gtPower = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&power=>3");
+            Assert.NotNull(gtPower);
+            Assert.Single(gtPower!);
+            Assert.Equal("Darth Vader", gtPower[0].CardName);
+
+            // Less than
+            var ltPower = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&power=<3");
+            Assert.NotNull(ltPower);
+            Assert.Single(ltPower!);
+            Assert.Equal("Jawa", ltPower[0].CardName);
+
+            // Greater than or equal
+            var gtePower = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&power=>=6");
+            Assert.NotNull(gtePower);
+            Assert.Single(gtePower!);
+            Assert.Equal("Darth Vader", gtePower[0].CardName);
+
+            // Less than or equal
+            var ltePower = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&power=<=2");
+            Assert.NotNull(ltePower);
+            Assert.Single(ltePower!);
+            Assert.Equal("Jawa", ltePower[0].CardName);
+
+            // Exact without =
+            var exactPower = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&power=6");
+            Assert.NotNull(exactPower);
+            Assert.Single(exactPower!);
+            Assert.Equal("Darth Vader", exactPower[0].CardName);
+
+            // Ability > 2
+            var gtAbility = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&ability=>2");
+            Assert.NotNull(gtAbility);
+            Assert.Single(gtAbility!);
+            Assert.Equal("Darth Vader", gtAbility[0].CardName);
+
+            // LightSideIcons > 1
+            var gtLs = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&lightSideIcon=>1");
+            Assert.NotNull(gtLs);
+            Assert.Single(gtLs!);
+            Assert.Equal("Darth Vader", gtLs[0].CardName);
+
+            // DarkSideIcons > 1
+            var gtDs = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&darkSideIcon=>1");
+            Assert.NotNull(gtDs);
+            Assert.Single(gtDs!);
+            Assert.Equal("Jawa", gtDs[0].CardName);
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
 }

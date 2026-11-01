@@ -306,10 +306,10 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("button", { name: /^Destiny/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Deploy/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Forfeit/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Power/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Ability/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Light Side Icons/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Dark Side Icons/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Power/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Ability/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Light Side Icons/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Dark Side Icons/i })).toBeInTheDocument();
 
     // SWU specific facets should not be rendered
     expect(screen.queryByRole("button", { name: /^Aspect/i })).not.toBeInTheDocument();
@@ -388,5 +388,51 @@ describe("CardFiltersDrawer", () => {
     expect(handleSetFilters).toHaveBeenCalledOnce();
     const updater = handleSetFilters.mock.calls[0][0];
     expect(updater(defaultFilters)).toMatchObject({ side: undefined, page: 1 });
+  });
+
+  it("preserves and commits complete numeric-expression lists for all four inputs", () => {
+    const handleSetFilters = vi.fn();
+    const filters = {
+      ...defaultFilters,
+      powers: ["2", "6"],
+      abilities: ["1", "3"],
+      lightSideIcons: ["0", "2"],
+      darkSideIcons: ["1", "4"],
+    };
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={filters}
+        setFilters={handleSetFilters}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Star Wars CCG"
+      />
+    );
+
+    const numericInputs = [
+      { name: /^Power/i, key: "powers" as const },
+      { name: /^Ability/i, key: "abilities" as const },
+      { name: /^Light Side Icons/i, key: "lightSideIcons" as const },
+      { name: /^Dark Side Icons/i, key: "darkSideIcons" as const },
+    ];
+
+    for (const { name, key } of numericInputs) {
+      handleSetFilters.mockClear();
+      const input = screen.getByRole("textbox", { name });
+      expect(input).toHaveValue(filters[key].join(", "));
+      fireEvent.change(input, { target: { value: ">2, 6," } });
+      expect(input).toHaveValue(">2, 6,");
+      expect(handleSetFilters).not.toHaveBeenCalled();
+      fireEvent.blur(input);
+
+      const updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+      expect(updater(filters)).toMatchObject({ [key]: [">2", "6"], page: 1 });
+    }
   });
 });
