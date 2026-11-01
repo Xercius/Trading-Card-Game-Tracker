@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "./MultiSelect";
 import { AspectFilter } from "./AspectFilter";
+import { Input } from "@/components/ui/input";
+import { LightsaberBlade } from "@/features/cards/components/SwccgForceIcons";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 import type { PrintingFacets } from "../api/usePrintingFacets";
 
@@ -341,45 +343,91 @@ export function CardFiltersDrawer({
                 onChange={(vals) => setFilters((prev) => ({ ...prev, forfeits: vals, page: 1 }))}
               />
 
-              {/* Power */}
-              <MultiSelect
-                label="Power"
-                className="w-full justify-between"
-                values={filters.powers ?? []}
-                options={availableFacets.powers ?? []}
-                placeholder="Search powers…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, powers: vals, page: 1 }))}
-              />
+              {/* Power & Ability */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="filter-power" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                    Power
+                  </label>
+                  <Input
+                    id="filter-power"
+                    placeholder="e.g. >2"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={filters.powers?.[0] ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setFilters((prev) => ({
+                        ...prev,
+                        powers: val ? [val] : [],
+                        page: 1,
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="filter-ability" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                    Ability
+                  </label>
+                  <Input
+                    id="filter-ability"
+                    placeholder="e.g. >2"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={filters.abilities?.[0] ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setFilters((prev) => ({
+                        ...prev,
+                        abilities: val ? [val] : [],
+                        page: 1,
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
 
-              {/* Ability */}
-              <MultiSelect
-                label="Ability"
-                className="w-full justify-between"
-                values={filters.abilities ?? []}
-                options={availableFacets.abilities ?? []}
-                placeholder="Search abilities…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, abilities: vals, page: 1 }))}
-              />
-
-              {/* Light Side Icons */}
-              <MultiSelect
-                label="Light Side Icons"
-                className="w-full justify-between"
-                values={filters.lightSideIcons ?? []}
-                options={availableFacets.lightSideIcons ?? []}
-                placeholder="Search light side icons…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, lightSideIcons: vals, page: 1 }))}
-              />
-
-              {/* Dark Side Icons */}
-              <MultiSelect
-                label="Dark Side Icons"
-                className="w-full justify-between"
-                values={filters.darkSideIcons ?? []}
-                options={availableFacets.darkSideIcons ?? []}
-                placeholder="Search dark side icons…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, darkSideIcons: vals, page: 1 }))}
-              />
+              {/* Light Side & Dark Side Icons */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2" title="Light Side Icons">
+                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
+                    <LightsaberBlade side="light" size="sm" />
+                  </div>
+                  <Input
+                    id="filter-light-side-icons"
+                    aria-label="Light Side Icons"
+                    placeholder="e.g. >1"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={filters.lightSideIcons?.[0] ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setFilters((prev) => ({
+                        ...prev,
+                        lightSideIcons: val ? [val] : [],
+                        page: 1,
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-2" title="Dark Side Icons">
+                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
+                    <LightsaberBlade side="dark" size="sm" />
+                  </div>
+                  <Input
+                    id="filter-dark-side-icons"
+                    aria-label="Dark Side Icons"
+                    placeholder="e.g. >1"
+                    className="h-8 text-xs bg-card/40 border-white/20"
+                    value={filters.darkSideIcons?.[0] ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setFilters((prev) => ({
+                        ...prev,
+                        darkSideIcons: val ? [val] : [],
+                        page: 1,
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
             </>
           ) : (
             <>

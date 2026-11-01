@@ -177,16 +177,14 @@ public sealed class CardFacetsController : ControllerBase
                 query = query.Where(p => p.Card.Forfeit != null &&
                     normalizedForfeits.Contains(EF.Functions.Collate(p.Card.Forfeit, "NOCASE")));
             }
-            if (excludedFilter != "power" && powerValues.Count > 0)
-                query = query.Where(p => p.Card.Power != null && powerValues.Contains(p.Card.Power.Value));
-            if (excludedFilter != "ability" && abilityValues.Count > 0)
-                query = query.Where(p => p.Card.Ability != null && abilityValues.Contains(p.Card.Ability.Value));
-            if (excludedFilter != "lightSideIcon" && lightSideIconValues.Count > 0)
-                query = query.Where(p => p.Card.LightSideIcons != null &&
-                    lightSideIconValues.Contains(p.Card.LightSideIcons.Value));
-            if (excludedFilter != "darkSideIcon" && darkSideIconValues.Count > 0)
-                query = query.Where(p => p.Card.DarkSideIcons != null &&
-                    darkSideIconValues.Contains(p.Card.DarkSideIcons.Value));
+            if (excludedFilter != "power" && powers.Count > 0)
+                query = query.ApplyNumericFilter(powers, p => p.Card.Power);
+            if (excludedFilter != "ability" && abilities.Count > 0)
+                query = query.ApplyNumericFilter(abilities, p => p.Card.Ability);
+            if (excludedFilter != "lightSideIcon" && lightSideIcons.Count > 0)
+                query = query.ApplyNumericFilter(lightSideIcons, p => p.Card.LightSideIcons);
+            if (excludedFilter != "darkSideIcon" && darkSideIcons.Count > 0)
+                query = query.ApplyNumericFilter(darkSideIcons, p => p.Card.DarkSideIcons);
 
             return query;
         }
@@ -238,8 +236,8 @@ public sealed class CardFacetsController : ControllerBase
         setQuery = ApplyPersonaFilter(setQuery, personas);
 
         var setFacets = await setQuery
-            .Where(cp => cp.CatalogSet != null && !string.IsNullOrWhiteSpace(cp.CatalogSet.Code))
-            .GroupBy(cp => cp.CatalogSet!.Code)
+            .Where(cp => cp.CatalogSet != null && (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) || !string.IsNullOrWhiteSpace(cp.CatalogSet.Code)))
+            .GroupBy(cp => !string.IsNullOrWhiteSpace(cp.CatalogSet!.Name) ? cp.CatalogSet.Name : cp.CatalogSet!.Code)
             .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
@@ -255,9 +253,17 @@ public sealed class CardFacetsController : ControllerBase
         rarityQuery = ApplySideFilter(rarityQuery, side);
         rarityQuery = ApplyPersonaFilter(rarityQuery, personas);
 
-        var rarityFacets = await rarityQuery
-            .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.Name))
-            .GroupBy(cp => cp.RarityLookup!.Name)
+        var isSwccgGame = games.Count == 1 && games[0].Equals("Star Wars CCG", StringComparison.OrdinalIgnoreCase);
+
+        var rarityFacetsQuery = isSwccgGame
+            ? rarityQuery
+                .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.RarityType ?? cp.RarityLookup.Name))
+                .GroupBy(cp => cp.RarityLookup!.RarityType ?? cp.RarityLookup.Name)
+            : rarityQuery
+                .Where(cp => cp.RarityLookup != null && !string.IsNullOrWhiteSpace(cp.RarityLookup.Name))
+                .GroupBy(cp => cp.RarityLookup!.Name);
+
+        var rarityFacets = await rarityFacetsQuery
             .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
             .OrderBy(f => f.Value)
             .ToListAsync(ct);
@@ -568,7 +574,7 @@ public sealed class CardFacetsController : ControllerBase
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
         var sets = await query
-            .Select(cp => cp.CatalogSet == null ? null : cp.CatalogSet.Code)
+            .Select(cp => cp.CatalogSet == null ? null : (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) ? cp.CatalogSet.Name : cp.CatalogSet.Code))
             .Where(s => s != null && !string.IsNullOrWhiteSpace(s))
             .Select(s => s!)
             .Distinct()
@@ -611,8 +617,12 @@ public sealed class CardFacetsController : ControllerBase
             .ToListAsync(ct);
         var query = ApplyGameFilter(_db.CardPrintings.AsNoTracking(), gameIds);
 
-        var rarities = await query
-            .Select(cp => cp.RarityLookup == null ? null : cp.RarityLookup.Name)
+        var isSwccg = games.Count == 1 && games[0].Equals("Star Wars CCG", StringComparison.OrdinalIgnoreCase);
+        var raritiesQuery = isSwccg
+            ? query.Select(cp => cp.RarityLookup == null ? null : (cp.RarityLookup.RarityType ?? cp.RarityLookup.Name))
+            : query.Select(cp => cp.RarityLookup == null ? null : cp.RarityLookup.Name);
+
+        var rarities = await raritiesQuery
             .Where(r => r != null && !string.IsNullOrWhiteSpace(r))
             .Select(r => r!)
             .Distinct()
@@ -689,7 +699,10 @@ public sealed class CardFacetsController : ControllerBase
         if (rarities.Count == 0) return query;
         var normalizedRarities = rarities.Select(SqliteCaseNormalizer.Normalize).ToList();
         return query.Where(printing => printing.RarityLookup != null
-            && normalizedRarities.Contains(EF.Functions.Collate(printing.RarityLookup.Name, "NOCASE")));
+            && (
+                (printing.RarityLookup.RarityType != null && normalizedRarities.Contains(EF.Functions.Collate(printing.RarityLookup.RarityType, "NOCASE")))
+                || normalizedRarities.Contains(EF.Functions.Collate(printing.RarityLookup.Name, "NOCASE"))
+            ));
     }
 
     private static IQueryable<CardPrinting> ApplyTypeFilter(
@@ -745,6 +758,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         if (personas.Count == 0) return query;
         return query.Where(p => p.Card.Persona != null &&
-            personas.Any(persona => EF.Functions.Like(p.Card.Persona, "%" + persona + "%")));
+            personas.Select(p => $"%,{p.Trim()},%").Any(pattern =>
+                EF.Functions.Like("," + p.Card.Persona.Replace(", ", ",") + ",", pattern)));
     }
 }

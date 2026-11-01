@@ -106,7 +106,10 @@ public sealed class PrintingsController : ControllerBase
             var normalizedRarities = rarities.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p =>
                 p.RarityLookup != null
-                    && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE")));
+                    && (
+                        (p.RarityLookup.RarityType != null && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.RarityType, "NOCASE")))
+                        || normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))
+                    ));
         }
 
         var types = CsvUtils.Parse(qp.Type);
@@ -146,7 +149,8 @@ public sealed class PrintingsController : ControllerBase
         if (personas.Count > 0)
         {
             query = query.Where(p => p.Card.Persona != null &&
-                personas.Any(persona => EF.Functions.Like(p.Card.Persona, "%" + persona + "%")));
+                personas.Select(p => $"%,{p.Trim()},%").Any(pattern =>
+                    EF.Functions.Like("," + p.Card.Persona.Replace(", ", ",") + ",", pattern)));
         }
 
         var subTypes = CsvUtils.Parse(qp.SubType);
@@ -183,48 +187,16 @@ public sealed class PrintingsController : ControllerBase
         }
 
         var powers = CsvUtils.Parse(qp.Power);
-        if (powers.Count > 0)
-        {
-            var powerInts = powers.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
-                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
-            if (powerInts.Count > 0)
-            {
-                query = query.Where(p => p.Card.Power != null && powerInts.Contains(p.Card.Power.Value));
-            }
-        }
+        query = query.ApplyNumericFilter(powers, p => p.Card.Power);
 
         var abilities = CsvUtils.Parse(qp.Ability);
-        if (abilities.Count > 0)
-        {
-            var abilityInts = abilities.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
-                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
-            if (abilityInts.Count > 0)
-            {
-                query = query.Where(p => p.Card.Ability != null && abilityInts.Contains(p.Card.Ability.Value));
-            }
-        }
+        query = query.ApplyNumericFilter(abilities, p => p.Card.Ability);
 
         var lightSideIcons = CsvUtils.Parse(qp.LightSideIcon);
-        if (lightSideIcons.Count > 0)
-        {
-            var lsInts = lightSideIcons.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
-                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
-            if (lsInts.Count > 0)
-            {
-                query = query.Where(p => p.Card.LightSideIcons != null && lsInts.Contains(p.Card.LightSideIcons.Value));
-            }
-        }
+        query = query.ApplyNumericFilter(lightSideIcons, p => p.Card.LightSideIcons);
 
         var darkSideIcons = CsvUtils.Parse(qp.DarkSideIcon);
-        if (darkSideIcons.Count > 0)
-        {
-            var dsInts = darkSideIcons.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
-                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
-            if (dsInts.Count > 0)
-            {
-                query = query.Where(p => p.Card.DarkSideIcons != null && dsInts.Contains(p.Card.DarkSideIcons.Value));
-            }
-        }
+        query = query.ApplyNumericFilter(darkSideIcons, p => p.Card.DarkSideIcons);
 
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);

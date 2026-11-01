@@ -326,4 +326,164 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(facets);
         Assert.Equal(["1", "2"], facets!.Destinies.Select(facet => facet.Value).Order().ToArray());
     }
+
+    [Fact]
+    public async Task GetFacets_PersonaFilter_DoesNotMatchPartialSubstring()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var swccg = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var premiere = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+            var ds2 = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Death Star II");
+            var rarity = api.Importing.TreatmentLookup.UpsertRarity(db, swccg, "Rare");
+
+            var hanSolo = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Han Solo",
+                Persona = "Han",
+            };
+            db.Cards.Add(hanSolo);
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = hanSolo,
+                CatalogSet = premiere,
+                RarityLookup = rarity,
+                Number = "101",
+            });
+
+            var invisibleHand = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Invisible Hand: Bridge",
+                Persona = "Invisible Hand",
+            };
+            db.Cards.Add(invisibleHand);
+            db.CardPrintings.Add(new api.Models.CardPrinting
+            {
+                Card = invisibleHand,
+                CatalogSet = ds2,
+                RarityLookup = rarity,
+                Number = "102",
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG&persona=Han");
+            response.EnsureSuccessStatusCode();
+
+            var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(facets);
+            // Sets facet should only contain sets with Han (Premiere), not Invisible Hand (Death Star II)
+            Assert.Contains(facets!.Sets, s => s.Value == "Premiere");
+            Assert.DoesNotContain(facets.Sets, s => s.Value == "Death Star II");
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task GetFacets_SWCCG_RarityFacets_UsesRarityType()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var swccg = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var set = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+
+            var rare1 = new api.Models.Rarity { Game = swccg, Name = "Rare 1", RarityType = "Rare" };
+            var rare2 = new api.Models.Rarity { Game = swccg, Name = "Rare 2", RarityType = "Rare" };
+            var common1 = new api.Models.Rarity { Game = swccg, Name = "Common 1", RarityType = "Common" };
+            db.Rarities.AddRange(rare1, rare2, common1);
+
+            var c1 = new api.Models.Card { Game = swccg, Name = "Card 1" };
+            var c2 = new api.Models.Card { Game = swccg, Name = "Card 2" };
+            var c3 = new api.Models.Card { Game = swccg, Name = "Card 3" };
+            db.Cards.AddRange(c1, c2, c3);
+
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = c1, CatalogSet = set, RarityLookup = rare1, Number = "1" });
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = c2, CatalogSet = set, RarityLookup = rare2, Number = "2" });
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = c3, CatalogSet = set, RarityLookup = common1, Number = "3" });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
+            response.EnsureSuccessStatusCode();
+
+            var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(facets);
+
+            // Rarities should contain "Rare" (count 2) and "Common" (count 1), not "Rare 1" or "Rare 2"
+            Assert.Contains(facets!.Rarities, r => r.Value == "Rare" && r.Count == 2);
+            Assert.Contains(facets.Rarities, r => r.Value == "Common" && r.Count == 1);
+            Assert.DoesNotContain(facets.Rarities, r => r.Value == "Rare 1");
+            Assert.DoesNotContain(facets.Rarities, r => r.Value == "Rare 2");
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task GetFacets_DisplaysSetNameInsteadOfSetCode_ForBothSwuAndSwccg()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var swu = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars Unlimited");
+            var swccg = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+
+            var swuSet = new api.Models.Set { Game = swu, Code = "SOR", Name = "Spark of Rebellion" };
+            var swccgSet = new api.Models.Set { Game = swccg, Code = "PRE", Name = "Premiere" };
+            db.Sets.AddRange(swuSet, swccgSet);
+
+            var swuCard = new api.Models.Card { Game = swu, Name = "Luke Skywalker (SWU)" };
+            var swccgCard = new api.Models.Card { Game = swccg, Name = "Luke Skywalker (SWCCG)" };
+            db.Cards.AddRange(swuCard, swccgCard);
+
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = swuCard, CatalogSet = swuSet, Number = "1" });
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = swccgCard, CatalogSet = swccgSet, Number = "2" });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            // SWU facets
+            var swuResponse = await client.GetAsync("/api/cards/facets?game=Star+Wars+Unlimited");
+            swuResponse.EnsureSuccessStatusCode();
+            var swuFacets = await swuResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(swuFacets);
+            Assert.Contains(swuFacets!.Sets, s => s.Value == "Spark of Rebellion");
+            Assert.DoesNotContain(swuFacets.Sets, s => s.Value == "SOR");
+
+            // SWCCG facets
+            var swccgResponse = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
+            swccgResponse.EnsureSuccessStatusCode();
+            var swccgFacets = await swccgResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(swccgFacets);
+            Assert.Contains(swccgFacets!.Sets, s => s.Value == "Premiere");
+            Assert.DoesNotContain(swccgFacets.Sets, s => s.Value == "PRE");
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
 }

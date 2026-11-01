@@ -46,7 +46,10 @@ internal static class QueryExtensions
             var value = rarity.Trim();
             query = query.Where(uc =>
                 uc.CardPrinting.RarityLookup != null
-                && EF.Functions.Collate(uc.CardPrinting.RarityLookup.Name, "NOCASE") == value);
+                && (
+                    (uc.CardPrinting.RarityLookup.RarityType != null && EF.Functions.Collate(uc.CardPrinting.RarityLookup.RarityType, "NOCASE") == value)
+                    || EF.Functions.Collate(uc.CardPrinting.RarityLookup.Name, "NOCASE") == value
+                ));
         }
 
         if (!string.IsNullOrWhiteSpace(name))
@@ -424,7 +427,10 @@ internal static class QueryExtensions
                 .ToList();
             query = query.Where(c =>
                 c.Printings.Any(p => p.RarityLookup != null
-                    && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))));
+                    && (
+                        (p.RarityLookup.RarityType != null && normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.RarityType, "NOCASE")))
+                        || normalizedRarities.Contains(EF.Functions.Collate(p.RarityLookup.Name, "NOCASE"))
+                    )));
         }
 
         if (types.Count > 0)
@@ -489,4 +495,108 @@ internal static class QueryExtensions
                     })
                     .FirstOrDefault()
             });
+
+    private sealed record NumericCondition(string Op, int Value);
+
+    private static bool TryParseNumericCondition(string raw, out NumericCondition condition)
+    {
+        condition = null!;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        var s = raw.Trim();
+        if (s.StartsWith(">="))
+        {
+            if (int.TryParse(s[2..].Trim(), out var val))
+            {
+                condition = new NumericCondition(">=", val);
+                return true;
+            }
+            return false;
+        }
+        if (s.StartsWith("<="))
+        {
+            if (int.TryParse(s[2..].Trim(), out var val))
+            {
+                condition = new NumericCondition("<=", val);
+                return true;
+            }
+            return false;
+        }
+        if (s.StartsWith(">"))
+        {
+            if (int.TryParse(s[1..].Trim(), out var val))
+            {
+                condition = new NumericCondition(">", val);
+                return true;
+            }
+            return false;
+        }
+        if (s.StartsWith("<"))
+        {
+            if (int.TryParse(s[1..].Trim(), out var val))
+            {
+                condition = new NumericCondition("<", val);
+                return true;
+            }
+            return false;
+        }
+        if (s.StartsWith("="))
+        {
+            if (int.TryParse(s[1..].Trim(), out var val))
+            {
+                condition = new NumericCondition("=", val);
+                return true;
+            }
+            return false;
+        }
+        if (int.TryParse(s, out var intVal))
+        {
+            condition = new NumericCondition("=", intVal);
+            return true;
+        }
+        return false;
+    }
+
+    internal static IQueryable<CardPrinting> ApplyNumericFilter(
+        this IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string> expressions,
+        Expression<Func<CardPrinting, int?>> propertySelector)
+    {
+        if (expressions.Count == 0) return query;
+
+        var conditions = new List<NumericCondition>();
+        foreach (var expr in expressions)
+        {
+            if (TryParseNumericCondition(expr, out var cond))
+            {
+                conditions.Add(cond);
+            }
+        }
+
+        if (conditions.Count == 0) return query;
+
+        var param = propertySelector.Parameters[0];
+        var body = propertySelector.Body;
+        var notNull = Expression.NotEqual(body, Expression.Constant(null, typeof(int?)));
+        var valueProp = Expression.Property(body, nameof(Nullable<int>.Value));
+
+        Expression? combined = null;
+        foreach (var cond in conditions)
+        {
+            var constVal = Expression.Constant(cond.Value, typeof(int));
+            Expression cmp = cond.Op switch
+            {
+                ">" => Expression.GreaterThan(valueProp, constVal),
+                ">=" => Expression.GreaterThanOrEqual(valueProp, constVal),
+                "<" => Expression.LessThan(valueProp, constVal),
+                "<=" => Expression.LessThanOrEqual(valueProp, constVal),
+                _ => Expression.Equal(valueProp, constVal)
+            };
+
+            var condExpr = Expression.AndAlso(notNull, cmp);
+            combined = combined == null ? condExpr : Expression.OrElse(combined, condExpr);
+        }
+
+        var lambda = Expression.Lambda<Func<CardPrinting, bool>>(combined!, param);
+        return query.Where(lambda);
+    }
 }

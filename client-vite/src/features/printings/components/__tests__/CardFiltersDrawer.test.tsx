@@ -306,10 +306,10 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("button", { name: /^Destiny/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Deploy/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Forfeit/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Power/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Ability/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Light Side Icons/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Dark Side Icons/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Power/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Ability/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Light Side Icons/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Dark Side Icons/i })).toBeInTheDocument();
 
     // SWU specific facets should not be rendered
     expect(screen.queryByRole("button", { name: /^Aspect/i })).not.toBeInTheDocument();
@@ -388,5 +388,45 @@ describe("CardFiltersDrawer", () => {
     expect(handleSetFilters).toHaveBeenCalledOnce();
     const updater = handleSetFilters.mock.calls[0][0];
     expect(updater(defaultFilters)).toMatchObject({ side: undefined, page: 1 });
+  });
+
+  it("updates numeric filters when typing values or comparison operators into Power, Ability, and Force icons", () => {
+    const handleSetFilters = vi.fn();
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={defaultFilters}
+        setFilters={handleSetFilters}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Star Wars CCG"
+      />
+    );
+
+    // Power
+    fireEvent.change(screen.getByRole("textbox", { name: /^Power/i }), { target: { value: ">2" } });
+    expect(handleSetFilters).toHaveBeenCalled();
+    let updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+    expect(updater(defaultFilters)).toMatchObject({ powers: [">2"], page: 1 });
+
+    // Ability
+    fireEvent.change(screen.getByRole("textbox", { name: /^Ability/i }), { target: { value: "<5" } });
+    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+    expect(updater(defaultFilters)).toMatchObject({ abilities: ["<5"], page: 1 });
+
+    // Light Side Icons
+    fireEvent.change(screen.getByRole("textbox", { name: /^Light Side Icons/i }), { target: { value: "2" } });
+    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+    expect(updater(defaultFilters)).toMatchObject({ lightSideIcons: ["2"], page: 1 });
+
+    // Dark Side Icons
+    fireEvent.change(screen.getByRole("textbox", { name: /^Dark Side Icons/i }), { target: { value: ">1" } });
+    updater = handleSetFilters.mock.calls[handleSetFilters.mock.calls.length - 1][0];
+    expect(updater(defaultFilters)).toMatchObject({ darkSideIcons: [">1"], page: 1 });
   });
 });
