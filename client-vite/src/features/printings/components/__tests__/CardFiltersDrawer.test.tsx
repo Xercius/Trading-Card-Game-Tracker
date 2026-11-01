@@ -270,17 +270,51 @@ describe("CardFiltersDrawer", () => {
     const lightBtn = screen.getByRole("button", { name: "Light Side" });
     expect(darkBtn).toHaveAttribute("aria-pressed", "true");
     expect(lightBtn).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText(/^Side$/i)).not.toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: /^Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Sub-Type/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Persona/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Set/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Rarity/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Traits/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Destiny/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Deploy/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Forfeit/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Power/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Ability/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Light Side Icons/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Dark Side Icons/i })).toBeInTheDocument();
 
     // SWU specific facets should not be rendered
     expect(screen.queryByRole("button", { name: /^Aspect/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Arena/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Rarity/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Traits/i })).not.toBeInTheDocument();
+
+
     expect(screen.queryByRole("button", { name: /^Keywords/i })).not.toBeInTheDocument();
+  });
+
+  it("renders both Dark Side and Light Side buttons unselected by default when no side filter is provided", () => {
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={defaultFilters}
+        setFilters={vi.fn()}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Star Wars CCG"
+      />
+    );
+
+    const darkBtn = screen.getByRole("button", { name: "Dark Side" });
+    const lightBtn = screen.getByRole("button", { name: "Light Side" });
+    expect(darkBtn).toHaveAttribute("aria-pressed", "false");
+    expect(lightBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   it("toggles Side to Light Side when Light Side button is clicked", () => {
@@ -305,5 +339,29 @@ describe("CardFiltersDrawer", () => {
     expect(handleSetFilters).toHaveBeenCalledOnce();
     const updater = handleSetFilters.mock.calls[0][0];
     expect(updater(defaultFilters)).toMatchObject({ side: "Light", page: 1 });
+  });
+
+  it("removes Side filter when an already selected side button is clicked", () => {
+    const handleSetFilters = vi.fn();
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={{ ...defaultFilters, side: "Dark" }}
+        setFilters={handleSetFilters}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Star Wars CCG"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dark Side" }));
+    expect(handleSetFilters).toHaveBeenCalledOnce();
+    const updater = handleSetFilters.mock.calls[0][0];
+    expect(updater(defaultFilters)).toMatchObject({ side: undefined, page: 1 });
   });
 });

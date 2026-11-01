@@ -74,7 +74,7 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
     {
         await factory.ResetDatabaseAsync();
         var apiClient = new RecordingSwccgApiClient(
-            sets: [new SwccgSet("1", "Premiere")],
+            sets: [new SwccgSet("1", "Premiere", "P", "1995-12-01", "Premiere")],
             cards:
             [
                 new SwccgCardRecord(
@@ -82,7 +82,7 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
                     GempId: "1_501",
                     Side: "Dark",
                     Rarity: "R1",
-                    Set: "Premiere",
+                    Set: "1",
                     Printings: null,
                     Abbr: null,
                     Combo: null,
@@ -142,6 +142,16 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
 
         var history = await db.ImportSyncHistories.FirstOrDefaultAsync(h => h.ImporterKey == "swccg-catalog");
         Assert.NotNull(history);
+
+        var syncedSet = await db.Sets.FirstOrDefaultAsync(s => s.Name == "Premiere");
+        Assert.NotNull(syncedSet);
+        Assert.Equal("P", syncedSet!.Code);
+        Assert.Equal(new DateOnly(1995, 12, 1), syncedSet.ReleasedAt);
+
+        var syncedRarity = await db.Rarities.FirstOrDefaultAsync(r => r.Character == "R1");
+        Assert.NotNull(syncedRarity);
+        Assert.Equal("Rare 1", syncedRarity!.Name);
+        Assert.Equal("Rare", syncedRarity.RarityType);
 
         var log = await db.SyncLogs.FirstOrDefaultAsync(l => l.CatalogScope == "SwccgCatalog");
         Assert.NotNull(log);

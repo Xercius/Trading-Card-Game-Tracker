@@ -56,6 +56,11 @@ namespace api.Features.Cards.Dtos;
 /// <param name="BackTitle">Optional title for card back (Objectives).</param>
 /// <param name="BackText">Optional gametext for card back (Objectives).</param>
 /// <param name="Persona">Optional character persona(s).</param>
+/// <param name="SubTypes">Optional normalized subtype associations.</param>
+/// <param name="LightSideIcons">Optional number of Light Side Force generation icons.</param>
+/// <param name="DarkSideIcons">Optional number of Dark Side Force generation icons.</param>
+/// <param name="BackLightSideIcons">Optional number of Light Side Force generation icons on card back.</param>
+/// <param name="BackDarkSideIcons">Optional number of Dark Side Force generation icons on card back.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
@@ -98,6 +103,11 @@ public sealed record CardDetailResponse(
     string? ExtraCardDataJson = null,
     string? BackTitle = null,
     string? BackText = null,
-    string? Persona = null);
+    string? Persona = null,
+    IReadOnlyList<string>? SubTypes = null,
+    int? LightSideIcons = null,
+    int? DarkSideIcons = null,
+    int? BackLightSideIcons = null,
+    int? BackDarkSideIcons = null);
 
 public sealed record CardAspectResponse(string Name, int Count);

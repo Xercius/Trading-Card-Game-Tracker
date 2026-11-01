@@ -45,6 +45,14 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="keywordMethod">Filtering method for keywords ('or', 'and', 'exclude').</param>
     /// <param name="side">Optional card side/alignment to filter by (e.g. 'Dark', 'Light').</param>
     /// <param name="persona">Optional comma-separated list of character personas to filter by.</param>
+    /// <param name="subType">Optional comma-separated list of sub-types to filter by.</param>
+    /// <param name="destiny">Optional comma-separated list of destiny values to filter by.</param>
+    /// <param name="deploy">Optional comma-separated list of deploy values to filter by.</param>
+    /// <param name="forfeit">Optional comma-separated list of forfeit values to filter by.</param>
+    /// <param name="power">Optional comma-separated list of power values to filter by.</param>
+    /// <param name="ability">Optional comma-separated list of ability values to filter by.</param>
+    /// <param name="lightSideIcon">Optional comma-separated list of light side icon counts to filter by.</param>
+    /// <param name="darkSideIcon">Optional comma-separated list of dark side icon counts to filter by.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -68,6 +76,14 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? keywordMethod = null,
         [FromQuery] string? side = null,
         [FromQuery] string? persona = null,
+        [FromQuery] string? subType = null,
+        [FromQuery] string? destiny = null,
+        [FromQuery] string? deploy = null,
+        [FromQuery] string? forfeit = null,
+        [FromQuery] string? power = null,
+        [FromQuery] string? ability = null,
+        [FromQuery] string? lightSideIcon = null,
+        [FromQuery] string? darkSideIcon = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -83,6 +99,14 @@ public sealed class CardFacetsController : ControllerBase
         var traits = CsvUtils.Parse(trait);
         var keywords = CsvUtils.Parse(keyword);
         var personas = CsvUtils.Parse(persona);
+        var subTypes = CsvUtils.Parse(subType);
+        var destinies = CsvUtils.Parse(destiny);
+        var deploys = CsvUtils.Parse(deploy);
+        var forfeits = CsvUtils.Parse(forfeit);
+        var powers = CsvUtils.Parse(power);
+        var abilities = CsvUtils.Parse(ability);
+        var lightSideIcons = CsvUtils.Parse(lightSideIcon);
+        var darkSideIcons = CsvUtils.Parse(darkSideIcon);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameLookupQuery = _db.Games.AsQueryable();
         if (games.Count > 0)
@@ -120,6 +144,69 @@ public sealed class CardFacetsController : ControllerBase
                     cp.Card.CardTypes.Any(cardType => EF.Functions.Like(
                         EF.Functions.Collate(cardType.CardType.Name, "NOCASE"), pattern)));
             }
+        }
+
+        var powerValues = ParseIntegers(powers);
+        var abilityValues = ParseIntegers(abilities);
+        var lightSideIconValues = ParseIntegers(lightSideIcons);
+        var darkSideIconValues = ParseIntegers(darkSideIcons);
+
+        IQueryable<CardPrinting> ApplyStatFilters(IQueryable<CardPrinting> query, string? excludedFilter)
+        {
+            if (excludedFilter != "subType" && subTypes.Count > 0)
+            {
+                var normalizedSubTypes = subTypes.Select(SqliteCaseNormalizer.Normalize).ToList();
+                query = query.Where(p => p.Card.CardSubTypes.Any(st =>
+                    normalizedSubTypes.Contains(EF.Functions.Collate(st.SubType.Name, "NOCASE"))));
+            }
+            if (excludedFilter != "destiny" && destinies.Count > 0)
+            {
+                var normalizedDestinies = destinies.Select(SqliteCaseNormalizer.Normalize).ToList();
+                query = query.Where(p => p.Card.Destiny != null &&
+                    normalizedDestinies.Contains(EF.Functions.Collate(p.Card.Destiny, "NOCASE")));
+            }
+            if (excludedFilter != "deploy" && deploys.Count > 0)
+            {
+                var normalizedDeploys = deploys.Select(SqliteCaseNormalizer.Normalize).ToList();
+                query = query.Where(p => p.Card.Deploy != null &&
+                    normalizedDeploys.Contains(EF.Functions.Collate(p.Card.Deploy, "NOCASE")));
+            }
+            if (excludedFilter != "forfeit" && forfeits.Count > 0)
+            {
+                var normalizedForfeits = forfeits.Select(SqliteCaseNormalizer.Normalize).ToList();
+                query = query.Where(p => p.Card.Forfeit != null &&
+                    normalizedForfeits.Contains(EF.Functions.Collate(p.Card.Forfeit, "NOCASE")));
+            }
+            if (excludedFilter != "power" && powerValues.Count > 0)
+                query = query.Where(p => p.Card.Power != null && powerValues.Contains(p.Card.Power.Value));
+            if (excludedFilter != "ability" && abilityValues.Count > 0)
+                query = query.Where(p => p.Card.Ability != null && abilityValues.Contains(p.Card.Ability.Value));
+            if (excludedFilter != "lightSideIcon" && lightSideIconValues.Count > 0)
+                query = query.Where(p => p.Card.LightSideIcons != null &&
+                    lightSideIconValues.Contains(p.Card.LightSideIcons.Value));
+            if (excludedFilter != "darkSideIcon" && darkSideIconValues.Count > 0)
+                query = query.Where(p => p.Card.DarkSideIcons != null &&
+                    darkSideIconValues.Contains(p.Card.DarkSideIcons.Value));
+
+            return query;
+        }
+
+        var queryWithoutStatFilters = baseQuery;
+        baseQuery = ApplyStatFilters(baseQuery, null);
+
+        IQueryable<CardPrinting> BuildStatFacetQuery(string excludedFilter)
+        {
+            var query = ApplyGameFilter(queryWithoutStatFilters, gameIds);
+            query = ApplySetFilter(query, sets);
+            query = ApplyRarityFilter(query, rarities);
+            query = ApplyTypeFilter(query, types);
+            query = ApplyArenaFilter(query, arenas);
+            query = ApplyAspectFilter(query, aspects, aspectMethod);
+            query = ApplyTraitFilter(query, traits, traitMethod);
+            query = ApplyKeywordFilter(query, keywords, keywordMethod);
+            query = ApplySideFilter(query, side);
+            query = ApplyPersonaFilter(query, personas);
+            return ApplyStatFilters(query, excludedFilter);
         }
 
         // Compute game facets
@@ -327,6 +414,86 @@ public sealed class CardFacetsController : ControllerBase
             .OrderBy(f => f.Value)
             .ToList();
 
+        // Compute subtype facets
+        var subTypeQuery = BuildStatFacetQuery("subType");
+        var subTypePrintingCounts = await GetPrintingCountsByCardAsync(subTypeQuery, ct);
+        var subTypeCardIds = subTypePrintingCounts.Keys.ToList();
+        var subTypeAssociations = await _db.CardSubTypes
+            .AsNoTracking()
+            .Where(association => subTypeCardIds.Contains(association.CardId))
+            .Select(association => new { association.CardId, association.SubType.Name })
+            .ToListAsync(ct);
+        var subTypeFacets = BuildFacets(
+            subTypeAssociations.Select(a => (a.CardId, a.Name)),
+            subTypePrintingCounts);
+
+        var destinyFacets = (await BuildStatFacetQuery("destiny")
+            .Where(cp => cp.Card.Destiny != null && cp.Card.Destiny != "")
+            .GroupBy(cp => cp.Card.Destiny!)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct))
+            .OrderBy(f => int.TryParse(f.Value, out var n) ? n : int.MaxValue)
+            .ThenBy(f => f.Value)
+            .ToList();
+
+        var deployFacets = (await BuildStatFacetQuery("deploy")
+            .Where(cp => cp.Card.Deploy != null && cp.Card.Deploy != "")
+            .GroupBy(cp => cp.Card.Deploy!)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct))
+            .OrderBy(f => int.TryParse(f.Value, out var n) ? n : int.MaxValue)
+            .ThenBy(f => f.Value)
+            .ToList();
+
+        var forfeitFacets = (await BuildStatFacetQuery("forfeit")
+            .Where(cp => cp.Card.Forfeit != null && cp.Card.Forfeit != "")
+            .GroupBy(cp => cp.Card.Forfeit!)
+            .Select(g => new FacetOption { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct))
+            .OrderBy(f => int.TryParse(f.Value, out var n) ? n : int.MaxValue)
+            .ThenBy(f => f.Value)
+            .ToList();
+
+        var rawPowers = await BuildStatFacetQuery("power")
+            .Where(cp => cp.Card.Power != null)
+            .GroupBy(cp => cp.Card.Power!.Value)
+            .Select(g => new { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var powerFacets = rawPowers
+            .OrderBy(p => p.Value)
+            .Select(p => new FacetOption { Value = p.Value.ToString(), Count = p.Count })
+            .ToList();
+
+        var rawAbilities = await BuildStatFacetQuery("ability")
+            .Where(cp => cp.Card.Ability != null)
+            .GroupBy(cp => cp.Card.Ability!.Value)
+            .Select(g => new { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var abilityFacets = rawAbilities
+            .OrderBy(a => a.Value)
+            .Select(a => new FacetOption { Value = a.Value.ToString(), Count = a.Count })
+            .ToList();
+
+        var rawLsIcons = await BuildStatFacetQuery("lightSideIcon")
+            .Where(cp => cp.Card.LightSideIcons != null)
+            .GroupBy(cp => cp.Card.LightSideIcons!.Value)
+            .Select(g => new { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var lightSideIconFacets = rawLsIcons
+            .OrderBy(i => i.Value)
+            .Select(i => new FacetOption { Value = i.Value.ToString(), Count = i.Count })
+            .ToList();
+
+        var rawDsIcons = await BuildStatFacetQuery("darkSideIcon")
+            .Where(cp => cp.Card.DarkSideIcons != null)
+            .GroupBy(cp => cp.Card.DarkSideIcons!.Value)
+            .Select(g => new { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var darkSideIconFacets = rawDsIcons
+            .OrderBy(i => i.Value)
+            .Select(i => new FacetOption { Value = i.Value.ToString(), Count = i.Count })
+            .ToList();
+
         var response = new CardsFacetResponse
         {
             Games = gameFacets,
@@ -339,6 +506,14 @@ public sealed class CardFacetsController : ControllerBase
             Keywords = keywordFacets,
             Treatments = treatmentFacets,
             Personas = personaFacets,
+            SubTypes = subTypeFacets,
+            Destinies = destinyFacets,
+            Deploys = deployFacets,
+            Forfeits = forfeitFacets,
+            Powers = powerFacets,
+            Abilities = abilityFacets,
+            LightSideIcons = lightSideIconFacets,
+            DarkSideIcons = darkSideIconFacets,
         };
 
         return Ok(response);
@@ -375,7 +550,7 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
     /// <returns>
     /// An HTTP 200 OK response with a <see cref="CardFacetSetsResponse"/> containing:
-    /// - A list of set names in alphabetical order
+    /// - A list of set codes in alphabetical order
     /// - The game name (if exactly one game was specified in the filter)
     /// Excludes any sets with null or whitespace names.
     /// </returns>
@@ -477,6 +652,12 @@ public sealed class CardFacetsController : ControllerBase
                 Count = group.Sum(item => printingCountsByCard[item.Key.CardId])
             })
             .OrderBy(facet => facet.Value)
+            .ToList();
+
+    private static List<int> ParseIntegers(IEnumerable<string> values)
+        => values.Select(value => int.TryParse(value, out var parsed) ? (int?)parsed : null)
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
             .ToList();
 
     private static IQueryable<CardPrinting> ApplyGameFilter(

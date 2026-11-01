@@ -14,9 +14,12 @@ public sealed class Rarity
     [MaxLength(32)]
     public required string Name { get; set; }
 
-    [MaxLength(1)]
+    [MaxLength(16)]
     public string? Character { get; set; }
 
     [MaxLength(32)]
     public string? Color { get; set; }
+
+    [MaxLength(32)]
+    public string? RarityType { get; set; }
 }

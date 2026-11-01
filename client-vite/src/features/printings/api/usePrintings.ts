@@ -26,6 +26,14 @@ export function usePrintings(filters: CardFilters) {
     ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
     ...(filters.side ? { side: filters.side } : {}),
     ...(filters.personas?.length ? { personas: filters.personas } : {}),
+    ...(filters.subTypes?.length ? { subTypes: filters.subTypes } : {}),
+    ...(filters.destinies?.length ? { destinies: filters.destinies } : {}),
+    ...(filters.deploys?.length ? { deploys: filters.deploys } : {}),
+    ...(filters.forfeits?.length ? { forfeits: filters.forfeits } : {}),
+    ...(filters.powers?.length ? { powers: filters.powers } : {}),
+    ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
+    ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
+    ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),
     ...(filters.keywordMethod && filters.keywordMethod !== "or"
       ? { keywordMethod: filters.keywordMethod }
       : {}),
@@ -35,7 +43,7 @@ export function usePrintings(filters: CardFilters) {
   };
 
   return useQuery<PrintingsResult, Error>({
-    queryKey: cardsQueryKeys.list(filters),
+    queryKey: [...cardsQueryKeys.list(filters), query],
     queryFn: async () => {
       const res = await fetchPrintings({ ...query, page: filters.page });
       if (Array.isArray(res)) {

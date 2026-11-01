@@ -368,4 +368,63 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         Assert.NotNull(printings);
         Assert.NotEmpty(printings);
     }
+
+    [Fact]
+    public async Task Get_with_swccg_filters()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var swccg = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var subType = new api.Models.SubType { Game = swccg, Name = "Site" };
+            db.SubTypes.Add(subType);
+
+            var card = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Tatooine: Mos Eisley",
+                Side = "Light",
+                Destiny = "0",
+                Deploy = "0",
+                Forfeit = "0",
+                Power = 3,
+                Ability = 2,
+                LightSideIcons = 2,
+                DarkSideIcons = 1,
+            };
+            card.CardSubTypes.Add(new api.Models.CardSubType { Card = card, SubType = subType });
+            db.Cards.Add(card);
+
+            var printing = new api.Models.CardPrinting
+            {
+                Card = card,
+                CatalogSet = TreatmentLookup.UpsertSet(db, swccg, "Premiere"),
+                RarityLookup = TreatmentLookup.UpsertRarity(db, swccg, "Uncommon"),
+                Number = "50",
+            };
+            db.CardPrintings.Add(printing);
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        try
+        {
+            var matchResponse = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&subType=Site&destiny=0&deploy=0&forfeit=0&power=3&ability=2&lightSideIcon=2&darkSideIcon=1");
+            Assert.NotNull(matchResponse);
+            Assert.Single(matchResponse!);
+            Assert.Equal("Tatooine: Mos Eisley", matchResponse[0].CardName);
+
+            var mismatchResponse = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?game=Star+Wars+CCG&subType=Vehicle");
+            Assert.NotNull(mismatchResponse);
+            Assert.Empty(mismatchResponse!);
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
 }

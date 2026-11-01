@@ -84,6 +84,46 @@ public sealed record CardsFacetResponse
     /// List of available persona facets with counts based on current filters.
     /// </summary>
     public IReadOnlyList<FacetOption> Personas { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available subtype facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> SubTypes { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available destiny facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Destinies { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available deploy facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Deploys { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available forfeit facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Forfeits { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available power facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Powers { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available ability facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Abilities { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available Light Side icon facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> LightSideIcons { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available Dark Side icon facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> DarkSideIcons { get; init; } = Array.Empty<FacetOption>();
 }
 
 /// <summary>

@@ -32,6 +32,16 @@ export type PrintingQuery = {
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
   keywordMethod?: "or" | "and" | "exclude";
+  side?: string;
+  personas?: string[];
+  subTypes?: string[];
+  destinies?: string[];
+  deploys?: string[];
+  forfeits?: string[];
+  powers?: string[];
+  abilities?: string[];
+  lightSideIcons?: string[];
+  darkSideIcons?: string[];
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -59,6 +69,16 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.keywords?.length) params.set("keyword", query.keywords.join(","));
   if (query.keywordMethod && query.keywordMethod !== "or")
     params.set("keywordMethod", query.keywordMethod);
+  if (query.side) params.set("side", query.side);
+  if (query.personas?.length) params.set("persona", query.personas.join(","));
+  if (query.subTypes?.length) params.set("subType", query.subTypes.join(","));
+  if (query.destinies?.length) params.set("destiny", query.destinies.join(","));
+  if (query.deploys?.length) params.set("deploy", query.deploys.join(","));
+  if (query.forfeits?.length) params.set("forfeit", query.forfeits.join(","));
+  if (query.powers?.length) params.set("power", query.powers.join(","));
+  if (query.abilities?.length) params.set("ability", query.abilities.join(","));
+  if (query.lightSideIcons?.length) params.set("lightSideIcon", query.lightSideIcons.join(","));
+  if (query.darkSideIcons?.length) params.set("darkSideIcon", query.darkSideIcons.join(","));
   if (query.sort) params.set("sort", query.sort);
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));

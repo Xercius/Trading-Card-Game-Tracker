@@ -42,10 +42,15 @@ public sealed class Card
     public string? ExtraCardDataJson { get; set; }
     public string? BackTitle { get; set; }
     public string? BackText { get; set; }
+    public int? LightSideIcons { get; set; }
+    public int? DarkSideIcons { get; set; }
+    public int? BackLightSideIcons { get; set; }
+    public int? BackDarkSideIcons { get; set; }
     public DateTimeOffset? LastSyncedAt { get; set; }
 
     public ICollection<CardPrinting> Printings { get; set; } = new List<CardPrinting>();
     public ICollection<CardCardType> CardTypes { get; set; } = new List<CardCardType>();
+    public ICollection<CardSubType> CardSubTypes { get; set; } = new List<CardSubType>();
     public ICollection<CardTrait> CardTraits { get; set; } = new List<CardTrait>();
     public ICollection<CardKeyword> CardKeywords { get; set; } = new List<CardKeyword>();
     public ICollection<CardArena> CardArenas { get; set; } = new List<CardArena>();

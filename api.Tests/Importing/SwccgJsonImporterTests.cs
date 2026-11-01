@@ -27,41 +27,52 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var json = """
-        [
-          {
-            "id": 634,
-            "gempId": "1_168",
-            "side": "Dark",
-            "rarity": "R1",
-            "set": "Premiere",
-            "abbr": ["Math Vader", "Space Vader"],
-            "combo": ["Darth Vader + Grand Moff Tarkin: Once per battle..."],
-            "matching": ["Vader's Custom TIE", "Vader's Personal Shuttle"],
-            "matchingWeapon": ["Darth Vader's Lightsaber", "Vader's Lightsaber"],
-            "pulledBy": ["Blizzard 4", "The Empire's Back"],
-            "underlyingCardFor": ["Darth Vader (V)"],
-            "personas": ["Vader"],
-            "rulings": ["This card is a Black Squadron pilot."],
-            "misc": "Character: Imperial",
-            "front": {
-              "title": "•Darth Vader",
-              "type": "Character",
-              "subType": "Imperial",
-              "uniqueness": "*",
-              "destiny": "1",
-              "deploy": "6",
-              "forfeit": "8",
-              "power": "6",
-              "ability": "6",
-              "armor": "5",
-              "gametext": "Adds 3 to power of anything he pilots.",
-              "lore": "Dark Lord of the Sith.",
-              "imageUrl": "https://res.starwarsccg.org/cards/Premiere-Dark/large/darthvader.gif",
-              "icons": ["Pilot", "Warrior"],
-              "characteristics": ["Leader", "Dark Jedi"]
+        {
+          "sets": [
+            {
+              "id": "1",
+              "name": "Premiere",
+              "gempName": "Premiere",
+              "abbr": "P",
+              "date_release": "1995-12-01"
             }
-          }
-        ]
+          ],
+          "cards": [
+            {
+              "id": 634,
+              "gempId": "1_168",
+              "side": "Dark",
+              "rarity": "R1",
+              "set": "1",
+              "abbr": ["Math Vader", "Space Vader"],
+              "combo": ["Darth Vader + Grand Moff Tarkin: Once per battle..."],
+              "matching": ["Vader's Custom TIE", "Vader's Personal Shuttle"],
+              "matchingWeapon": ["Darth Vader's Lightsaber", "Vader's Lightsaber"],
+              "pulledBy": ["Blizzard 4", "The Empire's Back"],
+              "underlyingCardFor": ["Darth Vader (V)"],
+              "personas": ["Vader"],
+              "rulings": ["This card is a Black Squadron pilot."],
+              "misc": "Character: Imperial",
+              "front": {
+                "title": "•Darth Vader",
+                "type": "Character",
+                "subType": "Imperial",
+                "uniqueness": "*",
+                "destiny": "1",
+                "deploy": "6",
+                "forfeit": "8",
+                "power": "6",
+                "ability": "6",
+                "armor": "5",
+                "gametext": "Adds 3 to power of anything he pilots.",
+                "lore": "Dark Lord of the Sith.",
+                "imageUrl": "https://res.starwarsccg.org/cards/Premiere-Dark/large/darthvader.gif",
+                "icons": ["Pilot", "Warrior", "Premiere", "Set 1", "Virtual Set 2", "Virtual"],
+                "characteristics": ["Leader", "Dark Jedi"]
+              }
+            }
+          ]
+        }
         """;
 
         var importer = CreateImporter(db);
@@ -72,15 +83,17 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(0, summary.Errors);
 
         var card = await db.Cards
-            .Include(c => c.Printings)
+            .Include(c => c.Printings).ThenInclude(p => p.CatalogSet)
+            .Include(c => c.Printings).ThenInclude(p => p.RarityLookup)
             .Include(c => c.CardTypes).ThenInclude(ct => ct.CardType)
+            .Include(c => c.CardSubTypes).ThenInclude(cst => cst.SubType)
             .Include(c => c.CardTraits).ThenInclude(ct => ct.Trait)
             .Include(c => c.CardKeywords).ThenInclude(ck => ck.Keyword)
             .Include(c => c.CardAspects).ThenInclude(ca => ca.Aspect)
             .FirstOrDefaultAsync(c => c.CardUid == "1_168");
 
         Assert.NotNull(card);
-        Assert.Equal("•Darth Vader", card.Name);
+        Assert.Equal("Darth Vader", card.Name);
         Assert.Equal("Dark", card.Side);
         Assert.Equal("*", card.Uniqueness);
         Assert.Equal("1", card.Destiny);
@@ -99,20 +112,89 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains("Personas", card.RulesStyled);
         Assert.NotNull(card.ExtraCardDataJson);
 
-        // Printing checks
+        // Printing, Set, and Rarity checks
         var printing = Assert.Single(card.Printings);
         Assert.Equal("168", printing.Number);
         Assert.Equal("https://res.starwarsccg.org/cards/Premiere-Dark/large/darthvader.gif", printing.ImageUrl);
         Assert.False(printing.ArtFrontHorizontal);
+        Assert.NotNull(printing.CatalogSet);
+        Assert.Equal("P", printing.CatalogSet.Code);
+        Assert.Equal("Premiere", printing.CatalogSet.Name);
+        Assert.Equal(new DateOnly(1995, 12, 1), printing.CatalogSet.ReleasedAt);
+        Assert.NotNull(printing.RarityLookup);
+        Assert.Equal("Rare 1", printing.RarityLookup.Name);
+        Assert.Equal("R1", printing.RarityLookup.Character);
+        Assert.Equal("Rare", printing.RarityLookup.RarityType);
 
         // Associations
         Assert.Contains(card.CardTypes, t => t.CardType.Name == "Character" && t.SourceRole == "Type");
-        Assert.Contains(card.CardTypes, t => t.CardType.Name == "Imperial" && t.SourceRole == "Type2");
+        Assert.DoesNotContain(card.CardTypes, t => t.CardType.Name == "Imperial");
+        Assert.DoesNotContain(card.CardTypes, t => t.SourceRole == "Type2");
+        Assert.Contains(card.CardSubTypes, st => st.SubType.Name == "Imperial");
         Assert.Contains(card.CardTraits, tr => tr.Trait.Name == "Leader");
         Assert.Contains(card.CardTraits, tr => tr.Trait.Name == "Dark Jedi");
-        Assert.Contains(card.CardKeywords, kw => kw.Keyword.Name == "Pilot");
-        Assert.Contains(card.CardKeywords, kw => kw.Keyword.Name == "Warrior");
+        Assert.Contains(card.CardTraits, tr => tr.Trait.Name == "Pilot");
+        Assert.Contains(card.CardTraits, tr => tr.Trait.Name == "Warrior");
+        Assert.DoesNotContain(card.CardTraits, tr => tr.Trait.Name == "Premiere");
+        Assert.DoesNotContain(card.CardTraits, tr => tr.Trait.Name == "Set 1");
+        Assert.DoesNotContain(card.CardTraits, tr => tr.Trait.Name == "Virtual Set 2");
+        Assert.DoesNotContain(card.CardTraits, tr => tr.Trait.Name == "Virtual");
+        Assert.Empty(card.CardKeywords);
         Assert.Contains(card.CardAspects, a => a.Aspect.Name == "Dark Side");
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_PartialImport_PreservesLegacyAssociationsOnUntouchedCards()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var game = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+        var legacyType = new api.Models.CardType { Game = game, Name = "Legacy Type" };
+        var legacyKeyword = new api.Models.Keyword { Game = game, Name = "Legacy Keyword" };
+        var untouchedCard = new api.Models.Card
+        {
+            Game = game,
+            Name = "Untouched Card",
+            CardUid = "1_20",
+        };
+        untouchedCard.CardTypes.Add(new api.Models.CardCardType
+        {
+            Card = untouchedCard,
+            CardType = legacyType,
+            SourceRole = "Type2",
+        });
+        untouchedCard.CardKeywords.Add(new api.Models.CardKeyword
+        {
+            Card = untouchedCard,
+            Keyword = legacyKeyword,
+        });
+        db.Cards.Add(untouchedCard);
+        await db.SaveChangesAsync();
+
+        var json = """
+        {
+          "cards": [
+            {
+              "id": 10,
+              "gempId": "1_10",
+              "side": "Dark",
+              "set": "Premiere",
+              "rarity": "R1",
+              "front": { "title": "Imported Card", "type": "Character" }
+            }
+          ]
+        }
+        """;
+        var summary = await CreateImporter(db).ImportFromFileAsync(
+            ToStream(json),
+            new ImportOptions(DryRun: false));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.True(await db.CardCardTypes.AsNoTracking().AnyAsync(association =>
+            association.CardId == untouchedCard.Id && association.SourceRole == "Type2"));
+        Assert.True(await db.CardKeywords.AsNoTracking().AnyAsync(association =>
+            association.CardId == untouchedCard.Id && association.KeywordId == legacyKeyword.Id));
     }
 
     [Fact]
@@ -169,7 +251,7 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal(3, summary.PrintingsCreated);
         Assert.Equal(0, summary.Errors);
 
-        var cards = await db.Cards.Where(c => c.Name == "•Sense").ToListAsync();
+        var cards = await db.Cards.Where(c => c.Name == "Sense").ToListAsync();
         Assert.Equal(3, cards.Count);
     }
 
@@ -192,6 +274,8 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
               "type": "Location",
               "subType": "Site",
               "parsec": "4",
+              "darkSideIcons": 1,
+              "lightSideIcons": 2,
               "gametext": "Deploys on Tatooine.",
               "imageUrl": "https://res.starwarsccg.org/cards/Premiere-Dark/large/tatooinecantina.gif"
             }
@@ -206,6 +290,17 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         var printing = await db.CardPrintings.FirstOrDefaultAsync(p => p.CardUid == "1_200");
         Assert.NotNull(printing);
         Assert.True(printing.ArtFrontHorizontal);
+
+        var card = await db.Cards
+            .Include(c => c.CardTypes).ThenInclude(ct => ct.CardType)
+            .Include(c => c.CardSubTypes).ThenInclude(cst => cst.SubType)
+            .FirstOrDefaultAsync(c => c.CardUid == "1_200");
+        Assert.NotNull(card);
+        Assert.Contains(card.CardTypes, t => t.CardType.Name == "Location");
+        Assert.DoesNotContain(card.CardTypes, t => t.CardType.Name == "Site");
+        Assert.Contains(card.CardSubTypes, st => st.SubType.Name == "Site");
+        Assert.Equal(1, card.DarkSideIcons);
+        Assert.Equal(2, card.LightSideIcons);
     }
 
     [Fact]
@@ -232,6 +327,8 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
             "back": {
               "title": "Save You It Can",
               "destiny": "7",
+              "darkSideIcons": 2,
+              "lightSideIcons": 3,
               "gametext": "Flip this card if Luke on Dagobah.",
               "imageUrl": "https://res.starwarsccg.org/cards/SpecialEdition-Light/large/saveyouitcan.gif"
             }
@@ -248,6 +345,8 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("Mind What You Have Learned", card.Name);
         Assert.Equal("Save You It Can", card.BackTitle);
         Assert.Equal("Flip this card if Luke on Dagobah.", card.BackText);
+        Assert.Equal(2, card.BackDarkSideIcons);
+        Assert.Equal(3, card.BackLightSideIcons);
 
         var printing = Assert.Single(card.Printings);
         Assert.Equal("https://res.starwarsccg.org/cards/SpecialEdition-Light/large/mindwhatyouhavelearned.gif", printing.ImageUrl);
@@ -327,14 +426,114 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Contains("4-LOM With Concussion Rifle (V)", card.RulesStyled);
     }
 
+    [Theory]
+    [InlineData("Virtual", true)]
+    [InlineData("Virtual Set", true)]
+    [InlineData("Virtual Set 0", true)]
+    [InlineData("Virtual Set 1", true)]
+    [InlineData("Virtual Set 18", true)]
+    [InlineData("Virtual Set #2", true)]
+    [InlineData("Virtual Premium Set", true)]
+    [InlineData("Virtual Defensive Shields", true)]
+    [InlineData("Set 0", true)]
+    [InlineData("Set 1", true)]
+    [InlineData("Set 18", true)]
+    [InlineData("Set 27", true)]
+    [InlineData("Set P", true)]
+    [InlineData("Set D", true)]
+    [InlineData("Pilot", false)]
+    [InlineData("Warrior", false)]
+    [InlineData("Leader", false)]
+    [InlineData("Permanent Weapon", false)]
+    [InlineData("Nav Computer", false)]
+    [InlineData("Scomp Link", false)]
+    public void IsVirtualSetName_IdentifiesVirtualSetsAndExcludesRegularTraits(string candidate, bool expected)
+    {
+        var result = SwccgCatalog.IsVirtualSetName(candidate);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("••Presence Of The Force", "Presence Of The Force", "**")]
+    [InlineData("<><><>Asteroid Field", "Asteroid Field", "<><><>")]
+    [InlineData("•Darth Vader", "Darth Vader", "*")]
+    [InlineData("• Darth Vader", "Darth Vader", "*")]
+    [InlineData("•••Luke Skywalker", "Luke Skywalker", "***")]
+    [InlineData("<>Tatooine: Cantina", "Tatooine: Cantina", "<>")]
+    [InlineData("<><>Death Star", "Death Star", "<><>")]
+    [InlineData("Sense", "Sense", null)]
+    [InlineData("", "", null)]
+    [InlineData(null, "", null)]
+    public void ParseTitleUniqueness_CleansTitlesAndExtractsUniqueness(string? input, string expectedTitle, string? expectedUniqueness)
+    {
+        var (cleanTitle, extractedUniqueness) = SwccgCatalog.ParseTitleUniqueness(input);
+        Assert.Equal(expectedTitle, cleanTitle);
+        Assert.Equal(expectedUniqueness, extractedUniqueness);
+        Assert.Equal(expectedTitle.Length == 0 ? null : expectedTitle, SwccgCatalog.CleanTitle(input));
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_CardsWithDotsAndDiamondsUniqueness_StripsUniquenessFromTitle()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var json = """
+        [
+          {
+            "id": 9001,
+            "gempId": "1_9001",
+            "side": "Light",
+            "rarity": "R1",
+            "set": "Premiere",
+            "front": {
+              "title": "••Presence Of The Force",
+              "uniqueness": "**",
+              "type": "Effect",
+              "gametext": "Deploy on any location."
+            }
+          },
+          {
+            "id": 9002,
+            "gempId": "1_9002",
+            "side": "Dark",
+            "rarity": "U1",
+            "set": "Premiere",
+            "front": {
+              "title": "<><><>Asteroid Field",
+              "uniqueness": "<><><>",
+              "type": "Sector",
+              "gametext": "Asteroid rules in effect."
+            }
+          }
+        ]
+        """;
+
+        var importer = CreateImporter(db);
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false));
+
+        Assert.Equal(2, summary.CardsCreated);
+        Assert.Equal(0, summary.Errors);
+
+        var presenceCard = await db.Cards.FirstOrDefaultAsync(c => c.CardUid == "1_9001");
+        Assert.NotNull(presenceCard);
+        Assert.Equal("Presence Of The Force", presenceCard.Name);
+        Assert.Equal("**", presenceCard.Uniqueness);
+
+        var asteroidCard = await db.Cards.FirstOrDefaultAsync(c => c.CardUid == "1_9002");
+        Assert.NotNull(asteroidCard);
+        Assert.Equal("Asteroid Field", asteroidCard.Name);
+        Assert.Equal("<><><>", asteroidCard.Uniqueness);
+    }
+
     private sealed class StubSwccgApiClient : ISwccgApiClient
     {
         public Task<List<SwccgSet>> GetSetsAsync(CancellationToken ct = default)
             => Task.FromResult(new List<SwccgSet>
             {
-                new("1", "Premiere"),
-                new("7", "Special Edition"),
-                new("9", "Death Star II")
+                new("1", "Premiere", "P", "1995-12-01", "Premiere"),
+                new("7", "Special Edition", "SE", "1998-11-18", "Special Edition"),
+                new("9", "Death Star II", "DS2", "2000-07-19", "Death Star II")
             });
 
         public Task<List<SwccgCardRecord>> GetDarkCardsAsync(CancellationToken ct = default)

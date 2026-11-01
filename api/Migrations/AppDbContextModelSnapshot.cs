@@ -78,6 +78,12 @@ namespace api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("BackDarkSideIcons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BackLightSideIcons")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BackText")
                         .HasColumnType("TEXT");
 
@@ -90,6 +96,9 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("Cost")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("DarkSideIcons")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Deploy")
@@ -138,6 +147,9 @@ namespace api.Migrations
 
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("LightSideIcons")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Lore")
                         .HasColumnType("TEXT");
@@ -396,6 +408,21 @@ namespace api.Migrations
                     b.ToTable("CardPrintings");
                 });
 
+            modelBuilder.Entity("api.Models.CardSubType", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SubTypeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "SubTypeId");
+
+                    b.HasIndex("SubTypeId");
+
+                    b.ToTable("CardSubTypes", (string)null);
+                });
+
             modelBuilder.Entity("api.Models.CardTrait", b =>
                 {
                     b.Property<int>("CardId")
@@ -594,7 +621,7 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Character")
-                        .HasMaxLength(1)
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Color")
@@ -607,6 +634,10 @@ namespace api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RarityType")
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -648,6 +679,28 @@ namespace api.Migrations
                         .HasDatabaseName("UX_Sets_GameId_Code");
 
                     b.ToTable("Sets", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("SubTypes", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.SyncLog", b =>
@@ -1002,6 +1055,25 @@ namespace api.Migrations
                     b.Navigation("VariantOf");
                 });
 
+            modelBuilder.Entity("api.Models.CardSubType", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardSubTypes")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.SubType", "SubType")
+                        .WithMany("Cards")
+                        .HasForeignKey("SubTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("SubType");
+                });
+
             modelBuilder.Entity("api.Models.CardTrait", b =>
                 {
                     b.HasOne("api.Models.Card", "Card")
@@ -1095,6 +1167,17 @@ namespace api.Migrations
                     b.Navigation("Game");
                 });
 
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("SubTypes")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("api.Models.SyncLog", b =>
                 {
                     b.HasOne("api.Models.Set", "Set")
@@ -1164,6 +1247,8 @@ namespace api.Migrations
 
                     b.Navigation("CardKeywords");
 
+                    b.Navigation("CardSubTypes");
+
                     b.Navigation("CardTraits");
 
                     b.Navigation("CardTypes");
@@ -1200,6 +1285,8 @@ namespace api.Migrations
 
                     b.Navigation("Sets");
 
+                    b.Navigation("SubTypes");
+
                     b.Navigation("Traits");
 
                     b.Navigation("Treatments");
@@ -1213,6 +1300,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Set", b =>
                 {
                     b.Navigation("SyncLogs");
+                });
+
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.Navigation("Cards");
                 });
 
             modelBuilder.Entity("api.Models.Trait", b =>

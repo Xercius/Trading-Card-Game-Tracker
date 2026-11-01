@@ -49,7 +49,7 @@ describe("CardsPage filter wiring", () => {
   });
 
 
-  it("defaults to Dark Side for Star Wars CCG and passes side filter", async () => {
+  it("does not default side filter for Star Wars CCG when neither is selected", async () => {
     const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
       data: { items: [], total: 0 },
       isLoading: false,
@@ -58,6 +58,24 @@ describe("CardsPage filter wiring", () => {
     } as unknown as UsePrintingsResult);
 
     render(<CardsPage />, { wrapper: createTestWrapper(["/cards"], "Star Wars CCG") });
+
+    expect(usePrintingsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        games: ["Star Wars CCG"],
+        side: undefined,
+      })
+    );
+  });
+
+  it("passes side filter when specified in URL for Star Wars CCG", async () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards?side=Dark"], "Star Wars CCG") });
 
     expect(usePrintingsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -547,6 +565,53 @@ describe("CardsPage filter wiring", () => {
       const listItems = container.querySelectorAll("ul > li");
       expect(listItems).toHaveLength(3);
       expect(listItems[0].classList.contains("flex-col")).toBe(true);
+      expect(listItems[1].classList.contains("flex-col")).toBe(false);
+      expect(listItems[2].classList.contains("flex-col")).toBe(false);
+    });
+
+    it("does not pair horizontal cards when game is Star Wars CCG", () => {
+      vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+        data: [
+          {
+            printingId: "swccg1",
+            cardId: "1",
+            cardName: "Asteroid Field 1",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "horizontal",
+          },
+          {
+            printingId: "swccg2",
+            cardId: "2",
+            cardName: "Asteroid Field 2",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "horizontal",
+          },
+          {
+            printingId: "swccg3",
+            cardId: "3",
+            cardName: "Alien Rob",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "vertical",
+          },
+        ],
+        isLoading: false,
+        isError: false,
+        error: null,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as unknown as UsePrintingsResult);
+
+      const { container } = render(<CardsPage />, {
+        wrapper: createTestWrapper(["/cards"], "Star Wars CCG"),
+      });
+
+      const listItems = container.querySelectorAll("ul > li");
+      expect(listItems).toHaveLength(3);
+      expect(listItems[0].classList.contains("flex-col")).toBe(false);
       expect(listItems[1].classList.contains("flex-col")).toBe(false);
       expect(listItems[2].classList.contains("flex-col")).toBe(false);
     });

@@ -608,4 +608,61 @@ describe("CardModal", () => {
     expect(screen.getByText("Back: Their Fire Has Gone Out Of The Universe")).toBeInTheDocument();
     expect(screen.getByText("While this side up, opponent loses 2 Force.")).toBeInTheDocument();
   });
+
+  it("renders SWCCG card with diamond uniqueness to the left of title", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 303,
+              name: "Asteroid Field",
+              uniqueness: "<><><>",
+              game: "Star Wars CCG",
+              cardType: "Sector",
+              side: "Dark",
+              text: "Asteroid rules in effect.",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 303 });
+
+    const titleEl = await screen.findByTestId("card-modal-card-name");
+    expect(titleEl).toHaveTextContent("Asteroid Field");
+    const diamonds = screen.getByTestId("swccg-uniqueness-diamonds");
+    expect(diamonds).toBeInTheDocument();
+    expect(diamonds.querySelectorAll("svg")).toHaveLength(3);
+  });
+
+  it("renders SWCCG location Force icons with dark and light lightsaber badges", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 304,
+              name: "Tatooine: Cantina",
+              game: "Star Wars CCG",
+              cardType: "Location",
+              subTypes: ["Site"],
+              side: "Dark",
+              darkSideIcons: 1,
+              lightSideIcons: 2,
+              parsec: 4,
+              text: "Deploys on Tatooine.",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 304 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Tatooine: Cantina");
+    expect(screen.getByLabelText("Dark Side Icons: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Light Side Icons: 2")).toBeInTheDocument();
+    expect(screen.getByText("Dark Icons")).toBeInTheDocument();
+    expect(screen.getByText("Light Icons")).toBeInTheDocument();
+  });
 });

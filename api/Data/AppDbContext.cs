@@ -21,12 +21,14 @@ namespace api.Data
         public DbSet<Set> Sets => Set<Set>();
         public DbSet<Treatment> Treatments => Set<Treatment>();
         public DbSet<CardType> CardTypes => Set<CardType>();
+        public DbSet<SubType> SubTypes => Set<SubType>();
         public DbSet<Trait> Traits => Set<Trait>();
         public DbSet<Keyword> Keywords => Set<Keyword>();
         public DbSet<Arena> Arenas => Set<Arena>();
         public DbSet<Aspect> Aspects => Set<Aspect>();
         public DbSet<Rarity> Rarities => Set<Rarity>();
         public DbSet<CardCardType> CardCardTypes => Set<CardCardType>();
+        public DbSet<CardSubType> CardSubTypes => Set<CardSubType>();
         public DbSet<CardTrait> CardTraits => Set<CardTrait>();
         public DbSet<CardKeyword> CardKeywords => Set<CardKeyword>();
         public DbSet<CardArena> CardArenas => Set<CardArena>();
@@ -251,6 +253,7 @@ namespace api.Data
             });
 
             ConfigureLookup(b.Entity<CardType>(), "CardTypes", "CardTypes");
+            ConfigureLookup(b.Entity<SubType>(), "SubTypes", "SubTypes");
             ConfigureLookup(b.Entity<Trait>(), "Traits", "Traits");
             ConfigureLookup(b.Entity<Keyword>(), "Keywords", "Keywords");
             ConfigureLookup(b.Entity<Arena>(), "Arenas", "Arenas");
@@ -261,8 +264,9 @@ namespace api.Data
             b.Entity<Aspect>().Property(a => a.Color).HasMaxLength(32);
             b.Entity<Rarity>(e =>
             {
-                e.Property(r => r.Character).HasMaxLength(1);
+                e.Property(r => r.Character).HasMaxLength(16);
                 e.Property(r => r.Color).HasMaxLength(32);
+                e.Property(r => r.RarityType).HasMaxLength(32);
             });
 
             b.Entity<CardCardType>(e =>
@@ -276,6 +280,17 @@ namespace api.Data
                 e.HasOne(x => x.CardType).WithMany(t => t.Cards)
                     .HasForeignKey(x => x.CardTypeId).OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(x => x.CardTypeId);
+            });
+
+            b.Entity<CardSubType>(e =>
+            {
+                e.ToTable("CardSubTypes");
+                e.HasKey(x => new { x.CardId, x.SubTypeId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardSubTypes)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.SubType).WithMany(t => t.Cards)
+                    .HasForeignKey(x => x.SubTypeId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.SubTypeId);
             });
 
             b.Entity<CardTrait>(e =>
