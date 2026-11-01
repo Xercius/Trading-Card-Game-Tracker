@@ -117,8 +117,6 @@ export async function fetchCardsPage({
   if (traits?.length) params.set("trait", traits.join(","));
   if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
   if (keywords?.length) params.set("keyword", keywords.join(","));
-  if (side) params.set("side", side);
-  if (personas?.length) params.set("persona", personas.join(","));
   if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
   params.set("skip", String(skip));
   params.set("take", String(take));
@@ -209,6 +207,14 @@ export type CardsFacetResponse = {
   keywords?: FacetOption[];
   personas?: FacetOption[];
   treatments?: FacetOption[];
+  subTypes?: FacetOption[];
+  destinies?: FacetOption[];
+  deploys?: FacetOption[];
+  forfeits?: FacetOption[];
+  powers?: FacetOption[];
+  abilities?: FacetOption[];
+  lightSideIcons?: FacetOption[];
+  darkSideIcons?: FacetOption[];
 };
 
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
@@ -338,6 +344,14 @@ export async function fetchCardFacets({
   keywordMethod,
   side,
   personas,
+  subTypes,
+  destinies,
+  deploys,
+  forfeits,
+  powers,
+  abilities,
+  lightSideIcons,
+  darkSideIcons,
   q,
   printingSearch,
 }: {
@@ -354,6 +368,14 @@ export async function fetchCardFacets({
   keywordMethod?: "or" | "and" | "exclude";
   side?: string;
   personas?: string[];
+  subTypes?: string[];
+  destinies?: string[];
+  deploys?: string[];
+  forfeits?: string[];
+  powers?: string[];
+  abilities?: string[];
+  lightSideIcons?: string[];
+  darkSideIcons?: string[];
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -371,6 +393,14 @@ export async function fetchCardFacets({
   if (keywordMethod && keywordMethod !== "or") params.set("keywordMethod", keywordMethod);
   if (side) params.set("side", side);
   if (personas?.length) params.set("persona", personas.join(","));
+  if (subTypes?.length) params.set("subType", subTypes.join(","));
+  if (destinies?.length) params.set("destiny", destinies.join(","));
+  if (deploys?.length) params.set("deploy", deploys.join(","));
+  if (forfeits?.length) params.set("forfeit", forfeits.join(","));
+  if (powers?.length) params.set("power", powers.join(","));
+  if (abilities?.length) params.set("ability", abilities.join(","));
+  if (lightSideIcons?.length) params.set("lightSideIcon", lightSideIcons.join(","));
+  if (darkSideIcons?.length) params.set("darkSideIcon", darkSideIcons.join(","));
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 

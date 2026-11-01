@@ -240,6 +240,7 @@ public class CardsController : ControllerBase
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
             .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
+            .Include(card => card.CardSubTypes).ThenInclude(subType => subType.SubType)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -291,6 +292,7 @@ public class CardsController : ControllerBase
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
             .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
+            .Include(card => card.CardSubTypes).ThenInclude(subType => subType.SubType)
             .FirstOrDefaultAsync(x => x.Id == cardId);
         if (c is null)
         {
@@ -357,7 +359,12 @@ public class CardsController : ControllerBase
             c.ExtraCardDataJson,
             c.BackTitle,
             c.BackText,
-            c.Persona);
+            c.Persona,
+            c.CardSubTypes.Select(st => st.SubType.Name).Distinct().OrderBy(name => name).ToList(),
+            c.LightSideIcons,
+            c.DarkSideIcons,
+            c.BackLightSideIcons,
+            c.BackDarkSideIcons);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.

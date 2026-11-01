@@ -69,7 +69,10 @@ public sealed class SwccgFlexibleStringListConverter : JsonConverter<List<string
 /// </summary>
 public sealed record SwccgSet(
     [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("name")] string Name
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("abbr")] string? Abbr = null,
+    [property: JsonPropertyName("date_release")] string? DateRelease = null,
+    [property: JsonPropertyName("gempName")] string? GempName = null
 );
 
 /// <summary>
@@ -131,6 +134,8 @@ public sealed record SwccgFaceRecord(
     [property: JsonPropertyName("imageUrl")] string? ImageUrl,
     [property: JsonPropertyName("icons")] List<string>? Icons,
     [property: JsonPropertyName("characteristics")] List<string>? Characteristics,
-    [property: JsonPropertyName("extraText")] List<string>? ExtraText
+    [property: JsonPropertyName("extraText")] List<string>? ExtraText,
+    [property: JsonPropertyName("lightSideIcons")] int? LightSideIcons = null,
+    [property: JsonPropertyName("darkSideIcons")] int? DarkSideIcons = null
 );
 

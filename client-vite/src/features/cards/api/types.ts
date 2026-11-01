@@ -64,6 +64,11 @@ export type CardDetail = {
   backTitle?: string | null;
   backText?: string | null;
   persona?: string | null;
+  subTypes?: string[];
+  lightSideIcons?: number | null;
+  darkSideIcons?: number | null;
+  backLightSideIcons?: number | null;
+  backDarkSideIcons?: number | null;
   printings: CardPrintingDetail[];
 };
 

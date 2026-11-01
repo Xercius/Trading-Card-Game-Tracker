@@ -3,6 +3,8 @@ import { resolveImageUrl } from "@/lib/http";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { useCardDetails, useCardPrintings, type PrintingSummary } from "../api";
 import CardImages from "./CardImages";
+import SwccgUniqueness from "./SwccgUniqueness";
+import { ForceIconBadge } from "./SwccgForceIcons";
 
 type CardModalProps = {
   cardId: number;
@@ -321,8 +323,8 @@ export default function CardModal({
   const details = detailsQuery.data;
   const isSwccg = details?.game === "Star Wars CCG";
 
-  const { displayName, subtitle } = useMemo(() => {
-    if (!details) return { displayName: "", subtitle: null };
+  const { displayName, subtitle, swccgUniqueness } = useMemo(() => {
+    if (!details) return { displayName: "", subtitle: null, swccgUniqueness: null };
     const rawSubtitle = details.subtitle?.trim() || null;
     let name = details.name?.trim() || "";
     if (rawSubtitle) {
@@ -330,8 +332,18 @@ export default function CardModal({
       const pattern = new RegExp(`\\s*[\u2014\\-]\\s*${escaped}$`, "i");
       name = name.replace(pattern, "").trim();
     }
-    return { displayName: name, subtitle: rawSubtitle };
-  }, [details]);
+    let uniqueness = details.uniqueness?.trim() || null;
+    if (isSwccg) {
+      const prefixMatch = name.match(/^([•*·●∙]|<>|[◇◆◊])+/);
+      if (prefixMatch) {
+        if (!uniqueness) {
+          uniqueness = prefixMatch[0];
+        }
+        name = name.replace(/^([•*·●∙]|<>|[◇◆◊])+\s*/, "").trim();
+      }
+    }
+    return { displayName: name, subtitle: rawSubtitle, swccgUniqueness: uniqueness };
+  }, [details, isSwccg]);
 
   const primaryType = useMemo(() => {
     if (!details) return "";
@@ -595,6 +607,7 @@ export default function CardModal({
                             data-testid="card-modal-card-name"
                             className="text-2xl font-bold tracking-tight text-foreground"
                           >
+                            <SwccgUniqueness uniqueness={swccgUniqueness} side={details.side} />
                             {displayName || details.name}
                           </h2>
                           {details.side && (
@@ -611,7 +624,12 @@ export default function CardModal({
                         </div>
 
                         <p className="text-sm font-semibold text-muted-foreground mt-0.5">
-                          {details.cardType}{details.cardType2 ? ` • ${details.cardType2}` : ""}
+                          {details.cardType}
+                          {details.subTypes && details.subTypes.length > 0
+                            ? ` • ${details.subTypes.join(", ")}`
+                            : details.cardType2
+                              ? ` • ${details.cardType2}`
+                              : ""}
                         </p>
 
                         {/* 2. SWCCG Stats Badges */}
@@ -688,6 +706,12 @@ export default function CardModal({
                               <span className="text-base font-black text-foreground">{details.politics}</span>
                             </div>
                           )}
+                          {details.darkSideIcons != null && (
+                            <ForceIconBadge side="dark" count={details.darkSideIcons} />
+                          )}
+                          {details.lightSideIcons != null && (
+                            <ForceIconBadge side="light" count={details.lightSideIcons} />
+                          )}
                         </div>
 
                         {/* Traits */}
@@ -718,12 +742,24 @@ export default function CardModal({
                         </div>
                       )}
 
-                      {/* Two-sided Objectives */}
-                      {(details.backTitle || details.backText) && (
+                      {/* Two-sided Cards (Objectives / Dual-sided Locations) */}
+                      {(details.backTitle || details.backText || details.backDarkSideIcons != null || details.backLightSideIcons != null) && (
                         <div className="space-y-1.5 pt-3 border-t border-border/50">
-                          <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                            Back: {details.backTitle || "Objective Back"}
-                          </h3>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                              Back: {details.backTitle || "Card Back"}
+                            </h3>
+                            {(details.backDarkSideIcons != null || details.backLightSideIcons != null) && (
+                              <div className="flex items-center gap-1.5">
+                                {details.backDarkSideIcons != null && (
+                                  <ForceIconBadge side="dark" count={details.backDarkSideIcons} />
+                                )}
+                                {details.backLightSideIcons != null && (
+                                  <ForceIconBadge side="light" count={details.backLightSideIcons} />
+                                )}
+                              </div>
+                            )}
+                          </div>
                           {renderStyledCardText(details.backText)}
                         </div>
                       )}
@@ -772,7 +808,7 @@ export default function CardModal({
                             })}
                             <span className="sr-only">
                               {details.aspects
-                                .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
+                                .map(({ name, count }) => `${name}${count > 1 ? ` Ã—${count}` : ""}`)
                                 .join(", ")}
                             </span>
                           </div>

@@ -51,9 +51,20 @@ public sealed class SwccgJsonImporter : ISourceImporter
         if (!string.IsNullOrWhiteSpace(options.SetCode))
         {
             var filter = options.SetCode.Trim();
+            var matchingSet = sets.FirstOrDefault(s =>
+                string.Equals(s.Id, filter, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s.Abbr, filter, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s.Name, filter, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s.GempName, filter, StringComparison.OrdinalIgnoreCase));
+
             cards = cards.Where(c =>
                 string.Equals(c.Set, filter, StringComparison.OrdinalIgnoreCase)
-                || (c.GempId != null && c.GempId.StartsWith(filter + "_", StringComparison.OrdinalIgnoreCase)))
+                || (matchingSet != null && (
+                    string.Equals(c.Set, matchingSet.Id, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(c.Set, matchingSet.Name, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(c.Set, matchingSet.GempName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(c.Set, matchingSet.Abbr, StringComparison.OrdinalIgnoreCase)))
+                || (c.GempId != null && c.GempId.StartsWith((matchingSet?.Id ?? filter) + "_", StringComparison.OrdinalIgnoreCase)))
                 .ToList();
         }
 
@@ -109,7 +120,16 @@ public sealed class SwccgJsonImporter : ISourceImporter
             await catalog.LoadAsync(ct);
             var game = catalog.Game;
 
-            await _db.Cards.Where(c => c.GameId == game.Id).LoadAsync(ct);
+            var existingCards = await _db.Cards.Where(c => c.GameId == game.Id).ToListAsync(ct);
+            var cardsByUid = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
+            var existingCardSet = new HashSet<Card>(ReferenceEqualityComparer.Instance);
+            foreach (var c in existingCards)
+            {
+                existingCardSet.Add(c);
+                if (!string.IsNullOrWhiteSpace(c.CardUid))
+                    cardsByUid[c.CardUid] = c;
+            }
+
             var printings = await _db.CardPrintings
                 .Include(p => p.Card)
                 .Include(p => p.CatalogSet)
@@ -118,25 +138,36 @@ public sealed class SwccgJsonImporter : ISourceImporter
                 .ToListAsync(ct);
 
             var identity = new SwccgSharedIdentity(printings);
+            var updatedCards = new HashSet<Card>(ReferenceEqualityComparer.Instance);
             var updatedPrintings = new HashSet<int>();
             int processed = 0;
             int limit = options.Limit ?? int.MaxValue;
 
-            foreach (var record in records)
+            var previousAutoDetect = _db.ChangeTracker.AutoDetectChangesEnabled;
+            try
             {
-                if (processed++ >= limit) break;
+                _db.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                try
+                foreach (var record in records)
                 {
-                    UpsertCard(record, catalog, identity, summary, updatedPrintings);
+                    if (processed++ >= limit) break;
+
+                    try
+                    {
+                        UpsertCard(record, catalog, identity, cardsByUid, existingCardSet, updatedCards, summary, updatedPrintings);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogError(ex, "Failed to import SWCCG card record {SourceId} ({Title}).",
+                            record.Id, record.Front?.Title);
+                        summary.Errors++;
+                        summary.Messages.Add($"Error [{record.Id}] {record.Front?.Title}: {ex.Message}");
+                    }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogError(ex, "Failed to import SWCCG card record {SourceId} ({Title}).",
-                        record.Id, record.Front?.Title);
-                    summary.Errors++;
-                    summary.Messages.Add($"Error [{record.Id}] {record.Front?.Title}: {ex.Message}");
-                }
+            }
+            finally
+            {
+                _db.ChangeTracker.AutoDetectChangesEnabled = previousAutoDetect;
             }
 
             await _db.SaveChangesAsync(ct);
@@ -149,6 +180,9 @@ public sealed class SwccgJsonImporter : ISourceImporter
         SwccgCardRecord record,
         SwccgCatalog catalog,
         SwccgSharedIdentity identity,
+        Dictionary<string, Card> cardsByUid,
+        HashSet<Card> existingCardSet,
+        HashSet<Card> updatedCards,
         ImportSummary summary,
         HashSet<int> updatedPrintings)
     {
@@ -158,7 +192,8 @@ public sealed class SwccgJsonImporter : ISourceImporter
             throw new InvalidOperationException($"Record ID {record.Id} missing face title.");
         }
 
-        var title = face.Title.Trim();
+        var (cleanTitle, inferredUniqueness) = SwccgCatalog.ParseTitleUniqueness(face.Title);
+        var title = !string.IsNullOrWhiteSpace(cleanTitle) ? cleanTitle : face.Title.Trim();
         var cardUid = !string.IsNullOrWhiteSpace(record.GempId)
             ? record.GempId.Trim()
             : record.Id.ToString();
@@ -170,8 +205,11 @@ public sealed class SwccgJsonImporter : ISourceImporter
         var printing = identity.FindPrinting(cardUid, set, number);
 
         // 2. Resolve Card
-        var card = printing?.Card
-            ?? _db.Cards.Local.FirstOrDefault(c => c.GameId == catalog.Game.Id && c.CardUid == cardUid);
+        var card = printing?.Card;
+        if (card is null)
+        {
+            cardsByUid.TryGetValue(cardUid, out card);
+        }
 
         var now = _timeProvider.GetUtcNow();
         var isNewCard = card is null;
@@ -185,6 +223,7 @@ public sealed class SwccgJsonImporter : ISourceImporter
                 CardUid = cardUid
             };
             _db.Cards.Add(card);
+            cardsByUid[cardUid] = card;
             summary.CardsCreated++;
         }
 
@@ -195,7 +234,9 @@ public sealed class SwccgJsonImporter : ISourceImporter
         card.TextStyled = face.Gametext;
         card.Lore = face.Lore;
         card.Side = record.Side;
-        card.Uniqueness = face.Uniqueness;
+        card.Uniqueness = !string.IsNullOrWhiteSpace(face.Uniqueness)
+            ? face.Uniqueness
+            : inferredUniqueness;
         card.Destiny = face.Destiny;
         card.Deploy = face.Deploy;
         card.Forfeit = face.Forfeit;
@@ -213,11 +254,15 @@ public sealed class SwccgJsonImporter : ISourceImporter
         card.RulesStyled = SwccgCatalog.BuildRulesStyled(record);
         card.Rules = record.Rulings is { Count: > 0 } ? string.Join("\n", record.Rulings) : null;
         card.ExtraCardDataJson = SwccgCatalog.BuildExtraCardDataJson(record);
-        card.BackTitle = record.Back?.Title;
+        card.BackTitle = SwccgCatalog.CleanTitle(record.Back?.Title);
         card.BackText = record.Back?.Gametext;
+        card.LightSideIcons = face.LightSideIcons;
+        card.DarkSideIcons = face.DarkSideIcons;
+        card.BackLightSideIcons = record.Back?.LightSideIcons;
+        card.BackDarkSideIcons = record.Back?.DarkSideIcons;
         card.LastSyncedAt = now;
 
-        if (!isNewCard && _db.Entry(card).State != EntityState.Added)
+        if (!isNewCard && existingCardSet.Contains(card) && updatedCards.Add(card))
         {
             summary.CardsUpdated++;
         }

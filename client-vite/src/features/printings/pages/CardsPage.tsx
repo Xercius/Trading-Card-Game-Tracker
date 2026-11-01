@@ -15,7 +15,23 @@ import type { PrintingListItem } from "../api/printings";
 
 type ViewMode = "grid" | "table";
 type FilterArrayKey =
-  "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits" | "keywords";
+  | "games"
+  | "sets"
+  | "rarities"
+  | "types"
+  | "arenas"
+  | "aspects"
+  | "traits"
+  | "keywords"
+  | "personas"
+  | "subTypes"
+  | "destinies"
+  | "deploys"
+  | "forfeits"
+  | "powers"
+  | "abilities"
+  | "lightSideIcons"
+  | "darkSideIcons";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -61,12 +77,6 @@ export default function CardsPage() {
     }
   }, [activeGame, setFilters]);
 
-  React.useEffect(() => {
-    if (activeGame === "Star Wars CCG" && !filters.side) {
-      setFilters((prev) => ({ ...prev, side: "Dark" }));
-    }
-  }, [activeGame, filters.side, setFilters]);
-
   const previousQRef = React.useRef(filters.q);
   React.useEffect(() => {
     if (previousQRef.current !== filters.q) {
@@ -87,7 +97,7 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
-      side: isSwccg ? filters.side || "Dark" : undefined,
+      side: isSwccg ? filters.side : undefined,
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
@@ -202,6 +212,16 @@ export default function CardsPage() {
       traitMethod: "or",
       keywords: [],
       keywordMethod: "or",
+      side: undefined,
+      personas: [],
+      subTypes: [],
+      destinies: [],
+      deploys: [],
+      forfeits: [],
+      powers: [],
+      abilities: [],
+      lightSideIcons: [],
+      darkSideIcons: [],
       page: 1,
     }));
   }, [setFilters, isSwccg]);
@@ -212,7 +232,7 @@ export default function CardsPage() {
         if (key === "side") {
           return {
             ...prev,
-            side: "Dark",
+            side: undefined,
             page: 1,
           };
         }
@@ -260,13 +280,18 @@ export default function CardsPage() {
   const activeFilters = React.useMemo(() => {
     if (isSwccg) {
       const list: Array<{ key: FilterArrayKey | "side"; label: string; items: Array<{ display: string; value: string }> }> = [];
-      if (filters.side && filters.side.toLowerCase() !== "dark") {
+      if (filters.side) {
         list.push({
           key: "side",
           label: "Side",
           items: [
             {
-              display: filters.side.toLowerCase() === "light" ? "Light Side" : filters.side,
+              display:
+                filters.side.toLowerCase() === "light"
+                  ? "Light Side"
+                  : filters.side.toLowerCase() === "dark"
+                    ? "Dark Side"
+                    : filters.side,
               value: filters.side,
             },
           ],
@@ -277,6 +302,13 @@ export default function CardsPage() {
           key: "types" as const,
           label: "Type",
           items: filters.types.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.subTypes?.length) {
+        list.push({
+          key: "subTypes" as const,
+          label: "Sub-Type",
+          items: filters.subTypes.map((v) => ({ display: v, value: v })),
         });
       }
       if (filters.personas?.length) {
@@ -291,6 +323,74 @@ export default function CardsPage() {
           key: "sets" as const,
           label: "Set",
           items: filters.sets.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.rarities?.length) {
+        list.push({
+          key: "rarities" as const,
+          label: "Rarity",
+          items: filters.rarities.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.traits?.length) {
+        list.push({
+          key: "traits" as const,
+          label:
+            filters.traitMethod === "exclude"
+              ? "Exclude Trait"
+              : filters.traitMethod === "and"
+                ? "Trait (AND)"
+                : "Trait",
+          items: filters.traits.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.destinies?.length) {
+        list.push({
+          key: "destinies" as const,
+          label: "Destiny",
+          items: filters.destinies.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.deploys?.length) {
+        list.push({
+          key: "deploys" as const,
+          label: "Deploy",
+          items: filters.deploys.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.forfeits?.length) {
+        list.push({
+          key: "forfeits" as const,
+          label: "Forfeit",
+          items: filters.forfeits.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.powers?.length) {
+        list.push({
+          key: "powers" as const,
+          label: "Power",
+          items: filters.powers.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.abilities?.length) {
+        list.push({
+          key: "abilities" as const,
+          label: "Ability",
+          items: filters.abilities.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.lightSideIcons?.length) {
+        list.push({
+          key: "lightSideIcons" as const,
+          label: "Light Side Icons",
+          items: filters.lightSideIcons.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.darkSideIcons?.length) {
+        list.push({
+          key: "darkSideIcons" as const,
+          label: "Dark Side Icons",
+          items: filters.darkSideIcons.map((v) => ({ display: v, value: v })),
         });
       }
       return list;
@@ -352,9 +452,17 @@ export default function CardsPage() {
     isSwccg,
     filters.side,
     filters.types,
+    filters.subTypes,
     filters.personas,
     filters.sets,
     filters.rarities,
+    filters.destinies,
+    filters.deploys,
+    filters.forfeits,
+    filters.powers,
+    filters.abilities,
+    filters.lightSideIcons,
+    filters.darkSideIcons,
     filters.arenas,
     filters.aspectMethod,
     groupedAspects,
@@ -368,6 +476,14 @@ export default function CardsPage() {
   const activeFilterCount = activeFilters.reduce((sum, filter) => sum + filter.items.length, 0);
 
   const gridEntries = React.useMemo<GridEntry[]>(() => {
+    if (isSwccg) {
+      return printings.map((p) => ({
+        type: "single",
+        card: p,
+        key: String(p.printingId),
+      }));
+    }
+
     const hasVertical = printings.some((p) => !isHorizontalPrinting(p));
     if (!hasVertical) {
       return printings.map((p) => ({
@@ -399,7 +515,7 @@ export default function CardsPage() {
       }
     }
     return items;
-  }, [printings]);
+  }, [printings, isSwccg]);
 
   return (
     <div className="space-y-4">

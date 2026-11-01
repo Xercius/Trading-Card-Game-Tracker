@@ -1,5 +1,6 @@
 using api.Features.Cards.Dtos;
 using api.Tests.Fixtures;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Xunit;
@@ -219,5 +220,58 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
 
         // Games should contain Magic
         Assert.Contains(facets.Games, f => f.Value == "Magic");
+    }
+
+    [Fact]
+    public async Task GetFacets_ReturnsSwccgSpecificFacets()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var swccg = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var subType = new api.Models.SubType { Game = swccg, Name = "Weapon" };
+            db.SubTypes.Add(subType);
+
+            var card = new api.Models.Card
+            {
+                Game = swccg,
+                Name = "Vader's Lightsaber",
+                Side = "Dark",
+                Destiny = "1",
+                Deploy = "2",
+                Forfeit = "3",
+                Power = 4,
+                Ability = 5,
+                LightSideIcons = 0,
+                DarkSideIcons = 2,
+            };
+            card.CardSubTypes.Add(new api.Models.CardSubType { Card = card, SubType = subType });
+            db.Cards.Add(card);
+
+            var printing = new api.Models.CardPrinting
+            {
+                Card = card,
+                CatalogSet = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Premiere"),
+                RarityLookup = api.Importing.TreatmentLookup.UpsertRarity(db, swccg, "Rare"),
+                Number = "10",
+            };
+            db.CardPrintings.Add(printing);
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
+        response.EnsureSuccessStatusCode();
+
+        var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(facets);
+        Assert.Contains(facets!.SubTypes, f => f.Value == "Weapon");
+        Assert.Contains(facets.Destinies, f => f.Value == "1");
+        Assert.Contains(facets.Deploys, f => f.Value == "2");
+        Assert.Contains(facets.Forfeits, f => f.Value == "3");
+        Assert.Contains(facets.Powers, f => f.Value == "4");
+        Assert.Contains(facets.Abilities, f => f.Value == "5");
+        Assert.Contains(facets.DarkSideIcons, f => f.Value == "2");
     }
 }

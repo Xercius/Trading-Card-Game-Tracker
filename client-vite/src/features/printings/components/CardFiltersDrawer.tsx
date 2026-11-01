@@ -67,7 +67,13 @@ export function CardFiltersDrawer({
   const drawerRef = React.useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = React.useRef<HTMLElement | null>(null);
   const isSwccg = game === "Star Wars CCG";
-  const activeSide = (filters.side ?? "Dark").toLowerCase() === "light" ? "Light" : "Dark";
+  const activeSide = filters.side
+    ? filters.side.toLowerCase() === "light"
+      ? "Light"
+      : filters.side.toLowerCase() === "dark"
+        ? "Dark"
+        : null
+    : null;
 
   React.useEffect(() => {
     if (!open) return;
@@ -183,9 +189,6 @@ export function CardFiltersDrawer({
             <>
               {/* Dark / Light Toggle */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Side
-                </label>
                 <div className="grid grid-cols-2 gap-2" role="group" aria-label="Side filter">
                   <Button
                     type="button"
@@ -195,7 +198,7 @@ export function CardFiltersDrawer({
                     onClick={() =>
                       setFilters((prev) => ({
                         ...prev,
-                        side: "Dark",
+                        side: activeSide === "Dark" ? undefined : "Dark",
                         page: 1,
                       }))
                     }
@@ -215,7 +218,7 @@ export function CardFiltersDrawer({
                     onClick={() =>
                       setFilters((prev) => ({
                         ...prev,
-                        side: "Light",
+                        side: activeSide === "Light" ? undefined : "Light",
                         page: 1,
                       }))
                     }
@@ -240,6 +243,16 @@ export function CardFiltersDrawer({
                 onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
               />
 
+              {/* Sub-Type */}
+              <MultiSelect
+                label="Sub-Type"
+                className="w-full justify-between"
+                values={filters.subTypes ?? []}
+                options={availableFacets.subTypes ?? []}
+                placeholder="Search sub-types…"
+                onChange={(values) => setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))}
+              />
+
               {/* Persona */}
               <MultiSelect
                 label="Persona"
@@ -258,6 +271,111 @@ export function CardFiltersDrawer({
                 options={availableFacets.sets ?? []}
                 placeholder="Search sets…"
                 onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
+              />
+
+              {/* Rarity */}
+              <MultiSelect
+                label="Rarity"
+                className="w-full justify-between"
+                values={filters.rarities ?? []}
+                options={availableFacets.rarities ?? []}
+                placeholder="Search rarities…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
+              />
+
+              {/* Traits */}
+              <MultiSelect
+                label="Traits"
+                className="w-full justify-between"
+                values={filters.traits ?? []}
+                options={availableFacets.traits ?? []}
+                placeholder="Search traits…"
+                method={filters.traitMethod ?? "or"}
+                onMethodChange={(method) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    traitMethod: method,
+                    page: 1,
+                  }))
+                }
+                onChange={(values) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    traits: values,
+                    ...(values.length === 0 ? { traitMethod: "or" as const } : {}),
+                    page: 1,
+                  }))
+                }
+              />
+
+              {/* Destiny */}
+              <MultiSelect
+                label="Destiny"
+                className="w-full justify-between"
+                values={filters.destinies ?? []}
+                options={availableFacets.destinies ?? []}
+                placeholder="Search destinies…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, destinies: vals, page: 1 }))}
+              />
+
+              {/* Deploy */}
+              <MultiSelect
+                label="Deploy"
+                className="w-full justify-between"
+                values={filters.deploys ?? []}
+                options={availableFacets.deploys ?? []}
+                placeholder="Search deploys…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, deploys: vals, page: 1 }))}
+              />
+
+              {/* Forfeit */}
+              <MultiSelect
+                label="Forfeit"
+                className="w-full justify-between"
+                values={filters.forfeits ?? []}
+                options={availableFacets.forfeits ?? []}
+                placeholder="Search forfeits…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, forfeits: vals, page: 1 }))}
+              />
+
+              {/* Power */}
+              <MultiSelect
+                label="Power"
+                className="w-full justify-between"
+                values={filters.powers ?? []}
+                options={availableFacets.powers ?? []}
+                placeholder="Search powers…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, powers: vals, page: 1 }))}
+              />
+
+              {/* Ability */}
+              <MultiSelect
+                label="Ability"
+                className="w-full justify-between"
+                values={filters.abilities ?? []}
+                options={availableFacets.abilities ?? []}
+                placeholder="Search abilities…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, abilities: vals, page: 1 }))}
+              />
+
+              {/* Light Side Icons */}
+              <MultiSelect
+                label="Light Side Icons"
+                className="w-full justify-between"
+                values={filters.lightSideIcons ?? []}
+                options={availableFacets.lightSideIcons ?? []}
+                placeholder="Search light side icons…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, lightSideIcons: vals, page: 1 }))}
+              />
+
+              {/* Dark Side Icons */}
+              <MultiSelect
+                label="Dark Side Icons"
+                className="w-full justify-between"
+                values={filters.darkSideIcons ?? []}
+                options={availableFacets.darkSideIcons ?? []}
+                placeholder="Search dark side icons…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, darkSideIcons: vals, page: 1 }))}
               />
             </>
           ) : (

@@ -13,6 +13,14 @@ export type PrintingFacets = {
   traits: string[];
   keywords: string[];
   personas?: string[];
+  subTypes?: string[];
+  destinies?: string[];
+  deploys?: string[];
+  forfeits?: string[];
+  powers?: string[];
+  abilities?: string[];
+  lightSideIcons?: string[];
+  darkSideIcons?: string[];
 };
 
 /**
@@ -36,6 +44,14 @@ export function usePrintingFacets(filters: CardFilters) {
     ...(filters.keywords?.length ? { keywords: filters.keywords } : {}),
     ...(filters.side ? { side: filters.side } : {}),
     ...(filters.personas?.length ? { personas: filters.personas } : {}),
+    ...(filters.subTypes?.length ? { subTypes: filters.subTypes } : {}),
+    ...(filters.destinies?.length ? { destinies: filters.destinies } : {}),
+    ...(filters.deploys?.length ? { deploys: filters.deploys } : {}),
+    ...(filters.forfeits?.length ? { forfeits: filters.forfeits } : {}),
+    ...(filters.powers?.length ? { powers: filters.powers } : {}),
+    ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
+    ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
+    ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),
     ...(filters.keywordMethod && filters.keywordMethod !== "or"
       ? { keywordMethod: filters.keywordMethod }
       : {}),
@@ -56,6 +72,14 @@ export function usePrintingFacets(filters: CardFilters) {
       traits: (facets.traits ?? []).map((facet) => facet.value),
       keywords: (facets.keywords ?? []).map((facet) => facet.value),
       personas: (facets.personas ?? []).map((facet) => facet.value),
+      subTypes: (facets.subTypes ?? []).map((facet) => facet.value),
+      destinies: (facets.destinies ?? []).map((facet) => facet.value),
+      deploys: (facets.deploys ?? []).map((facet) => facet.value),
+      forfeits: (facets.forfeits ?? []).map((facet) => facet.value),
+      powers: (facets.powers ?? []).map((facet) => facet.value),
+      abilities: (facets.abilities ?? []).map((facet) => facet.value),
+      lightSideIcons: (facets.lightSideIcons ?? []).map((facet) => facet.value),
+      darkSideIcons: (facets.darkSideIcons ?? []).map((facet) => facet.value),
     }),
     staleTime: 60_000,
   });
