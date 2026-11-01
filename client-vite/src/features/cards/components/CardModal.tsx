@@ -808,7 +808,7 @@ export default function CardModal({
                             })}
                             <span className="sr-only">
                               {details.aspects
-                                .map(({ name, count }) => `${name}${count > 1 ? ` Ã—${count}` : ""}`)
+                                .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
                                 .join(", ")}
                             </span>
                           </div>

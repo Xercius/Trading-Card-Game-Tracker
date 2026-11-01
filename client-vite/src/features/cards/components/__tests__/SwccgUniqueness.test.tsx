@@ -11,6 +11,7 @@ describe("parseSwccgUniqueness", () => {
     expect(parseSwccgUniqueness("***")).toEqual({ type: "dot", count: 3 });
     expect(parseSwccgUniqueness("•")).toEqual({ type: "dot", count: 1 });
     expect(parseSwccgUniqueness("••")).toEqual({ type: "dot", count: 2 });
+    expect(parseSwccgUniqueness("∙")).toEqual({ type: "dot", count: 1 });
   });
 
   it("parses single and multiple diamonds from <> and unicode symbols", () => {
@@ -30,7 +31,7 @@ describe("parseSwccgUniqueness", () => {
 
 describe("SwccgUniqueness component", () => {
   it("renders dots for asterisks", () => {
-    const { container } = render(<SwccgUniqueness uniqueness="**" side="Dark" />);
+    render(<SwccgUniqueness uniqueness="**" side="Dark" />);
     const dots = screen.getByTestId("swccg-uniqueness-dots");
     expect(dots).toBeInTheDocument();
     expect(dots).toHaveTextContent("••");
@@ -38,7 +39,7 @@ describe("SwccgUniqueness component", () => {
   });
 
   it("renders diamond SVGs and sr-only symbols for diamonds with dark side color", () => {
-    const { container } = render(<SwccgUniqueness uniqueness="<><><>" side="Dark" />);
+    render(<SwccgUniqueness uniqueness="<><><>" side="Dark" />);
     const diamonds = screen.getByTestId("swccg-uniqueness-diamonds");
     expect(diamonds).toBeInTheDocument();
     expect(diamonds).toHaveAttribute("aria-label", "3 diamond uniqueness");

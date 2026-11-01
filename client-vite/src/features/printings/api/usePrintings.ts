@@ -43,7 +43,7 @@ export function usePrintings(filters: CardFilters) {
   };
 
   return useQuery<PrintingsResult, Error>({
-    queryKey: cardsQueryKeys.list(filters),
+    queryKey: [...cardsQueryKeys.list(filters), query],
     queryFn: async () => {
       const res = await fetchPrintings({ ...query, page: filters.page });
       if (Array.isArray(res)) {

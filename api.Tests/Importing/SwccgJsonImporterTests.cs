@@ -144,6 +144,60 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ImportFromFileAsync_PartialImport_PreservesLegacyAssociationsOnUntouchedCards()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var game = TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+        var legacyType = new api.Models.CardType { Game = game, Name = "Legacy Type" };
+        var legacyKeyword = new api.Models.Keyword { Game = game, Name = "Legacy Keyword" };
+        var untouchedCard = new api.Models.Card
+        {
+            Game = game,
+            Name = "Untouched Card",
+            CardUid = "1_20",
+        };
+        untouchedCard.CardTypes.Add(new api.Models.CardCardType
+        {
+            Card = untouchedCard,
+            CardType = legacyType,
+            SourceRole = "Type2",
+        });
+        untouchedCard.CardKeywords.Add(new api.Models.CardKeyword
+        {
+            Card = untouchedCard,
+            Keyword = legacyKeyword,
+        });
+        db.Cards.Add(untouchedCard);
+        await db.SaveChangesAsync();
+
+        var json = """
+        {
+          "cards": [
+            {
+              "id": 10,
+              "gempId": "1_10",
+              "side": "Dark",
+              "set": "Premiere",
+              "rarity": "R1",
+              "front": { "title": "Imported Card", "type": "Character" }
+            }
+          ]
+        }
+        """;
+        var summary = await CreateImporter(db).ImportFromFileAsync(
+            ToStream(json),
+            new ImportOptions(DryRun: false));
+
+        Assert.Equal(0, summary.Errors);
+        Assert.True(await db.CardCardTypes.AsNoTracking().AnyAsync(association =>
+            association.CardId == untouchedCard.Id && association.SourceRole == "Type2"));
+        Assert.True(await db.CardKeywords.AsNoTracking().AnyAsync(association =>
+            association.CardId == untouchedCard.Id && association.KeywordId == legacyKeyword.Id));
+    }
+
+    [Fact]
     public async Task ImportFromFileAsync_DuplicateCardNamesAcrossSidesAndSets_ImportsWithoutViolation()
     {
         using var scope = factory.Services.CreateScope();

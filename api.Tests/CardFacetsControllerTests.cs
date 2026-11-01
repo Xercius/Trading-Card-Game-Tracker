@@ -274,4 +274,56 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
         Assert.Contains(facets.Abilities, f => f.Value == "5");
         Assert.Contains(facets.DarkSideIcons, f => f.Value == "2");
     }
+
+    [Fact]
+    public async Task GetFacets_StatFacetsRespectOtherFiltersAndExcludeTheirOwnSelection()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var swccg = api.Importing.TreatmentLookup.GetOrAddGame(db, "Star Wars CCG");
+            var magic = api.Importing.TreatmentLookup.GetOrAddGame(db, "Magic");
+            var premiere = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Premiere");
+            var otherSet = api.Importing.TreatmentLookup.UpsertSet(db, swccg, "Other");
+            var magicSet = api.Importing.TreatmentLookup.UpsertSet(db, magic, "Premiere");
+
+            var cards = new[]
+            {
+                (Game: swccg, Name: "Dark One", Side: "Dark", Destiny: "1", Set: premiere),
+                (Game: swccg, Name: "Dark Two", Side: "Dark", Destiny: "2", Set: premiere),
+                (Game: swccg, Name: "Dark Other Set", Side: "Dark", Destiny: "4", Set: otherSet),
+                (Game: swccg, Name: "Light One", Side: "Light", Destiny: "3", Set: premiere),
+                (Game: magic, Name: "Magic One", Side: "Dark", Destiny: "5", Set: magicSet),
+            };
+
+            foreach (var item in cards)
+            {
+                var card = new api.Models.Card
+                {
+                    Game = item.Game,
+                    Name = item.Name,
+                    Side = item.Side,
+                    Destiny = item.Destiny,
+                };
+                db.CardPrintings.Add(new api.Models.CardPrinting
+                {
+                    Card = card,
+                    CatalogSet = item.Set,
+                    Number = item.Name,
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        var response = await client.GetAsync(
+            "/api/cards/facets?game=Star+Wars+CCG&set=Premiere&side=Dark&destiny=1");
+        response.EnsureSuccessStatusCode();
+
+        var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+        Assert.NotNull(facets);
+        Assert.Equal(["1", "2"], facets!.Destinies.Select(facet => facet.Value).Order().ToArray());
+    }
 }

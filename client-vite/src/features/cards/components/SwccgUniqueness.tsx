@@ -26,8 +26,8 @@ export function parseSwccgUniqueness(uniqueness?: string | null): ParsedUniquene
   }
 
   // Dots: "*", "**", "***", "•", "·", "●"
-  if (trimmed.includes("*") || trimmed.includes("•") || trimmed.includes("·") || trimmed.includes("●")) {
-    const matches = trimmed.match(/[*•·●]/g);
+  if (trimmed.includes("*") || trimmed.includes("•") || trimmed.includes("·") || trimmed.includes("∙") || trimmed.includes("●")) {
+    const matches = trimmed.match(/[*•·∙●]/g);
     const count = matches ? matches.length : 0;
     if (count > 0) return { type: "dot", count };
   }
@@ -84,4 +84,3 @@ export function SwccgUniqueness({ uniqueness, side }: SwccgUniquenessProps): Rea
 }
 
 export default SwccgUniqueness;
-

@@ -197,21 +197,8 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
             await db.Set<CardTrait>().Where(x => x.Card.GameId == _game.Id).LoadAsync(ct);
             await db.Set<CardAspect>().Where(x => x.Card.GameId == _game.Id).LoadAsync(ct);
 
-            // Clean up any legacy SWCCG Type2 associations if present from earlier syncs
-            var legacyType2 = await db.Set<CardCardType>()
-                .Where(x => x.Card.GameId == _game.Id && x.SourceRole == "Type2")
-                .ToListAsync(ct);
-            if (legacyType2.Count > 0)
-                db.Set<CardCardType>().RemoveRange(legacyType2);
-
-            // Clean up any legacy SWCCG keywords if present from an earlier sync
-            var legacyCardKeywords = await db.Set<CardKeyword>().Where(x => x.Card.GameId == _game.Id).ToListAsync(ct);
-            if (legacyCardKeywords.Count > 0)
-                db.Set<CardKeyword>().RemoveRange(legacyCardKeywords);
-
-            var legacyKeywords = await db.Keywords.Where(kw => kw.GameId == _game.Id).ToListAsync(ct);
-            if (legacyKeywords.Count > 0)
-                db.Keywords.RemoveRange(legacyKeywords);
+            // Load legacy keyword links so they can be removed only when their cards are imported.
+            await db.Set<CardKeyword>().Where(x => x.Card.GameId == _game.Id).LoadAsync(ct);
         }
     }
 
@@ -297,6 +284,13 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
             aspects.Add(new CardAspect { Card = card, Aspect = aspect, Count = 1 });
         }
         associationsChanged |= Sync(card.CardAspects, aspects, x => x.Aspect);
+
+        foreach (var keyword in card.CardKeywords.ToList())
+        {
+            card.CardKeywords.Remove(keyword);
+            db.Remove(keyword);
+            associationsChanged = true;
+        }
 
         return associationsChanged;
     }

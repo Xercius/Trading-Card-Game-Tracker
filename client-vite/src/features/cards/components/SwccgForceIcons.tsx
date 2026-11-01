@@ -1,5 +1,3 @@
-import * as React from "react";
-
 export type LightsaberBladeProps = {
   side: "dark" | "light";
   size?: "sm" | "md" | "lg";
