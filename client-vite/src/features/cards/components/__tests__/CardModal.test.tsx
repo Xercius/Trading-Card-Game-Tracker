@@ -533,4 +533,136 @@ describe("CardModal", () => {
     expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Catacombs of Cadera");
     expect(screen.queryByLabelText("Card stats")).toBeNull();
   });
+  it("renders SWCCG card with side badge, SWCCG stats block, lore, and extra data", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 301,
+              name: "•Darth Vader, Dark Lord Of The Sith",
+              game: "Star Wars CCG",
+              cardType: "Character",
+              cardType2: "Imperial",
+              side: "Dark",
+              destiny: "1",
+              deploy: "6",
+              forfeit: "8",
+              power: 6,
+              ability: 6,
+              armor: "5",
+              lore: "Lord Vader is a Dark Jedi.",
+              text: "Adds 3 to power of anything he pilots.",
+              rulesStyled: "<div class=\"swccg-pulled-by\"><h3>Pulled By</h3><ul><li>Blizzard 4</li></ul></div>",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 301 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("•Darth Vader, Dark Lord Of The Sith");
+    expect(screen.getByText("Dark Side")).toBeInTheDocument();
+    expect(screen.getByText("Character • Imperial")).toBeInTheDocument();
+
+    const swccgStats = screen.getByLabelText("SWCCG card stats");
+    expect(within(swccgStats).getByText("Destiny")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("1")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("Deploy")).toBeInTheDocument();
+    expect(within(swccgStats).getAllByText("6")).toHaveLength(3);
+    expect(within(swccgStats).getByText("Forfeit")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("8")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("Power")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("Ability")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("Armor")).toBeInTheDocument();
+    expect(within(swccgStats).getByText("5")).toBeInTheDocument();
+
+    expect(screen.getByText("Lord Vader is a Dark Jedi.")).toBeInTheDocument();
+    expect(screen.getByText("Extra Card Data & Rulings")).toBeInTheDocument();
+    expect(screen.getByText("Blizzard 4")).toBeInTheDocument();
+  });
+
+  it("renders SWCCG two-sided card back title and text when present", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 302,
+              name: "Hunt Down And Destroy The Jedi",
+              game: "Star Wars CCG",
+              cardType: "Objective",
+              side: "Dark",
+              text: "Deploy Executor site.",
+              backTitle: "Their Fire Has Gone Out Of The Universe",
+              backText: "While this side up, opponent loses 2 Force.",
+              rulesStyled: null,
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 302 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Hunt Down And Destroy The Jedi");
+    expect(screen.getByText("Back: Their Fire Has Gone Out Of The Universe")).toBeInTheDocument();
+    expect(screen.getByText("While this side up, opponent loses 2 Force.")).toBeInTheDocument();
+  });
+
+  it("renders SWCCG card with diamond uniqueness to the left of title", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 303,
+              name: "Asteroid Field",
+              uniqueness: "<><><>",
+              game: "Star Wars CCG",
+              cardType: "Sector",
+              side: "Dark",
+              text: "Asteroid rules in effect.",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 303 });
+
+    const titleEl = await screen.findByTestId("card-modal-card-name");
+    expect(titleEl).toHaveTextContent("Asteroid Field");
+    const diamonds = screen.getByTestId("swccg-uniqueness-diamonds");
+    expect(diamonds).toBeInTheDocument();
+    expect(diamonds.querySelectorAll("svg")).toHaveLength(3);
+  });
+
+  it("renders SWCCG location Force icons with dark and light lightsaber badges", async () => {
+    getSpy.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.endsWith("/printings")
+          ? []
+          : {
+              id: 304,
+              name: "Tatooine: Cantina",
+              game: "Star Wars CCG",
+              cardType: "Location",
+              subTypes: ["Site"],
+              side: "Dark",
+              darkSideIcons: 1,
+              lightSideIcons: 2,
+              parsec: 4,
+              text: "Deploys on Tatooine.",
+              printings: [],
+            },
+      })
+    );
+
+    await renderModal({ cardId: 304 });
+
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Tatooine: Cantina");
+    expect(screen.getByLabelText("Dark Side Icons: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Light Side Icons: 2")).toBeInTheDocument();
+    expect(screen.getByText("Dark Icons")).toBeInTheDocument();
+    expect(screen.getByText("Light Icons")).toBeInTheDocument();
+  });
 });

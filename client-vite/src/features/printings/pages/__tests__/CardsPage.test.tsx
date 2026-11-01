@@ -18,7 +18,7 @@ vi.mock("../../api/usePrintingFacets", () => ({
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
 
 // Helper function to wrap components with required providers
-function createTestWrapper(initialEntries: string[] = ["/"]) {
+function createTestWrapper(initialEntries: string[] = ["/"], defaultGame: string = "Star Wars Unlimited") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Infinity },
@@ -29,7 +29,7 @@ function createTestWrapper(initialEntries: string[] = ["/"]) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
         <QueryClientProvider client={queryClient}>
-          <GameProvider>{children}</GameProvider>
+          <GameProvider defaultGame={defaultGame}>{children}</GameProvider>
         </QueryClientProvider>
       </MemoryRouter>
     );
@@ -46,6 +46,105 @@ describe("CardsPage filter wiring", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+
+  it("does not default side filter for Star Wars CCG when neither is selected", async () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards"], "Star Wars CCG") });
+
+    expect(usePrintingsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        games: ["Star Wars CCG"],
+        side: undefined,
+      })
+    );
+  });
+
+  it("passes side filter when specified in URL for Star Wars CCG", async () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(<CardsPage />, { wrapper: createTestWrapper(["/cards?side=Dark"], "Star Wars CCG") });
+
+    expect(usePrintingsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        games: ["Star Wars CCG"],
+        side: "Dark",
+      })
+    );
+  });
+
+  it("omits SWCCG filters from SWU printing and facet queries", () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+    const useFacetsSpy = vi.spyOn(printingFacetsApi, "usePrintingFacets");
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(
+        [
+          "/cards?side=Dark&persona=Vader&subType=Imperial&aspect=Vigilance&arena=Ground&keyword=Sentinel",
+        ],
+        "Star Wars Unlimited"
+      ),
+    });
+
+    for (const query of [usePrintingsSpy.mock.calls[0][0], useFacetsSpy.mock.calls[0][0]]) {
+      expect(query).toMatchObject({
+        games: ["Star Wars Unlimited"],
+        side: undefined,
+        personas: [],
+        subTypes: [],
+        aspects: ["Vigilance"],
+        arenas: ["Ground"],
+        keywords: ["Sentinel"],
+      });
+    }
+  });
+
+  it("omits SWU filters from SWCCG printing and facet queries", () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+    const useFacetsSpy = vi.spyOn(printingFacetsApi, "usePrintingFacets");
+
+    render(<CardsPage />, {
+      wrapper: createTestWrapper(
+        ["/cards?side=Light&persona=Luke&subType=Jedi&aspect=Villainy&arena=Ground&keyword=Grit"],
+        "Star Wars CCG"
+      ),
+    });
+
+    for (const query of [usePrintingsSpy.mock.calls[0][0], useFacetsSpy.mock.calls[0][0]]) {
+      expect(query).toMatchObject({
+        games: ["Star Wars CCG"],
+        side: "Light",
+        personas: ["Luke"],
+        subTypes: ["Jedi"],
+        aspects: [],
+        arenas: [],
+        keywords: [],
+        aspectMethod: undefined,
+        keywordMethod: undefined,
+      });
+    }
   });
 
   it("syncs filters from URL to query parameters", () => {
@@ -528,6 +627,53 @@ describe("CardsPage filter wiring", () => {
       const listItems = container.querySelectorAll("ul > li");
       expect(listItems).toHaveLength(3);
       expect(listItems[0].classList.contains("flex-col")).toBe(true);
+      expect(listItems[1].classList.contains("flex-col")).toBe(false);
+      expect(listItems[2].classList.contains("flex-col")).toBe(false);
+    });
+
+    it("does not pair horizontal cards when game is Star Wars CCG", () => {
+      vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+        data: [
+          {
+            printingId: "swccg1",
+            cardId: "1",
+            cardName: "Asteroid Field 1",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "horizontal",
+          },
+          {
+            printingId: "swccg2",
+            cardId: "2",
+            cardName: "Asteroid Field 2",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "horizontal",
+          },
+          {
+            printingId: "swccg3",
+            cardId: "3",
+            cardName: "Alien Rob",
+            game: "Star Wars CCG",
+            setName: "Premiere",
+            imageOrientation: "vertical",
+          },
+        ],
+        isLoading: false,
+        isError: false,
+        error: null,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+      } as unknown as UsePrintingsResult);
+
+      const { container } = render(<CardsPage />, {
+        wrapper: createTestWrapper(["/cards"], "Star Wars CCG"),
+      });
+
+      const listItems = container.querySelectorAll("ul > li");
+      expect(listItems).toHaveLength(3);
+      expect(listItems[0].classList.contains("flex-col")).toBe(false);
       expect(listItems[1].classList.contains("flex-col")).toBe(false);
       expect(listItems[2].classList.contains("flex-col")).toBe(false);
     });

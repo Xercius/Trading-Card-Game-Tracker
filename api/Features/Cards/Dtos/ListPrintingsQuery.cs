@@ -89,6 +89,56 @@ public sealed class ListPrintingsQuery
     public string? KeywordMethod { get; init; }
 
     /// <summary>
+    /// Optional filter by card side/alignment (e.g., "Dark", "Light").
+    /// </summary>
+    public string? Side { get; init; }
+
+    /// <summary>
+    /// Optional filter by character persona (e.g., "Vader", "Luke").
+    /// </summary>
+    public string? Persona { get; init; }
+
+    /// <summary>
+    /// Optional filter by card subtype (e.g., "Imperial", "Rebel", "Site").
+    /// </summary>
+    public string? SubType { get; init; }
+
+    /// <summary>
+    /// Optional filter by card destiny value.
+    /// </summary>
+    public string? Destiny { get; init; }
+
+    /// <summary>
+    /// Optional filter by card deploy cost.
+    /// </summary>
+    public string? Deploy { get; init; }
+
+    /// <summary>
+    /// Optional filter by card forfeit value.
+    /// </summary>
+    public string? Forfeit { get; init; }
+
+    /// <summary>
+    /// Optional filter by card power value.
+    /// </summary>
+    public string? Power { get; init; }
+
+    /// <summary>
+    /// Optional filter by card force ability value.
+    /// </summary>
+    public string? Ability { get; init; }
+
+    /// <summary>
+    /// Optional filter by number of Light Side Force generation icons.
+    /// </summary>
+    public string? LightSideIcon { get; init; }
+
+    /// <summary>
+    /// Optional filter by number of Dark Side Force generation icons.
+    /// </summary>
+    public string? DarkSideIcon { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

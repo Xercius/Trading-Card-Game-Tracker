@@ -21,12 +21,14 @@ namespace api.Data
         public DbSet<Set> Sets => Set<Set>();
         public DbSet<Treatment> Treatments => Set<Treatment>();
         public DbSet<CardType> CardTypes => Set<CardType>();
+        public DbSet<SubType> SubTypes => Set<SubType>();
         public DbSet<Trait> Traits => Set<Trait>();
         public DbSet<Keyword> Keywords => Set<Keyword>();
         public DbSet<Arena> Arenas => Set<Arena>();
         public DbSet<Aspect> Aspects => Set<Aspect>();
         public DbSet<Rarity> Rarities => Set<Rarity>();
         public DbSet<CardCardType> CardCardTypes => Set<CardCardType>();
+        public DbSet<CardSubType> CardSubTypes => Set<CardSubType>();
         public DbSet<CardTrait> CardTraits => Set<CardTrait>();
         public DbSet<CardKeyword> CardKeywords => Set<CardKeyword>();
         public DbSet<CardArena> CardArenas => Set<CardArena>();
@@ -52,11 +54,21 @@ namespace api.Data
                 e.Property(c => c.Subtitle).HasMaxLength(256);
                 e.Property(c => c.CardUid).HasMaxLength(64);
                 e.Property(c => c.Hp).HasColumnName("Hp");
+                e.Property(c => c.Side).HasMaxLength(16);
+                e.Property(c => c.Uniqueness).HasMaxLength(16);
+                e.Property(c => c.Destiny).HasMaxLength(16);
+                e.Property(c => c.Deploy).HasMaxLength(16);
+                e.Property(c => c.Forfeit).HasMaxLength(16);
+                e.Property(c => c.Armor).HasMaxLength(16);
+                e.Property(c => c.Ferocity).HasMaxLength(16);
+                e.Property(c => c.Persona).HasMaxLength(256);
+                e.Property(c => c.BackTitle).HasMaxLength(256);
 
                 // useful lookup index for list/search
                 e.HasIndex(c => new { c.GameId, c.Name })
-                    .IsUnique()
-                    .HasDatabaseName("UX_Cards_GameId_Name");
+                    .HasDatabaseName("IX_Cards_GameId_Name");
+                e.HasIndex(c => new { c.GameId, c.Persona })
+                    .HasDatabaseName("IX_Cards_GameId_Persona");
                 e.HasOne(c => c.Game)
                     .WithMany()
                     .HasForeignKey(c => c.GameId)
@@ -241,6 +253,7 @@ namespace api.Data
             });
 
             ConfigureLookup(b.Entity<CardType>(), "CardTypes", "CardTypes");
+            ConfigureLookup(b.Entity<SubType>(), "SubTypes", "SubTypes");
             ConfigureLookup(b.Entity<Trait>(), "Traits", "Traits");
             ConfigureLookup(b.Entity<Keyword>(), "Keywords", "Keywords");
             ConfigureLookup(b.Entity<Arena>(), "Arenas", "Arenas");
@@ -251,8 +264,9 @@ namespace api.Data
             b.Entity<Aspect>().Property(a => a.Color).HasMaxLength(32);
             b.Entity<Rarity>(e =>
             {
-                e.Property(r => r.Character).HasMaxLength(1);
+                e.Property(r => r.Character).HasMaxLength(16);
                 e.Property(r => r.Color).HasMaxLength(32);
+                e.Property(r => r.RarityType).HasMaxLength(32);
             });
 
             b.Entity<CardCardType>(e =>
@@ -266,6 +280,17 @@ namespace api.Data
                 e.HasOne(x => x.CardType).WithMany(t => t.Cards)
                     .HasForeignKey(x => x.CardTypeId).OnDelete(DeleteBehavior.Restrict);
                 e.HasIndex(x => x.CardTypeId);
+            });
+
+            b.Entity<CardSubType>(e =>
+            {
+                e.ToTable("CardSubTypes");
+                e.HasKey(x => new { x.CardId, x.SubTypeId });
+                e.HasOne(x => x.Card).WithMany(c => c.CardSubTypes)
+                    .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.SubType).WithMany(t => t.Cards)
+                    .HasForeignKey(x => x.SubTypeId).OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.SubTypeId);
             });
 
             b.Entity<CardTrait>(e =>

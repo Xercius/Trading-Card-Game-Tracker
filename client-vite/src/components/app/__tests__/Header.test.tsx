@@ -73,13 +73,16 @@ describe("Header", () => {
       ).toBeTruthy();
     }
 
-    // Star Wars Unlimited is active and selectable
+    // Star Wars CCG is active and selectable, SWU is also selectable
     const swuButton = buttons[0];
-    expect(swuButton).toHaveAttribute("aria-pressed", "true");
+    const swccgButton = buttons[1];
+    expect(swccgButton).toHaveAttribute("aria-pressed", "true");
+    expect(swccgButton).toBeEnabled();
+    expect(swuButton).toHaveAttribute("aria-pressed", "false");
     expect(swuButton).toBeEnabled();
 
     // The other games are disabled (not selectable)
-    for (let i = 1; i < buttons.length; i++) {
+    for (let i = 2; i < buttons.length; i++) {
       expect(buttons[i]).toBeDisabled();
       expect(buttons[i]).toHaveAttribute("aria-pressed", "false");
     }

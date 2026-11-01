@@ -136,6 +136,96 @@ public sealed class PrintingsController : ControllerBase
         var keywords = CsvUtils.Parse(qp.Keyword);
         query = query.ApplyKeywordFilter(keywords, qp.KeywordMethod);
 
+        if (!string.IsNullOrWhiteSpace(qp.Side))
+        {
+            var side = qp.Side.Trim();
+            query = query.Where(p => p.Card.Side != null && EF.Functions.Collate(p.Card.Side, "NOCASE") == side);
+        }
+
+        var personas = CsvUtils.Parse(qp.Persona);
+        if (personas.Count > 0)
+        {
+            query = query.Where(p => p.Card.Persona != null &&
+                personas.Any(persona => EF.Functions.Like(p.Card.Persona, "%" + persona + "%")));
+        }
+
+        var subTypes = CsvUtils.Parse(qp.SubType);
+        if (subTypes.Count > 0)
+        {
+            var normalizedSubTypes = subTypes.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p =>
+                p.Card.CardSubTypes.Any(st =>
+                    normalizedSubTypes.Contains(EF.Functions.Collate(st.SubType.Name, "NOCASE"))));
+        }
+
+        var destinies = CsvUtils.Parse(qp.Destiny);
+        if (destinies.Count > 0)
+        {
+            var normalizedDestinies = destinies.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p => p.Card.Destiny != null &&
+                normalizedDestinies.Contains(EF.Functions.Collate(p.Card.Destiny, "NOCASE")));
+        }
+
+        var deploys = CsvUtils.Parse(qp.Deploy);
+        if (deploys.Count > 0)
+        {
+            var normalizedDeploys = deploys.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p => p.Card.Deploy != null &&
+                normalizedDeploys.Contains(EF.Functions.Collate(p.Card.Deploy, "NOCASE")));
+        }
+
+        var forfeits = CsvUtils.Parse(qp.Forfeit);
+        if (forfeits.Count > 0)
+        {
+            var normalizedForfeits = forfeits.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p => p.Card.Forfeit != null &&
+                normalizedForfeits.Contains(EF.Functions.Collate(p.Card.Forfeit, "NOCASE")));
+        }
+
+        var powers = CsvUtils.Parse(qp.Power);
+        if (powers.Count > 0)
+        {
+            var powerInts = powers.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+            if (powerInts.Count > 0)
+            {
+                query = query.Where(p => p.Card.Power != null && powerInts.Contains(p.Card.Power.Value));
+            }
+        }
+
+        var abilities = CsvUtils.Parse(qp.Ability);
+        if (abilities.Count > 0)
+        {
+            var abilityInts = abilities.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+            if (abilityInts.Count > 0)
+            {
+                query = query.Where(p => p.Card.Ability != null && abilityInts.Contains(p.Card.Ability.Value));
+            }
+        }
+
+        var lightSideIcons = CsvUtils.Parse(qp.LightSideIcon);
+        if (lightSideIcons.Count > 0)
+        {
+            var lsInts = lightSideIcons.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+            if (lsInts.Count > 0)
+            {
+                query = query.Where(p => p.Card.LightSideIcons != null && lsInts.Contains(p.Card.LightSideIcons.Value));
+            }
+        }
+
+        var darkSideIcons = CsvUtils.Parse(qp.DarkSideIcon);
+        if (darkSideIcons.Count > 0)
+        {
+            var dsInts = darkSideIcons.Select(s => int.TryParse(s, out var v) ? (int?)v : null)
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+            if (dsInts.Count > 0)
+            {
+                query = query.Where(p => p.Card.DarkSideIcons != null && dsInts.Contains(p.Card.DarkSideIcons.Value));
+            }
+        }
+
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)

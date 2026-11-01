@@ -240,6 +240,7 @@ public class CardsController : ControllerBase
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
             .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
+            .Include(card => card.CardSubTypes).ThenInclude(subType => subType.SubType)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -291,6 +292,7 @@ public class CardsController : ControllerBase
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .Include(card => card.CardArenas).ThenInclude(arena => arena.Arena)
             .Include(card => card.CardTraits).ThenInclude(trait => trait.Trait)
+            .Include(card => card.CardSubTypes).ThenInclude(subType => subType.SubType)
             .FirstOrDefaultAsync(x => x.Id == cardId);
         if (c is null)
         {
@@ -339,7 +341,30 @@ public class CardsController : ControllerBase
             c.UpgradePower,
             c.Subtitle,
             c.Rules,
-            c.RulesStyled);
+            c.RulesStyled,
+            c.Side,
+            c.Uniqueness,
+            c.Destiny,
+            c.Deploy,
+            c.Forfeit,
+            c.Ability,
+            c.Armor,
+            c.Maneuver,
+            c.Hyperspeed,
+            c.Landspeed,
+            c.Parsec,
+            c.Ferocity,
+            c.Politics,
+            c.Lore,
+            c.ExtraCardDataJson,
+            c.BackTitle,
+            c.BackText,
+            c.Persona,
+            c.CardSubTypes.Select(st => st.SubType.Name).Distinct().OrderBy(name => name).ToList(),
+            c.LightSideIcons,
+            c.DarkSideIcons,
+            c.BackLightSideIcons,
+            c.BackDarkSideIcons);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.

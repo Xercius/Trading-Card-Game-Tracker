@@ -71,6 +71,26 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("Ability")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Armor")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("BackDarkSideIcons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BackLightSideIcons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BackText")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackTitle")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("CardUid")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -78,16 +98,38 @@ namespace api.Migrations
                     b.Property<int?>("Cost")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("DarkSideIcons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Deploy")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DeployBox")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DeployBoxStyled")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Destiny")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EpicAction")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EpicActionStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraCardDataJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Ferocity")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Forfeit")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("GameId")
@@ -97,8 +139,23 @@ namespace api.Migrations
                         .HasColumnType("INTEGER")
                         .HasColumnName("Hp");
 
+                    b.Property<int?>("Hyperspeed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Landspeed")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("LightSideIcons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Lore")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Maneuver")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -110,6 +167,16 @@ namespace api.Migrations
                         .HasColumnType("TEXT")
                         .HasComputedColumnSql("UPPER(LTRIM(RTRIM([Name])))", true);
 
+                    b.Property<int?>("Parsec")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Persona")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Politics")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("Power")
                         .HasColumnType("INTEGER");
 
@@ -117,6 +184,10 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RulesStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Side")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Subtitle")
@@ -127,6 +198,10 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TextStyled")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Uniqueness")
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("UpgradeHp")
@@ -140,8 +215,10 @@ namespace api.Migrations
                     b.HasIndex("NameNormalized");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Cards_GameId_Name");
+                        .HasDatabaseName("IX_Cards_GameId_Name");
+
+                    b.HasIndex("GameId", "Persona")
+                        .HasDatabaseName("IX_Cards_GameId_Persona");
 
                     b.ToTable("Cards");
                 });
@@ -329,6 +406,21 @@ namespace api.Migrations
                         .HasDatabaseName("UX_CardPrintings");
 
                     b.ToTable("CardPrintings");
+                });
+
+            modelBuilder.Entity("api.Models.CardSubType", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SubTypeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "SubTypeId");
+
+                    b.HasIndex("SubTypeId");
+
+                    b.ToTable("CardSubTypes", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.CardTrait", b =>
@@ -529,7 +621,7 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Character")
-                        .HasMaxLength(1)
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Color")
@@ -542,6 +634,10 @@ namespace api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RarityType")
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -583,6 +679,28 @@ namespace api.Migrations
                         .HasDatabaseName("UX_Sets_GameId_Code");
 
                     b.ToTable("Sets", (string)null);
+                });
+
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("SubTypes", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.SyncLog", b =>
@@ -937,6 +1055,25 @@ namespace api.Migrations
                     b.Navigation("VariantOf");
                 });
 
+            modelBuilder.Entity("api.Models.CardSubType", b =>
+                {
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardSubTypes")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.SubType", "SubType")
+                        .WithMany("Cards")
+                        .HasForeignKey("SubTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Card");
+
+                    b.Navigation("SubType");
+                });
+
             modelBuilder.Entity("api.Models.CardTrait", b =>
                 {
                     b.HasOne("api.Models.Card", "Card")
@@ -1030,6 +1167,17 @@ namespace api.Migrations
                     b.Navigation("Game");
                 });
 
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.HasOne("api.Models.Game", "Game")
+                        .WithMany("SubTypes")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("api.Models.SyncLog", b =>
                 {
                     b.HasOne("api.Models.Set", "Set")
@@ -1099,6 +1247,8 @@ namespace api.Migrations
 
                     b.Navigation("CardKeywords");
 
+                    b.Navigation("CardSubTypes");
+
                     b.Navigation("CardTraits");
 
                     b.Navigation("CardTypes");
@@ -1135,6 +1285,8 @@ namespace api.Migrations
 
                     b.Navigation("Sets");
 
+                    b.Navigation("SubTypes");
+
                     b.Navigation("Traits");
 
                     b.Navigation("Treatments");
@@ -1148,6 +1300,11 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Set", b =>
                 {
                     b.Navigation("SyncLogs");
+                });
+
+            modelBuilder.Entity("api.Models.SubType", b =>
+                {
+                    b.Navigation("Cards");
                 });
 
             modelBuilder.Entity("api.Models.Trait", b =>

@@ -175,7 +175,7 @@ describe("WishlistPage", () => {
       pageSize: 50,
     } as CollectionPaged<CollectionItem>);
 
-    const { container, cleanup } = await renderPage(client);
+    const { container, cleanup } = await renderPage(client, ["/wishlist?game=Star Wars Unlimited"]);
 
     await waitFor(() =>
       expect(

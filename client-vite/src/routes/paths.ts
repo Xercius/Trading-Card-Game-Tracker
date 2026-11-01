@@ -5,6 +5,7 @@ export const paths = {
   decks: "decks",
   adminImport: "admin/import",
   adminSync: "admin/sync",
+  adminSwccgSync: "admin/swccg-sync",
   users: "users",
   value: "value",
 } as const;

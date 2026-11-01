@@ -38,6 +38,29 @@ namespace api.Features.Cards.Dtos;
 /// <param name="Subtitle">Optional card subtitle.</param>
 /// <param name="Rules">Optional plain-text rules.</param>
 /// <param name="RulesStyled">Optional HTML-styled rules when provided by the source catalog.</param>
+/// <param name="Side">Optional card side/alignment (e.g. "Dark", "Light").</param>
+/// <param name="Uniqueness">Optional card uniqueness indicator.</param>
+/// <param name="Destiny">Optional card destiny value.</param>
+/// <param name="Deploy">Optional card deploy cost string.</param>
+/// <param name="Forfeit">Optional card forfeit value.</param>
+/// <param name="Ability">Optional card force ability level.</param>
+/// <param name="Armor">Optional starship/vehicle armor value.</param>
+/// <param name="Maneuver">Optional starship/vehicle maneuver value.</param>
+/// <param name="Hyperspeed">Optional starship hyperspeed value.</param>
+/// <param name="Landspeed">Optional vehicle landspeed value.</param>
+/// <param name="Parsec">Optional system parsec number.</param>
+/// <param name="Ferocity">Optional creature ferocity value.</param>
+/// <param name="Politics">Optional character politics value.</param>
+/// <param name="Lore">Optional card flavor/lore text.</param>
+/// <param name="ExtraCardDataJson">Optional serialized JSON containing SWCCG extra card data (pulledBy, combos, matching, etc.).</param>
+/// <param name="BackTitle">Optional title for card back (Objectives).</param>
+/// <param name="BackText">Optional gametext for card back (Objectives).</param>
+/// <param name="Persona">Optional character persona(s).</param>
+/// <param name="SubTypes">Optional normalized subtype associations.</param>
+/// <param name="LightSideIcons">Optional number of Light Side Force generation icons.</param>
+/// <param name="DarkSideIcons">Optional number of Dark Side Force generation icons.</param>
+/// <param name="BackLightSideIcons">Optional number of Light Side Force generation icons on card back.</param>
+/// <param name="BackDarkSideIcons">Optional number of Dark Side Force generation icons on card back.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
@@ -62,6 +85,29 @@ public sealed record CardDetailResponse(
     int? UpgradePower = null,
     string? Subtitle = null,
     string? Rules = null,
-    string? RulesStyled = null);
+    string? RulesStyled = null,
+    string? Side = null,
+    string? Uniqueness = null,
+    string? Destiny = null,
+    string? Deploy = null,
+    string? Forfeit = null,
+    int? Ability = null,
+    string? Armor = null,
+    int? Maneuver = null,
+    int? Hyperspeed = null,
+    int? Landspeed = null,
+    int? Parsec = null,
+    string? Ferocity = null,
+    int? Politics = null,
+    string? Lore = null,
+    string? ExtraCardDataJson = null,
+    string? BackTitle = null,
+    string? BackText = null,
+    string? Persona = null,
+    IReadOnlyList<string>? SubTypes = null,
+    int? LightSideIcons = null,
+    int? DarkSideIcons = null,
+    int? BackLightSideIcons = null,
+    int? BackDarkSideIcons = null);
 
 public sealed record CardAspectResponse(string Name, int Count);

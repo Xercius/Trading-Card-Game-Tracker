@@ -18,6 +18,16 @@ export type CardFilters = {
   traitMethod: TraitMethod;
   keywords: string[];
   keywordMethod: KeywordMethod;
+  side?: string;
+  personas?: string[];
+  subTypes?: string[];
+  destinies?: string[];
+  deploys?: string[];
+  forfeits?: string[];
+  powers?: string[];
+  abilities?: string[];
+  lightSideIcons?: string[];
+  darkSideIcons?: string[];
   page: number;
   pageSize: number;
   sort?: string;
@@ -35,6 +45,16 @@ const filterKeys = [
   "traitMethod",
   "keyword",
   "keywordMethod",
+  "side",
+  "persona",
+  "subType",
+  "destiny",
+  "deploy",
+  "forfeit",
+  "power",
+  "ability",
+  "lightSideIcon",
+  "darkSideIcon",
   "q",
   "page",
   "pageSize",
@@ -136,6 +156,16 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     traitMethod: validTraitMethod,
     keywords: sanitizeList(input.keywords ?? []),
     keywordMethod: validKeywordMethod,
+    side: input.side?.trim() || undefined,
+    personas: sanitizeList(input.personas ?? []),
+    subTypes: sanitizeList(input.subTypes ?? []),
+    destinies: sanitizeList(input.destinies ?? []),
+    deploys: sanitizeList(input.deploys ?? []),
+    forfeits: sanitizeList(input.forfeits ?? []),
+    powers: sanitizeList(input.powers ?? []),
+    abilities: sanitizeList(input.abilities ?? []),
+    lightSideIcons: sanitizeList(input.lightSideIcons ?? []),
+    darkSideIcons: sanitizeList(input.darkSideIcons ?? []),
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
     sort: input.sort?.trim() || undefined,
@@ -160,6 +190,16 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const traitMethod: TraitMethod =
     rawTraitMethod === "and" || rawTraitMethod === "exclude" ? rawTraitMethod : "or";
   const keywords = parseCsv(params.get("keyword"));
+  const side = params.get("side") || undefined;
+  const personas = parseCsv(params.get("persona"));
+  const subTypes = parseCsv(params.get("subType"));
+  const destinies = parseCsv(params.get("destiny"));
+  const deploys = parseCsv(params.get("deploy"));
+  const forfeits = parseCsv(params.get("forfeit"));
+  const powers = parseCsv(params.get("power"));
+  const abilities = parseCsv(params.get("ability"));
+  const lightSideIcons = parseCsv(params.get("lightSideIcon"));
+  const darkSideIcons = parseCsv(params.get("darkSideIcon"));
   const rawKeywordMethod = params.get("keywordMethod")?.toLowerCase();
   const keywordMethod: KeywordMethod =
     rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";
@@ -187,6 +227,16 @@ function parseFilters(params: URLSearchParams): CardFilters {
     traitMethod,
     keywords,
     keywordMethod,
+    side,
+    personas,
+    subTypes,
+    destinies,
+    deploys,
+    forfeits,
+    powers,
+    abilities,
+    lightSideIcons,
+    darkSideIcons,
     page,
     pageSize,
     sort,
@@ -231,6 +281,36 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   }
   if (filters.keywordMethod && filters.keywordMethod !== "or") {
     next.set("keywordMethod", filters.keywordMethod);
+  }
+  if (filters.side) {
+    next.set("side", filters.side);
+  }
+  if (filters.personas && filters.personas.length > 0) {
+    next.set("persona", filters.personas.join(","));
+  }
+  if (filters.subTypes && filters.subTypes.length > 0) {
+    next.set("subType", filters.subTypes.join(","));
+  }
+  if (filters.destinies && filters.destinies.length > 0) {
+    next.set("destiny", filters.destinies.join(","));
+  }
+  if (filters.deploys && filters.deploys.length > 0) {
+    next.set("deploy", filters.deploys.join(","));
+  }
+  if (filters.forfeits && filters.forfeits.length > 0) {
+    next.set("forfeit", filters.forfeits.join(","));
+  }
+  if (filters.powers && filters.powers.length > 0) {
+    next.set("power", filters.powers.join(","));
+  }
+  if (filters.abilities && filters.abilities.length > 0) {
+    next.set("ability", filters.abilities.join(","));
+  }
+  if (filters.lightSideIcons && filters.lightSideIcons.length > 0) {
+    next.set("lightSideIcon", filters.lightSideIcons.join(","));
+  }
+  if (filters.darkSideIcons && filters.darkSideIcons.length > 0) {
+    next.set("darkSideIcon", filters.darkSideIcons.join(","));
   }
   if (filters.q.length > 0) {
     next.set("q", filters.q);

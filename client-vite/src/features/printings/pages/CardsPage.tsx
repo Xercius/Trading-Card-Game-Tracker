@@ -15,7 +15,23 @@ import type { PrintingListItem } from "../api/printings";
 
 type ViewMode = "grid" | "table";
 type FilterArrayKey =
-  "games" | "sets" | "rarities" | "types" | "arenas" | "aspects" | "traits" | "keywords";
+  | "games"
+  | "sets"
+  | "rarities"
+  | "types"
+  | "arenas"
+  | "aspects"
+  | "traits"
+  | "keywords"
+  | "personas"
+  | "subTypes"
+  | "destinies"
+  | "deploys"
+  | "forfeits"
+  | "powers"
+  | "abilities"
+  | "lightSideIcons"
+  | "darkSideIcons";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -47,6 +63,7 @@ function FilterIcon({ className = "" }: { className?: string }) {
 export default function CardsPage() {
   const { activeGame } = useGame();
   const { filters, setFilters } = useCardFilters();
+  const isSwccg = activeGame === "Star Wars CCG";
 
   const previousGameRef = React.useRef(activeGame);
   React.useEffect(() => {
@@ -80,10 +97,25 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      arenas: isSwccg ? [] : filters.arenas,
+      aspects: isSwccg ? [] : filters.aspects,
+      aspectMethod: isSwccg ? undefined : filters.aspectMethod,
+      keywords: isSwccg ? [] : filters.keywords,
+      keywordMethod: isSwccg ? undefined : filters.keywordMethod,
+      side: isSwccg ? filters.side : undefined,
+      personas: isSwccg ? filters.personas : [],
+      subTypes: isSwccg ? filters.subTypes : [],
+      destinies: isSwccg ? filters.destinies : [],
+      deploys: isSwccg ? filters.deploys : [],
+      forfeits: isSwccg ? filters.forfeits : [],
+      powers: isSwccg ? filters.powers : [],
+      abilities: isSwccg ? filters.abilities : [],
+      lightSideIcons: isSwccg ? filters.lightSideIcons : [],
+      darkSideIcons: isSwccg ? filters.darkSideIcons : [],
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, effectivePageSize]
+    [filters, activeGame, isSwccg, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -194,14 +226,32 @@ export default function CardsPage() {
       traitMethod: "or",
       keywords: [],
       keywordMethod: "or",
+      side: undefined,
+      personas: [],
+      subTypes: [],
+      destinies: [],
+      deploys: [],
+      forfeits: [],
+      powers: [],
+      abilities: [],
+      lightSideIcons: [],
+      darkSideIcons: [],
       page: 1,
     }));
-  }, [setFilters, activeGame]);
+  }, [setFilters, isSwccg]);
 
   const removeFilterValue = React.useCallback(
-    (key: FilterArrayKey, value: string) => {
+    (key: FilterArrayKey | "side", value: string) => {
       setFilters((prev) => {
-        const nextList = prev[key].filter((item) => item.toLowerCase() !== value.toLowerCase());
+        if (key === "side") {
+          return {
+            ...prev,
+            side: undefined,
+            page: 1,
+          };
+        }
+        const currentList = prev[key as FilterArrayKey] ?? [];
+        const nextList = currentList.filter((item) => item.toLowerCase() !== value.toLowerCase());
         return {
           ...prev,
           [key]: nextList,
@@ -241,8 +291,126 @@ export default function CardsPage() {
     return result;
   }, [filters.aspects]);
 
-  const activeFilters = React.useMemo(
-    () => [
+  const activeFilters = React.useMemo(() => {
+    if (isSwccg) {
+      const list: Array<{ key: FilterArrayKey | "side"; label: string; items: Array<{ display: string; value: string }> }> = [];
+      if (filters.side) {
+        list.push({
+          key: "side",
+          label: "Side",
+          items: [
+            {
+              display:
+                filters.side.toLowerCase() === "light"
+                  ? "Light Side"
+                  : filters.side.toLowerCase() === "dark"
+                    ? "Dark Side"
+                    : filters.side,
+              value: filters.side,
+            },
+          ],
+        });
+      }
+      if (filters.types?.length) {
+        list.push({
+          key: "types" as const,
+          label: "Type",
+          items: filters.types.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.subTypes?.length) {
+        list.push({
+          key: "subTypes" as const,
+          label: "Sub-Type",
+          items: filters.subTypes.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.personas?.length) {
+        list.push({
+          key: "personas" as const,
+          label: "Persona",
+          items: filters.personas.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.sets?.length) {
+        list.push({
+          key: "sets" as const,
+          label: "Set",
+          items: filters.sets.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.rarities?.length) {
+        list.push({
+          key: "rarities" as const,
+          label: "Rarity",
+          items: filters.rarities.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.traits?.length) {
+        list.push({
+          key: "traits" as const,
+          label:
+            filters.traitMethod === "exclude"
+              ? "Exclude Trait"
+              : filters.traitMethod === "and"
+                ? "Trait (AND)"
+                : "Trait",
+          items: filters.traits.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.destinies?.length) {
+        list.push({
+          key: "destinies" as const,
+          label: "Destiny",
+          items: filters.destinies.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.deploys?.length) {
+        list.push({
+          key: "deploys" as const,
+          label: "Deploy",
+          items: filters.deploys.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.forfeits?.length) {
+        list.push({
+          key: "forfeits" as const,
+          label: "Forfeit",
+          items: filters.forfeits.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.powers?.length) {
+        list.push({
+          key: "powers" as const,
+          label: "Power",
+          items: filters.powers.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.abilities?.length) {
+        list.push({
+          key: "abilities" as const,
+          label: "Ability",
+          items: filters.abilities.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.lightSideIcons?.length) {
+        list.push({
+          key: "lightSideIcons" as const,
+          label: "Light Side Icons",
+          items: filters.lightSideIcons.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.darkSideIcons?.length) {
+        list.push({
+          key: "darkSideIcons" as const,
+          label: "Dark Side Icons",
+          items: filters.darkSideIcons.map((v) => ({ display: v, value: v })),
+        });
+      }
+      return list;
+    }
+
+    return [
       {
         key: "sets" as const,
         label: "Set",
@@ -293,25 +461,43 @@ export default function CardsPage() {
               : "Keyword",
         items: (filters.keywords ?? []).map((v) => ({ display: v, value: v })),
       },
-    ],
-    [
-      filters.sets,
-      filters.rarities,
-      filters.types,
-      filters.arenas,
-      filters.aspectMethod,
-      groupedAspects,
-      filters.traits,
-      filters.traitMethod,
-      filters.keywords,
-      filters.keywordMethod,
-    ]
-  );
+    ];
+  }, [
+    isSwccg,
+    filters.side,
+    filters.types,
+    filters.subTypes,
+    filters.personas,
+    filters.sets,
+    filters.rarities,
+    filters.destinies,
+    filters.deploys,
+    filters.forfeits,
+    filters.powers,
+    filters.abilities,
+    filters.lightSideIcons,
+    filters.darkSideIcons,
+    filters.arenas,
+    filters.aspectMethod,
+    groupedAspects,
+    filters.traits,
+    filters.traitMethod,
+    filters.keywords,
+    filters.keywordMethod,
+  ]);
 
   const hasActiveFilters = activeFilters.some((filter) => filter.items.length > 0);
   const activeFilterCount = activeFilters.reduce((sum, filter) => sum + filter.items.length, 0);
 
   const gridEntries = React.useMemo<GridEntry[]>(() => {
+    if (isSwccg) {
+      return printings.map((p) => ({
+        type: "single",
+        card: p,
+        key: String(p.printingId),
+      }));
+    }
+
     const hasVertical = printings.some((p) => !isHorizontalPrinting(p));
     if (!hasVertical) {
       return printings.map((p) => ({
@@ -343,7 +529,7 @@ export default function CardsPage() {
       }
     }
     return items;
-  }, [printings]);
+  }, [printings, isSwccg]);
 
   return (
     <div className="space-y-4">
@@ -549,6 +735,7 @@ export default function CardsPage() {
         onRetryFacets={() => void refetchFacets()}
         onClearFilters={clearFilters}
         hasActiveFilters={hasActiveFilters}
+        game={activeGame}
       />
     </div>
   );

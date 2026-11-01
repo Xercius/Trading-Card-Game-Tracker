@@ -6,6 +6,7 @@ using api.Importing;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Admin.Sync;
@@ -24,6 +25,11 @@ public sealed class AdminSyncController(
     private const string CatalogHistoryKey = "swu-catalog";
     private const string GlobalCatalogScope = "GlobalCatalog";
     private const string SyncRouteKey = "star-wars-unlimited";
+
+    private const string SwccgImporterKey = "swccg";
+    private const string SwccgCatalogHistoryKey = "swccg-catalog";
+    private const string SwccgCatalogScope = "SwccgCatalog";
+    private const string SwccgSyncRouteKey = "star-wars-ccg";
 
     [HttpGet("star-wars-unlimited/logs")]
     public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
@@ -147,17 +153,17 @@ public sealed class AdminSyncController(
                 .Select(h => (DateTimeOffset?)h.LastSyncedAt)
                 .SingleOrDefaultAsync(ct);
             var updatedSince = forceFullSync ? null : checkpoint?.AddMinutes(-1);
-            var syncLog = await CreatePendingSyncLogAsync(startedAt, updatedSince, ct);
+            var syncLog = await CreatePendingSyncLogAsync(startedAt, updatedSince, GlobalCatalogScope, ct);
             try
             {
                 var summary = await importer.ImportFromRemoteAsync(
                     new ImportOptions(DryRun: false, Upsert: true, UpdatedSince: updatedSince), ct);
 
                 MergeSummary(combined, summary);
-                setCodes = await ResolveSwuSetCodesAsync(ct);
+                setCodes = await ResolveSetCodesAsync("star wars unlimited", ct);
                 if (summary.Errors == 0)
                 {
-                    await RecordSuccessfulSyncAsync(syncLog, summary, startedAt, ct);
+                    await RecordSuccessfulSyncAsync(syncLog, summary, startedAt, CatalogHistoryKey, ct);
                 }
                 else
                 {
@@ -186,7 +192,7 @@ public sealed class AdminSyncController(
                 combined.CardsUpdated + combined.PrintingsUpdated,
                 combined.Errors);
 
-            return Ok(BuildResponse(combined.Errors == 0 ? "Succeeded" : "Failed", startedAt, completedAt, setCodes.Length, combined));
+            return Ok(BuildResponse(combined.Errors == 0 ? "Succeeded" : "Failed", startedAt, completedAt, setCodes.Length, combined, SwuImporterKey));
         }
         catch (OperationCanceledException)
         {
@@ -198,7 +204,7 @@ public sealed class AdminSyncController(
             logger.LogError(ex, "Admin sync failed for {Source}.", SwuImporterKey);
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
-                BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, "Sync failed. See server logs for details."));
+                BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, SwuImporterKey, "Sync failed. See server logs for details."));
         }
         finally
         {
@@ -206,13 +212,205 @@ public sealed class AdminSyncController(
         }
     }
 
+    [HttpGet("star-wars-ccg/logs")]
+    public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsCcgLogs(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
+    {
+        if (limit is <= 0 or > 200)
+        {
+            limit = 50;
+        }
+
+        var totalCount = await db.SyncLogs.CountAsync(l => l.CatalogScope == SwccgCatalogScope, ct);
+
+        var allLogs = await db.SyncLogs
+            .AsNoTracking()
+            .Where(l => l.CatalogScope == SwccgCatalogScope)
+            .Select(l => new AdminSyncLogEntry(
+                l.Id,
+                l.SetId,
+                l.Set != null ? l.Set.Code : null,
+                l.StartedAt,
+                l.CompletedAt,
+                l.IsIncremental,
+                l.UpdatedSince,
+                l.CardsReturned,
+                l.CardsUpserted,
+                l.Status,
+                l.ErrorMessage))
+            .ToListAsync(ct);
+
+        var logs = allLogs
+            .OrderByDescending(l => l.StartedAt)
+            .Take(limit)
+            .ToList();
+
+        return Ok(new AdminSyncLogsResponse(
+            Source: SwccgImporterKey,
+            TotalCount: totalCount,
+            Logs: logs));
+    }
+
+    [HttpGet("star-wars-ccg/status")]
+    public async Task<ActionResult<AdminSyncStatusDetailsResponse>> GetStarWarsCcgStatus(CancellationToken ct)
+    {
+        var history = (await db.ImportSyncHistories
+            .AsNoTracking()
+            .Where(h => h.ImporterKey == SwccgImporterKey)
+            .Select(h => new AdminSyncSetHistoryEntry(h.SetCode, h.LastSyncedAt))
+            .ToArrayAsync(ct))
+            .OrderByDescending(h => h.LastSyncedAt)
+            .ThenBy(h => h.SetCode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var isRunning = executionTracker.TryGetStartedAt(SwccgSyncRouteKey, out var runningSince);
+        var checkpoint = await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == SwccgCatalogHistoryKey && h.SetCode == "")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .SingleOrDefaultAsync(ct);
+        var lastOutcome = (await db.SyncLogs.AsNoTracking()
+            .Where(l => l.CatalogScope == SwccgCatalogScope && l.CompletedAt != null)
+            .Select(l => new { l.StartedAt, l.Status })
+            .ToListAsync(ct))
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefault()?.Status;
+        var status = isRunning ? "Running" : "Idle";
+        string[] messages = checkpoint is null
+            ? ["No successful Star Wars CCG sync recorded yet. The next sync will import the catalog."]
+            : Array.Empty<string>();
+
+        return Ok(new AdminSyncStatusDetailsResponse(
+            Source: SwccgImporterKey,
+            Status: status,
+            RunningSince: isRunning ? runningSince : null,
+            LastCompletedAt: checkpoint,
+            HistoryCount: history.Length,
+            History: history,
+            Messages: messages,
+            LastOutcome: lastOutcome));
+    }
+
+    [HttpPost("star-wars-ccg")]
+    public async Task<ActionResult<AdminSyncStatusResponse>> RunStarWarsCcg(
+        CancellationToken ct,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AdminSwccgSyncRequest? request = null,
+        [FromQuery] bool forceFullSync = false)
+    {
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(SwccgSyncRouteKey, startedAt))
+        {
+            executionTracker.TryGetStartedAt(SwccgSyncRouteKey, out var runningSince);
+            logger.LogWarning("Rejected concurrent admin sync request for {Source}.", SwccgImporterKey);
+            return Conflict(new AdminSyncStatusResponse(
+                Source: SwccgImporterKey,
+                Status: "Running",
+                StartedAt: runningSince == default ? startedAt : runningSince,
+                CompletedAt: null,
+                SetCount: 0,
+                Created: 0,
+                Updated: 0,
+                Invalid: 0,
+                Messages: ["A Star Wars CCG sync is already running."]));
+        }
+
+        string[] setCodes = [];
+        var combined = new ImportSummary
+        {
+            Source = SwccgImporterKey,
+            DryRun = request?.DryRun ?? false
+        };
+
+        try
+        {
+            if (!registry.TryGet(SwccgImporterKey, out var importer))
+            {
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    title: "Importer not found.",
+                    detail: "The Star Wars CCG importer is not registered.");
+            }
+
+            var checkpoint = await db.ImportSyncHistories.AsNoTracking()
+                .Where(h => h.ImporterKey == SwccgCatalogHistoryKey && h.SetCode == "")
+                .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+                .SingleOrDefaultAsync(ct);
+            var updatedSince = forceFullSync ? null : checkpoint?.AddMinutes(-1);
+            var syncLog = await CreatePendingSyncLogAsync(startedAt, updatedSince, SwccgCatalogScope, ct);
+            try
+            {
+                var summary = await importer.ImportFromRemoteAsync(
+                    new ImportOptions(
+                        DryRun: request?.DryRun ?? false,
+                        Upsert: true,
+                        Limit: request?.Limit,
+                        UpdatedSince: updatedSince), ct);
+
+                MergeSummary(combined, summary);
+                setCodes = await ResolveSetCodesAsync("star wars ccg", ct);
+                if (summary.Errors == 0)
+                {
+                    await RecordSuccessfulSyncAsync(
+                        syncLog,
+                        summary,
+                        startedAt,
+                        summary.DryRun ? null : SwccgCatalogHistoryKey,
+                        ct);
+                }
+                else
+                {
+                    await UpdateSyncLogFailedAsync(syncLog, "Import contained invalid records; synchronization checkpoint was not advanced.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                await UpdateSyncLogFailedAsync(syncLog, "Sync was cancelled.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Admin catalog sync failed for {Source}.", SwccgImporterKey);
+                combined.Errors++;
+                combined.Messages.Add("Catalog sync failed. Retry the sync; its checkpoint was not advanced.");
+                await UpdateSyncLogFailedAsync(syncLog, "Import failed. See server logs for details.");
+            }
+
+            var completedAt = timeProvider.GetUtcNow();
+            logger.LogInformation(
+                "Admin sync completed for {Source}. SetCount={SetCount}, Created={Created}, Updated={Updated}, Errors={Errors}",
+                SwccgImporterKey,
+                setCodes.Length,
+                combined.CardsCreated + combined.PrintingsCreated,
+                combined.CardsUpdated + combined.PrintingsUpdated,
+                combined.Errors);
+
+            return Ok(BuildResponse(combined.Errors == 0 ? "Succeeded" : "Failed", startedAt, completedAt, setCodes.Length, combined, SwccgImporterKey));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var completedAt = timeProvider.GetUtcNow();
+            logger.LogError(ex, "Admin sync failed for {Source}.", SwccgImporterKey);
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, SwccgImporterKey, "Sync failed. See server logs for details."));
+        }
+        finally
+        {
+            executionTracker.Complete(SwccgSyncRouteKey);
+        }
+    }
+
     private async Task<SyncLog> CreatePendingSyncLogAsync(
-        DateTimeOffset startedAt, DateTimeOffset? updatedSince, CancellationToken ct)
+        DateTimeOffset startedAt, DateTimeOffset? updatedSince, string scope, CancellationToken ct)
     {
         var syncLog = new SyncLog
         {
             StartedAt = startedAt,
-            CatalogScope = GlobalCatalogScope,
+            CatalogScope = scope,
             IsIncremental = updatedSince.HasValue,
             UpdatedSince = updatedSince,
             Status = "Pending"
@@ -223,23 +421,26 @@ public sealed class AdminSyncController(
     }
 
     private async Task RecordSuccessfulSyncAsync(
-        SyncLog syncLog, ImportSummary summary, DateTimeOffset checkpoint, CancellationToken ct)
+        SyncLog syncLog, ImportSummary summary, DateTimeOffset checkpoint, string? historyKey, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var entry = await db.ImportSyncHistories
-            .SingleOrDefaultAsync(h => h.ImporterKey == CatalogHistoryKey && h.SetCode == "", ct);
-        if (entry is null)
+        if (historyKey is not null)
         {
-            db.ImportSyncHistories.Add(new ImportSyncHistory
+            var entry = await db.ImportSyncHistories
+                .SingleOrDefaultAsync(h => h.ImporterKey == historyKey && h.SetCode == "", ct);
+            if (entry is null)
             {
-                ImporterKey = CatalogHistoryKey,
-                SetCode = "",
-                LastSyncedAt = checkpoint
-            });
-        }
-        else
-        {
-            entry.LastSyncedAt = checkpoint;
+                db.ImportSyncHistories.Add(new ImportSyncHistory
+                {
+                    ImporterKey = historyKey,
+                    SetCode = "",
+                    LastSyncedAt = checkpoint
+                });
+            }
+            else
+            {
+                entry.LastSyncedAt = checkpoint;
+            }
         }
 
         syncLog.Status = "Succeeded";
@@ -267,17 +468,17 @@ public sealed class AdminSyncController(
         }
     }
 
-    private async Task<string[]> ResolveSwuSetCodesAsync(CancellationToken ct)
+    private async Task<string[]> ResolveSetCodesAsync(string gameNormalized, CancellationToken ct)
     {
         var discoveredCodes = await db.Sets
-            .Where(s => s.Game.NameNormalized == "star wars unlimited")
+            .Where(s => s.Game.NameNormalized == gameNormalized)
             .AsNoTracking()
             .Select(s => s.Code)
             .Concat(
                 db.CardPrintings
                     .AsNoTracking()
                     .Where(p => p.Card.Game != null
-                        && p.Card.Game.NameNormalized == "star wars unlimited")
+                        && p.Card.Game.NameNormalized == gameNormalized)
                     .Select(p => p.CatalogSet == null ? null : p.CatalogSet.Code))
             .ToListAsync(ct);
 
@@ -295,11 +496,12 @@ public sealed class AdminSyncController(
         DateTimeOffset? completedAt,
         int setCount,
         ImportSummary summary,
+        string source = SwuImporterKey,
         params string[] additionalMessages)
     {
         var messages = summary.Messages.Concat(additionalMessages.Where(message => !string.IsNullOrWhiteSpace(message))).ToArray();
         return new AdminSyncStatusResponse(
-            Source: SwuImporterKey,
+            Source: source,
             Status: status,
             StartedAt: startedAt,
             CompletedAt: completedAt,
