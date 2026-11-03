@@ -1,5 +1,5 @@
 ---
-applyTo: "api/Features/**,api/Controllers/**,api/Importing/**,api/Infrastructure/**,api/Common/**,api/Shared/**"
+applyTo: "api/Features/**,api/Controllers/**,api/Infrastructure/**,api/Common/**,api/Shared/**"
 ---
 
 # C# API
