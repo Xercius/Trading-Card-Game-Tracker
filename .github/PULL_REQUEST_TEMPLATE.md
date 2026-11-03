@@ -14,24 +14,24 @@
 
 ```bash
 # Backend
-dotnet test ./api/api.sln -c Release
+ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
 
 # Frontend
-npm test -- --run
+cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run
 ```
 
 ## Checklist
 
 ### General
-- [ ] PR targets the correct branch (`dev` for features/fixes, `master` for releases)
+- [ ] PR targets the correct branch (`master`)
 - [ ] One concern per PR — unrelated changes are split into separate PRs
 - [ ] Commit messages are clear and descriptive
 
 ### Code Quality
 - [ ] `dotnet format ./api/api.sln --verify-no-changes` passes (or `dotnet format` was run locally)
-- [ ] `pnpm lint:strict` passes with zero warnings
-- [ ] `pnpm typecheck` passes
-- [ ] `pnpm format` (Prettier) was run on all modified TS/TSX/JSON files
+- [ ] `npm run lint:strict` passes with zero warnings
+- [ ] `npm run typecheck` passes
+- [ ] `npm run format` (Prettier) was run on all modified TS/TSX/JSON files
 
 ### Testing
 - [ ] All existing tests pass (`dotnet test` + `npm test -- --run`)
