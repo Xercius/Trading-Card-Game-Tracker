@@ -9,6 +9,10 @@ import {
   type CollectionItem,
   type Paged as CollectionPaged,
 } from "@/features/collection/api";
+import MoxfieldCardSearch from "@/components/search/MoxfieldCardSearch";
+import AddCardModal from "@/features/collection/AddCardModal";
+import EditCardModal from "@/features/collection/EditCardModal";
+import type { PrintingListItem } from "@/features/printings/api/printings";
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -110,6 +114,11 @@ export default function WishlistPage() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [isBulkRunning, setIsBulkRunning] = useState(false);
 
+  const [addModalPrinting, setAddModalPrinting] = useState<PrintingListItem | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editModalItem, setEditModalItem] = useState<WishlistItemDto | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 3200);
@@ -165,9 +174,9 @@ export default function WishlistPage() {
         return { ...existing, items: nextItems } as Paged<WishlistItemDto>;
       });
 
-      const collectionQueries = queryClient.getQueriesData<CollectionPaged<CollectionItem>>(
-        collectionKeys.all
-      );
+      const collectionQueries = queryClient.getQueriesData<CollectionPaged<CollectionItem>>({
+        queryKey: collectionKeys.all,
+      });
       for (const [key, value] of collectionQueries) {
         if (!value) continue;
         const idx = value.items.findIndex((item) => item.cardPrintingId === snapshot.printingId);
@@ -293,77 +302,126 @@ export default function WishlistPage() {
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading wishlist</div>;
-  if (items.length === 0)
-    return (
-      <div className="p-4">
-        {toast && (
-          <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>
-        )}
-        No wishlist items found
-      </div>
-    );
 
   return (
-    <div className="p-4">
+    <div className="p-4 max-w-5xl mx-auto space-y-4">
       {toast && (
         <div className={`mb-3 rounded px-3 py-2 text-sm ${toastClass}`}>{toast.message}</div>
       )}
-      <div className="mb-2 text-sm text-gray-500">
-        Showing {items.length} of {total} items
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            className="rounded border px-2 py-1 disabled:opacity-50"
-            onClick={() => canGoPrev && updatePage(page - 1)}
-            disabled={!canGoPrev}
-            type="button"
-          >
-            Prev
-          </button>
-          <button
-            className="rounded border px-2 py-1 disabled:opacity-50"
-            onClick={() => canGoNext && updatePage(page + 1)}
-            disabled={!canGoNext}
-            type="button"
-          >
-            Next
-          </button>
-          <button
-            className="rounded border px-2 py-1 disabled:opacity-50"
-            onClick={handleBulkMove}
-            disabled={selectedIds.size === 0 || moveMutation.isPending || isBulkRunning}
-            type="button"
-          >
-            Move selected
-          </button>
-        </div>
+
+      {/* Top Action Bar: Moxfield Quick Add to Wishlist Search */}
+      <div className="rounded-lg border border-gray-200 bg-white dark:bg-card dark:border-border p-4 shadow-sm">
+        <label className="text-xs font-semibold uppercase text-gray-500 mb-1.5 block">
+          Quick Add Card to Wishlist
+        </label>
+        <MoxfieldCardSearch
+          placeholder="Search card to add to wishlist… (type name, set, or #)"
+          onSelectPrinting={(printing) => {
+            setAddModalPrinting(printing);
+            setIsAddModalOpen(true);
+          }}
+        />
       </div>
-      <ul className="space-y-2">
-        {items.map((item) => (
-          <li
-            key={item.cardPrintingId}
-            className="flex items-center justify-between gap-3 rounded border border-gray-200 p-3"
-          >
-            <label className="flex grow items-center gap-3">
-              <input
-                type="checkbox"
-                checked={selectedIds.has(item.cardPrintingId)}
-                onChange={() => handleToggle(item.cardPrintingId)}
-              />
-              <span>
-                {item.game} — {item.cardName} · want {item.quantityWanted}
-              </span>
-            </label>
-            <button
-              className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
-              type="button"
-              onClick={() => handleMove(item)}
-              disabled={moveMutation.isPending}
-            >
-              Move to collection
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+          No wishlist items found. Use the search box above to add cards to your wishlist!
+        </div>
+      ) : (
+        <>
+          <div className="mb-2 text-sm text-gray-500 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              Showing {items.length} of {total} items
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="rounded border px-2 py-1 disabled:opacity-50"
+                onClick={() => canGoPrev && updatePage(page - 1)}
+                disabled={!canGoPrev}
+                type="button"
+              >
+                Prev
+              </button>
+              <button
+                className="rounded border px-2 py-1 disabled:opacity-50"
+                onClick={() => canGoNext && updatePage(page + 1)}
+                disabled={!canGoNext}
+                type="button"
+              >
+                Next
+              </button>
+              <button
+                className="rounded border px-2 py-1 disabled:opacity-50"
+                onClick={handleBulkMove}
+                disabled={selectedIds.size === 0 || moveMutation.isPending || isBulkRunning}
+                type="button"
+              >
+                Move selected
+              </button>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li
+                key={item.cardPrintingId}
+                className="flex items-center justify-between gap-3 rounded border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/30 transition-colors"
+              >
+                <label className="flex grow items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.cardPrintingId)}
+                    onChange={() => handleToggle(item.cardPrintingId)}
+                  />
+                  <div
+                    className="group"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setEditModalItem(item);
+                      setIsEditModalOpen(true);
+                    }}
+                    title="Click to edit wishlist card"
+                  >
+                    <span className="font-medium group-hover:underline">
+                      {item.cardName}
+                    </span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {item.set} #{item.number} · want {item.quantityWanted}
+                    </span>
+                  </div>
+                </label>
+                <button
+                  className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  type="button"
+                  onClick={() => handleMove(item)}
+                  disabled={moveMutation.isPending}
+                >
+                  Move to collection
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {isAddModalOpen && (
+        <AddCardModal
+          open={isAddModalOpen}
+          onOpenChange={setIsAddModalOpen}
+          initialPrinting={addModalPrinting}
+          mode="wishlist"
+          onSuccess={(msg) => setToast({ type: "success", message: msg })}
+        />
+      )}
+
+      {isEditModalOpen && (
+        <EditCardModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          item={editModalItem}
+          mode="wishlist"
+          onSuccess={(msg) => setToast({ type: "success", message: msg })}
+        />
+      )}
     </div>
   );
 }

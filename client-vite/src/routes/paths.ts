@@ -1,6 +1,7 @@
 export const paths = {
   cards: "cards",
   collection: "collection",
+  collectionSetDetail: "collection/set/:setCode",
   wishlist: "wishlist",
   decks: "decks",
   adminImport: "admin/import",

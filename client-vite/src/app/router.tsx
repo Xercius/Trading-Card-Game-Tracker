@@ -8,6 +8,7 @@ import { paths } from "@/routes/paths";
 import { RequireAdmin } from "@/app/RequireAdmin";
 
 const CollectionPage = lazy(() => import("@/pages/CollectionPage"));
+const CollectionSetDetailPage = lazy(() => import("@/pages/CollectionSetDetailPage"));
 const WishlistPage = lazy(() => import("@/pages/WishlistPage"));
 const DecksPage = lazy(() => import("@/pages/DecksPage"));
 const DeckBuilderPage = lazy(() => import("@/pages/DeckBuilderPage"));
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to={paths.cards} replace /> },
       { path: paths.cards, element: <CardsPage /> },
       { path: paths.collection, element: <CollectionPage /> },
+      { path: paths.collectionSetDetail, element: <CollectionSetDetailPage /> },
       { path: paths.wishlist, element: <WishlistPage /> },
       { path: `${paths.decks}/:deckId`, element: <DeckBuilderPage /> },
       { path: paths.decks, element: <DecksPage /> },

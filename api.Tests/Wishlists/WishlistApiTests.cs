@@ -1,3 +1,4 @@
+using api.Shared;
 using api.Tests.Infrastructure;
 using FluentAssertions;
 using System.Net;
@@ -25,9 +26,10 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
         var response = await client.GetAsync("/api/wishlist");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var items = await response.Content.ReadFromJsonAsync<List<WishlistItemContract>>();
-        items.Should().NotBeNull();
-        items!.Should().HaveCount(2);
+        var page = await response.Content.ReadFromJsonAsync<Paged<WishlistItemContract>>();
+        page.Should().NotBeNull();
+        var items = page!.Items.ToList();
+        items.Should().HaveCount(2);
         items.Should().Contain(i => i.CardPrintingId == Seed.LightningBetaPrintingId);
         items.Should().Contain(i => i.CardPrintingId == Seed.PhoenixPrintingId);
     }

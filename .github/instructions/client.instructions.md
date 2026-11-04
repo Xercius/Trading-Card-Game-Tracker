@@ -69,6 +69,11 @@ applyTo: "client-vite/src/**/*.{ts,tsx}"
 
 ## Styling & UI
 
+### Surface and Overlay Backgrounds
+- All floating or overlay surfaces (dropdowns, autocomplete popovers, select menus, dialogs, drawers, tooltips) **MUST** specify a solid, opaque background (e.g. `bg-[#1a1a1d]`, `bg-[#242424]`, or `bg-popover`/`bg-background` backed by `@theme` variables in `src/index.css`).
+- Never allow dropdowns, search boxes, or dialog contents to render without an explicit opaque background, as underlying elements will bleed through.
+- Always provide clear border separation (e.g. `border border-white/20`) and appropriate elevation (`shadow-xl` or `shadow-2xl`) with `z-50` for popovers.
+
 ### shadcn/ui
 - Use the local registry for shadcn/ui components. Do not import from `@shadcn/ui` directly.
 - Build variants with `cva`. Minimize inline styles.

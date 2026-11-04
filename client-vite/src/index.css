@@ -2,13 +2,27 @@
 @import "tailwindcss/preflight";
 @import "tailwindcss/utilities";
 
-/*
-@import "tailwindcss/theme";
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
-/*
-/* your CSS (use @layer base/components if needed) */
+@theme {
+  --color-background: #242424;
+  --color-foreground: #ededed;
+  --color-card: #202022;
+  --color-card-foreground: #ededed;
+  --color-popover: #1f1f23;
+  --color-popover-foreground: #ededed;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #2a2a2e;
+  --color-secondary-foreground: #ededed;
+  --color-muted: #2e2e33;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #37373f;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #3f3f46;
+  --color-input: #3f3f46;
+  --color-ring: #3b82f6;
+}
 
 /* -------------------------------
    Base layer overrides
@@ -16,6 +30,15 @@
 --------------------------------*/
 @layer base {
   :root {
+    --background: #242424;
+    --foreground: #ededed;
+    --card: #202022;
+    --card-foreground: #ededed;
+    --popover: #1f1f23;
+    --popover-foreground: #ededed;
+    --border: #3f3f46;
+    --input: #3f3f46;
+
     font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
     line-height: 1.5;
     font-weight: 400;

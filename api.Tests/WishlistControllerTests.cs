@@ -296,7 +296,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     {
         var response = await client.GetAsync($"/api/wishlist{query}");
         response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<List<WishlistItemResponse>>(JsonOptions);
-        return payload ?? [];
+        var payload = await response.Content.ReadFromJsonAsync<Paged<WishlistItemResponse>>(JsonOptions);
+        return payload?.Items?.ToList() ?? [];
     }
 }
