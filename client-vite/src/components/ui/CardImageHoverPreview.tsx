@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { resolveImageUrl } from "@/lib/http";
 
 export type CardImageHoverPreviewProps = {
   imageUrl?: string | null;
@@ -91,6 +92,8 @@ export const CardImageHoverPreview: React.FC<CardImageHoverPreviewProps> = ({
     );
   }
 
+  const resolvedImageUrl = resolveImageUrl(imageUrl);
+
   return (
     <>
       <div
@@ -100,7 +103,7 @@ export const CardImageHoverPreview: React.FC<CardImageHoverPreviewProps> = ({
         onMouseLeave={handleMouseLeave}
       >
         <img
-          src={imageUrl}
+          src={resolvedImageUrl}
           alt={cardName}
           onError={() => setImgError(true)}
           onLoad={handleImageLoad}
@@ -123,7 +126,7 @@ export const CardImageHoverPreview: React.FC<CardImageHoverPreviewProps> = ({
             }}
           >
             <img
-              src={imageUrl}
+              src={resolvedImageUrl}
               alt={cardName}
               className={`w-full rounded-lg object-contain shadow-md ${
                 isHorizontal ? "max-h-60" : "max-h-80"

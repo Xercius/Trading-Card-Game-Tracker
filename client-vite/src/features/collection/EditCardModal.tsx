@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { resolveImageUrl } from "@/lib/http";
-import { useCardPrintings, type PrintingSummary } from "@/features/cards/api";
+import { useCardPrintings } from "@/features/cards/api";
 import { useSetCardQuantitiesMutation, usePrintingQuantitiesQuery, type CollectionItem } from "./api";
 
 type WishlistOrCollectionItem = {
@@ -44,7 +44,9 @@ export default function EditCardModal({
   const activePrintingId = selectedPrintingId ?? originalPrintingId;
 
   // Load latest quantities for active printing
-  const { data: currentQuantities } = usePrintingQuantitiesQuery(activePrintingId);
+  const quantitiesQuery = usePrintingQuantitiesQuery(activePrintingId);
+  const { data: currentQuantities } = quantitiesQuery;
+  const originalQuantitiesQuery = usePrintingQuantitiesQuery(originalPrintingId);
 
   const [ownedQty, setOwnedQty] = useState(0);
   const [proxyQty, setProxyQty] = useState(0);
@@ -60,15 +62,28 @@ export default function EditCardModal({
   }, [item]);
 
   useEffect(() => {
-    if (currentQuantities) {
+    setOwnedQty(0);
+    setProxyQty(0);
+    setWishlistQty(0);
+  }, [activePrintingId]);
+
+  useEffect(() => {
+    if (quantitiesQuery.isSuccess && currentQuantities?.cardPrintingId === activePrintingId) {
       setOwnedQty(currentQuantities.quantityOwned ?? 0);
       setProxyQty(currentQuantities.quantityProxyOwned ?? 0);
       setWishlistQty(currentQuantities.quantityWanted ?? 0);
     }
-  }, [currentQuantities]);
+  }, [activePrintingId, currentQuantities, quantitiesQuery.isSuccess]);
 
-  const activePrinting: PrintingSummary | WishlistOrCollectionItem | null =
-    printings.find((p) => p.printingId === activePrintingId) ?? item;
+  const selectedPrinting = printings.find((p) => Number(p.printingId) === activePrintingId);
+  const activePrinting = selectedPrinting
+    ? { ...selectedPrinting, cardName: item?.cardName ?? "Card" }
+    : item;
+  const quantitiesReady =
+    quantitiesQuery.isSuccess && currentQuantities?.cardPrintingId === activePrintingId;
+  const originalQuantitiesReady =
+    originalQuantitiesQuery.isSuccess &&
+    originalQuantitiesQuery.data?.cardPrintingId === originalPrintingId;
 
   const currentPrintingIndex = printings.findIndex((p) => p.printingId === activePrintingId);
 
@@ -87,20 +102,9 @@ export default function EditCardModal({
   const mutation = useSetCardQuantitiesMutation();
 
   const handleSave = async () => {
-    if (!activePrintingId || !item) return;
+    if (!activePrintingId || !item || !quantitiesReady) return;
 
     try {
-      // If user changed to a different printing, zero out the old printing
-      if (activePrintingId !== originalPrintingId && originalPrintingId > 0) {
-        await mutation.mutateAsync({
-          printingId: originalPrintingId,
-          quantityOwned: 0,
-          quantityProxyOwned: 0,
-          quantityWanted: 0,
-        });
-      }
-
-      // Save new quantities on active printing
       await mutation.mutateAsync({
         printingId: activePrintingId,
         quantityOwned: Math.max(0, ownedQty),
@@ -117,13 +121,16 @@ export default function EditCardModal({
   };
 
   const handleRemove = async () => {
-    if (!originalPrintingId) return;
+    if (!originalPrintingId || !originalQuantitiesReady) return;
+    const quantities = originalQuantitiesQuery.data;
+    if (!quantities) return;
+
     try {
       await mutation.mutateAsync({
         printingId: originalPrintingId,
-        quantityOwned: 0,
-        quantityProxyOwned: 0,
-        quantityWanted: 0,
+        quantityOwned: mode === "collection" ? 0 : quantities.quantityOwned,
+        quantityProxyOwned: mode === "collection" ? 0 : quantities.quantityProxyOwned,
+        quantityWanted: mode === "wishlist" ? 0 : quantities.quantityWanted,
       });
       onSuccess?.("Removed card");
       onOpenChange(false);
@@ -135,8 +142,8 @@ export default function EditCardModal({
   if (!item) return null;
 
   const cardName = activePrinting?.cardName || item.cardName;
-  const setName = "setName" in activePrinting ? activePrinting.setName : item.set;
-  const setCode = "setCode" in activePrinting ? activePrinting.setCode : null;
+  const setName = activePrinting && "setName" in activePrinting ? activePrinting.setName : item.set;
+  const setCode = activePrinting && "setCode" in activePrinting ? activePrinting.setCode : null;
   const number = activePrinting?.number || item.number;
   const rarity = activePrinting?.rarity || item.rarity;
   const style = activePrinting?.style || item.style;
@@ -232,6 +239,7 @@ export default function EditCardModal({
                   type="number"
                   min="0"
                   value={ownedQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setOwnedQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -245,6 +253,7 @@ export default function EditCardModal({
                   type="number"
                   min="0"
                   value={proxyQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setProxyQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -258,18 +267,22 @@ export default function EditCardModal({
                   type="number"
                   min="0"
                   value={wishlistQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setWishlistQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
+            {quantitiesQuery.isError && (
+              <p className="text-xs text-red-400">Failed to load this printing's saved quantities.</p>
+            )}
 
             {/* Modal Actions */}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
               <button
                 type="button"
                 onClick={handleRemove}
-                disabled={mutation.isPending}
+                disabled={!originalQuantitiesReady || mutation.isPending}
                 className="text-xs text-destructive hover:underline"
               >
                 Remove from {mode === "collection" ? "collection" : "wishlist"}
@@ -285,7 +298,7 @@ export default function EditCardModal({
                 </button>
                 <button
                   type="button"
-                  disabled={mutation.isPending}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onClick={handleSave}
                   className="rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
@@ -299,4 +312,3 @@ export default function EditCardModal({
     </Dialog>
   );
 }
-

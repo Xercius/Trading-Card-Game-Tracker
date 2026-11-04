@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { fetchPrintings, type PrintingListItem } from "@/features/printings/api/printings";
 import { useGame } from "@/state/useGame";
 import { resolveImageUrl } from "@/lib/http";
@@ -24,6 +24,7 @@ export default function MoxfieldCardSearch({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const listboxId = useId();
 
   // Debounce search input
   useEffect(() => {
@@ -147,7 +148,12 @@ export default function MoxfieldCardSearch({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="h-9 w-full rounded-md border border-white/20 bg-[#18181b] pl-9 pr-8 text-sm text-white shadow-sm transition-colors placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
+          role="combobox"
           aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
+          aria-activedescendant={
+            isOpen && highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined
+          }
           aria-haspopup="listbox"
           aria-autocomplete="list"
         />
@@ -194,6 +200,7 @@ export default function MoxfieldCardSearch({
       {isOpen && (
         <ul
           ref={listRef}
+          id={listboxId}
           role="listbox"
           className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-white/20 bg-[#1a1a1d] py-1 text-sm text-zinc-100 shadow-2xl focus:outline-none"
         >
@@ -211,6 +218,7 @@ export default function MoxfieldCardSearch({
               return (
                 <li
                   key={String(item.printingId)}
+                  id={`${listboxId}-option-${index}`}
                   role="option"
                   aria-selected={isSelected}
                   onMouseEnter={() => setHighlightedIndex(index)}
@@ -255,4 +263,3 @@ export default function MoxfieldCardSearch({
     </div>
   );
 }
-

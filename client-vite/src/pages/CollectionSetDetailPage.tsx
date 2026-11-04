@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGame } from "@/state/useGame";
 import { useUser } from "@/state/useUser";
-import { fetchPrintings, type PrintingListItem } from "@/features/printings/api/printings";
+import { fetchAllPrintings } from "@/features/printings/api/printings";
 import {
-  fetchCollection,
+  fetchAllCollection,
   useSetCardQuantitiesMutation,
   useCollectionSetsSummaryQuery,
   type CollectionItem,
@@ -78,33 +78,36 @@ export default function CollectionSetDetailPage() {
     data: printingsData,
     isLoading: printingsLoading,
     error: printingsError,
+    isSuccess: printingsLoaded,
   } = useQuery({
     queryKey: ["printings", "set", setCode, activeGame],
     queryFn: async () => {
       if (!setCode) return [];
-      const res = await fetchPrintings({
+      return fetchAllPrintings({
         set: [setCode],
         game: activeGame ? [activeGame] : undefined,
-        pageSize: 1000,
       });
-      return Array.isArray(res) ? (res as PrintingListItem[]) : (res?.items ?? []);
     },
     enabled: !!setCode,
   });
 
   // 3. Fetch user's collection for this set
-  const { data: collectionData, isLoading: collectionLoading } = useQuery({
-    queryKey: ["collection", "set-detail", setCode, userId, activeGame],
+  const collectionQueryKey = ["collection", "set-detail", setCode, userId, activeGame] as const;
+  const {
+    data: collectionData,
+    isLoading: collectionLoading,
+    error: collectionError,
+    isSuccess: collectionLoaded,
+  } = useQuery({
+    queryKey: collectionQueryKey,
     queryFn: async () => {
       if (!userId || !setCode) return [];
-      const res = await fetchCollection({
+      return fetchAllCollection({
         userId,
         page: 1,
-        pageSize: 1000,
         filters: { set: setCode, game: activeGame ?? undefined },
         includeProxies: true,
       });
-      return res?.items ?? [];
     },
     enabled: !!userId && !!setCode,
   });
@@ -200,6 +203,7 @@ export default function CollectionSetDetailPage() {
     field: "owned" | "proxy" | "wanted",
     newVal: number
   ) => {
+    if (!collectionLoaded || setQuantitiesMutation.isPending) return;
     const clamped = Math.max(0, Math.min(999, newVal));
     const nextOwned = field === "owned" ? clamped : row.owned;
     const nextProxy = field === "proxy" ? clamped : row.proxy;
@@ -213,11 +217,8 @@ export default function CollectionSetDetailPage() {
         quantityWanted: nextWanted,
       },
       {
-        onSuccess: () => {
-          // Invalidate detail collection query
-          queryClient.invalidateQueries({
-            queryKey: ["collection", "set-detail", setCode],
-          });
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: collectionQueryKey });
         },
       }
     );
@@ -404,6 +405,11 @@ export default function CollectionSetDetailPage() {
           <p className="font-medium">Failed to load printings for this set.</p>
           <p className="mt-1 text-sm text-red-400">{(printingsError as Error).message}</p>
         </div>
+      ) : collectionError ? (
+        <div className="rounded-xl border border-red-900/40 bg-red-950/20 p-6 text-red-300">
+          <p className="font-medium">Failed to load collection quantities for this set.</p>
+          <p className="mt-1 text-sm text-red-400">{(collectionError as Error).message}</p>
+        </div>
       ) : filteredRows.length === 0 ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-12 text-center text-zinc-400">
           No cards match your current filter criteria.
@@ -495,7 +501,7 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "owned", row.owned - 1)}
-                          disabled={row.owned <= 0}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.owned <= 0}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -505,14 +511,16 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.owned}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           onChange={(e) =>
                             handleUpdateQty(row, "owned", parseInt(e.target.value, 10) || 0)
                           }
-                          className="w-8 text-center text-xs font-bold text-zinc-100 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="w-8 text-center text-xs font-bold text-zinc-100 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "owned", row.owned + 1)}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +
@@ -529,7 +537,7 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "proxy", row.proxy - 1)}
-                          disabled={row.proxy <= 0}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.proxy <= 0}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -539,14 +547,16 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.proxy}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           onChange={(e) =>
                             handleUpdateQty(row, "proxy", parseInt(e.target.value, 10) || 0)
                           }
-                          className="w-8 text-center text-xs font-bold text-amber-300 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="w-8 text-center text-xs font-bold text-amber-300 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "proxy", row.proxy + 1)}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +
@@ -563,7 +573,7 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "wanted", row.wanted - 1)}
-                          disabled={row.wanted <= 0}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.wanted <= 0}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -573,14 +583,16 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.wanted}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           onChange={(e) =>
                             handleUpdateQty(row, "wanted", parseInt(e.target.value, 10) || 0)
                           }
-                          className="w-8 text-center text-xs font-bold text-indigo-300 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="w-8 text-center text-xs font-bold text-indigo-300 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "wanted", row.wanted + 1)}
+                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +

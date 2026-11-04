@@ -14,7 +14,10 @@ function normalizeQty(val: string): number {
 }
 
 export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEditorProps) {
-  const { data: quantities, isLoading } = usePrintingQuantitiesQuery(printingId);
+  const quantitiesQuery = usePrintingQuantitiesQuery(printingId);
+  const { data: quantities, isLoading } = quantitiesQuery;
+  const quantitiesReady =
+    quantitiesQuery.isSuccess && quantities?.cardPrintingId === printingId;
   const mutation = useSetCardQuantitiesMutation();
 
   const [ownedDraft, setOwnedDraft] = useState("0");
@@ -35,7 +38,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
 
   const commitChanges = useCallback(
     (newOwned?: number, newProxy?: number, newWishlist?: number) => {
-      if (!printingId) return;
+      if (!printingId || !quantitiesReady || mutation.isPending) return;
 
       const owned = newOwned !== undefined ? newOwned : normalizeQty(ownedDraft);
       const proxy = newProxy !== undefined ? newProxy : normalizeQty(proxyDraft);
@@ -57,7 +60,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
         quantityWanted: wanted,
       });
     },
-    [printingId, ownedDraft, proxyDraft, wishlistDraft, quantities, mutation]
+    [printingId, ownedDraft, proxyDraft, wishlistDraft, quantities, quantitiesReady, mutation]
   );
 
   const handleStep = (field: "owned" | "proxy" | "wishlist", delta: number) => {
@@ -97,7 +100,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-l border border-r-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("owned", -1)}
-              disabled={normalizeQty(ownedDraft) <= 0 || mutation.isPending}
+              disabled={!quantitiesReady || normalizeQty(ownedDraft) <= 0 || mutation.isPending}
               aria-label="Decrease owned"
             >
               −
@@ -110,6 +113,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               pattern="[0-9]*"
               className="h-7 w-full border border-white/20 bg-[#141416] text-white text-center text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
               value={isLoading ? "…" : ownedDraft}
+              disabled={!quantitiesReady || mutation.isPending}
               onChange={(e) => setOwnedDraft(e.target.value)}
               onBlur={() => commitChanges()}
               onKeyDown={(e) => {
@@ -122,7 +126,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-r border border-l-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("owned", 1)}
-              disabled={mutation.isPending}
+              disabled={!quantitiesReady || mutation.isPending}
               aria-label="Increase owned"
             >
               +
@@ -143,7 +147,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-l border border-r-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("proxy", -1)}
-              disabled={normalizeQty(proxyDraft) <= 0 || mutation.isPending}
+              disabled={!quantitiesReady || normalizeQty(proxyDraft) <= 0 || mutation.isPending}
               aria-label="Decrease proxy"
             >
               −
@@ -156,6 +160,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               pattern="[0-9]*"
               className="h-7 w-full border border-white/20 bg-[#141416] text-white text-center text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
               value={isLoading ? "…" : proxyDraft}
+              disabled={!quantitiesReady || mutation.isPending}
               onChange={(e) => setProxyDraft(e.target.value)}
               onBlur={() => commitChanges()}
               onKeyDown={(e) => {
@@ -168,7 +173,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-r border border-l-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("proxy", 1)}
-              disabled={mutation.isPending}
+              disabled={!quantitiesReady || mutation.isPending}
               aria-label="Increase proxy"
             >
               +
@@ -189,7 +194,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-l border border-r-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("wishlist", -1)}
-              disabled={normalizeQty(wishlistDraft) <= 0 || mutation.isPending}
+              disabled={!quantitiesReady || normalizeQty(wishlistDraft) <= 0 || mutation.isPending}
               aria-label="Decrease wishlist"
             >
               −
@@ -202,6 +207,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               pattern="[0-9]*"
               className="h-7 w-full border border-white/20 bg-[#141416] text-white text-center text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
               value={isLoading ? "…" : wishlistDraft}
+              disabled={!quantitiesReady || mutation.isPending}
               onChange={(e) => setWishlistDraft(e.target.value)}
               onBlur={() => commitChanges()}
               onKeyDown={(e) => {
@@ -214,7 +220,7 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
               type="button"
               className="h-7 w-6 rounded-r border border-l-0 border-white/20 bg-[#141416] text-white text-xs font-semibold hover:bg-white/10 disabled:opacity-40"
               onClick={() => handleStep("wishlist", 1)}
-              disabled={mutation.isPending}
+              disabled={!quantitiesReady || mutation.isPending}
               aria-label="Increase wishlist"
             >
               +
@@ -225,4 +231,3 @@ export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEdito
     </div>
   );
 }
-

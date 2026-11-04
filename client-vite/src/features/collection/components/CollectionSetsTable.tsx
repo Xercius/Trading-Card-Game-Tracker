@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useGame } from "@/state/useGame";
 import { useCollectionSetsSummaryQuery } from "../api";
 import { paths } from "@/routes/paths";
 
 export const CollectionSetsTable: React.FC = () => {
   const { activeGame } = useGame();
-  const navigate = useNavigate();
   const { data: summary, isLoading, error } = useCollectionSetsSummaryQuery(activeGame ?? undefined);
 
   const [expandedSets, setExpandedSets] = useState<Record<string, boolean>>({});
@@ -41,15 +40,6 @@ export const CollectionSetsTable: React.FC = () => {
         s.setCode.toLowerCase().includes(q)
     );
   }, [summary?.sets, filterQuery]);
-
-  const handleSetClick = (setCode: string) => {
-    navigate(`/${paths.collection}/set/${encodeURIComponent(setCode)}`);
-  };
-
-  const handleTreatmentClick = (setCode: string, treatmentName: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigate(`/${paths.collection}/set/${encodeURIComponent(setCode)}?treatment=${encodeURIComponent(treatmentName)}`);
-  };
 
   if (isLoading) {
     return (
@@ -175,8 +165,7 @@ export const CollectionSetsTable: React.FC = () => {
                   <React.Fragment key={set.setCode}>
                     {/* Main Set Row */}
                     <tr
-                      onClick={() => handleSetClick(set.setCode)}
-                      className="group cursor-pointer bg-zinc-900 hover:bg-zinc-800/70 transition-colors"
+                      className="group bg-zinc-900 hover:bg-zinc-800/70 transition-colors"
                     >
                       <td className="px-3 py-3 text-center">
                         {hasSubsets && (
@@ -198,9 +187,12 @@ export const CollectionSetsTable: React.FC = () => {
                       </td>
                       <td className="px-4 py-3 font-medium text-zinc-100">
                         <div className="flex items-center gap-2">
-                          <span className="group-hover:text-purple-400 transition-colors">
+                          <Link
+                            to={`/${paths.collection}/set/${encodeURIComponent(set.setCode)}`}
+                            className="group-hover:text-purple-400 transition-colors"
+                          >
                             {set.setName}
-                          </span>
+                          </Link>
                           {set.isVirtualSet && (
                             <span className="rounded bg-amber-900/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-700/50">
                               Virtual
@@ -238,16 +230,18 @@ export const CollectionSetsTable: React.FC = () => {
                       set.subsets.map((subset) => (
                         <tr
                           key={`${set.setCode}-${subset.treatmentName}`}
-                          onClick={(e) => handleTreatmentClick(set.setCode, subset.treatmentName, e)}
-                          className="cursor-pointer bg-zinc-950/50 hover:bg-zinc-800/40 border-l-2 border-l-purple-500/50 transition-colors"
+                          className="bg-zinc-950/50 hover:bg-zinc-800/40 border-l-2 border-l-purple-500/50 transition-colors"
                         >
                           <td className="px-3 py-2.5 text-center text-zinc-600">
                             <span className="text-xs">↳</span>
                           </td>
                           <td className="pl-6 pr-4 py-2.5 text-xs text-zinc-300">
-                            <span className="inline-block rounded-md bg-zinc-800/90 border border-zinc-700/60 px-2 py-0.5 text-zinc-200 font-medium hover:border-purple-400 transition-colors">
+                            <Link
+                              to={`/${paths.collection}/set/${encodeURIComponent(set.setCode)}?treatment=${encodeURIComponent(subset.treatmentName)}`}
+                              className="inline-block rounded-md bg-zinc-800/90 border border-zinc-700/60 px-2 py-0.5 text-zinc-200 font-medium hover:border-purple-400 transition-colors"
+                            >
                               {subset.treatmentName}
-                            </span>
+                            </Link>
                           </td>
                           <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">
                             —

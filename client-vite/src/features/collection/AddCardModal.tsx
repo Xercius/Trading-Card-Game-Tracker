@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { resolveImageUrl } from "@/lib/http";
-import { useCardPrintings, type PrintingSummary } from "@/features/cards/api";
+import { useCardPrintings } from "@/features/cards/api";
 import { useSetCardQuantitiesMutation, usePrintingQuantitiesQuery } from "./api";
 import type { PrintingListItem } from "@/features/printings/api/printings";
 
@@ -28,7 +28,8 @@ export default function AddCardModal({
   const activePrintingId = selectedPrintingId ?? (initialPrinting ? Number(initialPrinting.printingId) : null);
 
   // Load existing quantities if user already has copies of this printing
-  const { data: existingQuantities } = usePrintingQuantitiesQuery(activePrintingId);
+  const quantitiesQuery = usePrintingQuantitiesQuery(activePrintingId);
+  const { data: existingQuantities } = quantitiesQuery;
 
   const [ownedQty, setOwnedQty] = useState(mode === "collection" ? 1 : 0);
   const [proxyQty, setProxyQty] = useState(0);
@@ -37,28 +38,37 @@ export default function AddCardModal({
   useEffect(() => {
     if (initialPrinting) {
       setSelectedPrintingId(Number(initialPrinting.printingId));
-      if (mode === "collection") {
-        setOwnedQty(1);
-        setProxyQty(0);
-        setWishlistQty(0);
-      } else {
-        setOwnedQty(0);
-        setProxyQty(0);
-        setWishlistQty(1);
-      }
     }
-  }, [initialPrinting, mode]);
+  }, [initialPrinting]);
 
   useEffect(() => {
-    if (existingQuantities && (existingQuantities.quantityOwned > 0 || existingQuantities.quantityProxyOwned > 0 || existingQuantities.quantityWanted > 0)) {
-      setOwnedQty(existingQuantities.quantityOwned);
-      setProxyQty(existingQuantities.quantityProxyOwned);
-      setWishlistQty(existingQuantities.quantityWanted);
-    }
-  }, [existingQuantities]);
+    setOwnedQty(mode === "collection" ? 1 : 0);
+    setProxyQty(0);
+    setWishlistQty(mode === "wishlist" ? 1 : 0);
+  }, [activePrintingId, mode]);
 
-  const activePrinting: PrintingSummary | PrintingListItem | null =
-    printings.find((p) => p.printingId === activePrintingId) ?? initialPrinting;
+  useEffect(() => {
+    if (quantitiesQuery.isSuccess && existingQuantities?.cardPrintingId === activePrintingId) {
+      const hasSavedQuantities =
+        existingQuantities.quantityOwned > 0 ||
+        existingQuantities.quantityProxyOwned > 0 ||
+        existingQuantities.quantityWanted > 0;
+      setOwnedQty(
+        hasSavedQuantities ? existingQuantities.quantityOwned : mode === "collection" ? 1 : 0
+      );
+      setProxyQty(hasSavedQuantities ? existingQuantities.quantityProxyOwned : 0);
+      setWishlistQty(
+        hasSavedQuantities ? existingQuantities.quantityWanted : mode === "wishlist" ? 1 : 0
+      );
+    }
+  }, [activePrintingId, existingQuantities, mode, quantitiesQuery.isSuccess]);
+
+  const selectedPrinting = printings.find((p) => Number(p.printingId) === activePrintingId);
+  const activePrinting = selectedPrinting
+    ? { ...selectedPrinting, cardName: initialPrinting?.cardName ?? "Card" }
+    : initialPrinting;
+  const quantitiesReady =
+    quantitiesQuery.isSuccess && existingQuantities?.cardPrintingId === activePrintingId;
 
   const currentPrintingIndex = printings.findIndex((p) => p.printingId === activePrintingId);
 
@@ -77,7 +87,7 @@ export default function AddCardModal({
   const mutation = useSetCardQuantitiesMutation();
 
   const handleSave = async (closeAfter: boolean) => {
-    if (!activePrintingId) return;
+    if (!activePrintingId || !quantitiesReady) return;
 
     try {
       await mutation.mutateAsync({
@@ -92,13 +102,6 @@ export default function AddCardModal({
 
       if (closeAfter) {
         onOpenChange(false);
-      } else {
-        // Reset inputs for adding more
-        if (mode === "collection") {
-          setOwnedQty(1);
-        } else {
-          setWishlistQty(1);
-        }
       }
     } catch (err) {
       console.error("[AddCardModal] Failed to save quantities:", err);
@@ -205,6 +208,7 @@ export default function AddCardModal({
                   type="number"
                   min="0"
                   value={ownedQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setOwnedQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -218,6 +222,7 @@ export default function AddCardModal({
                   type="number"
                   min="0"
                   value={proxyQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setProxyQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
@@ -231,11 +236,15 @@ export default function AddCardModal({
                   type="number"
                   min="0"
                   value={wishlistQty}
+                  disabled={!quantitiesReady || mutation.isPending}
                   onChange={(e) => setWishlistQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
+            {quantitiesQuery.isError && (
+              <p className="text-xs text-red-400">Failed to load this printing's saved quantities.</p>
+            )}
 
             {/* Modal Actions */}
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
@@ -248,7 +257,7 @@ export default function AddCardModal({
               </button>
               <button
                 type="button"
-                disabled={mutation.isPending}
+                disabled={!quantitiesReady || mutation.isPending}
                 onClick={() => handleSave(false)}
                 className="rounded border border-primary/50 bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
               >
@@ -256,7 +265,7 @@ export default function AddCardModal({
               </button>
               <button
                 type="button"
-                disabled={mutation.isPending}
+                disabled={!quantitiesReady || mutation.isPending}
                 onClick={() => handleSave(true)}
                 className="rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
@@ -269,4 +278,3 @@ export default function AddCardModal({
     </Dialog>
   );
 }
-

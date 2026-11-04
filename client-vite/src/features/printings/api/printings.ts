@@ -93,3 +93,18 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   const total = !Number.isNaN(parsedTotal) ? parsedTotal : res.data.length;
   return { items: res.data, total };
 }
+
+/** Fetch every page matching a printing query. */
+export async function fetchAllPrintings(query: PrintingQuery): Promise<PrintingListItem[]> {
+  const pageSize = 500;
+  const firstPage = await fetchPrintings({ ...query, page: 1, pageSize });
+  const items = [...firstPage.items];
+
+  for (let page = 2; items.length < firstPage.total; page += 1) {
+    const nextPage = await fetchPrintings({ ...query, page, pageSize });
+    if (nextPage.items.length === 0) break;
+    items.push(...nextPage.items);
+  }
+
+  return items;
+}

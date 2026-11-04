@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
-import { fetchPrintings, type PrintingListItem } from "@/features/printings/api/printings";
-import { useBatchSetCollectionMutation, fetchCollection, type CollectionItem } from "./api";
+import { fetchAllPrintings, type PrintingListItem } from "@/features/printings/api/printings";
+import { useBatchSetCollectionMutation, fetchAllCollection, type CollectionItem } from "./api";
 import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 
@@ -47,6 +47,8 @@ export default function MassEntryModal({
   const [selectedSet, setSelectedSet] = useState<string>("");
   const [rows, setRows] = useState<CardRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const tableRef = useRef<HTMLTableElement>(null);
 
   const batchMutation = useBatchSetCollectionMutation();
@@ -94,41 +96,37 @@ export default function MassEntryModal({
   useEffect(() => {
     if (!open || !selectedSet) {
       setRows([]);
+      setIsReady(false);
       return;
     }
 
     let isCancelled = false;
+    setRows([]);
     setIsLoading(true);
+    setIsReady(false);
+    setLoadError(false);
 
     Promise.all([
-      fetchPrintings({
+      fetchAllPrintings({
         set: [selectedSet],
         game: currentGame ? [currentGame] : undefined,
-        pageSize: 500,
       }),
       userId
-        ? fetchCollection({
+        ? fetchAllCollection({
             userId,
             page: 1,
-            pageSize: 500,
             filters: { set: selectedSet, game: currentGame },
             includeProxies: true,
-          }).catch(() => null)
-        : Promise.resolve(null),
+          })
+        : Promise.reject(new Error("User not selected")),
     ])
-      .then(([printingsRes, collectionRes]) => {
+      .then(([printingsList, collectionList]) => {
         if (isCancelled) return;
 
         const collectionMap = new Map<number, CollectionItem>();
-        if (collectionRes?.items) {
-          for (const item of collectionRes.items) {
-            collectionMap.set(item.cardPrintingId, item);
-          }
+        for (const item of collectionList) {
+          collectionMap.set(item.cardPrintingId, item);
         }
-
-        const printingsList = Array.isArray(printingsRes)
-          ? (printingsRes as PrintingListItem[])
-          : (printingsRes?.items ?? []);
 
         const newRows: CardRow[] = printingsList.map((p: PrintingListItem) => {
           const printingId = Number(p.printingId);
@@ -159,10 +157,14 @@ export default function MassEntryModal({
         // Sort by collector number
         newRows.sort((a, b) => a.numericNumber - b.numericNumber || a.number.localeCompare(b.number));
         setRows(newRows);
+        setIsReady(true);
       })
       .catch((err) => {
         if (!isCancelled) {
           console.error("[MassEntryModal] Failed to load cards for set", err);
+          setRows([]);
+          setIsReady(false);
+          setLoadError(true);
         }
       })
       .finally(() => {
@@ -185,6 +187,7 @@ export default function MassEntryModal({
     field: "owned" | "proxy" | "wanted",
     value: string
   ) => {
+    if (!isReady || batchMutation.isPending) return;
     const parsed = parseInt(value, 10);
     const validQty = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 
@@ -236,6 +239,7 @@ export default function MassEntryModal({
   };
 
   const handleSaveAll = async () => {
+    if (!isReady) return;
     if (modifiedRows.length === 0) {
       onOpenChange(false);
       return;
@@ -291,6 +295,11 @@ export default function MassEntryModal({
 
           {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading set cards…</span>}
         </div>
+        {loadError && (
+          <p role="alert" className="text-sm text-red-400">
+            Failed to load all printings and collection quantities. Editing is unavailable.
+          </p>
+        )}
 
         {/* Spreadsheet Table */}
         <div className="flex-1 overflow-auto rounded border border-white/10 min-h-[300px]">
@@ -342,6 +351,7 @@ export default function MassEntryModal({
                           data-row={index}
                           data-col={0}
                           value={row.owned}
+                          disabled={!isReady || batchMutation.isPending}
                           onChange={(e) => handleCellChange(index, "owned", e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, index, 0)}
                           onFocus={(e) => e.target.select()}
@@ -355,6 +365,7 @@ export default function MassEntryModal({
                           data-row={index}
                           data-col={1}
                           value={row.proxy}
+                          disabled={!isReady || batchMutation.isPending}
                           onChange={(e) => handleCellChange(index, "proxy", e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, index, 1)}
                           onFocus={(e) => e.target.select()}
@@ -368,6 +379,7 @@ export default function MassEntryModal({
                           data-row={index}
                           data-col={2}
                           value={row.wanted}
+                          disabled={!isReady || batchMutation.isPending}
                           onChange={(e) => handleCellChange(index, "wanted", e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, index, 2)}
                           onFocus={(e) => e.target.select()}
@@ -403,7 +415,7 @@ export default function MassEntryModal({
             </button>
             <button
               type="button"
-              disabled={batchMutation.isPending || modifiedRows.length === 0}
+              disabled={!isReady || batchMutation.isPending || modifiedRows.length === 0}
               onClick={handleSaveAll}
               className="rounded bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
@@ -415,4 +427,3 @@ export default function MassEntryModal({
     </Dialog>
   );
 }
-

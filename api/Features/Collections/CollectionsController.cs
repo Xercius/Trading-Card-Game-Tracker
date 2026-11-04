@@ -569,7 +569,7 @@ public class CollectionsController : ControllerBase
 
         // 2. Query Sets for these games
         var setsQuery = _db.Sets.AsNoTracking().AsQueryable();
-        if (gameIds.Count > 0)
+        if (games.Count > 0)
         {
             setsQuery = setsQuery.Where(s => gameIds.Contains(s.GameId));
         }

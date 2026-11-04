@@ -26,6 +26,7 @@ describe("CardQuantitiesEditor", () => {
         quantityWanted: 2,
       },
       isLoading: false,
+      isSuccess: true,
     } as unknown as ReturnType<typeof collectionApi.usePrintingQuantitiesQuery>);
 
     renderWithQuery(<CardQuantitiesEditor printingId={101} />);
@@ -53,6 +54,7 @@ describe("CardQuantitiesEditor", () => {
         quantityWanted: 0,
       },
       isLoading: false,
+      isSuccess: true,
     } as unknown as ReturnType<typeof collectionApi.usePrintingQuantitiesQuery>);
     vi.spyOn(collectionApi, "useSetCardQuantitiesMutation").mockReturnValue({
       mutate: mutateMock,
@@ -70,5 +72,25 @@ describe("CardQuantitiesEditor", () => {
       quantityProxyOwned: 0,
       quantityWanted: 0,
     });
+  });
+
+  it("disables quantity controls until the saved quantities load", () => {
+    const mutateMock = vi.fn();
+    vi.spyOn(collectionApi, "usePrintingQuantitiesQuery").mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isSuccess: false,
+    } as unknown as ReturnType<typeof collectionApi.usePrintingQuantitiesQuery>);
+    vi.spyOn(collectionApi, "useSetCardQuantitiesMutation").mockReturnValue({
+      mutate: mutateMock,
+      isPending: false,
+    } as unknown as ReturnType<typeof collectionApi.useSetCardQuantitiesMutation>);
+
+    renderWithQuery(<CardQuantitiesEditor printingId={101} />);
+
+    expect(screen.getByRole("button", { name: "Increase owned" })).toBeDisabled();
+    expect(screen.getByLabelText("Owned")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Increase owned" }));
+    expect(mutateMock).not.toHaveBeenCalled();
   });
 });

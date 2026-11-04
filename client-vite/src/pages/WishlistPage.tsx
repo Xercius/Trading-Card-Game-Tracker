@@ -174,11 +174,18 @@ export default function WishlistPage() {
         return { ...existing, items: nextItems } as Paged<WishlistItemDto>;
       });
 
-      const collectionQueries = queryClient.getQueriesData<CollectionPaged<CollectionItem>>({
+      const collectionQueries = queryClient.getQueriesData<unknown>({
         queryKey: collectionKeys.all,
       });
-      for (const [key, value] of collectionQueries) {
-        if (!value) continue;
+      for (const [key, cachedValue] of collectionQueries) {
+        if (
+          !cachedValue ||
+          typeof cachedValue !== "object" ||
+          !Array.isArray((cachedValue as { items?: unknown }).items)
+        ) {
+          continue;
+        }
+        const value = cachedValue as CollectionPaged<CollectionItem>;
         const idx = value.items.findIndex((item) => item.cardPrintingId === snapshot.printingId);
         if (idx < 0) continue;
 
@@ -195,6 +202,16 @@ export default function WishlistPage() {
         );
         queryClient.setQueryData(key, { ...value, items: nextItems });
       }
+
+      queryClient.invalidateQueries({
+        queryKey: collectionKeys.all,
+        predicate: (query) =>
+          query.queryKey.length === 2 &&
+          typeof query.queryKey[1] === "object" &&
+          query.queryKey[1] !== null,
+      });
+      queryClient.invalidateQueries({ queryKey: ["collection", "sets-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["collection", "set-detail"] });
 
       setSelectedIds((prev) => {
         if (!prev.has(snapshot.printingId)) return prev;
@@ -372,23 +389,24 @@ export default function WishlistPage() {
                     checked={selectedIds.has(item.cardPrintingId)}
                     onChange={() => handleToggle(item.cardPrintingId)}
                   />
-                  <div
-                    className="group"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setEditModalItem(item);
-                      setIsEditModalOpen(true);
-                    }}
-                    title="Click to edit wishlist card"
-                  >
-                    <span className="font-medium group-hover:underline">
-                      {item.cardName}
-                    </span>
+                  <span>
+                    <span className="font-medium">{item.cardName}</span>
                     <span className="text-xs text-gray-500 ml-2">
                       {item.set} #{item.number} · want {item.quantityWanted}
                     </span>
-                  </div>
+                  </span>
                 </label>
+                <button
+                  type="button"
+                  className="rounded border px-2 py-1 text-sm hover:bg-muted"
+                  onClick={() => {
+                    setEditModalItem(item);
+                    setIsEditModalOpen(true);
+                  }}
+                  aria-label={`Edit ${item.cardName} wishlist entry`}
+                >
+                  Edit
+                </button>
                 <button
                   className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                   type="button"

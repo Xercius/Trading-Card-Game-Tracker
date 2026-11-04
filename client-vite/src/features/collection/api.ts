@@ -82,6 +82,21 @@ export async function fetchCollection(params: CollectionQueryParams) {
   }
 }
 
+/** Fetch every page matching a collection query. */
+export async function fetchAllCollection(params: CollectionQueryParams): Promise<CollectionItem[]> {
+  const pageSize = 500;
+  const firstPage = await fetchCollection({ ...params, page: 1, pageSize });
+  const items = [...firstPage.items];
+
+  for (let page = 2; items.length < firstPage.total; page += 1) {
+    const nextPage = await fetchCollection({ ...params, page, pageSize });
+    if (nextPage.items.length === 0) break;
+    items.push(...nextPage.items);
+  }
+
+  return items;
+}
+
 export function useCollectionQuery(params: CollectionQueryParams) {
   return useQuery({
     queryKey: collectionKeys.list(params),
@@ -363,4 +378,3 @@ export function useCollectionSetsSummaryQuery(game?: string) {
     staleTime: STALE_TIME_MS,
   });
 }
-

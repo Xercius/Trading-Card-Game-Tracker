@@ -47,6 +47,22 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task GetSetsSummary_WhenGameDoesNotMatch_ReturnsNoResults()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+
+        var response = await client.GetAsync("/api/collection/sets-summary?game=Unknown Game");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var summary = await response.Content.ReadFromJsonAsync<CollectionSetSummaryResponse>(_jsonOptions);
+        Assert.NotNull(summary);
+        Assert.Empty(summary.Sets);
+        Assert.Equal(0, summary.TotalUniqueCardsInGame);
+        Assert.Equal(0, summary.TotalUniqueCardsOwned);
+    }
+
+    [Fact]
     public async Task GetSetsSummary_SwccgVirtualSet_CountsProxiesTowardCompletion()
     {
         await factory.ResetDatabaseAsync();

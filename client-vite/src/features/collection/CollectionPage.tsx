@@ -138,7 +138,7 @@ export default function CollectionPage() {
             setIsAddModalOpen(open);
             if (!open) setAddModalPrinting(null);
           }}
-          printing={addModalPrinting}
+          initialPrinting={addModalPrinting}
           mode="collection"
           onSuccess={(msg) => setToastMessage(msg)}
         />

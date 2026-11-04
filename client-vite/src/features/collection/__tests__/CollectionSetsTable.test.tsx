@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { CollectionSetsTable } from "../components/CollectionSetsTable";
 
 const mockSummary = {
@@ -90,6 +90,17 @@ describe("CollectionSetsTable", () => {
     expect(container.textContent).toContain("Shadows of the Galaxy");
     expect(container.textContent).toContain("SHD");
     expect(container.textContent).toContain("50.0%");
+    expect(screen.getByRole("link", { name: "Spark of Rebellion" })).toHaveAttribute(
+      "href",
+      "/collection/set/SOR"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Expand subsets" }));
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Hyperspace" })).toHaveAttribute(
+        "href",
+        "/collection/set/SOR?treatment=Hyperspace"
+      );
+    });
 
     await act(() => {
       root.unmount();
@@ -124,4 +135,3 @@ describe("CollectionSetsTable", () => {
     container.remove();
   });
 });
-
