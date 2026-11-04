@@ -279,7 +279,8 @@ public class WishlistsController : ControllerBase
     // -----------------------------------------
 
     [HttpGet]
-    public async Task<ActionResult<List<WishlistItemDto>>> GetAll(
+    [HttpGet("/api/user/{userId:int}/wishlist")]
+    public async Task<ActionResult<Paged<WishlistItemDto>>> GetAll(
         [FromQuery] string? game,
         [FromQuery] string? set,
         [FromQuery] string? rarity,
@@ -290,7 +291,7 @@ public class WishlistsController : ControllerBase
     {
         var (pageResult, error) = await GetAllCore(game, set, rarity, name, cardPrintingId, page, pageSize);
         if (error is not null) return error;
-        return Ok(pageResult!.Items.ToList());
+        return Ok(pageResult);
     }
 
     [HttpPost("items")]

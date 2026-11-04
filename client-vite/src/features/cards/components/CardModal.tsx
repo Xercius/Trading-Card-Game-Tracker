@@ -3,6 +3,7 @@ import { resolveImageUrl } from "@/lib/http";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { useCardDetails, useCardPrintings, type PrintingSummary } from "../api";
 import CardImages from "./CardImages";
+import CardQuantitiesEditor from "./CardQuantitiesEditor";
 import SwccgUniqueness from "./SwccgUniqueness";
 import { ForceIconBadge } from "./SwccgForceIcons";
 
@@ -528,6 +529,9 @@ export default function CardModal({
                 }
               />
             </div>
+
+            {/* Collection / Proxy / Wishlist quantity controls for selected printing */}
+            <CardQuantitiesEditor printingId={selectedPrintingId} />
 
             {/* Printing metadata below card image */}
             <div

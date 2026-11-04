@@ -91,7 +91,7 @@ export default function QtyField({
       <div className="flex items-center gap-1">
         <button
           type="button"
-          className="h-8 w-8 rounded border border-input text-sm font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-7 w-7 rounded border border-white/20 bg-[#18181b] text-xs font-semibold text-zinc-300 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
           onClick={() => applyDelta(-1)}
           disabled={mutation.isPending || clamp(Number(draft)) <= MIN_QTY}
           aria-label="Decrease"
@@ -108,12 +108,12 @@ export default function QtyField({
           onChange={handleInputChange}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          className="h-8 w-16 rounded border border-input bg-background px-2 text-center text-sm focus:outline-none focus:ring"
+          className="h-7 w-12 rounded border border-white/20 bg-[#141416] text-white px-1 text-center text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
           aria-label={field === "owned" ? "Owned quantity" : "Proxy quantity"}
         />
         <button
           type="button"
-          className="h-8 w-8 rounded border border-input text-sm font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-7 w-7 rounded border border-white/20 bg-[#18181b] text-xs font-semibold text-zinc-300 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
           onClick={() => applyDelta(1)}
           disabled={mutation.isPending || clamp(Number(draft)) >= MAX_QTY}
           aria-label="Increase"

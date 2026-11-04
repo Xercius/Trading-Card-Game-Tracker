@@ -1,45 +1,53 @@
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, getByRole, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import CollectionPage from "../CollectionPage";
 
-const mockData = {
-  data: {
-    items: [
-      {
-        cardPrintingId: 42,
-        quantityOwned: 3,
-        quantityWanted: 0,
-        quantityProxyOwned: 2,
-        availability: 3,
-        availabilityWithProxies: 5,
-        cardId: 99,
-        cardName: "Sample Card",
-        game: "Test",
-        set: "Alpha",
-        number: "001",
-        rarity: "Rare",
-        style: "",
-        imageUrl: null,
-      },
-    ],
-    total: 1,
-    page: 1,
-    pageSize: 50,
-  },
-  isPending: false,
-  isError: false,
-  refetch: async () => {},
-  isFetching: false,
+const mockSummary = {
+  sets: [
+    {
+      setId: 1,
+      setCode: "SOR",
+      setName: "Spark of Rebellion",
+      releaseYear: 2024,
+      releasedAt: "2024-03-08",
+      isVirtualSet: false,
+      totalCards: 252,
+      ownedCards: 180,
+      completionPercentage: 71.4,
+      subsets: [
+        {
+          treatmentId: 1,
+          treatmentName: "Standard",
+          totalCards: 252,
+          ownedCards: 180,
+          completionPercentage: 71.4,
+        },
+        {
+          treatmentId: 2,
+          treatmentName: "Hyperspace",
+          totalCards: 252,
+          ownedCards: 30,
+          completionPercentage: 11.9,
+        },
+      ],
+    },
+  ],
+  totalUniqueCardsOwned: 180,
+  totalUniqueCardsInGame: 252,
+  overallCompletionPercentage: 71.4,
 };
 
 vi.mock("../api", () => ({
-  collectionKeys: { list: vi.fn(() => ["collection", { userId: 1 }]) },
-  useCollectionQuery: vi.fn(() => mockData),
-  useBulkUpdateMutation: vi.fn(() => ({ mutateAsync: vi.fn() })),
-  useSetOwnedProxyMutation: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  collectionKeys: { all: ["collection"], list: vi.fn(() => ["collection", { userId: 1 }]) },
+  useCollectionSetsSummaryQuery: vi.fn(() => ({
+    data: mockSummary,
+    isLoading: false,
+    error: null,
+  })),
+  useBatchSetCollectionMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock("@/state/useUser", () => ({
@@ -55,13 +63,6 @@ vi.mock("@/state/useGame", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: () => ({
-    getTotalSize: () => 72,
-    getVirtualItems: () => [{ index: 0, start: 0 }],
-  }),
-}));
-
 vi.mock("../useCollectionValueHistory", () => ({
   useCollectionValueHistory: vi.fn(() => ({
     data: [
@@ -74,7 +75,7 @@ vi.mock("../useCollectionValueHistory", () => ({
 }));
 
 describe("CollectionPage", () => {
-  it("toggles availability label when include proxies changes", async () => {
+  it("renders collection value and sets overview table", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
 
     const container = document.createElement("div");
@@ -85,22 +86,11 @@ describe("CollectionPage", () => {
       root.render(<RouterProvider router={router} />);
     });
 
-    expect(container.textContent).toContain("Proxies excluded.");
-
-    const badgeLabel = () =>
-      Array.from(container.querySelectorAll<HTMLSpanElement>("span")).find((span) =>
-        ["A", "A+P"].includes(span.textContent ?? "")
-      );
-    expect(badgeLabel()?.textContent).toBe("A");
-
-    const checkbox = container.querySelector<HTMLInputElement>("input[type='checkbox']");
-    expect(checkbox).not.toBeNull();
-
-    fireEvent.click(checkbox!);
-
-    await waitFor(() => expect(badgeLabel()?.textContent).toBe("A+P"));
-    const valueSpan = badgeLabel()?.nextElementSibling;
-    expect(valueSpan?.textContent).toBe("5");
+    expect(container.textContent).toContain("Proxies excluded");
+    expect(container.textContent).toContain("Sets & Expansions");
+    expect(container.textContent).toContain("Spark of Rebellion");
+    expect(container.textContent).toContain("SOR");
+    expect(container.textContent).toContain("71.4%");
 
     await act(() => {
       root.unmount();
@@ -108,10 +98,8 @@ describe("CollectionPage", () => {
     container.remove();
   });
 
-  it("keeps the selected page when pagination changes the URL", async () => {
-    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }], {
-      initialEntries: ["/?pageSize=1"],
-    });
+  it("expands subsets when clicking expand toggle", async () => {
+    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
 
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -121,10 +109,18 @@ describe("CollectionPage", () => {
       root.render(<RouterProvider router={router} />);
     });
 
-    expect(container.textContent).toContain("Page 1 ·");
-    fireEvent.click(getByRole(container, "button", { name: "Next" }));
+    expect(container.textContent).not.toContain("Hyperspace");
 
-    await waitFor(() => expect(container.textContent).toContain("Page 2 ·"));
+    // Click expand subsets chevron
+    const expandBtn = container.querySelector('button[aria-label="Expand subsets"]');
+    expect(expandBtn).not.toBeNull();
+    fireEvent.click(expandBtn!);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Standard");
+      expect(container.textContent).toContain("Hyperspace");
+      expect(container.textContent).toContain("11.9%");
+    });
 
     await act(() => {
       root.unmount();

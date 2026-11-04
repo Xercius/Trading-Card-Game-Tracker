@@ -12,5 +12,6 @@ applyTo: "client-vite/src/**/*.{ts,tsx}"
 - shadcn components come from `components/ui/` (not `@shadcn/ui`); Tailwind classes, `cva` for variants.
 - Use `@tanstack/react-virtual` for lists over 50 items.
 - Interactive elements must be keyboard-accessible, with `aria-*` on custom controls.
+- Floating and overlay surfaces (dropdowns, autocomplete popovers, select menus, dialogs, drawers, and tooltips) must use an opaque background, clear border separation, and appropriate elevation.
 - No `useEffect` for derived state; no direct DOM access; no module-level side effects.
 - Limits: page ≤250 lines, component ≤150, render function ≤40, nesting ≤3.

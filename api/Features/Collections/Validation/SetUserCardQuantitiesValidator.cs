@@ -7,8 +7,11 @@ public sealed class SetUserCardQuantitiesValidator : AbstractValidator<SetUserCa
 {
     public SetUserCardQuantitiesValidator()
     {
-        RuleFor(x => x.QuantityOwned).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.QuantityWanted).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.QuantityProxyOwned).GreaterThanOrEqualTo(0);
+        When(x => x.QuantityOwned.HasValue, () =>
+            RuleFor(x => x.QuantityOwned!.Value).GreaterThanOrEqualTo(0));
+        When(x => x.QuantityWanted.HasValue, () =>
+            RuleFor(x => x.QuantityWanted!.Value).GreaterThanOrEqualTo(0));
+        When(x => x.QuantityProxyOwned.HasValue, () =>
+            RuleFor(x => x.QuantityProxyOwned!.Value).GreaterThanOrEqualTo(0));
     }
 }
