@@ -98,6 +98,8 @@ describe("CardsPage", () => {
       abilities: [],
       lightSideIcons: [],
       darkSideIcons: [],
+      hps: [],
+      stages: [],
       page: 1,
       pageSize: 20,
       sort: "name",

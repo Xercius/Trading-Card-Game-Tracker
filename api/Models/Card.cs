@@ -38,6 +38,8 @@ public sealed class Card
     public string? Ferocity { get; set; }
     public int? Politics { get; set; }
     public string? Persona { get; set; }
+    [MaxLength(32)]
+    public string? Stage { get; set; }
     public string? Lore { get; set; }
     public string? ExtraCardDataJson { get; set; }
     public string? BackTitle { get; set; }

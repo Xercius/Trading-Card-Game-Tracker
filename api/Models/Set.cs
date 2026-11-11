@@ -17,6 +17,9 @@ public sealed class Set
     [MaxLength(256)]
     public string? Name { get; set; }
 
+    [MaxLength(64)]
+    public string? Era { get; set; }
+
     public DateOnly? ReleasedAt { get; set; }
     public DateTimeOffset LastSyncedAt { get; set; }
 

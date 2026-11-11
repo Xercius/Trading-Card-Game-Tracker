@@ -34,6 +34,7 @@ export const adminSyncKeys = {
   all: ["admin", "sync"] as const,
   starWarsUnlimitedStatus: () => [...adminSyncKeys.all, "star-wars-unlimited", "status"] as const,
   starWarsCcgStatus: () => [...adminSyncKeys.all, "star-wars-ccg", "status"] as const,
+  pokemonStatus: () => [...adminSyncKeys.all, "pokemon", "status"] as const,
 };
 
 type AdminSession = { authenticated: boolean; csrfToken: string };
@@ -172,6 +173,114 @@ export function useRunStarWarsCcgSyncMutation() {
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsCcgStatus() });
+    },
+  });
+}
+
+export type AdminPokemonSetEntry = {
+  id: number;
+  code: string;
+  name: string;
+  era: string | null;
+  releaseDate: string | null;
+  cardCountInDb: number;
+  isSynced: boolean;
+  lastSyncedAt: string | null;
+};
+
+export type AdminPokemonSyncStatusResponse = {
+  isRunning: boolean;
+  runningSince: string | null;
+  lastSetsSyncAt: string | null;
+  lastCardsSyncAt: string | null;
+  lastOutcome: string | null;
+  sets: AdminPokemonSetEntry[];
+};
+
+export type AdminPokemonCardsSyncRequest = {
+  setCodes: string[];
+  forceFullSync?: boolean;
+  dryRun?: boolean;
+};
+
+export type ImportSummaryDto = {
+  source: string;
+  dryRun: boolean;
+  cardsCreated: number;
+  cardsUpdated: number;
+  printingsCreated: number;
+  printingsUpdated: number;
+  errors: number;
+  messages: string[];
+};
+
+/**
+ * Loads the current Pokémon TCG sync status and set list for the admin tools page.
+ */
+export function usePokemonSyncStatusQuery() {
+  return useQuery<AdminPokemonSyncStatusResponse>({
+    queryKey: adminSyncKeys.pokemonStatus(),
+    queryFn: async () => {
+      try {
+        const response = await http.get<AdminPokemonSyncStatusResponse>(
+          "admin/sync/pokemon/status",
+          credentials
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Syncs all Pokémon sets and eras from TCGdex.
+ */
+export function useRunPokemonSetsSyncMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ImportSummaryDto, Error, void>({
+    mutationFn: async () => {
+      try {
+        const response = await http.post<ImportSummaryDto>(
+          "admin/sync/pokemon/sets",
+          null,
+          await csrfConfig()
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.pokemonStatus() });
+    },
+  });
+}
+
+/**
+ * Syncs Pokémon cards for the specified set codes.
+ */
+export function useRunPokemonCardsSyncMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ImportSummaryDto, Error, AdminPokemonCardsSyncRequest>({
+    mutationFn: async (payload) => {
+      try {
+        const response = await http.post<ImportSummaryDto>(
+          "admin/sync/pokemon/cards",
+          payload,
+          await csrfConfig()
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.pokemonStatus() });
     },
   });
 }

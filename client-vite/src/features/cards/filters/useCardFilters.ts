@@ -28,6 +28,8 @@ export type CardFilters = {
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
+  hps?: string[];
+  stages?: string[];
   page: number;
   pageSize: number;
   sort?: string;
@@ -55,6 +57,8 @@ const filterKeys = [
   "ability",
   "lightSideIcon",
   "darkSideIcon",
+  "hp",
+  "stage",
   "q",
   "page",
   "pageSize",
@@ -166,6 +170,8 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     abilities: sanitizeList(input.abilities ?? []),
     lightSideIcons: sanitizeList(input.lightSideIcons ?? []),
     darkSideIcons: sanitizeList(input.darkSideIcons ?? []),
+    hps: sanitizeList(input.hps ?? []),
+    stages: sanitizeList(input.stages ?? []),
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
     sort: input.sort?.trim() || undefined,
@@ -200,6 +206,8 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const abilities = parseCsv(params.get("ability"));
   const lightSideIcons = parseCsv(params.get("lightSideIcon"));
   const darkSideIcons = parseCsv(params.get("darkSideIcon"));
+  const hps = parseCsv(params.get("hp"));
+  const stages = parseCsv(params.get("stage"));
   const rawKeywordMethod = params.get("keywordMethod")?.toLowerCase();
   const keywordMethod: KeywordMethod =
     rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";
@@ -237,6 +245,8 @@ function parseFilters(params: URLSearchParams): CardFilters {
     abilities,
     lightSideIcons,
     darkSideIcons,
+    hps,
+    stages,
     page,
     pageSize,
     sort,
@@ -311,6 +321,12 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   }
   if (filters.darkSideIcons && filters.darkSideIcons.length > 0) {
     next.set("darkSideIcon", filters.darkSideIcons.join(","));
+  }
+  if (filters.hps && filters.hps.length > 0) {
+    next.set("hp", filters.hps.join(","));
+  }
+  if (filters.stages && filters.stages.length > 0) {
+    next.set("stage", filters.stages.join(","));
   }
   if (filters.q.length > 0) {
     next.set("q", filters.q);

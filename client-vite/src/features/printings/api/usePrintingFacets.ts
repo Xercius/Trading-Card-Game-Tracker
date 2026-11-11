@@ -21,6 +21,7 @@ export type PrintingFacets = {
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
+  stages?: string[];
 };
 
 /**
@@ -52,6 +53,8 @@ export function usePrintingFacets(filters: CardFilters) {
     ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
     ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
     ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),
+    ...(filters.hps?.length ? { hp: filters.hps.join(", ") } : {}),
+    ...(filters.stages?.length ? { stage: filters.stages } : {}),
     ...(filters.keywordMethod && filters.keywordMethod !== "or"
       ? { keywordMethod: filters.keywordMethod }
       : {}),
@@ -80,6 +83,7 @@ export function usePrintingFacets(filters: CardFilters) {
       abilities: (facets.abilities ?? []).map((facet) => facet.value),
       lightSideIcons: (facets.lightSideIcons ?? []).map((facet) => facet.value),
       darkSideIcons: (facets.darkSideIcons ?? []).map((facet) => facet.value),
+      stages: (facets.stages ?? []).map((facet) => facet.value),
     }),
     staleTime: 60_000,
   });

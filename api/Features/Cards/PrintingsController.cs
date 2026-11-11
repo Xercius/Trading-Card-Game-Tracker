@@ -215,6 +215,17 @@ public sealed class PrintingsController : ControllerBase
         var darkSideIcons = CsvUtils.Parse(qp.DarkSideIcon);
         query = query.ApplyNumericFilter(darkSideIcons, p => p.Card.DarkSideIcons);
 
+        var hps = CsvUtils.Parse(qp.Hp);
+        query = query.ApplyNumericFilter(hps, p => p.Card.Hp);
+
+        var stages = CsvUtils.Parse(qp.Stage);
+        if (stages.Count > 0)
+        {
+            var normalizedStages = stages.Select(SqliteCaseNormalizer.Normalize).ToList();
+            query = query.Where(p => p.Card.Stage != null &&
+                normalizedStages.Contains(EF.Functions.Collate(p.Card.Stage, "NOCASE")));
+        }
+
         // Filter by style(s) - supports comma-separated list
         var styles = CsvUtils.Parse(qp.Style);
         if (styles.Count > 0)

@@ -25,6 +25,7 @@ const NAV_LINKS: NavLinkItem[] = [
 const ADMIN_LINKS: NavLinkItem[] = [
   { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.adminSwccgSync, label: "SWCCG Sync" },
+  { to: paths.adminPokemonSync, label: "Pokémon Sync" },
   { to: paths.adminImport, label: "Admin · Import" },
 ];
 
@@ -64,7 +65,7 @@ const GAME_OPTIONS: GameOption[] = [
     id: "pokemon",
     name: "Pokemon TCG",
     logo: "/images/games/pokemon_logo.png",
-    selectable: false,
+    selectable: true,
   },
 ];
 

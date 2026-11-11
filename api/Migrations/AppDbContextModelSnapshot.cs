@@ -190,6 +190,10 @@ namespace api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Stage")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Subtitle")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -668,6 +672,10 @@ namespace api.Migrations
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Era")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("GameId")

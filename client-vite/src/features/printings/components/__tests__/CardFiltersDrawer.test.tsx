@@ -76,7 +76,7 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("heading", { name: "Filters" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Game" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aspects" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rarity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arena" })).toBeInTheDocument();
@@ -297,7 +297,7 @@ describe("CardFiltersDrawer", () => {
     expect(lightBtn).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText(/^Side$/i)).not.toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: /^Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Card Type/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Sub-Type/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Persona/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Set/i })).toBeInTheDocument();
@@ -316,6 +316,39 @@ describe("CardFiltersDrawer", () => {
     expect(screen.queryByRole("button", { name: /^Arena/i })).not.toBeInTheDocument();
 
     expect(screen.queryByRole("button", { name: /^Keywords/i })).not.toBeInTheDocument();
+  });
+
+  it("renders Pokemon filters (Energy Types, Card Type, Stage, HP, Set, Rarity) and hides SWU facets when game is Pokemon TCG", () => {
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={defaultFilters}
+        setFilters={vi.fn()}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Pokemon TCG"
+      />
+    );
+
+    // Pokemon specific controls
+    expect(screen.getByRole("button", { name: /^Types/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Card Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Stage/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^HP/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Set/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Rarity/i })).toBeInTheDocument();
+
+    // SWU and SWCCG specific controls should not be rendered
+    expect(screen.queryByRole("button", { name: /^Aspects/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Arena/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Traits/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Keywords/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Dark Side$/i)).not.toBeInTheDocument();
   });
 
   it("renders both Dark Side and Light Side buttons unselected by default when no side filter is provided", () => {

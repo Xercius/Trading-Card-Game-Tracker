@@ -53,6 +53,8 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="ability">Optional comma-separated list of ability values to filter by.</param>
     /// <param name="lightSideIcon">Optional comma-separated list of light side icon counts to filter by.</param>
     /// <param name="darkSideIcon">Optional comma-separated list of dark side icon counts to filter by.</param>
+    /// <param name="hp">Optional HP value or numeric comparison expression to filter by.</param>
+    /// <param name="stage">Optional comma-separated list of Pokémon stages to filter by.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -84,6 +86,8 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? ability = null,
         [FromQuery] string? lightSideIcon = null,
         [FromQuery] string? darkSideIcon = null,
+        [FromQuery] string? hp = null,
+        [FromQuery] string? stage = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -107,6 +111,8 @@ public sealed class CardFacetsController : ControllerBase
         var abilities = CsvUtils.Parse(ability);
         var lightSideIcons = CsvUtils.Parse(lightSideIcon);
         var darkSideIcons = CsvUtils.Parse(darkSideIcon);
+        var hps = CsvUtils.Parse(hp);
+        var stages = CsvUtils.Parse(stage);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameLookupQuery = _db.Games.AsQueryable();
         if (games.Count > 0)
@@ -185,6 +191,14 @@ public sealed class CardFacetsController : ControllerBase
                 query = query.ApplyNumericFilter(lightSideIcons, p => p.Card.LightSideIcons);
             if (excludedFilter != "darkSideIcon" && darkSideIcons.Count > 0)
                 query = query.ApplyNumericFilter(darkSideIcons, p => p.Card.DarkSideIcons);
+            if (excludedFilter != "hp" && hps.Count > 0)
+                query = query.ApplyNumericFilter(hps, p => p.Card.Hp);
+            if (excludedFilter != "stage" && stages.Count > 0)
+            {
+                var normalizedStages = stages.Select(SqliteCaseNormalizer.Normalize).ToList();
+                query = query.Where(p => p.Card.Stage != null &&
+                    normalizedStages.Contains(EF.Functions.Collate(p.Card.Stage, "NOCASE")));
+            }
 
             return query;
         }
@@ -239,11 +253,11 @@ public sealed class CardFacetsController : ControllerBase
             .Where(cp => cp.CatalogSet != null && (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) || !string.IsNullOrWhiteSpace(cp.CatalogSet.Code)))
             .GroupBy(cp => new
             {
-                Value = (!string.IsNullOrWhiteSpace(cp.CatalogSet!.Code) ? cp.CatalogSet.Code : cp.CatalogSet.Name)!,
+                Value = (!string.IsNullOrWhiteSpace(cp.CatalogSet!.Name) ? cp.CatalogSet.Name : cp.CatalogSet.Code)!,
                 Label = (!string.IsNullOrWhiteSpace(cp.CatalogSet.Name) ? cp.CatalogSet.Name : cp.CatalogSet.Code)!
             })
             .Select(g => new FacetOption { Value = g.Key.Value, Label = g.Key.Label, Count = g.Count() })
-            .OrderBy(f => f.Value)
+            .OrderBy(f => f.Label)
             .ToListAsync(ct);
 
         // Compute rarity facets
@@ -504,6 +518,16 @@ public sealed class CardFacetsController : ControllerBase
             .Select(i => new FacetOption { Value = i.Value.ToString(), Count = i.Count })
             .ToList();
 
+        var rawStages = await BuildStatFacetQuery("stage")
+            .Where(cp => cp.Card.Stage != null && cp.Card.Stage != "")
+            .GroupBy(cp => cp.Card.Stage!)
+            .Select(g => new { Value = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var stageFacets = rawStages
+            .OrderBy(s => s.Value)
+            .Select(s => new FacetOption { Value = s.Value, Label = s.Value, Count = s.Count })
+            .ToList();
+
         var response = new CardsFacetResponse
         {
             Games = gameFacets,
@@ -524,6 +548,7 @@ public sealed class CardFacetsController : ControllerBase
             Abilities = abilityFacets,
             LightSideIcons = lightSideIconFacets,
             DarkSideIcons = darkSideIconFacets,
+            Stages = stageFacets,
         };
 
         return Ok(response);

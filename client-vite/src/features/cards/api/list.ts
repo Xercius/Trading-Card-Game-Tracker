@@ -216,6 +216,7 @@ export type CardsFacetResponse = {
   abilities?: FacetOption[];
   lightSideIcons?: FacetOption[];
   darkSideIcons?: FacetOption[];
+  stages?: FacetOption[];
 };
 
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
@@ -356,6 +357,8 @@ export async function fetchCardFacets({
   abilities,
   lightSideIcons,
   darkSideIcons,
+  hp,
+  stage,
   q,
   printingSearch,
 }: {
@@ -380,6 +383,8 @@ export async function fetchCardFacets({
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
+  hp?: string;
+  stage?: string[];
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -405,6 +410,8 @@ export async function fetchCardFacets({
   if (abilities?.length) params.set("ability", abilities.join(","));
   if (lightSideIcons?.length) params.set("lightSideIcon", lightSideIcons.join(","));
   if (darkSideIcons?.length) params.set("darkSideIcon", darkSideIcons.join(","));
+  if (hp) params.set("hp", hp);
+  if (stage?.length) params.set("stage", stage.join(","));
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 

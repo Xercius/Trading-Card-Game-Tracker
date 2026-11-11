@@ -3,6 +3,7 @@ using api.Data;
 using api.Features.Admin.Sync.Dtos;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Importing.Pokemon;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +20,8 @@ public sealed class AdminSyncController(
     AppDbContext db,
     AdminSyncExecutionTracker executionTracker,
     TimeProvider timeProvider,
-    ILogger<AdminSyncController> logger) : ControllerBase
+    ILogger<AdminSyncController> logger,
+    PokemonTcgdexImporter pokemonImporter) : ControllerBase
 {
     private const string SwuImporterKey = "swu";
     private const string CatalogHistoryKey = "swu-catalog";
@@ -30,6 +32,9 @@ public sealed class AdminSyncController(
     private const string SwccgCatalogHistoryKey = "swccg-catalog";
     private const string SwccgCatalogScope = "SwccgCatalog";
     private const string SwccgSyncRouteKey = "star-wars-ccg";
+
+    private const string PokemonImporterKey = "pokemon";
+    private const string PokemonSyncRouteKey = "pokemon";
 
     [HttpGet("star-wars-unlimited/logs")]
     public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
@@ -402,6 +407,181 @@ public sealed class AdminSyncController(
         {
             executionTracker.Complete(SwccgSyncRouteKey);
         }
+    }
+
+    [HttpGet("pokemon/status")]
+    public async Task<ActionResult<AdminPokemonSyncStatusResponse>> GetPokemonStatus(CancellationToken ct)
+    {
+        var isRunning = executionTracker.TryGetStartedAt(PokemonSyncRouteKey, out var runningSince);
+
+        var lastSetsSyncAt = (await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "pokemon-sets" && h.SetCode == "")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .ToListAsync(ct))
+            .OrderByDescending(h => h)
+            .FirstOrDefault();
+
+        var lastCardsSyncAt = (await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "pokemon-cards")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .ToListAsync(ct))
+            .OrderByDescending(h => h)
+            .FirstOrDefault();
+
+        var lastOutcome = (await db.SyncLogs.AsNoTracking()
+            .Where(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:") && l.CompletedAt != null)
+            .Select(l => new { l.StartedAt, l.Status })
+            .ToListAsync(ct))
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefault()?.Status;
+
+        var cardCountsBySetId = await db.CardPrintings.AsNoTracking()
+            .Where(cp => cp.SetId != null && cp.CatalogSet != null && (cp.CatalogSet.Game.Name == "Pokemon TCG" || cp.CatalogSet.Game.NameNormalized == "pokemontcg" || cp.CatalogSet.Game.NameNormalized == "pokemon tcg"))
+            .GroupBy(cp => cp.SetId!.Value)
+            .Select(g => new { SetId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.SetId, g => g.Count, ct);
+
+        var sets = await db.Sets.AsNoTracking()
+            .Where(s => s.Game.Name == "Pokemon TCG" || s.Game.NameNormalized == "pokemontcg" || s.Game.NameNormalized == "pokemon tcg")
+            .Select(s => new
+            {
+                s.Id,
+                s.Code,
+                Name = s.Name ?? s.Code,
+                s.Era,
+                s.ReleasedAt
+            })
+            .ToListAsync(ct);
+
+        var syncedSetHistories = await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "pokemon-cards")
+            .ToDictionaryAsync(h => h.SetCode.Trim(), h => h.LastSyncedAt, StringComparer.OrdinalIgnoreCase, ct);
+
+        var setEntries = sets
+            .Select(s =>
+            {
+                var codeTrimmed = s.Code.Trim();
+                var hasHistory = syncedSetHistories.TryGetValue(codeTrimmed, out var syncedAt);
+                cardCountsBySetId.TryGetValue(s.Id, out var countInDb);
+                var isSynced = hasHistory || countInDb > 0;
+                return new AdminPokemonSetEntry(
+                    s.Id,
+                    s.Code,
+                    s.Name,
+                    s.Era,
+                    s.ReleasedAt?.ToString("yyyy-MM-dd"),
+                    countInDb,
+                    isSynced,
+                    hasHistory ? syncedAt : null
+                );
+            })
+            .OrderByDescending(s => s.ReleaseDate ?? "0000")
+            .ThenBy(s => s.Name)
+            .ToList();
+
+        return Ok(new AdminPokemonSyncStatusResponse(
+            IsRunning: isRunning,
+            RunningSince: isRunning ? runningSince : null,
+            LastSetsSyncAt: lastSetsSyncAt,
+            LastCardsSyncAt: lastCardsSyncAt,
+            LastOutcome: lastOutcome,
+            Sets: setEntries
+        ));
+    }
+
+    [HttpPost("pokemon/sets")]
+    public async Task<IActionResult> SyncPokemonSets(CancellationToken ct)
+    {
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(PokemonSyncRouteKey, startedAt))
+        {
+            return Conflict(new { message = "A Pokémon sync is already running." });
+        }
+
+        try
+        {
+            var summary = await pokemonImporter.SyncSetsAsync(ct);
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to sync Pokémon sets.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+        }
+        finally
+        {
+            executionTracker.Complete(PokemonSyncRouteKey);
+        }
+    }
+
+    [HttpPost("pokemon/cards")]
+    public async Task<IActionResult> SyncPokemonCards([FromBody] AdminPokemonCardsSyncRequest request, CancellationToken ct)
+    {
+        if (request?.SetCodes == null || request.SetCodes.Count == 0)
+        {
+            return BadRequest(new { message = "At least one set code is required." });
+        }
+
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(PokemonSyncRouteKey, startedAt))
+        {
+            return Conflict(new { message = "A Pokémon sync is already running." });
+        }
+
+        try
+        {
+            var summary = await pokemonImporter.SyncCardsAsync(request.SetCodes, request.ForceFullSync, request.DryRun, ct);
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to sync Pokémon cards.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+        }
+        finally
+        {
+            executionTracker.Complete(PokemonSyncRouteKey);
+        }
+    }
+
+    [HttpGet("pokemon/logs")]
+    public async Task<ActionResult<AdminSyncLogsResponse>> GetPokemonLogs(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
+    {
+        if (limit is <= 0 or > 200)
+        {
+            limit = 50;
+        }
+
+        var totalCount = await db.SyncLogs.CountAsync(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"), ct);
+
+        var rawLogs = await db.SyncLogs
+            .AsNoTracking()
+            .Where(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"))
+            .Select(l => new AdminSyncLogEntry(
+                l.Id,
+                l.SetId,
+                l.Set != null ? l.Set.Code : l.CatalogScope!.Replace("Pokemon:", ""),
+                l.StartedAt,
+                l.CompletedAt,
+                l.IsIncremental,
+                l.UpdatedSince,
+                l.CardsReturned,
+                l.CardsUpserted,
+                l.Status,
+                l.ErrorMessage))
+            .ToListAsync(ct);
+
+        var allLogs = rawLogs
+            .OrderByDescending(l => l.StartedAt)
+            .Take(limit)
+            .ToList();
+
+        return Ok(new AdminSyncLogsResponse(
+            Source: PokemonImporterKey,
+            TotalCount: totalCount,
+            Logs: allLogs));
     }
 
     private async Task<SyncLog> CreatePendingSyncLogAsync(

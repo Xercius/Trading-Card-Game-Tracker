@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "./MultiSelect";
 import { AspectFilter } from "./AspectFilter";
+import { PokemonTypeFilter } from "./PokemonTypeFilter";
 import { Input } from "@/components/ui/input";
 import { LightsaberBlade } from "@/features/cards/components/SwccgForceIcons";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
@@ -22,7 +23,7 @@ export type CardFiltersDrawerProps = {
   game?: string;
 };
 
-type NumericFilterKey = "powers" | "abilities" | "lightSideIcons" | "darkSideIcons";
+type NumericFilterKey = "powers" | "abilities" | "lightSideIcons" | "darkSideIcons" | "hps";
 type NumericFilterDrafts = Record<NumericFilterKey, string>;
 
 function getNumericFilterDrafts(filters: CardFilters): NumericFilterDrafts {
@@ -31,6 +32,7 @@ function getNumericFilterDrafts(filters: CardFilters): NumericFilterDrafts {
     abilities: filters.abilities?.join(", ") ?? "",
     lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
     darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+    hps: filters.hps?.join(", ") ?? "",
   };
 }
 
@@ -84,6 +86,7 @@ export function CardFiltersDrawer({
     getNumericFilterDrafts(filters)
   );
   const isSwccg = game === "Star Wars CCG";
+  const isPokemon = game === "Pokemon TCG";
   const activeSide = filters.side
     ? filters.side.toLowerCase() === "light"
       ? "Light"
@@ -98,8 +101,15 @@ export function CardFiltersDrawer({
       abilities: filters.abilities?.join(", ") ?? "",
       lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
       darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
+      hps: filters.hps?.join(", ") ?? "",
     });
-  }, [filters.powers, filters.abilities, filters.lightSideIcons, filters.darkSideIcons]);
+  }, [
+    filters.powers,
+    filters.abilities,
+    filters.lightSideIcons,
+    filters.darkSideIcons,
+    filters.hps,
+  ]);
 
   const commitNumericFilter = (key: NumericFilterKey) => {
     const values = numericFilterDrafts[key]
@@ -272,11 +282,11 @@ export function CardFiltersDrawer({
 
               {/* Card Type */}
               <MultiSelect
-                label="Type"
+                label="Card Type"
                 className="w-full justify-between"
                 values={filters.types ?? []}
                 options={availableFacets.types ?? []}
-                placeholder="Search types…"
+                placeholder="Search card types…"
                 onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
               />
 
@@ -458,6 +468,88 @@ export function CardFiltersDrawer({
                 </div>
               </div>
             </>
+          ) : isPokemon ? (
+            <>
+              {/* Pokémon Filters */}
+              <PokemonTypeFilter
+                className="w-full justify-between"
+                values={filters.aspects ?? []}
+                method={filters.aspectMethod ?? "or"}
+                availableTypes={availableFacets.aspects ?? []}
+                onChange={(values, method) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    aspects: values,
+                    aspectMethod: method,
+                    page: 1,
+                  }))
+                }
+              />
+
+              <MultiSelect
+                label="Card Type"
+                className="w-full justify-between"
+                values={filters.types ?? []}
+                options={availableFacets.types ?? []}
+                placeholder="Search card types…"
+                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Stage"
+                className="w-full justify-between"
+                values={filters.stages ?? []}
+                options={
+                  availableFacets.stages && availableFacets.stages.length > 0
+                    ? availableFacets.stages
+                    : ["Basic", "Stage 1", "Stage 2", "VMAX", "VSTAR", "Restored"]
+                }
+                placeholder="Search stages…"
+                onChange={(values) => setFilters((prev) => ({ ...prev, stages: values, page: 1 }))}
+              />
+
+              {/* HP Numeric Filter */}
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="filter-pokemon-hp"
+                  className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
+                >
+                  HP
+                </label>
+                <Input
+                  id="filter-pokemon-hp"
+                  placeholder="e.g. >109 or 110"
+                  className="h-8 text-xs bg-card/40 border-white/20"
+                  value={numericFilterDrafts.hps}
+                  onChange={(e) =>
+                    setNumericFilterDrafts((prev) => ({ ...prev, hps: e.target.value }))
+                  }
+                  onBlur={() => commitNumericFilter("hps")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitNumericFilter("hps");
+                    }
+                  }}
+                />
+              </div>
+
+              <MultiSelect
+                label="Set"
+                className="w-full justify-between"
+                values={filters.sets ?? []}
+                options={availableFacets.sets}
+                placeholder="Search sets…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Rarity"
+                className="w-full justify-between"
+                values={filters.rarities ?? []}
+                options={availableFacets.rarities}
+                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
+              />
+            </>
           ) : (
             <>
               {/* SWU Filters */}
@@ -477,11 +569,11 @@ export function CardFiltersDrawer({
               />
 
               <MultiSelect
-                label="Type"
+                label="Card Type"
                 className="w-full justify-between"
                 values={filters.types ?? []}
                 options={availableFacets.types ?? []}
-                placeholder="Search types…"
+                placeholder="Search card types…"
                 onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
               />
 

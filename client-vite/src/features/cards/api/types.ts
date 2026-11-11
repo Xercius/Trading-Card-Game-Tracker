@@ -69,6 +69,7 @@ export type CardDetail = {
   darkSideIcons?: number | null;
   backLightSideIcons?: number | null;
   backDarkSideIcons?: number | null;
+  stage?: string | null;
   printings: CardPrintingDetail[];
 };
 

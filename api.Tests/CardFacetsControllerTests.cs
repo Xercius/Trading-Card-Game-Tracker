@@ -439,7 +439,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task GetFacets_UsesSetCodeAsValueAndNameAsLabel_ForBothSwuAndSwccg()
+    public async Task GetFacets_DisplaysSetNameInsteadOfSetCode_ForBothSwuAndSwccg()
     {
         await factory.ResetDatabaseAsync();
         using (var scope = factory.Services.CreateScope())
@@ -471,14 +471,75 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             var swuFacets = await swuResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
             Assert.NotNull(swuFacets);
             Assert.Contains(swuFacets!.Sets, s =>
-                s.Value == "SOR" && s.Label == "Spark of Rebellion");
+                s.Value == "Spark of Rebellion" && s.Label == "Spark of Rebellion");
+            Assert.DoesNotContain(swuFacets.Sets, s => s.Value == "SOR");
 
             // SWCCG facets
             var swccgResponse = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
             swccgResponse.EnsureSuccessStatusCode();
             var swccgFacets = await swccgResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
             Assert.NotNull(swccgFacets);
-            Assert.Contains(swccgFacets!.Sets, s => s.Value == "PRE" && s.Label == "Premiere");
+            Assert.Contains(swccgFacets!.Sets, s => s.Value == "Premiere" && s.Label == "Premiere");
+            Assert.DoesNotContain(swccgFacets.Sets, s => s.Value == "PRE");
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
+    }
+
+    [Fact]
+    public async Task GetFacets_PokemonStagesAndHpFilters_ReturnExpectedResults()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var pokemon = api.Importing.TreatmentLookup.GetOrAddGame(db, "Pokemon TCG");
+
+            var set = new api.Models.Set { Game = pokemon, Code = "ME03", Name = "Perfect Order" };
+            db.Sets.Add(set);
+
+            var card1 = new api.Models.Card { Game = pokemon, Name = "Pikachu", Stage = "Basic", Hp = 60 };
+            var card2 = new api.Models.Card { Game = pokemon, Name = "Raichu", Stage = "Stage 1", Hp = 120 };
+            var card3 = new api.Models.Card { Game = pokemon, Name = "Aegislash", Stage = "Stage 2", Hp = 150 };
+            db.Cards.AddRange(card1, card2, card3);
+
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = card1, CatalogSet = set, Number = "001" });
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = card2, CatalogSet = set, Number = "002" });
+            db.CardPrintings.Add(new api.Models.CardPrinting { Card = card3, CatalogSet = set, Number = "003" });
+
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        try
+        {
+            // All Pokemon facets
+            var response = await client.GetAsync("/api/cards/facets?game=Pokemon+TCG");
+            response.EnsureSuccessStatusCode();
+            var facets = await response.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(facets);
+            Assert.Contains(facets!.Stages, s => s.Value == "Basic" && s.Count == 1);
+            Assert.Contains(facets.Stages, s => s.Value == "Stage 1" && s.Count == 1);
+            Assert.Contains(facets.Stages, s => s.Value == "Stage 2" && s.Count == 1);
+
+            // Filter by HP > 100
+            var hpResponse = await client.GetAsync("/api/cards/facets?game=Pokemon+TCG&hp=>100");
+            hpResponse.EnsureSuccessStatusCode();
+            var hpFacets = await hpResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(hpFacets);
+            Assert.DoesNotContain(hpFacets!.Stages, s => s.Value == "Basic");
+            Assert.Contains(hpFacets.Stages, s => s.Value == "Stage 1");
+            Assert.Contains(hpFacets.Stages, s => s.Value == "Stage 2");
+
+            // Filter by stage = Stage 2
+            var stageResponse = await client.GetAsync("/api/cards/facets?game=Pokemon+TCG&stage=Stage+2");
+            stageResponse.EnsureSuccessStatusCode();
+            var stageFacets = await stageResponse.Content.ReadFromJsonAsync<CardsFacetResponse>(Options);
+            Assert.NotNull(stageFacets);
+            // In stat facets, the stage facet excludes its own filter, so all stages are returned
+            Assert.Contains(stageFacets!.Stages, s => s.Value == "Stage 2");
         }
         finally
         {
