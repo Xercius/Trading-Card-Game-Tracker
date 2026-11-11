@@ -54,7 +54,9 @@ type FilterArrayKey =
   | "powers"
   | "abilities"
   | "lightSideIcons"
-  | "darkSideIcons";
+  | "darkSideIcons"
+  | "hps"
+  | "stages";
 
 export function DeckConstructionModal({
   deckId,
@@ -427,8 +429,24 @@ export function DeckConstructionModal({
         items: filters.rarities.map((v) => ({ display: v, value: v })),
       });
     }
+    if (currentGame.toLowerCase().includes("pokemon")) {
+      if (filters.hps?.length) {
+        list.push({
+          key: "hps",
+          label: "HP",
+          items: filters.hps.map((v) => ({ display: v, value: v })),
+        });
+      }
+      if (filters.stages?.length) {
+        list.push({
+          key: "stages",
+          label: "Stage",
+          items: filters.stages.map((v) => ({ display: v, value: v })),
+        });
+      }
+    }
     return list;
-  }, [filters]);
+  }, [filters, currentGame]);
 
   const activeFilterCount = activeFilters.reduce((sum, f) => sum + f.items.length, 0);
 
@@ -456,6 +474,8 @@ export function DeckConstructionModal({
       aspects: [],
       traits: [],
       keywords: [],
+      hps: [],
+      stages: [],
       side: currentSide || undefined,
       page: 1,
     }));

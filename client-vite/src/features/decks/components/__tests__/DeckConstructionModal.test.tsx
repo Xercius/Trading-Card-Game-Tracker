@@ -166,6 +166,48 @@ describe("DeckConstructionModal", () => {
     expect(handleClose).toHaveBeenCalled();
   });
 
+  it("shows, removes, and clears Pokémon HP and stage filters", async () => {
+    const client = createClient();
+    deckDetails = { ...mockDeckDetails, game: "Pokemon TCG", format: "Standard" };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DeckConstructionModal deckId={1} isOpen={true} onClose={vi.fn()} game="Pokemon TCG" />
+        </QueryClientProvider>
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stage" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Stage 1" }));
+
+    const hpInput = screen.getByRole("textbox", { name: "HP" });
+    fireEvent.change(hpInput, { target: { value: "100" } });
+    fireEvent.keyDown(hpInput, { key: "Enter" });
+
+    expect(await screen.findByText("Stage: Stage 1")).toBeInTheDocument();
+    expect(screen.getByText("HP: 100")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Stage 1" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Stage: Stage 1")).not.toBeInTheDocument();
+      expect(screen.getByText("HP: 100")).toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByRole("option", { name: "Stage 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter 100" }));
+    await waitFor(() => {
+      expect(screen.queryByText("HP: 100")).not.toBeInTheDocument();
+      expect(screen.getByText("Stage: Stage 1")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Stage: Stage 1")).not.toBeInTheDocument();
+    });
+  });
+
   it("shows a friendly message when deck metadata cannot be saved", async () => {
     const client = createClient();
     vi.spyOn(api, "patch").mockRejectedValue(new Error("server detail"));

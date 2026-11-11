@@ -3,8 +3,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
+const mocks = vi.hoisted(() => ({ activeGame: "Star Wars Unlimited" }));
 const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
-const usePrintingFacetsMock = vi.fn(() => ({
+const usePrintingFacetsMock = vi.fn((_query: unknown) => ({
   data: { games: [], sets: [], rarities: [], types: [], arenas: [], aspects: [], traits: [] },
 }));
 const CardModalMock = vi.fn((_props: unknown) => null);
@@ -14,7 +15,7 @@ vi.mock("../api/usePrintings", () => ({
 }));
 
 vi.mock("../api/usePrintingFacets", () => ({
-  usePrintingFacets: () => usePrintingFacetsMock(),
+  usePrintingFacets: (query: unknown) => usePrintingFacetsMock(query),
 }));
 
 vi.mock("@/features/cards/components/CardModal", () => ({
@@ -23,9 +24,9 @@ vi.mock("@/features/cards/components/CardModal", () => ({
 
 vi.mock("@/state/useGame", () => ({
   useGame: () => ({
-    activeGame: "Star Wars Unlimited",
+    activeGame: mocks.activeGame,
     setActiveGame: vi.fn(),
-    games: ["Star Wars Unlimited"],
+    games: [mocks.activeGame],
     isLoadingGames: false,
   }),
 }));
@@ -38,7 +39,9 @@ describe("CardsPage", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    mocks.activeGame = "Star Wars Unlimited";
     usePrintingsMock.mockReset();
+    usePrintingFacetsMock.mockClear();
     CardModalMock.mockReset();
     usePrintingsMock.mockImplementation(() => ({
       data: { items: [], total: 0 },
@@ -104,6 +107,134 @@ describe("CardsPage", () => {
       pageSize: 20,
       sort: "name",
     });
+  });
+
+  it("deduplicates Pokémon aspects and uses OR even when the URL contains another method", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?aspect=Grass,grass,Fire&aspectMethod=exclude"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(usePrintingsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      aspects: ["grass", "Fire"],
+      aspectMethod: "or",
+    });
+    expect(usePrintingFacetsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      aspects: ["grass", "Fire"],
+      aspectMethod: "or",
+    });
+    expect(container?.textContent).toContain("Aspect: Grass");
+    expect(container?.textContent).not.toContain("Exclude Aspect");
+  });
+
+  it("only passes selected HP filters while Pokémon is the active game", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&hp=100"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(usePrintingsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      hps: ["100"],
+    });
+
+    mocks.activeGame = "Star Wars Unlimited";
+    await act(async () => {
+      await router.navigate("/?game=Pokemon%20TCG&hp=100&page=2");
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      games: ["Star Wars Unlimited"],
+      hps: [],
+    });
+  });
+
+  it("enables clearing and removes an HP-only Pokémon filter", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&hp=100"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    const filtersButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Filters")
+    );
+    await act(async () => {
+      filtersButton?.click();
+    });
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Clear Filters"
+    );
+    expect(clearButton).toBeDefined();
+    expect(clearButton).not.toBeDisabled();
+
+    await act(async () => {
+      clearButton?.click();
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({ hps: [] });
+  });
+
+  it("shows and clears a stage-only Pokémon filter", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&stage=Stage+1"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(container?.textContent).toContain("Stage: Stage 1");
+
+    const filtersButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Filters")
+    );
+    await act(async () => {
+      filtersButton?.click();
+    });
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Clear Filters"
+    );
+    expect(clearButton).toBeDefined();
+    expect(clearButton).not.toBeDisabled();
+
+    await act(async () => {
+      clearButton?.click();
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({ stages: [] });
   });
 
   it("does not render a redundant page-level search input", async () => {

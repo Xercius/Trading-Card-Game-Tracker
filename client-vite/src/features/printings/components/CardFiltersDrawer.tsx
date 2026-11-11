@@ -474,13 +474,12 @@ export function CardFiltersDrawer({
               <PokemonTypeFilter
                 className="w-full justify-between"
                 values={filters.aspects ?? []}
-                method={filters.aspectMethod ?? "or"}
                 availableTypes={availableFacets.aspects ?? []}
-                onChange={(values, method) =>
+                onChange={(values) =>
                   setFilters((prev) => ({
                     ...prev,
                     aspects: values,
-                    aspectMethod: method,
+                    aspectMethod: "or",
                     page: 1,
                   }))
                 }

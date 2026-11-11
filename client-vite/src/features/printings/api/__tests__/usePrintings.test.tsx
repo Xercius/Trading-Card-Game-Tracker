@@ -30,6 +30,7 @@ const filters: CardFilters = {
   keywordMethod: "or",
   page: 1,
   pageSize: 2,
+  stages: ["Stage 1"],
 };
 
 const printing = (printingId: string): PrintingListItem => ({
@@ -72,10 +73,25 @@ describe("usePrintings pagination", () => {
       set: ["SOR"],
       rarity: ["Rare"],
       types: ["Leader Unit"],
+      stages: ["Stage 1"],
       pageSize: 2,
       page: 1,
       uniqueCards: true,
     });
+  });
+
+  it("passes selected Pokemon HP values to the printing query", async () => {
+    fetchPrintingsMock.mockResolvedValueOnce({ items: [], total: 0 });
+
+    const { result } = renderHook(
+      () => usePrintings({ ...filters, games: ["Pokemon TCG"], hps: ["100"] }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.data?.total).toBe(0));
+    expect(fetchPrintingsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ game: ["Pokemon TCG"], hps: ["100"] })
+    );
   });
 
   it("starts a new result set at the requested first page after filters change", async () => {

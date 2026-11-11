@@ -34,6 +34,8 @@ export function usePrintings(filters: CardFilters, availableAspects?: string[]) 
     ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
     ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
     ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),
+    ...(filters.hps?.length ? { hps: filters.hps } : {}),
+    ...(filters.stages?.length ? { stages: filters.stages } : {}),
     ...(filters.keywordMethod && filters.keywordMethod !== "or"
       ? { keywordMethod: filters.keywordMethod }
       : {}),
