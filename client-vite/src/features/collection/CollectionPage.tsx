@@ -37,11 +37,7 @@ export default function CollectionPage() {
   const collectionLatestValue = latestValue(valueHistoryPoints);
 
   if (!userId) {
-    return (
-      <div className="p-6 text-sm text-zinc-400">
-        Select a user to view their collection.
-      </div>
-    );
+    return <div className="p-6 text-sm text-zinc-400">Select a user to view their collection.</div>;
   }
 
   return (
@@ -72,8 +68,18 @@ export default function CollectionPage() {
             onClick={() => setIsMassEntryOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-100 border border-zinc-700 transition-colors shadow-sm"
           >
-            <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg
+              className="w-4 h-4 text-purple-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
             Mass Entry (Set Spreadsheet)
           </button>
@@ -87,7 +93,10 @@ export default function CollectionPage() {
             <h2 className="text-sm font-semibold text-zinc-200">Collection Value (Last 90 Days)</h2>
             {collectionLatestValue != null && (
               <p className="text-xs text-zinc-400 font-mono mt-0.5">
-                Latest: <span className="text-emerald-400 font-bold">{formatCurrency(collectionLatestValue)}</span>
+                Latest:{" "}
+                <span className="text-emerald-400 font-bold">
+                  {formatCurrency(collectionLatestValue)}
+                </span>
               </p>
             )}
           </div>
@@ -120,9 +129,7 @@ export default function CollectionPage() {
       {/* Sets Overview Table */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-zinc-100 tracking-tight">
-            Sets & Expansions
-          </h2>
+          <h2 className="text-base font-bold text-zinc-100 tracking-tight">Sets & Expansions</h2>
           <span className="text-xs text-zinc-400">
             Click any set to view all printings and manage quantities
           </span>

@@ -31,7 +31,6 @@ vi.mock("@/state/useGame", () => ({
 }));
 
 import CardsPage from "./CardsPage";
-import * as printingsApi from "../api/usePrintings";
 
 describe("CardsPage", () => {
   let root: Root | null = null;
@@ -41,15 +40,12 @@ describe("CardsPage", () => {
     vi.useFakeTimers();
     usePrintingsMock.mockReset();
     CardModalMock.mockReset();
-    usePrintingsMock.mockImplementation(
-      () =>
-        ({
-          data: [],
-          isLoading: false,
-          isError: false,
-          error: null,
-        }) as ReturnType<typeof printingsApi.usePrintings>
-    );
+    usePrintingsMock.mockImplementation(() => ({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    }));
   });
 
   afterEach(async () => {
@@ -112,11 +108,11 @@ describe("CardsPage", () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
     usePrintingsMock.mockReturnValue({
-      data: [],
+      data: { items: [], total: 0 },
       isLoading: false,
       isError: false,
       error: null,
-    } as unknown as ReturnType<typeof printingsApi.usePrintings>);
+    });
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -133,23 +129,26 @@ describe("CardsPage", () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 
     usePrintingsMock.mockReturnValue({
-      data: [
-        {
-          printingId: "p1",
-          cardId: "c1",
-          cardName: "Sample Card",
-          game: "Game A",
-          setName: "Set A",
-          setCode: null,
-          number: "001",
-          rarity: "Common",
-          imageUrl: null,
-        },
-      ],
+      data: {
+        items: [
+          {
+            printingId: "p1",
+            cardId: "c1",
+            cardName: "Sample Card",
+            game: "Game A",
+            setName: "Set A",
+            setCode: null,
+            number: "001",
+            rarity: "Common",
+            imageUrl: null,
+          },
+        ],
+        total: 1,
+      },
       isLoading: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof printingsApi.usePrintings>);
+    });
 
     container = document.createElement("div");
     document.body.appendChild(container);

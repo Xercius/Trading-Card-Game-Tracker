@@ -51,6 +51,7 @@ export const Default: Story = {
 };
 
 export const WithActiveFilters: Story = {
+  args: { trigger: "Type", children: null },
   render: () => {
     const options = ["Fire", "Water", "Grass", "Electric", "Psychic"];
     // eslint-disable-next-line react-hooks/rules-of-hooks

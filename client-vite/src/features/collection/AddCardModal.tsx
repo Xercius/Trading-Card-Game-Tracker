@@ -25,7 +25,8 @@ export default function AddCardModal({
   const cardId = initialPrinting ? Number(initialPrinting.cardId) : 0;
   const { data: printings = [] } = useCardPrintings(cardId);
 
-  const activePrintingId = selectedPrintingId ?? (initialPrinting ? Number(initialPrinting.printingId) : null);
+  const activePrintingId =
+    selectedPrintingId ?? (initialPrinting ? Number(initialPrinting.printingId) : null);
 
   // Load existing quantities if user already has copies of this printing
   const quantitiesQuery = usePrintingQuantitiesQuery(activePrintingId);
@@ -111,11 +112,15 @@ export default function AddCardModal({
   if (!initialPrinting) return null;
 
   const cardName = activePrinting?.cardName || initialPrinting.cardName;
-  const setCode = activePrinting && "setCode" in activePrinting ? activePrinting.setCode : initialPrinting.setCode;
+  const setCode =
+    activePrinting && "setCode" in activePrinting
+      ? activePrinting.setCode
+      : initialPrinting.setCode;
   const setName = activePrinting?.setName || initialPrinting.setName;
   const number = activePrinting?.number || initialPrinting.number;
   const rarity = activePrinting?.rarity || initialPrinting.rarity;
-  const style = activePrinting && "style" in activePrinting ? activePrinting.style : initialPrinting.style;
+  const style =
+    activePrinting && "style" in activePrinting ? activePrinting.style : initialPrinting.style;
   const imageUrl = activePrinting?.imageUrl || initialPrinting.imageUrl;
 
   return (
@@ -243,7 +248,9 @@ export default function AddCardModal({
               </div>
             </div>
             {quantitiesQuery.isError && (
-              <p className="text-xs text-red-400">Failed to load this printing's saved quantities.</p>
+              <p className="text-xs text-red-400">
+                Failed to load this printing's saved quantities.
+              </p>
             )}
 
             {/* Modal Actions */}

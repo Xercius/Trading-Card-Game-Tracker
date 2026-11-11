@@ -176,7 +176,7 @@ describe("CardFiltersDrawer", () => {
     const first = screen.getByRole("button", { name: "Close filters" });
     await waitFor(() => expect(first).toHaveFocus());
 
-    screen.getByRole("button", { name: "Close", exact: true }).focus();
+    screen.getByRole("button", { name: "Close" }).focus();
     fireEvent.keyDown(document, { key: "Tab" });
     expect(first).toHaveFocus();
 
@@ -314,7 +314,6 @@ describe("CardFiltersDrawer", () => {
     // SWU specific facets should not be rendered
     expect(screen.queryByRole("button", { name: /^Aspect/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Arena/i })).not.toBeInTheDocument();
-
 
     expect(screen.queryByRole("button", { name: /^Keywords/i })).not.toBeInTheDocument();
   });

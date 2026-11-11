@@ -59,7 +59,17 @@ public class DecksController : ControllerBase
 
         var cards = await _db.DeckCards
             .Where(dc => dc.DeckId == deckId)
-            .Include(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card).ThenInclude(card => card.Game)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(card => card.Game)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(card => card.CardTypes)
+                        .ThenInclude(ct => ct.CardType)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(card => card.CardAspects)
+                        .ThenInclude(ca => ca.Aspect)
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -119,6 +129,119 @@ public class DecksController : ControllerBase
     // Core: Decks (single source of truth)
     // -----------------------------
 
+    private async Task<List<DeckResponse>> EnrichDecksWithCountsAndFeaturedCardsAsync(List<DeckResponse> decks, CancellationToken ct)
+    {
+        if (decks.Count == 0) return decks;
+
+        var deckIds = decks.Select(d => d.Id).ToList();
+
+        var deckCards = await _db.DeckCards
+            .Where(dc => deckIds.Contains(dc.DeckId) && dc.QuantityInDeck > 0)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(c => c.CardTypes)
+                        .ThenInclude(ct => ct.CardType)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(c => c.CardAspects)
+                        .ThenInclude(ca => ca.Aspect)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var cardsByDeck = deckCards.GroupBy(dc => dc.DeckId).ToDictionary(g => g.Key, g => g.ToList());
+
+        return decks.Select(d =>
+        {
+            cardsByDeck.TryGetValue(d.Id, out var cards);
+            cards ??= new List<DeckCard>();
+
+            var featured = cards
+                .Where(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct =>
+                    (d.Game == "Star Wars Unlimited" && ct.CardType.Name == "Leader") ||
+                    (d.Game == "Star Wars CCG" && ct.CardType.Name == "Objective")) == true)
+                .GroupBy(dc => dc.CardPrintingId)
+                .Select(g => g.First())
+                .Select(dc => new DeckFeaturedCardDto(
+                    dc.CardPrintingId,
+                    dc.CardPrinting!.Card.Name,
+                    dc.CardPrinting.ImageUrl,
+                    dc.CardPrinting.Card.CardTypes
+                        .Where(ct => ct.CardType.Name == "Leader" || ct.CardType.Name == "Objective")
+                        .Select(ct => ct.CardType.Name)
+                        .FirstOrDefault() ?? "",
+                    dc.CardPrinting.ArtFrontHorizontal == true))
+                .ToList();
+
+            DeckFeaturedCardDto? baseCard = null;
+            if (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseDc = cards.FirstOrDefault(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct => ct.CardType.Name == "Base") == true);
+                if (baseDc?.CardPrinting != null)
+                {
+                    baseCard = new DeckFeaturedCardDto(
+                        baseDc.CardPrintingId,
+                        baseDc.CardPrinting.Card.Name,
+                        baseDc.CardPrinting.ImageUrl,
+                        "Base",
+                        baseDc.CardPrinting.ArtFrontHorizontal == true);
+                }
+            }
+
+            IReadOnlyList<string>? deckAspects = null;
+            if (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase))
+            {
+                var leaderAndBaseCards = cards
+                    .Where(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct => ct.CardType.Name == "Leader" || ct.CardType.Name == "Base") == true)
+                    .Select(dc => dc.CardPrinting!.Card)
+                    .Distinct()
+                    .ToList();
+
+                var aspectsList = new List<string>();
+                foreach (var card in leaderAndBaseCards)
+                {
+                    foreach (var ca in card.CardAspects)
+                    {
+                        for (int i = 0; i < ca.Count; i++)
+                        {
+                            aspectsList.Add(ca.Aspect.Name);
+                        }
+                    }
+                }
+                deckAspects = aspectsList;
+            }
+
+            int cardCount;
+            int defensiveShieldCount = 0;
+            if (string.Equals(d.Game, "Star Wars CCG", StringComparison.OrdinalIgnoreCase))
+            {
+                defensiveShieldCount = cards
+                    .Where(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct => ct.CardType.Name == "Defensive Shield") == true)
+                    .Sum(dc => dc.QuantityInDeck);
+
+                cardCount = cards
+                    .Where(dc => !dc.CardPrinting?.Card?.CardTypes.Any(ct => ct.CardType.Name == "Defensive Shield") == true)
+                    .Sum(dc => dc.QuantityInDeck);
+            }
+            else
+            {
+                cardCount = cards.Sum(dc => dc.QuantityInDeck);
+            }
+
+            var format = d.Format ?? (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) ? "Premier" : "Standard");
+
+            return d with
+            {
+                CardCount = cardCount,
+                DefensiveShieldCount = defensiveShieldCount,
+                FeaturedCards = featured,
+                BaseCard = baseCard,
+                Aspects = deckAspects,
+                Format = format,
+                Side = d.Side
+            };
+        }).ToList();
+    }
+
     private async Task<(Paged<DeckDto>? Page, ActionResult? Error)> ListUserDecksCore(
         string? game,
         string? name,
@@ -159,6 +282,8 @@ public class DecksController : ControllerBase
             .Take(pageSize)
             .ProjectTo<DeckDto>(_mapper.ConfigurationProvider)
             .ToListAsync(ct);
+
+        items = await EnrichDecksWithCountsAndFeaturedCardsAsync(items, ct);
 
         var paged = new Paged<DeckDto>(items, total, page, pageSize);
         return (paged, null);
@@ -208,12 +333,15 @@ public class DecksController : ControllerBase
         deck.UserId = UserId;
         deck.Game = game;
         deck.Name = name;
+        deck.Format = dto.Format?.Trim() ?? (string.Equals(game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) ? "Premier" : "Standard");
+        deck.Side = dto.Side?.Trim();
 
         _db.Decks.Add(deck);
         await _db.SaveChangesAsync();
 
         var response = _mapper.Map<DeckResponse>(deck);
-        return CreatedAtAction(nameof(GetDeck), new { deckId = deck.Id }, response);
+        var enriched = await EnrichDecksWithCountsAndFeaturedCardsAsync(new List<DeckResponse> { response }, HttpContext.RequestAborted);
+        return CreatedAtAction(nameof(GetDeck), new { deckId = deck.Id }, enriched[0]);
     }
 
     private async Task<IActionResult> GetDeckCore(int deckId)
@@ -225,7 +353,9 @@ public class DecksController : ControllerBase
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
-        return Ok(_mapper.Map<DeckResponse>(d));
+        var mapped = _mapper.Map<DeckResponse>(d);
+        var enriched = await EnrichDecksWithCountsAndFeaturedCardsAsync(new List<DeckResponse> { mapped }, HttpContext.RequestAborted);
+        return Ok(enriched[0]);
     }
 
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
@@ -369,6 +499,48 @@ public class DecksController : ControllerBase
             {
                 deck.Game = requestedGame;
                 changed = true;
+            }
+        }
+
+        if (TryGetProperty(patch, "format", "Format", out var formatProp))
+        {
+            if (formatProp.ValueKind == JsonValueKind.Null)
+            {
+                if (deck.Format != null)
+                {
+                    deck.Format = null;
+                    changed = true;
+                }
+            }
+            else if (formatProp.ValueKind == JsonValueKind.String)
+            {
+                var requestedFormat = formatProp.GetString()?.Trim();
+                if (!string.Equals(deck.Format, requestedFormat, StringComparison.Ordinal))
+                {
+                    deck.Format = requestedFormat;
+                    changed = true;
+                }
+            }
+        }
+
+        if (TryGetProperty(patch, "side", "Side", out var sideProp))
+        {
+            if (sideProp.ValueKind == JsonValueKind.Null)
+            {
+                if (deck.Side != null)
+                {
+                    deck.Side = null;
+                    changed = true;
+                }
+            }
+            else if (sideProp.ValueKind == JsonValueKind.String)
+            {
+                var requestedSide = sideProp.GetString()?.Trim();
+                if (!string.Equals(deck.Side, requestedSide, StringComparison.Ordinal))
+                {
+                    deck.Side = requestedSide;
+                    changed = true;
+                }
             }
         }
 
@@ -582,25 +754,6 @@ public class DecksController : ControllerBase
         if (targetQtyLong > int.MaxValue) targetQtyLong = int.MaxValue;
         var targetQty = (int)targetQtyLong;
 
-        if (qtyDelta > 0)
-        {
-            var userCard = await _db.UserCards
-                .FirstOrDefaultAsync(uc => uc.UserId == deckEntity.UserId && uc.CardPrintingId == cardPrintingId, ct);
-            var owned = userCard?.QuantityOwned ?? 0;
-            var proxyOwned = userCard?.QuantityProxyOwned ?? 0;
-            var maxAllowedLong = includeProxies ? (long)owned + proxyOwned : owned;
-            if (maxAllowedLong < 0) maxAllowedLong = 0;
-            if (maxAllowedLong > int.MaxValue) maxAllowedLong = int.MaxValue;
-            var maxAllowed = (int)maxAllowedLong;
-
-            if (targetQty > maxAllowed)
-            {
-                return this.CreateValidationProblem(
-                    "cardPrintingId",
-                    "Insufficient availability for this card.");
-            }
-        }
-
         var delta = new DeckCardDeltaRequest(cardPrintingId, qtyDelta, 0, 0, 0);
         var result = await ApplyDeckCardDeltaCore(deckId, new[] { delta });
         if (result is not NoContentResult) return result;
@@ -648,22 +801,6 @@ public class DecksController : ControllerBase
                 return this.CreateValidationProblem(
                     "cardPrintingId",
                     "Card game does not match deck game.");
-            }
-
-            var userCard = await _db.UserCards
-                .FirstOrDefaultAsync(uc => uc.UserId == deckEntity.UserId && uc.CardPrintingId == request.PrintingId, ct);
-            var owned = userCard?.QuantityOwned ?? 0;
-            var proxyOwned = userCard?.QuantityProxyOwned ?? 0;
-            var maxAllowedLong = includeProxies ? (long)owned + proxyOwned : owned;
-            if (maxAllowedLong < 0) maxAllowedLong = 0;
-            if (maxAllowedLong > int.MaxValue) maxAllowedLong = int.MaxValue;
-            var maxAllowed = (int)maxAllowedLong;
-
-            if (normalizedQty > maxAllowed)
-            {
-                return this.CreateValidationProblem(
-                    "cardPrintingId",
-                    "Insufficient availability for this card.");
             }
         }
 
@@ -755,6 +892,13 @@ public class DecksController : ControllerBase
         if (TryI32(updates, "quantityIdea", "QuantityIdea", out var v2)) dc.QuantityIdea = NN(v2);
         if (TryI32(updates, "quantityAcquire", "QuantityAcquire", out var v3)) dc.QuantityAcquire = NN(v3);
         if (TryI32(updates, "quantityProxy", "QuantityProxy", out var v4)) dc.QuantityProxy = NN(v4);
+        if (updates.TryGetProperty("isStarting", out var pStart) || updates.TryGetProperty("IsStarting", out pStart))
+        {
+            if (pStart.ValueKind == JsonValueKind.True || pStart.ValueKind == JsonValueKind.False)
+            {
+                dc.IsStarting = pStart.GetBoolean();
+            }
+        }
 
         if (dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
             _db.DeckCards.Remove(dc);
@@ -790,7 +934,13 @@ public class DecksController : ControllerBase
         var deckCard = await _db.DeckCards
             .Where(dc => dc.DeckId == deck.Id && dc.CardPrintingId == cardPrintingId)
             .Include(dc => dc.CardPrinting!)
-            .ThenInclude(cp => cp.Card)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(c => c.CardTypes)
+                        .ThenInclude(ct => ct.CardType)
+            .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.Card)
+                    .ThenInclude(c => c.CardAspects)
+                        .ThenInclude(ca => ca.Aspect)
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -813,13 +963,25 @@ public class DecksController : ControllerBase
             availabilityWithProxy = availability;
         }
 
+        var cardType = card.CardTypes?.FirstOrDefault()?.CardType?.Name;
+        var isHorizontal = printing.ArtFrontHorizontal == true;
+        var aspects = card.CardAspects?
+            .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
+            .ToList();
+
         return new DeckCardWithAvailabilityResponse(
             deckCard.CardPrintingId,
             card.Name,
             printing.ImageUrl,
             assigned,
             availability,
-            availabilityWithProxy);
+            availabilityWithProxy,
+            cardType,
+            isHorizontal,
+            deckCard.IsStarting,
+            card.Id,
+            card.Cost,
+            aspects);
     }
 
     private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
@@ -854,13 +1016,25 @@ public class DecksController : ControllerBase
                 availableWithProxy = available;
             }
 
+            var cardType = card.CardTypes?.FirstOrDefault()?.CardType?.Name;
+            var isHorizontal = printing.ArtFrontHorizontal == true;
+            var aspects = card.CardAspects?
+                .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
+                .ToList();
+
             result.Add(new DeckCardWithAvailabilityResponse(
                 dc.CardPrintingId,
                 card.Name,
                 printing.ImageUrl,
                 assigned,
                 available,
-                availableWithProxy
+                availableWithProxy,
+                cardType,
+                isHorizontal,
+                dc.IsStarting,
+                card.Id,
+                card.Cost,
+                aspects
             ));
         }
 
@@ -936,6 +1110,7 @@ public class DecksController : ControllerBase
 
     // POST /api/deck  (create for current user)
     [HttpPost("/api/deck")]
+    [HttpPost("/api/decks")] // alias
     [Consumes("application/json")]
     public async Task<IActionResult> CreateMyDeck([FromBody] CreateDeckRequest dto)
     {

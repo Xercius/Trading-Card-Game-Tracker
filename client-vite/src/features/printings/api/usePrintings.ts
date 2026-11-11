@@ -4,9 +4,9 @@ import { cardsQueryKeys } from "@/features/cards/queryKeys";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 
 /**
- * Queries paginated card printings matching the active card filters.
+ * Queries paginated card printings, applying any deck aspect budget before pagination.
  */
-export function usePrintings(filters: CardFilters) {
+export function usePrintings(filters: CardFilters, availableAspects?: string[]) {
   const pageSize = Math.min(filters.pageSize, 500);
   const query: Omit<PrintingQuery, "page"> = {
     q: filters.q || undefined,
@@ -40,6 +40,7 @@ export function usePrintings(filters: CardFilters) {
     ...(filters.sort ? { sort: filters.sort } : {}),
     pageSize,
     uniqueCards: true,
+    ...(availableAspects !== undefined ? { availableAspects } : {}),
   };
 
   return useQuery<PrintingsResult, Error>({

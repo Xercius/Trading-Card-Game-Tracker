@@ -530,7 +530,9 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 203 });
 
-    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Catacombs of Cadera");
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent(
+      "Catacombs of Cadera"
+    );
     expect(screen.queryByLabelText("Card stats")).toBeNull();
   });
   it("renders SWCCG card with side badge, SWCCG stats block, lore, and extra data", async () => {
@@ -553,7 +555,8 @@ describe("CardModal", () => {
               armor: "5",
               lore: "Lord Vader is a Dark Jedi.",
               text: "Adds 3 to power of anything he pilots.",
-              rulesStyled: "<div class=\"swccg-pulled-by\"><h3>Pulled By</h3><ul><li>Blizzard 4</li></ul></div>",
+              rulesStyled:
+                '<div class="swccg-pulled-by"><h3>Pulled By</h3><ul><li>Blizzard 4</li></ul></div>',
               printings: [],
             },
       })
@@ -561,7 +564,9 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 301 });
 
-    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("•Darth Vader, Dark Lord Of The Sith");
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent(
+      "•Darth Vader, Dark Lord Of The Sith"
+    );
     expect(screen.getByText("Dark Side")).toBeInTheDocument();
     expect(screen.getByText("Character • Imperial")).toBeInTheDocument();
 
@@ -604,7 +609,9 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 302 });
 
-    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Hunt Down And Destroy The Jedi");
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent(
+      "Hunt Down And Destroy The Jedi"
+    );
     expect(screen.getByText("Back: Their Fire Has Gone Out Of The Universe")).toBeInTheDocument();
     expect(screen.getByText("While this side up, opponent loses 2 Force.")).toBeInTheDocument();
   });
@@ -659,7 +666,9 @@ describe("CardModal", () => {
 
     await renderModal({ cardId: 304 });
 
-    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent("Tatooine: Cantina");
+    expect(await screen.findByTestId("card-modal-card-name")).toHaveTextContent(
+      "Tatooine: Cantina"
+    );
     expect(screen.getByLabelText("Dark Side Icons: 1")).toBeInTheDocument();
     expect(screen.getByLabelText("Light Side Icons: 2")).toBeInTheDocument();
     expect(screen.getByText("Dark Icons")).toBeInTheDocument();

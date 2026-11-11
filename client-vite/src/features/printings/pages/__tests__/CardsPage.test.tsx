@@ -7,6 +7,7 @@ import CardsPage from "../CardsPage";
 import { GameProvider } from "@/state/GameProvider";
 import * as printingsApi from "../../api/usePrintings";
 import * as printingFacetsApi from "../../api/usePrintingFacets";
+import type { PrintingsResult } from "../../api/printings";
 
 vi.mock("../../api/usePrintingFacets", () => ({
   usePrintingFacets: () => ({
@@ -18,7 +19,10 @@ vi.mock("../../api/usePrintingFacets", () => ({
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
 
 // Helper function to wrap components with required providers
-function createTestWrapper(initialEntries: string[] = ["/"], defaultGame: string = "Star Wars Unlimited") {
+function createTestWrapper(
+  initialEntries: string[] = ["/"],
+  defaultGame: string = "Star Wars Unlimited"
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Infinity },
@@ -47,7 +51,6 @@ describe("CardsPage filter wiring", () => {
   afterEach(() => {
     cleanup();
   });
-
 
   it("does not default side filter for Star Wars CCG when neither is selected", async () => {
     const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
@@ -141,8 +144,8 @@ describe("CardsPage filter wiring", () => {
         aspects: [],
         arenas: [],
         keywords: [],
-        aspectMethod: undefined,
-        keywordMethod: undefined,
+        aspectMethod: "or",
+        keywordMethod: "or",
       });
     }
   });
@@ -259,8 +262,9 @@ describe("CardsPage filter wiring", () => {
 
   it("clearly styles and updates the selected view mode button", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
+    const data: PrintingsResult = { items: [], total: 0 };
     mockUsePrintings.mockReturnValue({
-      data: [],
+      data,
       isLoading: false,
       isError: false,
       error: null,

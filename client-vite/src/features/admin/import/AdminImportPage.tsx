@@ -164,8 +164,8 @@ export default function AdminImportPage() {
   };
 
   const disableDryRun =
-    !sourceKey || (mode === MODE_REMOTE ? false : !file) || dryRun.isFetching || apply.isLoading;
-  const disableApply = !preview || apply.isLoading || dryRun.isFetching;
+    !sourceKey || (mode === MODE_REMOTE ? false : !file) || dryRun.isFetching || apply.isPending;
+  const disableApply = !preview || apply.isPending || dryRun.isFetching;
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (isError) return <div className="p-4 text-red-500">Failed to load import options.</div>;
@@ -301,7 +301,7 @@ export default function AdminImportPage() {
           {dryRun.isFetching ? "Running preview…" : "Dry-run"}
         </Button>
         <Button type="button" onClick={onApply} disabled={disableApply} variant="secondary">
-          {apply.isLoading ? "Applying…" : "Apply"}
+          {apply.isPending ? "Applying…" : "Apply"}
         </Button>
       </div>
 

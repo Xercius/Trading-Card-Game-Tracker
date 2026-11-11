@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,7 +20,7 @@ type SelectContextValue = {
   onSelect: (value: string, label: ReactNode) => void;
   selectedLabel: ReactNode | null;
   setSelectedLabel: (label: ReactNode | null) => void;
-  triggerRef: React.RefObject<HTMLButtonElement>;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
   triggerId: string;
   listboxId: string;
 };
@@ -184,12 +185,14 @@ type SelectContentProps = React.HTMLAttributes<HTMLDivElement>;
 export function SelectContent({ className = "", children, ...props }: SelectContentProps) {
   const { open, setOpen, triggerRef, triggerId, listboxId } = useSelectContext();
   const contentRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(
-    null
-  );
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
 
-  // Calculate position relative to trigger
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
 
     const updatePosition = () => {
@@ -197,22 +200,57 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
       if (!trigger) return;
 
       const rect = trigger.getBoundingClientRect();
-      setPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
+      const content = contentRef.current;
+      if (!content) return;
+
+      const margin = 8;
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const below = Math.max(0, viewportTop + viewportHeight - rect.bottom - margin * 2);
+      const above = Math.max(0, rect.top - viewportTop - margin * 2);
+      const preferredHeight = Math.min(content.scrollHeight, 240);
+      const openAbove = below < preferredHeight && above > below;
+      const maxHeight = Math.min(240, openAbove ? above : below);
+      const height = Math.min(preferredHeight, maxHeight);
+      const width = Math.min(Math.max(rect.width, content.scrollWidth), viewportWidth - margin * 2);
+      const next = {
+        top: openAbove
+          ? Math.max(viewportTop + margin, rect.top - margin - height)
+          : rect.bottom + margin,
+        left: Math.max(
+          viewportLeft + margin,
+          Math.min(rect.left, viewportLeft + viewportWidth - width - margin)
+        ),
+        width,
+        maxHeight,
+      };
+      setPosition((previous) =>
+        previous &&
+        previous.top === next.top &&
+        previous.left === next.left &&
+        previous.width === next.width &&
+        previous.maxHeight === next.maxHeight
+          ? previous
+          : next
+      );
     };
 
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
     };
-  }, [open, triggerRef]);
+  }, [open, triggerRef, children]);
 
   // Handle keyboard navigation
   const hasBoundNavigation = useRef(false);
@@ -290,10 +328,10 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open, setOpen, triggerRef]);
 
-  if (!open || !position) return null;
+  if (!open) return null;
 
   const classes = [
-    "absolute max-h-60 overflow-auto rounded-md border border-white/20",
+    "fixed max-h-60 overflow-auto overscroll-contain rounded-md border border-white/20",
     "bg-[#242424] p-1",
     "text-foreground shadow-xl ring-1 ring-black/5",
     "z-50",
@@ -310,10 +348,13 @@ export function SelectContent({ className = "", children, ...props }: SelectCont
       aria-labelledby={triggerId}
       className={classes}
       style={{
-        position: "absolute",
-        top: `${position.top + 8}px`,
-        left: `${position.left}px`,
-        minWidth: `${position.width}px`,
+        position: "fixed",
+        visibility: position ? undefined : "hidden",
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        minWidth: position?.width,
+        maxWidth: "calc(100vw - 16px)",
+        maxHeight: position?.maxHeight,
         width: "max-content",
       }}
       {...props}

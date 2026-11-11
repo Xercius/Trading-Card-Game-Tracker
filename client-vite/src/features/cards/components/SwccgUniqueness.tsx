@@ -13,20 +13,32 @@ export type ParsedUniqueness = {
 /**
  * Parses a SWCCG uniqueness string (e.g. "*", "**", "<><><>") into its symbol type and count.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function parseSwccgUniqueness(uniqueness?: string | null): ParsedUniqueness | null {
   if (!uniqueness) return null;
   const trimmed = uniqueness.trim();
   if (!trimmed) return null;
 
   // Diamonds: "<>", "<><>", "<><><>", or Unicode diamonds
-  if (trimmed.includes("<>") || trimmed.includes("◇") || trimmed.includes("◆") || trimmed.includes("◊")) {
+  if (
+    trimmed.includes("<>") ||
+    trimmed.includes("◇") ||
+    trimmed.includes("◆") ||
+    trimmed.includes("◊")
+  ) {
     const matches = trimmed.match(/<>|[◇◆◊]/g);
     const count = matches ? matches.length : 0;
     if (count > 0) return { type: "diamond", count };
   }
 
   // Dots: "*", "**", "***", "•", "·", "●"
-  if (trimmed.includes("*") || trimmed.includes("•") || trimmed.includes("·") || trimmed.includes("∙") || trimmed.includes("●")) {
+  if (
+    trimmed.includes("*") ||
+    trimmed.includes("•") ||
+    trimmed.includes("·") ||
+    trimmed.includes("∙") ||
+    trimmed.includes("●")
+  ) {
     const matches = trimmed.match(/[*•·∙●]/g);
     const count = matches ? matches.length : 0;
     if (count > 0) return { type: "dot", count };
@@ -56,11 +68,7 @@ export function SwccgUniqueness({ uniqueness, side }: SwccgUniquenessProps): Rea
 
   const isDark = side?.toLowerCase().includes("dark");
   const isLight = side?.toLowerCase().includes("light");
-  const diamondColor = isDark
-    ? "text-red-500"
-    : isLight
-      ? "text-blue-400"
-      : "text-amber-400";
+  const diamondColor = isDark ? "text-red-500" : isLight ? "text-blue-400" : "text-amber-400";
 
   return (
     <span

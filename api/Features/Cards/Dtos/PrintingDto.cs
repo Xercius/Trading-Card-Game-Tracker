@@ -42,6 +42,9 @@ public sealed record PrintingDto(
     string Game)
 {
     public string? Style { get; init; }
+    public int? Cost { get; init; }
+    public string? Subtitle { get; init; }
+    public string? Destiny { get; init; }
     public DateOnly? ReleaseDate { get; init; }
     public string? BackImageUrl { get; init; }
     public string? ImageOrientation { get; init; }

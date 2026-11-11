@@ -90,6 +90,11 @@ The local web app opens directly as the seeded owner (`owner`, `DbSeeder.Default
 - `GET /api/collection/value/history?days=90` – produces daily totals for the owner's collection with proxies excluded.
 
 ### Decks
+Decks for all games can include cards you do not own or quantities above your collection counts. Adding a card to a deck does not add it to your collection. Availability is shown separately as the remaining owned copies after deck quantities, clamped at zero; "Include proxies" only changes this availability readout, not which cards can be added. Cards must still match the deck's game.
+
+SWU deck building enables "In-aspect only" after the required leader(s) and base are selected. This filter checks every required aspect symbol before pagination, so page counts and result totals reflect the matching cards. The printings API accepts an optional `availableAspects` CSV budget (repeat names for multiple symbols) independently of the ordinary aspect filters.
+Printing-list responses include `cost`, `subtitle`, and `destiny` from the associated shared `Card`; these remain card-level data, not separate printing-level storage.
+
 - `GET /api/decks` – list the owner's decks.
 - `POST /api/deck` – create a new deck.
 - `GET /api/deck/{deckId}` – retrieve a specific deck.

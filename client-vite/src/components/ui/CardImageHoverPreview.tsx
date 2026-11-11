@@ -13,6 +13,7 @@ export type CardImageHoverPreviewProps = {
 
 /**
  * Renders a tiny thumbnail image of a card that shows a larger preview popover on hover.
+ * Keeps the complete artwork visible even with custom thumbnail dimensions.
  * Automatically respects vertical vs. horizontal card orientation and keeps the popover
  * fully within the viewport bounds.
  */
@@ -98,7 +99,7 @@ export const CardImageHoverPreview: React.FC<CardImageHoverPreviewProps> = ({
     <>
       <div
         ref={triggerRef}
-        className={`relative inline-flex items-center justify-center ${className}`}
+        className={`relative inline-flex shrink-0 items-center justify-center ${className}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -107,7 +108,7 @@ export const CardImageHoverPreview: React.FC<CardImageHoverPreviewProps> = ({
           alt={cardName}
           onError={() => setImgError(true)}
           onLoad={handleImageLoad}
-          className="rounded border border-zinc-700/80 object-cover shadow-sm transition-transform hover:scale-105 cursor-pointer"
+          className="rounded border border-zinc-700/80 object-contain shadow-sm transition-transform hover:scale-105 cursor-pointer"
           style={{ width: computedThumbWidth, height: computedThumbHeight }}
           loading="lazy"
         />

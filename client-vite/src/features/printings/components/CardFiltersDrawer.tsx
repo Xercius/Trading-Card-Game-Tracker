@@ -287,7 +287,9 @@ export function CardFiltersDrawer({
                 values={filters.subTypes ?? []}
                 options={availableFacets.subTypes ?? []}
                 placeholder="Search sub-types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))}
+                onChange={(values) =>
+                  setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))
+                }
               />
 
               {/* Persona */}
@@ -297,7 +299,9 @@ export function CardFiltersDrawer({
                 values={filters.personas ?? []}
                 options={availableFacets.personas ?? []}
                 placeholder="Search personas…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, personas: values, page: 1 }))}
+                onChange={(values) =>
+                  setFilters((prev) => ({ ...prev, personas: values, page: 1 }))
+                }
               />
 
               {/* Set */}
@@ -378,7 +382,10 @@ export function CardFiltersDrawer({
               {/* Power & Ability */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center gap-2">
-                  <label htmlFor="filter-power" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                  <label
+                    htmlFor="filter-power"
+                    className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
+                  >
                     Power
                   </label>
                   <Input
@@ -393,7 +400,10 @@ export function CardFiltersDrawer({
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="filter-ability" className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
+                  <label
+                    htmlFor="filter-ability"
+                    className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
+                  >
                     Ability
                   </label>
                   <Input

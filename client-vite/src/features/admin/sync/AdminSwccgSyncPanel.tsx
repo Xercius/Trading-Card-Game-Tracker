@@ -42,9 +42,7 @@ export default function AdminSwccgSyncPanel() {
       const result = await runSync.mutateAsync(options);
       const succeeded = result.status === "Succeeded" && result.invalid === 0;
       const detailMsg =
-        result.messages && result.messages.length > 0
-          ? `: ${result.messages.join(" ")}`
-          : "";
+        result.messages && result.messages.length > 0 ? `: ${result.messages.join(" ")}` : "";
       setFeedback({
         tone: succeeded ? "success" : "error",
         message: succeeded
@@ -54,8 +52,7 @@ export default function AdminSwccgSyncPanel() {
     } catch {
       setFeedback({
         tone: "error",
-        message:
-          "Failed to run SWCCG sync. Sign in again if your administrator session expired.",
+        message: "Failed to run SWCCG sync. Sign in again if your administrator session expired.",
       });
     }
   };
@@ -151,7 +148,8 @@ export default function AdminSwccgSyncPanel() {
         <div>
           <h2 className="text-lg font-semibold">Star Wars CCG sync</h2>
           <p className="text-sm text-muted-foreground">
-            Sync original and virtual SWCCG cards from the swccg-card-json catalog and Holotable card images.
+            Sync original and virtual SWCCG cards from the swccg-card-json catalog and Holotable
+            card images.
           </p>
         </div>
         <Badge variant={isRunning ? "default" : "secondary"}>{syncStatus}</Badge>

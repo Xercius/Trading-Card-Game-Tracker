@@ -133,6 +133,23 @@ public sealed class PrintingsController : ControllerBase
         var aspects = CsvUtils.ParsePreservingDuplicates(qp.Aspect);
         query = query.ApplyAspectFilter(aspects, qp.AspectMethod);
 
+        if (qp.AvailableAspects is not null)
+        {
+            var availableAspects = CsvUtils.ParsePreservingDuplicates(qp.AvailableAspects)
+                .GroupBy(SqliteCaseNormalizer.Normalize)
+                .Select(group => new { Name = group.Key, Count = group.Count() })
+                .ToList();
+            var names = availableAspects.Select(aspect => aspect.Name).ToList();
+            query = query.Where(p => !p.Card.CardAspects.Any(ca =>
+                !names.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+            foreach (var available in availableAspects)
+            {
+                query = query.Where(p => !p.Card.CardAspects.Any(ca =>
+                    EF.Functions.Collate(ca.Aspect.Name, "NOCASE") == available.Name
+                    && ca.Count > available.Count));
+            }
+        }
+
         var traits = CsvUtils.Parse(qp.Trait);
         query = query.ApplyTraitFilter(traits, qp.TraitMethod);
 
@@ -337,6 +354,9 @@ public sealed class PrintingsController : ControllerBase
             printing.Card.Game?.Name ?? string.Empty)
         {
             Style = printing.Treatment?.Name ?? "Standard",
+            Cost = printing.Card.Cost,
+            Subtitle = printing.Card.Subtitle,
+            Destiny = printing.Card.Destiny,
             ReleaseDate = printing.CatalogSet?.ReleasedAt
                 ?? (printing.ApiPublishedAt is { } publishedAt
                     ? DateOnly.FromDateTime(publishedAt.UtcDateTime)

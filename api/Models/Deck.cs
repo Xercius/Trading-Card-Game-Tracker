@@ -9,6 +9,8 @@ namespace api.Models
         [Required, MaxLength(120)] public string Name { get; set; } = "";
         public required string Game { get; set; }
         public string? Description { get; set; }
+        [MaxLength(40)] public string? Format { get; set; }
+        [MaxLength(20)] public string? Side { get; set; }
 
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedUtc { get; set; }

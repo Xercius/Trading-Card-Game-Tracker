@@ -50,20 +50,17 @@ function getSetLogoUrl(setCode?: string | null, setName?: string | null): string
     }
   }
   if (setName) {
-    const slug = setName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const slug = setName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
     const filename = `logo_${slug}.png`;
     return resolveImageUrl(`/images/swu/sets/${filename}`);
   }
   return null;
 }
 
-function SetLogo({
-  setCode,
-  setName,
-}: {
-  setCode?: string | null;
-  setName?: string | null;
-}) {
+function SetLogo({ setCode, setName }: { setCode?: string | null; setName?: string | null }) {
   const [failed, setFailed] = useState(false);
   const logoUrl = getSetLogoUrl(setCode, setName);
 
@@ -601,8 +598,8 @@ export default function CardModal({
                   <p className="text-sm text-destructive">Failed to load card details.</p>
                 )}
 
-                {details && (
-                  isSwccg ? (
+                {details &&
+                  (isSwccg ? (
                     <div className="space-y-4 text-sm" aria-live="polite">
                       {/* 1. Header: Name, Side Badge, Type */}
                       <div>
@@ -622,7 +619,9 @@ export default function CardModal({
                                   : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                               }`}
                             >
-                              {details.side.toLowerCase().includes("dark") ? "Dark Side" : "Light Side"}
+                              {details.side.toLowerCase().includes("dark")
+                                ? "Dark Side"
+                                : "Light Side"}
                             </span>
                           )}
                         </div>
@@ -637,77 +636,128 @@ export default function CardModal({
                         </p>
 
                         {/* 2. SWCCG Stats Badges */}
-                        <div className="flex flex-wrap items-center gap-2 mt-2" aria-label="SWCCG card stats">
+                        <div
+                          className="flex flex-wrap items-center gap-2 mt-2"
+                          aria-label="SWCCG card stats"
+                        >
                           {details.destiny != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Destiny</span>
-                              <span className="text-base font-black text-amber-400">{details.destiny}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Destiny
+                              </span>
+                              <span className="text-base font-black text-amber-400">
+                                {details.destiny}
+                              </span>
                             </div>
                           )}
                           {(details.deploy != null || details.cost != null) && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Deploy</span>
-                              <span className="text-base font-black text-foreground">{details.deploy ?? details.cost}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Deploy
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.deploy ?? details.cost}
+                              </span>
                             </div>
                           )}
                           {details.forfeit != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Forfeit</span>
-                              <span className="text-base font-black text-foreground">{details.forfeit}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Forfeit
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.forfeit}
+                              </span>
                             </div>
                           )}
                           {details.power != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Power</span>
-                              <span className="text-base font-black text-red-400">{details.power}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Power
+                              </span>
+                              <span className="text-base font-black text-red-400">
+                                {details.power}
+                              </span>
                             </div>
                           )}
                           {details.ability != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Ability</span>
-                              <span className="text-base font-black text-sky-400">{details.ability}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Ability
+                              </span>
+                              <span className="text-base font-black text-sky-400">
+                                {details.ability}
+                              </span>
                             </div>
                           )}
                           {details.armor != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Armor</span>
-                              <span className="text-base font-black text-foreground">{details.armor}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Armor
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.armor}
+                              </span>
                             </div>
                           )}
                           {details.maneuver != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Maneuver</span>
-                              <span className="text-base font-black text-foreground">{details.maneuver}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Maneuver
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.maneuver}
+                              </span>
                             </div>
                           )}
                           {details.hyperspeed != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Hyperspeed</span>
-                              <span className="text-base font-black text-foreground">{details.hyperspeed}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Hyperspeed
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.hyperspeed}
+                              </span>
                             </div>
                           )}
                           {details.landspeed != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Landspeed</span>
-                              <span className="text-base font-black text-foreground">{details.landspeed}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Landspeed
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.landspeed}
+                              </span>
                             </div>
                           )}
                           {details.parsec != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Parsec</span>
-                              <span className="text-base font-black text-foreground">{details.parsec}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Parsec
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.parsec}
+                              </span>
                             </div>
                           )}
                           {details.ferocity != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Ferocity</span>
-                              <span className="text-base font-black text-foreground">{details.ferocity}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Ferocity
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.ferocity}
+                              </span>
                             </div>
                           )}
                           {details.politics != null && (
                             <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground">Politics</span>
-                              <span className="text-base font-black text-foreground">{details.politics}</span>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Politics
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                {details.politics}
+                              </span>
                             </div>
                           )}
                           {details.darkSideIcons != null && (
@@ -747,13 +797,17 @@ export default function CardModal({
                       )}
 
                       {/* Two-sided Cards (Objectives / Dual-sided Locations) */}
-                      {(details.backTitle || details.backText || details.backDarkSideIcons != null || details.backLightSideIcons != null) && (
+                      {(details.backTitle ||
+                        details.backText ||
+                        details.backDarkSideIcons != null ||
+                        details.backLightSideIcons != null) && (
                         <div className="space-y-1.5 pt-3 border-t border-border/50">
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
                               Back: {details.backTitle || "Card Back"}
                             </h3>
-                            {(details.backDarkSideIcons != null || details.backLightSideIcons != null) && (
+                            {(details.backDarkSideIcons != null ||
+                              details.backLightSideIcons != null) && (
                               <div className="flex items-center gap-1.5">
                                 {details.backDarkSideIcons != null && (
                                   <ForceIconBadge side="dark" count={details.backDarkSideIcons} />
@@ -770,132 +824,130 @@ export default function CardModal({
                     </div>
                   ) : (
                     <div className="space-y-4 text-sm" aria-live="polite">
-                    {/* 1. Header (Name with Aspect Logos right next to it, Subtitle underneath, Stats & Traits) */}
-                    <div>
-                      <div className="flex items-center flex-wrap gap-2.5">
-                        <h2
-                          data-testid="card-modal-card-name"
-                          className="text-2xl font-bold tracking-tight text-foreground"
-                        >
-                          {displayName || details.name}
-                        </h2>
-
-                        {/* Aspect Logos right next to the card title */}
-                        {details.aspects && details.aspects.length > 0 && (
-                          <div
-                            className="flex items-center gap-1.5 shrink-0"
-                            aria-label="Card aspects"
+                      {/* 1. Header (Name with Aspect Logos right next to it, Subtitle underneath, Stats & Traits) */}
+                      <div>
+                        <div className="flex items-center flex-wrap gap-2.5">
+                          <h2
+                            data-testid="card-modal-card-name"
+                            className="text-2xl font-bold tracking-tight text-foreground"
                           >
-                            {details.aspects.flatMap(({ name, count }) => {
-                              const filename = ASPECT_IMAGE_MAP[name.toLowerCase()];
-                              const src = filename
-                                ? resolveImageUrl(`/images/swu/aspects/${filename}`)
-                                : null;
-                              return Array.from({ length: count || 1 }, (_, idx) =>
-                                src ? (
-                                  <img
-                                    key={`${name}-${idx}`}
-                                    src={src}
-                                    alt={name}
-                                    title={name}
-                                    className="h-7 w-7 object-contain drop-shadow-sm"
-                                  />
-                                ) : (
-                                  <span
-                                    key={`${name}-${idx}`}
-                                    className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold"
-                                  >
-                                    {name}
-                                  </span>
-                                )
-                              );
-                            })}
-                            <span className="sr-only">
-                              {details.aspects
-                                .map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
-                                .join(", ")}
-                            </span>
+                            {displayName || details.name}
+                          </h2>
+
+                          {/* Aspect Logos right next to the card title */}
+                          {details.aspects && details.aspects.length > 0 && (
+                            <div
+                              className="flex items-center gap-1.5 shrink-0"
+                              aria-label="Card aspects"
+                            >
+                              {details.aspects.flatMap(({ name, count }) => {
+                                const filename = ASPECT_IMAGE_MAP[name.toLowerCase()];
+                                const src = filename
+                                  ? resolveImageUrl(`/images/swu/aspects/${filename}`)
+                                  : null;
+                                return Array.from({ length: count || 1 }, (_, idx) =>
+                                  src ? (
+                                    <img
+                                      key={`${name}-${idx}`}
+                                      src={src}
+                                      alt={name}
+                                      title={name}
+                                      className="h-7 w-7 object-contain drop-shadow-sm"
+                                    />
+                                  ) : (
+                                    <span
+                                      key={`${name}-${idx}`}
+                                      className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold"
+                                    >
+                                      {name}
+                                    </span>
+                                  )
+                                );
+                              })}
+                              <span className="sr-only">
+                                {details.aspects
+                                  .map(
+                                    ({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`
+                                  )
+                                  .join(", ")}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {subtitle && (
+                          <p className="text-base font-medium text-muted-foreground mt-0.5">
+                            {subtitle}
+                          </p>
+                        )}
+
+                        {/* 2. Stat Row (Cost, Power, HP with SWU Icon Badges) */}
+                        {(details.cost != null || powerValue != null || hpValue != null) && (
+                          <div aria-label="Card stats" className="flex items-center gap-1.5 mt-2">
+                            {details.cost != null && (
+                              <StatBadge
+                                label="Cost"
+                                value={details.cost}
+                                iconPath="/images/swu/icons/cost.png"
+                                textColor="text-white font-black drop-shadow-sm"
+                              />
+                            )}
+                            {powerValue != null && (
+                              <StatBadge
+                                label="Power"
+                                value={powerValue}
+                                iconPath="/images/swu/icons/power.png"
+                                textColor="text-white font-black drop-shadow-sm"
+                              />
+                            )}
+                            {hpValue != null && (
+                              <StatBadge
+                                label="HP"
+                                value={hpValue}
+                                iconPath="/images/swu/icons/hp.png"
+                                textColor="text-white font-black drop-shadow-sm"
+                              />
+                            )}
                           </div>
+                        )}
+
+                        {/* Traits (just beneath cost/power/hp images, no "Traits" subtitle) */}
+                        {details.traits && details.traits.length > 0 && (
+                          <p className="text-sm italic text-foreground/90 mt-2">
+                            {details.traits.join(", ")}
+                          </p>
                         )}
                       </div>
 
-                      {subtitle && (
-                        <p className="text-base font-medium text-muted-foreground mt-0.5">
-                          {subtitle}
-                        </p>
-                      )}
-
-                      {/* 2. Stat Row (Cost, Power, HP with SWU Icon Badges) */}
-                      {(details.cost != null || powerValue != null || hpValue != null) && (
-                        <div
-                          aria-label="Card stats"
-                          className="flex items-center gap-1.5 mt-2"
-                        >
-                          {details.cost != null && (
-                            <StatBadge
-                              label="Cost"
-                              value={details.cost}
-                              iconPath="/images/swu/icons/cost.png"
-                              textColor="text-white font-black drop-shadow-sm"
-                            />
-                          )}
-                          {powerValue != null && (
-                            <StatBadge
-                              label="Power"
-                              value={powerValue}
-                              iconPath="/images/swu/icons/power.png"
-                              textColor="text-white font-black drop-shadow-sm"
-                            />
-                          )}
-                          {hpValue != null && (
-                            <StatBadge
-                              label="HP"
-                              value={hpValue}
-                              iconPath="/images/swu/icons/hp.png"
-                              textColor="text-white font-black drop-shadow-sm"
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      {/* Traits (just beneath cost/power/hp images, no "Traits" subtitle) */}
-                      {details.traits && details.traits.length > 0 && (
-                        <p className="text-sm italic text-foreground/90 mt-2">
-                          {details.traits.join(", ")}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Front Rules Text (subtitle replaced with front card type + arena) */}
-                    <div className="space-y-1">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {frontTypeHeader || "Card Text"}
-                      </h3>
-                      {renderStyledCardText(rulesTextSource, "No card text available.")}
-                    </div>
-
-                    {/* Epic Action (Cards.EpicActionStyled) */}
-                    {epicActionSource && (
-                      <div className="space-y-1">
-                        <h3 className="sr-only">Epic Action</h3>
-                        <div className="rounded-md border border-amber-500/70 bg-amber-500/10 p-3 text-sm text-foreground">
-                          {renderStyledCardText(epicActionSource)}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Back Rules Text (subtitle replaced with back card type) */}
-                    {deployBoxSource && (
+                      {/* Front Rules Text (subtitle replaced with front card type + arena) */}
                       <div className="space-y-1">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          {backTypeHeader}
+                          {frontTypeHeader || "Card Text"}
                         </h3>
-                        {renderStyledCardText(deployBoxSource)}
+                        {renderStyledCardText(rulesTextSource, "No card text available.")}
                       </div>
-                    )}
-                  </div>
-                )
-              )}
+
+                      {/* Epic Action (Cards.EpicActionStyled) */}
+                      {epicActionSource && (
+                        <div className="space-y-1">
+                          <h3 className="sr-only">Epic Action</h3>
+                          <div className="rounded-md border border-amber-500/70 bg-amber-500/10 p-3 text-sm text-foreground">
+                            {renderStyledCardText(epicActionSource)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Back Rules Text (subtitle replaced with back card type) */}
+                      {deployBoxSource && (
+                        <div className="space-y-1">
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {backTypeHeader}
+                          </h3>
+                          {renderStyledCardText(deployBoxSource)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </section>
 
               {/* Right Column: Card Rulings (Conditional) */}
@@ -904,7 +956,9 @@ export default function CardModal({
                   aria-label={isSwccg ? "Extra card data and rulings" : "Card rulings"}
                   className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card/40 p-4 overflow-y-auto"
                 >
-                  <h2 className="text-base font-semibold tracking-tight">{isSwccg ? "Extra Card Data & Rulings" : "Rulings"}</h2>
+                  <h2 className="text-base font-semibold tracking-tight">
+                    {isSwccg ? "Extra Card Data & Rulings" : "Rulings"}
+                  </h2>
                   <div className="space-y-2 text-sm text-foreground/90">
                     {renderStyledCardText(rulingsSource)}
                   </div>

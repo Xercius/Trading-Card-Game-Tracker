@@ -54,6 +54,7 @@ Imports/
 # ---- Static assets (local images, not source-controlled) ----
 api/wwwroot/images/**/*
 !api/wwwroot/images/**/
+!api/wwwroot/images/tcg_tracker_logo.png
 !api/wwwroot/images/games/**
 !api/wwwroot/images/*/sets/**
 !api/wwwroot/images/*/aspects/**
@@ -62,3 +63,15 @@ api/wwwroot/images/**/*
 !api/wwwroot/images/placeholders/**
 !api/wwwroot/images/**/*.svg
 !api/wwwroot/images/**/.gitkeep
+
+client-vite/public/images/**/*
+!client-vite/public/images/**/
+!client-vite/public/images/tcg_tracker_logo.png
+!client-vite/public/images/games/**
+!client-vite/public/images/*/sets/**
+!client-vite/public/images/*/aspects/**
+!client-vite/public/images/*/arenas/**
+!client-vite/public/images/*/icons/**
+!client-vite/public/images/placeholders/**
+!client-vite/public/images/**/*.svg
+!client-vite/public/images/**/.gitkeep

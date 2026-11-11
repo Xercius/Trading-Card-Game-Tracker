@@ -13,12 +13,16 @@ public sealed class DecksMappingProfile : Profile
         CreateMap<CreateDeckRequest, Deck>()
             .ForMember(d => d.Game, opt => opt.MapFrom(s => s.Game.Trim()))
             .ForMember(d => d.Name, opt => opt.MapFrom(s => s.Name.Trim()))
-            .ForMember(d => d.Description, opt => opt.MapFrom(s => s.Description));
+            .ForMember(d => d.Description, opt => opt.MapFrom(s => s.Description))
+            .ForMember(d => d.Format, opt => opt.MapFrom(s => s.Format))
+            .ForMember(d => d.Side, opt => opt.MapFrom(s => s.Side));
 
         CreateMap<UpdateDeckRequest, Deck>()
             .ForMember(d => d.Game, opt => opt.MapFrom(s => s.Game.Trim()))
             .ForMember(d => d.Name, opt => opt.MapFrom(s => s.Name.Trim()))
-            .ForMember(d => d.Description, opt => opt.MapFrom(s => s.Description));
+            .ForMember(d => d.Description, opt => opt.MapFrom(s => s.Description))
+            .ForMember(d => d.Format, opt => opt.MapFrom(s => s.Format))
+            .ForMember(d => d.Side, opt => opt.MapFrom(s => s.Side));
 
         CreateMap<DeckCard, DeckCardItemResponse>()
             .ForCtorParam(nameof(DeckCardItemResponse.CardPrintingId), opt => opt.MapFrom(dc => dc.CardPrintingId))
