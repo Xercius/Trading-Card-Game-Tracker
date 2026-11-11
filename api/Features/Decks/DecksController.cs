@@ -158,8 +158,8 @@ public class DecksController : ControllerBase
 
             var featured = cards
                 .Where(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct =>
-                    (d.Game == "Star Wars Unlimited" && ct.CardType.Name == "Leader") ||
-                    (d.Game == "Star Wars CCG" && ct.CardType.Name == "Objective")) == true)
+                    (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) && ct.CardType.Name == "Leader") ||
+                    (string.Equals(d.Game, "Star Wars CCG", StringComparison.OrdinalIgnoreCase) && ct.CardType.Name == "Objective")) == true)
                 .GroupBy(dc => dc.CardPrintingId)
                 .Select(g => g.First())
                 .Select(dc => new DeckFeaturedCardDto(
