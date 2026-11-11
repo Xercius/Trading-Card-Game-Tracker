@@ -140,6 +140,91 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         Assert.Empty(Assert.IsType<List<AvailabilityRow>>(cards));
     }
 
+    [Fact]
+    public async Task DeckList_SeparatesMainDeckCountFromLeadersAndBases()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var game = await db.Games.SingleAsync(g => g.Name == "Star Wars Unlimited");
+
+        async Task<CardType> GetCardTypeAsync(string name)
+        {
+            var cardType = await db.CardTypes.SingleOrDefaultAsync(type =>
+                type.GameId == game.Id && type.Name == name);
+            if (cardType is not null) return cardType;
+            cardType = new CardType { Game = game, Name = name };
+            db.CardTypes.Add(cardType);
+            return cardType;
+        }
+
+        var leaderType = await GetCardTypeAsync("Leader");
+        var baseType = await GetCardTypeAsync("Base");
+        var unitType = await GetCardTypeAsync("Unit");
+        var deck = new Deck
+        {
+            UserId = TestDataSeeder.UserId,
+            Game = game.Name,
+            Name = "Count contract"
+        };
+        var cards = new[]
+        {
+            (Name: "Leader", Type: leaderType, Quantity: 1),
+            (Name: "Base", Type: baseType, Quantity: 1),
+            (Name: "Unit", Type: unitType, Quantity: 50)
+        };
+        var deckCards = new List<DeckCard>();
+        foreach (var item in cards)
+        {
+            var card = new Card { Name = item.Name, Game = game };
+            card.CardTypes.Add(new CardCardType { Card = card, CardType = item.Type, SourceRole = "Type" });
+            var printing = new CardPrinting { Card = card, Number = item.Name };
+            deckCards.Add(new DeckCard { Deck = deck, CardPrinting = printing, QuantityInDeck = item.Quantity });
+        }
+
+        db.Decks.Add(deck);
+        db.DeckCards.AddRange(deckCards);
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetFromJsonAsync<System.Text.Json.JsonElement>(
+            "/api/decks?game=Star%20Wars%20Unlimited");
+        var itemResponse = Assert.Single(response.GetProperty("items").EnumerateArray());
+        Assert.Equal(52, itemResponse.GetProperty("cardCount").GetInt32());
+        Assert.Equal(50, itemResponse.GetProperty("mainDeckCardCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task DeckCardsWithAvailability_ReturnsSideAndSetName()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var game = await db.Games.SingleAsync(g => g.Name == "Star Wars Unlimited");
+        var printing = new CardPrinting
+        {
+            Card = new Card { Name = "Metadata card", Game = game, Side = "Light" },
+            Number = "001",
+            CatalogSet = new Set { Game = game, Code = "TST", Name = "Test Set" }
+        };
+        var deck = new Deck
+        {
+            UserId = TestDataSeeder.UserId,
+            Game = game.Name,
+            Name = "Metadata"
+        };
+        db.Decks.Add(deck);
+        db.DeckCards.Add(new DeckCard { Deck = deck, CardPrinting = printing, QuantityInDeck = 1 });
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient();
+
+        var cards = await client.GetFromJsonAsync<List<System.Text.Json.JsonElement>>(
+            $"/api/decks/{deck.Id}/cards-with-availability");
+        var card = Assert.Single(Assert.IsType<List<System.Text.Json.JsonElement>>(cards));
+        Assert.Equal("Light", card.GetProperty("side").GetString());
+        Assert.Equal("Test Set", card.GetProperty("setName").GetString());
+    }
+
     private async Task<(int DeckId, int PrintingId)> SeedDeckAsync(string gameName, int owned, int proxies)
     {
         await factory.ResetDatabaseAsync();

@@ -28,4 +28,5 @@ public sealed record DeckResponse(
     string? Side = null,
     IReadOnlyList<string>? Aspects = null,
     DeckFeaturedCardDto? BaseCard = null,
-    int DefensiveShieldCount = 0);
+    int DefensiveShieldCount = 0,
+    int MainDeckCardCount = 0);

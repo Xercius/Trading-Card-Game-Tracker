@@ -63,6 +63,8 @@ public class DecksController : ControllerBase
                 .ThenInclude(cp => cp.Card)
                     .ThenInclude(card => card.Game)
             .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.CatalogSet)
+            .Include(dc => dc.CardPrinting!)
                 .ThenInclude(cp => cp.Card)
                     .ThenInclude(card => card.CardTypes)
                         .ThenInclude(ct => ct.CardType)
@@ -228,11 +230,19 @@ public class DecksController : ControllerBase
                 cardCount = cards.Sum(dc => dc.QuantityInDeck);
             }
 
+            var mainDeckCardCount = string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase)
+                ? cards
+                    .Where(dc => dc.CardPrinting?.Card?.CardTypes.Any(ct =>
+                        ct.CardType.Name == "Leader" || ct.CardType.Name == "Base") != true)
+                    .Sum(dc => dc.QuantityInDeck)
+                : cardCount;
+
             var format = d.Format ?? (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) ? "Premier" : "Standard");
 
             return d with
             {
                 CardCount = cardCount,
+                MainDeckCardCount = mainDeckCardCount,
                 DefensiveShieldCount = defensiveShieldCount,
                 FeaturedCards = featured,
                 BaseCard = baseCard,
@@ -939,6 +949,8 @@ public class DecksController : ControllerBase
                     .ThenInclude(c => c.CardTypes)
                         .ThenInclude(ct => ct.CardType)
             .Include(dc => dc.CardPrinting!)
+                .ThenInclude(cp => cp.CatalogSet)
+            .Include(dc => dc.CardPrinting!)
                 .ThenInclude(cp => cp.Card)
                     .ThenInclude(c => c.CardAspects)
                         .ThenInclude(ca => ca.Aspect)
@@ -982,7 +994,9 @@ public class DecksController : ControllerBase
             deckCard.IsStarting,
             card.Id,
             card.Cost,
-            aspects);
+            aspects,
+            card.Side,
+            printing.CatalogSet?.Name ?? printing.CatalogSet?.Code);
     }
 
     private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
@@ -1035,7 +1049,9 @@ public class DecksController : ControllerBase
                 dc.IsStarting,
                 card.Id,
                 card.Cost,
-                aspects
+                aspects,
+                card.Side,
+                printing.CatalogSet?.Name ?? printing.CatalogSet?.Code
             ));
         }
 

@@ -166,6 +166,29 @@ describe("DeckConstructionModal", () => {
     expect(handleClose).toHaveBeenCalled();
   });
 
+  it("shows a friendly message when deck metadata cannot be saved", async () => {
+    const client = createClient();
+    vi.spyOn(api, "patch").mockRejectedValue(new Error("server detail"));
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DeckConstructionModal deckId={1} isOpen={true} onClose={vi.fn()} />
+        </QueryClientProvider>
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Deck Name" }));
+    const input = screen.getByRole("textbox", { name: "Deck Name" });
+    fireEvent.change(input, { target: { value: "Updated deck name" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to save deck changes. Please try again."
+    );
+    expect(screen.queryByText("server detail")).not.toBeInTheDocument();
+  });
+
   it("calls quantity-delta when adding a card from search results", async () => {
     const client = createClient();
     const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: {} } as never);

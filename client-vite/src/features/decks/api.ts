@@ -28,6 +28,7 @@ export type DeckDetails = {
   aspects?: string[] | null;
   baseCard?: DeckFeaturedCard | null;
   defensiveShieldCount?: number;
+  mainDeckCardCount?: number;
 };
 
 export type DeckListItem = {
@@ -45,6 +46,7 @@ export type DeckListItem = {
   aspects?: string[] | null;
   baseCard?: DeckFeaturedCard | null;
   defensiveShieldCount?: number;
+  mainDeckCardCount?: number;
 };
 
 export type PagedDecks = {
@@ -67,6 +69,8 @@ export type DeckCardWithAvailability = {
   cardId?: number;
   cost?: number | null;
   aspects?: Array<{ name: string; count: number }> | null;
+  side?: string | null;
+  setName?: string | null;
 };
 
 export const deckBuilderKeys = {

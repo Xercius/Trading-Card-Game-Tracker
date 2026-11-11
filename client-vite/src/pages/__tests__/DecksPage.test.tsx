@@ -28,7 +28,8 @@ const mockDecksResponse = {
       aspects: ["Aggression", "Heroism"],
       createdUtc: "2026-11-01T00:00:00Z",
       updatedUtc: "2026-11-02T00:00:00Z",
-      cardCount: 50,
+      cardCount: 52,
+      mainDeckCardCount: 50,
       featuredCards: [
         {
           cardPrintingId: 101,
@@ -103,7 +104,7 @@ describe("DecksPage", () => {
       expect(container.textContent).toContain("Sabine Aggro");
       expect(container.textContent).toContain("Premier");
       expect(container.textContent).toContain("✓ Legal");
-      expect(container.textContent).toContain("50 cards");
+      expect(container.textContent).toContain("52 cards");
       expect(container.textContent).toContain("Leaders & Base");
       expect(container.textContent).not.toContain("Sabine Wren");
       expect(container.textContent).not.toContain("Energy Conversion Lab");
@@ -150,8 +151,65 @@ describe("DecksPage", () => {
       fireEvent.click(deleteBtn);
     });
 
-    expect(container.textContent).toContain("Delete Deck?");
-    expect(container.textContent).toContain('Are you sure you want to delete "Sabine Aggro"?');
+    expect(document.body.textContent).toContain("Delete Deck?");
+    expect(document.body.textContent).toContain('Are you sure you want to delete "Sabine Aggro"?');
+  });
+
+  it("restores pagination for deck results beyond the first page", async () => {
+    const client = createClient();
+    vi.spyOn(api, "get").mockImplementation(() =>
+      Promise.resolve({ data: { ...mockDecksResponse, total: 101 } } as never)
+    );
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <DecksPage />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    });
+
+    expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    });
+
+    expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
+    expect(api.get).toHaveBeenLastCalledWith("decks", {
+      params: { game: "Star Wars Unlimited", name: undefined, page: 2, pageSize: 50 },
+    });
+  });
+
+  it("shows a friendly delete error and clears it when the dialog is closed", async () => {
+    const client = createClient();
+    vi.spyOn(api, "delete").mockRejectedValue(new Error("server detail"));
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <DecksPage />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    });
+
+    await screen.findByText("Sabine Aggro");
+    fireEvent.click(screen.getByRole("button", { name: "Delete deck Sabine Aggro" }));
+    const cancelButton = await screen.findByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(document.activeElement).toBe(cancelButton));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Deck" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not delete the deck. Please try again."
+    );
+    expect(screen.getByText("Sabine Aggro")).toBeInTheDocument();
+
+    fireEvent.click(cancelButton);
+    fireEvent.click(screen.getByRole("button", { name: "Delete deck Sabine Aggro" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens CreateDeckDialog when + Create Deck is clicked and submits deck", async () => {

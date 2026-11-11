@@ -1,8 +1,8 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useCreateDeckMutation } from "../api";
 
 export type CreateDeckDialogProps = {
@@ -68,19 +68,11 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
     }
   };
 
-  if (!isOpen) return null;
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-deck-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl space-y-5"
-        onClick={(e) => e.stopPropagation()}
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        labelledBy="create-deck-dialog-title"
+        className="max-w-xl rounded-xl border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl space-y-5"
       >
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div>
@@ -256,7 +248,6 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
             <Input
               id="deck-name-input"
               type="text"
-              autoFocus
               placeholder="e.g. Luke Skywalker Control"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -310,8 +301,7 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
             </Button>
           </div>
         </form>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CardImageHoverPreview } from "@/components/ui/CardImageHoverPreview";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DeckConstructionModal } from "@/features/decks/components/DeckConstructionModal";
 import { CreateDeckDialog } from "@/features/decks/components/CreateDeckDialog";
 import { SWU_ASPECT_IMAGES } from "@/features/decks/utils/deckRules";
@@ -27,7 +28,7 @@ function getDeckValidationStatus(deck: DeckListItem): { isLegal: boolean; label:
     );
     const hasBase = Boolean(deck.baseCard);
     const hasLeaders = leaders.length === requiredLeaders;
-    const hasEnoughCards = deck.cardCount >= minOther;
+    const hasEnoughCards = (deck.mainDeckCardCount ?? deck.cardCount) >= minOther;
 
     if (hasLeaders && hasBase && hasEnoughCards) {
       return { isLegal: true, label: "✓ Legal" };
@@ -50,24 +51,36 @@ function getDeckValidationStatus(deck: DeckListItem): { isLegal: boolean; label:
 export default function DecksPage() {
   const { activeGame } = useGame();
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [activeDeckId, setActiveDeckId] = React.useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
 
   // Deck deletion dialog state
   const [deckToDelete, setDeckToDelete] = React.useState<DeckListItem | null>(null);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const pageSize = 50;
 
   const { data, isLoading, isError, error } = useDecksListQuery(
     activeGame,
     searchQuery.trim() || undefined,
-    1,
-    100
+    page,
+    pageSize
   );
 
   const deleteDeckMutation = useDeleteDeckMutation();
 
   const decks = data?.items ?? [];
   const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [activeGame]);
+
+  React.useEffect(() => {
+    if (data && page > totalPages) setPage(totalPages);
+  }, [data, page, totalPages]);
 
   const handleOpenDeck = (deckId: number) => {
     setActiveDeckId(deckId);
@@ -81,11 +94,12 @@ export default function DecksPage() {
 
   const handleConfirmDelete = async () => {
     if (!deckToDelete) return;
+    setDeleteError(null);
     try {
       await deleteDeckMutation.mutateAsync(deckToDelete.id);
       setDeckToDelete(null);
-    } catch (err) {
-      console.error("Failed to delete deck:", err);
+    } catch {
+      setDeleteError("Could not delete the deck. Please try again.");
     }
   };
 
@@ -119,13 +133,17 @@ export default function DecksPage() {
             type="search"
             value={searchQuery}
             placeholder={`Search ${activeGame} decks...`}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setSearchQuery(e.target.value);
+            }}
             className="bg-zinc-900 border-zinc-700 text-sm placeholder:text-zinc-500 focus-visible:ring-sky-500"
           />
         </div>
 
         <div className="text-xs text-zinc-500">
-          Showing {decks.length} of {total} decks
+          Showing {total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}{" "}
+          of {total} decks
         </div>
       </div>
 
@@ -205,6 +223,7 @@ export default function DecksPage() {
                       aria-label={`Delete deck ${deck.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
+                        setDeleteError(null);
                         setDeckToDelete(deck);
                       }}
                       className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-950/40 opacity-70 group-hover:opacity-100 transition-all focus:outline-none"
@@ -351,6 +370,33 @@ export default function DecksPage() {
         </div>
       )}
 
+      {totalPages > 1 && (
+        <nav
+          aria-label="Deck pagination"
+          className="flex items-center justify-center gap-3 text-sm text-zinc-300"
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            Previous
+          </Button>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+          >
+            Next
+          </Button>
+        </nav>
+      )}
+
       {/* Create Deck Dialog */}
       <CreateDeckDialog
         isOpen={isCreateDialogOpen}
@@ -360,47 +406,56 @@ export default function DecksPage() {
       />
 
       {/* Delete Confirmation Modal */}
-      {deckToDelete && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirm-delete-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+      <Dialog
+        open={Boolean(deckToDelete)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeckToDelete(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent
+          labelledBy="confirm-delete-title"
+          className="max-w-md rounded-xl border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl space-y-4"
         >
-          <div
-            className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="confirm-delete-title" className="text-lg font-bold text-white">
-              Delete Deck?
-            </h3>
-            <p className="text-sm text-zinc-400">
-              Are you sure you want to delete{" "}
-              <strong className="text-zinc-200">"{deckToDelete.name}"</strong>? This action cannot
-              be undone.
+          <h3 id="confirm-delete-title" className="text-lg font-bold text-white">
+            Delete Deck?
+          </h3>
+          <p className="text-sm text-zinc-400">
+            Are you sure you want to delete{" "}
+            <strong className="text-zinc-200">"{deckToDelete?.name}"</strong>? This action cannot be
+            undone.
+          </p>
+          {deleteError && (
+            <p role="alert" className="text-sm text-red-300">
+              {deleteError}
             </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeckToDelete(null)}
-                disabled={deleteDeckMutation.isPending}
-                className="border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleConfirmDelete}
-                disabled={deleteDeckMutation.isPending}
-                className="bg-red-600 hover:bg-red-500 text-white"
-              >
-                {deleteDeckMutation.isPending ? "Deleting..." : "Delete Deck"}
-              </Button>
-            </div>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeckToDelete(null);
+                setDeleteError(null);
+              }}
+              disabled={deleteDeckMutation.isPending}
+              className="border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmDelete}
+              disabled={deleteDeckMutation.isPending}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {deleteDeckMutation.isPending ? "Deleting..." : "Delete Deck"}
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Deck Construction Modal */}
       {isModalOpen && (

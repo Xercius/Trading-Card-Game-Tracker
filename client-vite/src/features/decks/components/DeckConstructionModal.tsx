@@ -673,6 +673,14 @@ export function DeckConstructionModal({
             </button>
           </div>
         )}
+        {updateDeckMutation.isError && (
+          <div
+            role="alert"
+            className="px-6 py-2.5 bg-red-950/80 border-b border-red-800 text-red-200 text-xs shrink-0"
+          >
+            Unable to save deck changes. Please try again.
+          </div>
+        )}
 
         {/* Validation Details Flyout / Dropdown */}
         {showValidationDetails && (

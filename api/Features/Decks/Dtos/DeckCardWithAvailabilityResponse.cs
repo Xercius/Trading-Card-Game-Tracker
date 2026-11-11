@@ -14,4 +14,6 @@ public sealed record DeckCardWithAvailabilityResponse(
     bool IsStarting = false,
     int CardId = 0,
     int? Cost = null,
-    IReadOnlyList<CardAspectResponse>? Aspects = null);
+    IReadOnlyList<CardAspectResponse>? Aspects = null,
+    string? Side = null,
+    string? SetName = null);
