@@ -640,20 +640,20 @@ public class CardsController : ControllerBase
     [HttpGet("{cardId:int}/printings")]
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId, CancellationToken ct)
     {
-        var swuGameIds = await _db.Games
-            .Where(game => game.NameNormalized == "star wars unlimited")
+        var releaseOrderedGameIds = await _db.Games
+            .Where(game => game.NameNormalized == "star wars unlimited" || game.NameNormalized == "pokemon tcg")
             .Select(game => game.Id)
             .ToListAsync(ct);
-        var cardIsSwu = await _db.Cards
+        var useReleaseOrder = await _db.Cards
             .AsNoTracking()
             .Where(card => card.Id == cardId)
             .Select(card => (bool?)(
-                swuGameIds.Contains(card.GameId ?? 0) ||
-                card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId)) ||
+                releaseOrderedGameIds.Contains(card.GameId ?? 0) ||
+                card.CardTypes.Any(type => releaseOrderedGameIds.Contains(type.CardType.GameId)) ||
                 card.Printings.Any(printing => printing.CatalogSet != null &&
-                    swuGameIds.Contains(printing.CatalogSet.GameId))))
+                    releaseOrderedGameIds.Contains(printing.CatalogSet.GameId))))
             .FirstOrDefaultAsync(ct);
-        if (cardIsSwu is null)
+        if (useReleaseOrder is null)
         {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card {cardId} was not found.");
         }
@@ -667,11 +667,12 @@ public class CardsController : ControllerBase
             .Include(cp => cp.Card).ThenInclude(card => card.Game)
             .Include(cp => cp.Card).ThenInclude(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(cp => cp.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect);
-        var orderedPrintings = cardIsSwu.Value
+        var orderedPrintings = useReleaseOrder.Value
             ? printingsQuery
                 .OrderBy(cp => cp.CatalogSet == null || cp.CatalogSet.ReleasedAt == null)
                 .ThenBy(cp => cp.CatalogSet == null ? null : cp.CatalogSet.ReleasedAt)
                 .ThenBy(cp => cp.CatalogSet == null ? string.Empty : cp.CatalogSet.Name ?? cp.CatalogSet.Code)
+                .ThenBy(cp => cp.Number == null ? 0 : cp.Number.Length)
                 .ThenBy(cp => cp.Number)
                 .ThenBy(cp => cp.Id)
             : printingsQuery
