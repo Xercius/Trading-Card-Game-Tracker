@@ -145,6 +145,7 @@ public class DecksController : ControllerBase
                 .ThenInclude(cp => cp.Card)
                     .ThenInclude(c => c.CardAspects)
                         .ThenInclude(ca => ca.Aspect)
+            .AsSplitQuery()
             .AsNoTracking()
             .ToListAsync(ct);
 
