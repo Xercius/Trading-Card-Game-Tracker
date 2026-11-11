@@ -137,6 +137,70 @@ describe("CardsPage", () => {
     expect(container?.textContent).not.toContain("Exclude Aspect");
   });
 
+  it("only passes selected HP filters while Pokémon is the active game", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&hp=100"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(usePrintingsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      hps: ["100"],
+    });
+
+    mocks.activeGame = "Star Wars Unlimited";
+    await act(async () => {
+      await router.navigate("/?game=Pokemon%20TCG&hp=100&page=2");
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      games: ["Star Wars Unlimited"],
+      hps: [],
+    });
+  });
+
+  it("enables clearing and removes an HP-only Pokémon filter", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&hp=100"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    const filtersButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Filters")
+    );
+    await act(async () => {
+      filtersButton?.click();
+    });
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Clear Filters"
+    );
+    expect(clearButton).toBeDefined();
+    expect(clearButton).not.toBeDisabled();
+
+    await act(async () => {
+      clearButton?.click();
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({ hps: [] });
+  });
+
   it("does not render a redundant page-level search input", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 

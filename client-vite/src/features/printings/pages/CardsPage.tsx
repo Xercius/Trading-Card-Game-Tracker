@@ -31,7 +31,8 @@ type FilterArrayKey =
   | "powers"
   | "abilities"
   | "lightSideIcons"
-  | "darkSideIcons";
+  | "darkSideIcons"
+  | "hps";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -64,8 +65,8 @@ export default function CardsPage() {
   const { activeGame } = useGame();
   const { filters, setFilters } = useCardFilters();
   const isSwccg = activeGame === "Star Wars CCG";
-  const effectiveAspectMethod =
-    isSwccg || activeGame === "Pokemon TCG" ? "or" : filters.aspectMethod;
+  const isPokemon = activeGame === "Pokemon TCG";
+  const effectiveAspectMethod = isSwccg || isPokemon ? "or" : filters.aspectMethod;
 
   const previousGameRef = React.useRef(activeGame);
   React.useEffect(() => {
@@ -99,10 +100,11 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      stages: isPokemon ? filters.stages : [],
       arenas: isSwccg ? [] : filters.arenas,
       aspects: isSwccg
         ? []
-        : activeGame === "Pokemon TCG"
+        : isPokemon
           ? [...new Map(filters.aspects.map((aspect) => [aspect.toLowerCase(), aspect])).values()]
           : filters.aspects,
       aspectMethod: effectiveAspectMethod,
@@ -118,10 +120,11 @@ export default function CardsPage() {
       abilities: isSwccg ? filters.abilities : [],
       lightSideIcons: isSwccg ? filters.lightSideIcons : [],
       darkSideIcons: isSwccg ? filters.darkSideIcons : [],
+      hps: isPokemon ? filters.hps : [],
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, effectiveAspectMethod, effectivePageSize]
+    [filters, activeGame, isSwccg, isPokemon, effectiveAspectMethod, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -242,6 +245,7 @@ export default function CardsPage() {
       abilities: [],
       lightSideIcons: [],
       darkSideIcons: [],
+      hps: [],
       page: 1,
     }));
   }, [setFilters, activeGame]);
@@ -436,6 +440,15 @@ export default function CardsPage() {
         label: "Type",
         items: (filters.types ?? []).map((v) => ({ display: v, value: v })),
       },
+      ...(isPokemon
+        ? [
+            {
+              key: "hps" as const,
+              label: "HP",
+              items: (filters.hps ?? []).map((v) => ({ display: v, value: v })),
+            },
+          ]
+        : []),
       {
         key: "arenas" as const,
         label: "Arena",
@@ -474,8 +487,10 @@ export default function CardsPage() {
     ];
   }, [
     isSwccg,
+    isPokemon,
     filters.side,
     filters.types,
+    filters.hps,
     filters.subTypes,
     filters.personas,
     filters.sets,

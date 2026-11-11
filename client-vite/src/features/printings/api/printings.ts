@@ -46,6 +46,8 @@ export type PrintingQuery = {
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
+  hps?: string[];
+  stages?: string[];
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -85,6 +87,8 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.abilities?.length) params.set("ability", query.abilities.join(","));
   if (query.lightSideIcons?.length) params.set("lightSideIcon", query.lightSideIcons.join(","));
   if (query.darkSideIcons?.length) params.set("darkSideIcon", query.darkSideIcons.join(","));
+  if (query.hps?.length) params.set("hp", query.hps.join(","));
+  if (query.stages?.length) params.set("stage", query.stages.join(","));
   if (query.sort) params.set("sort", query.sort);
   if (query.page) params.set("page", String(query.page));
   if (query.pageSize) params.set("pageSize", String(query.pageSize));
