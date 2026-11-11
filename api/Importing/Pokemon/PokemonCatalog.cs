@@ -1,5 +1,8 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using api.Data;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -231,9 +234,205 @@ public sealed class PokemonCatalog
         return tr;
     }
 
+    public static string? NormalizeStage(string? stage)
+    {
+        if (string.IsNullOrWhiteSpace(stage)) return null;
+        var trimmed = stage.Trim();
+        if (string.Equals(trimmed, "Stage1", StringComparison.OrdinalIgnoreCase)) return "Stage 1";
+        if (string.Equals(trimmed, "Stage2", StringComparison.OrdinalIgnoreCase)) return "Stage 2";
+        return trimmed;
+    }
+
+    public static string ResolvePrimaryCardType(string? category, string? trainerType)
+    {
+        var resolvedCategory = !string.IsNullOrWhiteSpace(category) ? category.Trim() : "Pokemon";
+        if (string.Equals(resolvedCategory, "Trainer", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(trainerType))
+        {
+            return trainerType.Trim();
+        }
+        return resolvedCategory;
+    }
+
+    public string ComputeMechanicalCardUid(TcgdexCard card)
+    {
+        var primaryType = ResolvePrimaryCardType(card.Category, card.TrainerType);
+        var normalizedStage = NormalizeStage(card.Stage);
+        var rulesText = BuildRulesText(card);
+        return ComputeMechanicalCardUid(
+            primaryType,
+            card.Name,
+            normalizedStage,
+            card.Hp,
+            card.Types,
+            rulesText,
+            card.EvolveFrom,
+            card.Retreat,
+            card.Weaknesses,
+            card.Resistances);
+    }
+
+    public static string ComputeMechanicalCardUid(Card existingCard)
+    {
+        var primaryType = existingCard.CardTypes.FirstOrDefault(ct => ct.SourceRole == "Type")?.CardType?.Name
+                          ?? existingCard.CardTypes.FirstOrDefault()?.CardType?.Name
+                          ?? "Pokemon";
+        var normalizedStage = NormalizeStage(existingCard.Stage);
+        var types = existingCard.CardAspects
+            .Select(ca => ca.Aspect?.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!);
+        var mechanics = ReadMechanicalDetails(existingCard.ExtraCardDataJson);
+        return ComputeMechanicalCardUid(
+            primaryType,
+            existingCard.Name,
+            normalizedStage,
+            existingCard.Hp,
+            types,
+            existingCard.Text,
+            mechanics?.EvolveFrom,
+            mechanics?.Retreat,
+            mechanics?.Weaknesses,
+            mechanics?.Resistances);
+    }
+
+    public static string ComputeMechanicalCardUid(
+        string? primaryType,
+        string name,
+        string? normalizedStage,
+        int? hp,
+        IEnumerable<string>? types,
+        string? rulesText,
+        string? evolveFrom = null,
+        int? retreat = null,
+        IEnumerable<TcgdexWeakRes>? weaknesses = null,
+        IEnumerable<TcgdexWeakRes>? resistances = null)
+    {
+        var normType = NormalizeIdentityPart(primaryType ?? "Pokemon");
+        var normName = NormalizeIdentityPart(name);
+        var normStage = NormalizeIdentityPart(normalizedStage);
+        var normHp = hp.HasValue ? hp.Value.ToString() : string.Empty;
+        var normTypes = types == null
+            ? string.Empty
+            : string.Join(",",
+                types
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .Select(NormalizeIdentityPart)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(t => t, StringComparer.Ordinal));
+        var normRules = NormalizeRulesTextForIdentity(rulesText);
+        var normEvolution = NormalizeIdentityPart(evolveFrom);
+        var normRetreat = retreat?.ToString() ?? string.Empty;
+        var normWeaknesses = NormalizeWeakRes(weaknesses);
+        var normResistances = NormalizeWeakRes(resistances);
+
+        var fingerprint = $"{normType}|{normName}|{normStage}|{normHp}|{normTypes}|{normRules}|{normEvolution}|{normRetreat}|{normWeaknesses}|{normResistances}";
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
+        var hashHex = Convert.ToHexString(hashBytes, 0, 8).ToLowerInvariant();
+        var slug = BuildCardSlug(name);
+
+        return $"pkmn:{slug}:{hashHex}";
+    }
+
+    private static string NormalizeWeakRes(IEnumerable<TcgdexWeakRes>? entries)
+    {
+        return entries == null
+            ? string.Empty
+            : string.Join(",",
+                entries
+                    .Select(entry => $"{NormalizeIdentityPart(entry.Type)}:{NormalizeIdentityPart(entry.Value)}")
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(entry => entry, StringComparer.Ordinal));
+    }
+
+    private static MechanicalCardDetails? ReadMechanicalDetails(string? extraCardDataJson)
+    {
+        if (string.IsNullOrWhiteSpace(extraCardDataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MechanicalCardDetails>(
+                extraCardDataJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            return new MechanicalCardDetails { EvolveFrom = extraCardDataJson };
+        }
+    }
+
+    private sealed class MechanicalCardDetails
+    {
+        [JsonPropertyName("evolveFrom")]
+        public string? EvolveFrom { get; set; }
+
+        [JsonPropertyName("retreat")]
+        public int? Retreat { get; set; }
+
+        [JsonPropertyName("weaknesses")]
+        public List<TcgdexWeakRes>? Weaknesses { get; set; }
+
+        [JsonPropertyName("resistances")]
+        public List<TcgdexWeakRes>? Resistances { get; set; }
+    }
+
+    private static string NormalizeIdentityPart(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return Regex.Replace(value.Trim(), @"\s+", " ").ToLowerInvariant();
+    }
+
+    private static string NormalizeRulesTextForIdentity(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var lines = text
+            .Replace("\r\n", "\n")
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => Regex.Replace(line, @"\s+", " ").ToLowerInvariant());
+        return string.Join("\n", lines);
+    }
+
+    private static string BuildCardSlug(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "card";
+        var sb = new StringBuilder();
+        bool lastWasHyphen = false;
+        foreach (var ch in name.Trim().ToLowerInvariant())
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+            {
+                sb.Append(ch);
+                lastWasHyphen = false;
+                if (sb.Length >= 36) break;
+            }
+            else if (!lastWasHyphen && sb.Length > 0)
+            {
+                sb.Append('-');
+                lastWasHyphen = true;
+                if (sb.Length >= 36) break;
+            }
+        }
+        var slug = sb.ToString().Trim('-');
+        return string.IsNullOrEmpty(slug) ? "card" : slug;
+    }
+
     public string BuildRulesText(TcgdexCard card)
     {
         var sb = new StringBuilder();
+
+        if (card.Item != null && (!string.IsNullOrWhiteSpace(card.Item.Name) || !string.IsNullOrWhiteSpace(card.Item.Effect)))
+        {
+            var itemName = string.IsNullOrWhiteSpace(card.Item.Name) ? "Item" : card.Item.Name.Trim();
+            var itemEffect = card.Item.Effect?.Trim();
+            sb.AppendLine(string.IsNullOrWhiteSpace(itemEffect)
+                ? $"[Held Item] {itemName}"
+                : $"[Held Item] {itemName}: {itemEffect}");
+            sb.AppendLine();
+        }
 
         if (card.Abilities != null && card.Abilities.Count > 0)
         {
@@ -274,6 +473,7 @@ public sealed class PokemonCatalog
         var payload = new
         {
             stage = card.Stage,
+            suffix = card.Suffix,
             evolveFrom = card.EvolveFrom,
             dexId = card.DexId,
             retreat = card.Retreat,
@@ -285,6 +485,30 @@ public sealed class PokemonCatalog
             energyType = card.EnergyType,
             category = card.Category,
             updated = card.Updated
+        };
+
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        });
+    }
+
+    public string BuildPrintingDetailsJson(TcgdexCard card, TcgdexVariantDetailed? variantDetail = null)
+    {
+        var payload = new
+        {
+            tcgdexId = card.Id,
+            localId = card.LocalId,
+            regulationMark = card.RegulationMark,
+            cameoDexIds = card.CameoDexIds,
+            variantId = variantDetail?.VariantId,
+            variantType = variantDetail?.Type,
+            variantSubtype = variantDetail?.Subtype,
+            variantSize = variantDetail?.Size,
+            variantFoil = variantDetail?.Foil,
+            variantStamps = variantDetail?.Stamp,
+            thirdParty = variantDetail?.ThirdParty ?? card.ThirdParty
         };
 
         return JsonSerializer.Serialize(payload, new JsonSerializerOptions

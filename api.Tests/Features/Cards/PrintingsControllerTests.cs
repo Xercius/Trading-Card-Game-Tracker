@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using api.Data;
 using api.Features.Cards.Dtos;
 using api.Importing;
+using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -190,6 +191,82 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
         var lightningBolt = Assert.Single(printings, p => p.CardId == TestDataSeeder.LightningBoltCardId);
         Assert.Equal(TestDataSeeder.LightningBoltAlphaPrintingId, lightningBolt.PrintingId);
         Assert.Equal("Alpha", lightningBolt.SetName);
+    }
+
+    [Fact]
+    public async Task Get_with_unique_cards_usesCandidateGameForHoloPreference()
+    {
+        await factory.ResetDatabaseAsync();
+        try
+        {
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var pokemonGame = TreatmentLookup.GetOrAddGame(db, "Pokemon TCG");
+                var magicGame = await db.Games.SingleAsync(game => game.NameNormalized == "magic");
+                var pokemonCard = new Card { Game = pokemonGame, Name = "PokemonPreference" };
+                var magicCard = new Card { Game = magicGame, Name = "MagicPreference" };
+                db.Cards.AddRange(pokemonCard, magicCard);
+                var pokemonSet = TreatmentLookup.UpsertSet(db, pokemonGame, "Pokemon Preference");
+                var magicSet = TreatmentLookup.UpsertSet(db, magicGame, "Magic Preference");
+                await db.SaveChangesAsync();
+
+                db.CardPrintings.AddRange(
+                    new CardPrinting
+                    {
+                        Card = pokemonCard,
+                        SetId = pokemonSet.Id,
+                        Number = "1",
+                        Treatment = TreatmentLookup.Upsert(db, "Pokemon TCG", "Reverse Holo"),
+                        ApiCreatedAt = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new CardPrinting
+                    {
+                        Card = pokemonCard,
+                        SetId = pokemonSet.Id,
+                        Number = "2",
+                        Treatment = TreatmentLookup.Upsert(db, "Pokemon TCG", "Holo"),
+                        ApiCreatedAt = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new CardPrinting
+                    {
+                        Card = magicCard,
+                        SetId = magicSet.Id,
+                        Number = "1",
+                        Treatment = TreatmentLookup.Upsert(db, "Magic", "Reverse Holo"),
+                        ApiCreatedAt = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new CardPrinting
+                    {
+                        Card = magicCard,
+                        SetId = magicSet.Id,
+                        Number = "2",
+                        Treatment = TreatmentLookup.Upsert(db, "Magic", "Holo"),
+                        ApiCreatedAt = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    });
+                await db.SaveChangesAsync();
+            }
+
+            using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+            var allGames = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?uniqueCards=true&q=Preference");
+            var pokemonOnly = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?uniqueCards=true&game=Pokemon%20TCG&q=PokemonPreference");
+            var multiGame = await client.GetFromJsonAsync<List<PrintingDto>>(
+                "/api/cards/printings?uniqueCards=true&game=Pokemon%20TCG,Magic&q=Preference");
+
+            Assert.NotNull(allGames);
+            Assert.Equal("Holo", Assert.Single(allGames, printing => printing.CardName == "PokemonPreference").Style);
+            Assert.NotNull(pokemonOnly);
+            Assert.Equal("Holo", Assert.Single(pokemonOnly).Style);
+            Assert.NotNull(multiGame);
+            Assert.Equal("Holo", Assert.Single(multiGame, printing => printing.CardName == "PokemonPreference").Style);
+            Assert.Equal("Reverse Holo", Assert.Single(multiGame, printing => printing.CardName == "MagicPreference").Style);
+        }
+        finally
+        {
+            await factory.ResetDatabaseAsync();
+        }
     }
 
     [Fact]

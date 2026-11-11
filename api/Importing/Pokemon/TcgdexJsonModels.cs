@@ -57,6 +57,30 @@ public sealed class TcgdexVariants
     public bool WPromo { get; set; }
 }
 
+public sealed class TcgdexThirdParty
+{
+    public int? Cardmarket { get; set; }
+    public int? Tcgplayer { get; set; }
+    public int? Cardtrader { get; set; }
+}
+
+public sealed class TcgdexVariantDetailed
+{
+    public string? Type { get; set; }
+    public string? Subtype { get; set; }
+    public string? Size { get; set; }
+    public List<string>? Stamp { get; set; }
+    public string? Foil { get; set; }
+    public string? VariantId { get; set; }
+    public TcgdexThirdParty? ThirdParty { get; set; }
+}
+
+public sealed class TcgdexItem
+{
+    public string? Name { get; set; }
+    public string? Effect { get; set; }
+}
+
 public sealed class TcgdexAttack
 {
     public List<string>? Cost { get; set; }
@@ -95,15 +119,21 @@ public sealed class TcgdexCard
     public string? Illustrator { get; set; }
     public string? Rarity { get; set; }
     public TcgdexVariants? Variants { get; set; }
+    [JsonPropertyName("variants_detailed")]
+    public List<TcgdexVariantDetailed>? VariantsDetailed { get; set; }
     public TcgdexSetResume? Set { get; set; }
     public int? Hp { get; set; }
     public List<string>? Types { get; set; }
     public string? Stage { get; set; }
+    public string? Suffix { get; set; }
     public string? EvolveFrom { get; set; }
     public List<int>? DexId { get; set; }
+    [JsonPropertyName("cameoDexIds")]
+    public List<int>? CameoDexIds { get; set; }
     public string? Description { get; set; }
     public List<TcgdexAttack>? Attacks { get; set; }
     public List<TcgdexAbility>? Abilities { get; set; }
+    public TcgdexItem? Item { get; set; }
     public List<TcgdexWeakRes>? Weaknesses { get; set; }
     public List<TcgdexWeakRes>? Resistances { get; set; }
     public int? Retreat { get; set; }
@@ -113,6 +143,7 @@ public sealed class TcgdexCard
     public string? TrainerType { get; set; }
     public string? EnergyType { get; set; }
     public string? Effect { get; set; }
+    public TcgdexThirdParty? ThirdParty { get; set; }
 }
 
 /// <summary>

@@ -267,18 +267,22 @@ public sealed class PrintingsController : ControllerBase
                 .Where(p => p.Id == candidates.Where(candidate => candidate.CardId == p.CardId)
                     .OrderByDescending(candidate => !string.IsNullOrEmpty(candidate.ImageUrl))
                     .ThenByDescending(candidate => candidate.Treatment != null
-                        && candidate.Treatment.NameNormalized == "standard")
+                        && (candidate.Treatment.NameNormalized == "standard"
+                            || (candidate.Card.Game != null && candidate.Card.Game.Name == "Pokemon TCG"
+                                && candidate.Treatment.NameNormalized == "holo")))
                     .ThenBy(candidate => candidate.ApiCreatedAt == null)
                     .ThenBy(candidate => AppDbContext.SqliteJulianDay(candidate.ApiCreatedAt))
                     .ThenBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)
                     .ThenBy(candidate => candidate.CatalogSet == null
                         ? null
                         : candidate.CatalogSet.ReleasedAt)
-                    .ThenBy(candidate => requestedGames.Contains("star wars unlimited")
+                    .ThenBy(candidate => requestedGames.Contains("star wars unlimited") || requestedGames.Contains("pokemon tcg")
                         ? candidate.CatalogSet == null ? string.Empty : candidate.CatalogSet.Code
                         : string.Empty)
                     .ThenBy(candidate => candidate.Number == null ? 0 : candidate.Number.Length)
                     .ThenBy(candidate => candidate.Number)
+                    .ThenByDescending(candidate => candidate.Treatment != null
+                        && candidate.Treatment.NameNormalized == "standard")
                     .ThenBy(candidate => candidate.Id)
                     .Select(candidate => candidate.Id)
                     .FirstOrDefault());
