@@ -31,7 +31,8 @@ type FilterArrayKey =
   | "powers"
   | "abilities"
   | "lightSideIcons"
-  | "darkSideIcons";
+  | "darkSideIcons"
+  | "hps";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -114,6 +115,7 @@ export default function CardsPage() {
       abilities: isSwccg ? filters.abilities : [],
       lightSideIcons: isSwccg ? filters.lightSideIcons : [],
       darkSideIcons: isSwccg ? filters.darkSideIcons : [],
+      hps: isPokemon ? filters.hps : [],
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
@@ -238,6 +240,7 @@ export default function CardsPage() {
       abilities: [],
       lightSideIcons: [],
       darkSideIcons: [],
+      hps: [],
       page: 1,
     }));
   }, [setFilters, activeGame]);
@@ -432,6 +435,15 @@ export default function CardsPage() {
         label: "Type",
         items: (filters.types ?? []).map((v) => ({ display: v, value: v })),
       },
+      ...(isPokemon
+        ? [
+            {
+              key: "hps" as const,
+              label: "HP",
+              items: (filters.hps ?? []).map((v) => ({ display: v, value: v })),
+            },
+          ]
+        : []),
       {
         key: "arenas" as const,
         label: "Arena",
@@ -470,8 +482,10 @@ export default function CardsPage() {
     ];
   }, [
     isSwccg,
+    isPokemon,
     filters.side,
     filters.types,
+    filters.hps,
     filters.subTypes,
     filters.personas,
     filters.sets,

@@ -1,23 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { apiGetMock } = vi.hoisted(() => ({
-  apiGetMock: vi.fn(),
+const { getMock } = vi.hoisted(() => ({
+  getMock: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
-  api: { get: apiGetMock },
+  api: { get: getMock },
 }));
 
+import { api } from "@/lib/api";
 import { fetchPrintings } from "../printings";
 
 describe("fetchPrintings", () => {
   beforeEach(() => {
-    apiGetMock.mockReset().mockResolvedValue({ data: [], headers: {} });
+    getMock.mockReset().mockResolvedValue({ data: [], headers: {} });
+  });
+
+  it("serializes selected Pokemon HP values as the hp query parameter", async () => {
+    await fetchPrintings({ game: ["Pokemon TCG"], hps: ["100"] });
+
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining("hp=100"));
   });
 
   it("serializes selected stages as the stage query parameter", async () => {
     await fetchPrintings({ stages: ["Stage 1"] });
 
-    expect(apiGetMock).toHaveBeenCalledWith(expect.stringContaining("stage=Stage+1"));
+    expect(api.get).toHaveBeenCalledWith(expect.stringContaining("stage=Stage+1"));
   });
 });
