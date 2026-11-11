@@ -187,7 +187,7 @@ export default function DecksPage() {
                 tabIndex={0}
                 onClick={() => handleOpenDeck(deck.id)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
                     e.preventDefault();
                     handleOpenDeck(deck.id);
                   }
