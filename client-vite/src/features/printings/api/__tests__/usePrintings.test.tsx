@@ -30,6 +30,7 @@ const filters: CardFilters = {
   keywordMethod: "or",
   page: 1,
   pageSize: 2,
+  stages: ["Stage 1"],
 };
 
 const printing = (printingId: string): PrintingListItem => ({
@@ -72,6 +73,7 @@ describe("usePrintings pagination", () => {
       set: ["SOR"],
       rarity: ["Rare"],
       types: ["Leader Unit"],
+      stages: ["Stage 1"],
       pageSize: 2,
       page: 1,
       uniqueCards: true,
