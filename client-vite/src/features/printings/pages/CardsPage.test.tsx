@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 const mocks = vi.hoisted(() => ({ activeGame: "Star Wars Unlimited" }));
 const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
-const usePrintingFacetsMock = vi.fn(() => ({
+const usePrintingFacetsMock = vi.fn((_query: unknown) => ({
   data: { games: [], sets: [], rarities: [], types: [], arenas: [], aspects: [], traits: [] },
 }));
 const CardModalMock = vi.fn((_props: unknown) => null);
@@ -15,7 +15,7 @@ vi.mock("../api/usePrintings", () => ({
 }));
 
 vi.mock("../api/usePrintingFacets", () => ({
-  usePrintingFacets: () => usePrintingFacetsMock(),
+  usePrintingFacets: (query: unknown) => usePrintingFacetsMock(query),
 }));
 
 vi.mock("@/features/cards/components/CardModal", () => ({
@@ -41,6 +41,7 @@ describe("CardsPage", () => {
     vi.useFakeTimers();
     mocks.activeGame = "Star Wars Unlimited";
     usePrintingsMock.mockReset();
+    usePrintingFacetsMock.mockClear();
     CardModalMock.mockReset();
     usePrintingsMock.mockImplementation(() => ({
       data: { items: [], total: 0 },
@@ -108,10 +109,10 @@ describe("CardsPage", () => {
     });
   });
 
-  it("uses OR for Pokémon types even when the URL contains another aspect method", async () => {
+  it("deduplicates Pokémon aspects and uses OR even when the URL contains another method", async () => {
     mocks.activeGame = "Pokemon TCG";
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
-      initialEntries: ["/?aspect=Grass,Fire&aspectMethod=exclude"],
+      initialEntries: ["/?aspect=Grass,grass,Fire&aspectMethod=exclude"],
     });
 
     container = document.createElement("div");
@@ -124,9 +125,16 @@ describe("CardsPage", () => {
 
     expect(usePrintingsMock.mock.calls[0]?.[0]).toMatchObject({
       games: ["Pokemon TCG"],
-      aspects: ["Grass", "Fire"],
+      aspects: ["grass", "Fire"],
       aspectMethod: "or",
     });
+    expect(usePrintingFacetsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      aspects: ["grass", "Fire"],
+      aspectMethod: "or",
+    });
+    expect(container?.textContent).toContain("Aspect: Grass");
+    expect(container?.textContent).not.toContain("Exclude Aspect");
   });
 
   it("does not render a redundant page-level search input", async () => {
