@@ -66,6 +66,7 @@ export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
   const isSwccg = activeGame === "Star Wars CCG";
   const isPokemon = activeGame === "Pokemon TCG";
+  const effectiveAspectMethod = isSwccg || isPokemon ? "or" : filters.aspectMethod;
 
   const previousGameRef = React.useRef(activeGame);
   React.useEffect(() => {
@@ -101,8 +102,12 @@ export default function CardsPage() {
       games: [activeGame],
       stages: isPokemon ? filters.stages : [],
       arenas: isSwccg ? [] : filters.arenas,
-      aspects: isSwccg ? [] : filters.aspects,
-      aspectMethod: isSwccg ? "or" : filters.aspectMethod,
+      aspects: isSwccg
+        ? []
+        : isPokemon
+          ? [...new Map(filters.aspects.map((aspect) => [aspect.toLowerCase(), aspect])).values()]
+          : filters.aspects,
+      aspectMethod: effectiveAspectMethod,
       keywords: isSwccg ? [] : filters.keywords,
       keywordMethod: isSwccg ? "or" : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,
@@ -119,7 +124,7 @@ export default function CardsPage() {
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, isPokemon, effectivePageSize]
+    [filters, activeGame, isSwccg, isPokemon, effectiveAspectMethod, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -452,9 +457,9 @@ export default function CardsPage() {
       {
         key: "aspects" as const,
         label:
-          filters.aspectMethod === "exclude"
+          effectiveAspectMethod === "exclude"
             ? "Exclude Aspect"
-            : filters.aspectMethod === "and"
+            : effectiveAspectMethod === "and"
               ? "Aspect (AND)"
               : "Aspect",
         items: groupedAspects,
@@ -498,7 +503,7 @@ export default function CardsPage() {
     filters.lightSideIcons,
     filters.darkSideIcons,
     filters.arenas,
-    filters.aspectMethod,
+    effectiveAspectMethod,
     groupedAspects,
     filters.traits,
     filters.traitMethod,

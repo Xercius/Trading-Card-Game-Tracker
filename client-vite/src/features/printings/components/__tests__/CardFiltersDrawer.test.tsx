@@ -86,6 +86,36 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
+  it("uses OR when selecting Pokémon types", () => {
+    const setFilters = vi.fn();
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={{ ...defaultFilters, aspects: ["Grass"], aspectMethod: "exclude" }}
+        setFilters={setFilters}
+        availableFacets={defaultFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={true}
+        game="Pokemon TCG"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Types \(Grass\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Fire" }));
+
+    const updateFilters = setFilters.mock.calls[0]?.[0];
+    expect(typeof updateFilters).toBe("function");
+    expect(updateFilters(defaultFilters)).toMatchObject({
+      aspects: ["Grass", "Fire"],
+      aspectMethod: "or",
+      page: 1,
+    });
+  });
+
   it("calls onOpenChange(false) when clicking the close button in header", () => {
     const handleOpenChange = vi.fn();
     render(
