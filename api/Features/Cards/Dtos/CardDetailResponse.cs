@@ -61,6 +61,7 @@ namespace api.Features.Cards.Dtos;
 /// <param name="DarkSideIcons">Optional number of Dark Side Force generation icons.</param>
 /// <param name="BackLightSideIcons">Optional number of Light Side Force generation icons on card back.</param>
 /// <param name="BackDarkSideIcons">Optional number of Dark Side Force generation icons on card back.</param>
+/// <param name="Stage">Optional Pokémon card stage.</param>
 public sealed record CardDetailResponse(
     int Id,
     string Name,
@@ -108,6 +109,7 @@ public sealed record CardDetailResponse(
     int? LightSideIcons = null,
     int? DarkSideIcons = null,
     int? BackLightSideIcons = null,
-    int? BackDarkSideIcons = null);
+    int? BackDarkSideIcons = null,
+    string? Stage = null);
 
 public sealed record CardAspectResponse(string Name, int Count);

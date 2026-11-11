@@ -251,6 +251,8 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                         continue; // Skip unchanged card
                     }
 
+                    var normalizedStage = NormalizeStage(cardDetail.Stage);
+
                     // 1. Upsert Card
                     if (existingCard == null)
                     {
@@ -260,8 +262,10 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                             CardUid = cardDetail.Id.Trim(),
                             Name = cardDetail.Name.Trim(),
                             Hp = cardDetail.Hp,
-                            Rules = catalog.BuildRulesText(cardDetail),
-                            Text = cardDetail.Description,
+                            Stage = normalizedStage,
+                            Text = catalog.BuildRulesText(cardDetail),
+                            Rules = null,
+                            Lore = cardDetail.Description,
                             ExtraCardDataJson = catalog.BuildExtraCardDataJson(cardDetail),
                             LastSyncedAt = _timeProvider.GetUtcNow()
                         };
@@ -273,8 +277,10 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     {
                         existingCard.Name = cardDetail.Name.Trim();
                         existingCard.Hp = cardDetail.Hp;
-                        existingCard.Rules = catalog.BuildRulesText(cardDetail);
-                        existingCard.Text = cardDetail.Description;
+                        existingCard.Stage = normalizedStage;
+                        existingCard.Text = catalog.BuildRulesText(cardDetail);
+                        existingCard.Rules = null;
+                        existingCard.Lore = cardDetail.Description;
                         existingCard.ExtraCardDataJson = catalog.BuildExtraCardDataJson(cardDetail);
                         existingCard.LastSyncedAt = _timeProvider.GetUtcNow();
                         summary.CardsUpdated++;
@@ -300,7 +306,12 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     // 3. Link CardTypes & SubTypes
                     existingCard.CardTypes.Clear();
                     var category = !string.IsNullOrWhiteSpace(cardDetail.Category) ? cardDetail.Category.Trim() : "Pokemon";
-                    var catType = catalog.GetOrCreateCardType(category);
+                    string primaryType = category;
+                    if (string.Equals(category, "Trainer", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(cardDetail.TrainerType))
+                    {
+                        primaryType = cardDetail.TrainerType.Trim();
+                    }
+                    var catType = catalog.GetOrCreateCardType(primaryType);
                     existingCard.CardTypes.Add(new CardCardType
                     {
                         Card = existingCard,
@@ -427,6 +438,15 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
     public Task<ImportSummary> ImportFromFileAsync(Stream file, ImportOptions options, CancellationToken ct = default)
     {
         throw new NotSupportedException("File-based sync is not supported for TCGdex. Use remote sync.");
+    }
+
+    private static string? NormalizeStage(string? stage)
+    {
+        if (string.IsNullOrWhiteSpace(stage)) return null;
+        var trimmed = stage.Trim();
+        if (string.Equals(trimmed, "Stage1", StringComparison.OrdinalIgnoreCase)) return "Stage 1";
+        if (string.Equals(trimmed, "Stage2", StringComparison.OrdinalIgnoreCase)) return "Stage 2";
+        return trimmed;
     }
 
     private static List<(string TreatmentName, bool IsFoil)> DetermineVariants(TcgdexVariants? variants)

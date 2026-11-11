@@ -184,7 +184,7 @@ describe("CardsPage filter wiring", () => {
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 
-  it("renders filter buttons for Type, Arena, Aspects, and Traits in the expandable menu", () => {
+  it("renders filter buttons for Card Type, Arena, Aspects, and Traits in the expandable menu", () => {
     const mockUsePrintings = vi.spyOn(printingsApi, "usePrintings");
     mockUsePrintings.mockReturnValue({
       data: [],
@@ -202,13 +202,13 @@ describe("CardsPage filter wiring", () => {
     expect(filtersButton).toHaveAttribute("aria-expanded", "false");
 
     // Before opening the menu, individual facet buttons are not rendered
-    expect(screen.queryByRole("button", { name: "Type" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Card Type" })).not.toBeInTheDocument();
 
     // Click Filters to expand menu
     fireEvent.click(filtersButton);
     expect(filtersButton).toHaveAttribute("aria-expanded", "true");
 
-    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arena" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aspects" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Traits" })).toBeInTheDocument();

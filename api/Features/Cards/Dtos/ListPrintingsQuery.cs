@@ -146,6 +146,16 @@ public sealed class ListPrintingsQuery
     public string? DarkSideIcon { get; init; }
 
     /// <summary>
+    /// Optional filter by card HP (supports numeric operators like >109, 110).
+    /// </summary>
+    public string? Hp { get; init; }
+
+    /// <summary>
+    /// Optional filter by Pokémon stage (e.g. Basic, Stage 1, Stage 2).
+    /// </summary>
+    public string? Stage { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

@@ -6,6 +6,10 @@ import CardImages from "./CardImages";
 import CardQuantitiesEditor from "./CardQuantitiesEditor";
 import SwccgUniqueness from "./SwccgUniqueness";
 import { ForceIconBadge } from "./SwccgForceIcons";
+import {
+  PokemonEnergyIcon,
+  PokemonCardText,
+} from "@/features/printings/components/PokemonEnergyIcon";
 
 type CardModalProps = {
   cardId: number;
@@ -320,6 +324,26 @@ export default function CardModal({
   const printings = printingsQuery.data ?? EMPTY_PRINTINGS;
   const details = detailsQuery.data;
   const isSwccg = details?.game === "Star Wars CCG";
+  const isPokemon = details?.game === "Pokemon TCG";
+
+  const pokemonExtra = useMemo(() => {
+    if (!isPokemon || !details?.extraCardDataJson) return null;
+    try {
+      return JSON.parse(details.extraCardDataJson) as {
+        stage?: string;
+        evolveFrom?: string;
+        dexId?: number[];
+        retreat?: number;
+        weaknesses?: Array<{ type?: string; value?: string }>;
+        resistances?: Array<{ type?: string; value?: string }>;
+        trainerType?: string;
+        energyType?: string;
+        regulationMark?: string;
+      };
+    } catch {
+      return null;
+    }
+  }, [isPokemon, details?.extraCardDataJson]);
 
   const { displayName, subtitle, swccgUniqueness } = useMemo(() => {
     if (!details) return { displayName: "", subtitle: null, swccgUniqueness: null };
@@ -381,10 +405,11 @@ export default function CardModal({
   const rulesTextSource = useMemo(() => {
     if (hasMeaningfulContent(details?.textStyled)) return details!.textStyled!.trim();
     if (hasMeaningfulContent(details?.text)) return details!.text!.trim();
+    if (isPokemon && hasMeaningfulContent(details?.rules)) return details!.rules!.trim();
     const desc = (details as { description?: string })?.description;
     if (hasMeaningfulContent(desc)) return desc!.trim();
     return null;
-  }, [details]);
+  }, [details, isPokemon]);
 
   const epicActionSource = useMemo(() => {
     if (hasMeaningfulContent(details?.epicActionStyled)) return details!.epicActionStyled!.trim();
@@ -399,10 +424,11 @@ export default function CardModal({
   }, [details]);
 
   const rulingsSource = useMemo(() => {
+    if (isPokemon) return null;
     if (hasMeaningfulContent(details?.rulesStyled)) return details!.rulesStyled!.trim();
     if (hasMeaningfulContent(details?.rules)) return details!.rules!.trim();
     return null;
-  }, [details]);
+  }, [details, isPokemon]);
 
   const hasRulings = useMemo(() => {
     if (!rulingsSource) return false;
@@ -819,6 +845,154 @@ export default function CardModal({
                             )}
                           </div>
                           {renderStyledCardText(details.backText)}
+                        </div>
+                      )}
+                    </div>
+                  ) : isPokemon ? (
+                    <div className="space-y-4 text-sm" aria-live="polite">
+                      {/* 1. Header: Name with Energy Type Badges */}
+                      <div>
+                        <div className="flex items-center flex-wrap gap-2.5">
+                          <h2
+                            data-testid="card-modal-card-name"
+                            className="text-2xl font-bold tracking-tight text-foreground"
+                          >
+                            {displayName || details.name}
+                          </h2>
+
+                          {details.aspects && details.aspects.length > 0 && (
+                            <div
+                              className="flex items-center gap-1.5 shrink-0"
+                              aria-label="Energy types"
+                            >
+                              {details.aspects.map(({ name, count }) => (
+                                <div key={name} className="flex items-center gap-1">
+                                  {Array.from({ length: count || 1 }, (_, idx) => (
+                                    <PokemonEnergyIcon
+                                      key={`${name}-${idx}`}
+                                      type={name}
+                                      size={22}
+                                    />
+                                  ))}
+                                  <span className="text-xs font-semibold text-muted-foreground">
+                                    {name}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Subtitle / Stage / Evolves From / Trainer Type */}
+                        <p className="text-sm font-semibold text-muted-foreground mt-1">
+                          {pokemonExtra?.trainerType ? (
+                            pokemonExtra.trainerType
+                          ) : pokemonExtra?.energyType ? (
+                            pokemonExtra.energyType
+                          ) : details.cardType === "Trainer" || details.cardType === "Energy" ? (
+                            details.cardType
+                          ) : (
+                            <>
+                              <span>{details.stage || pokemonExtra?.stage || "Basic"}</span>
+                              {pokemonExtra?.evolveFrom && (
+                                <span> • Evolves from {pokemonExtra.evolveFrom}</span>
+                              )}
+                              {pokemonExtra?.dexId && pokemonExtra.dexId.length > 0 && (
+                                <span> • #{pokemonExtra.dexId[0]}</span>
+                              )}
+                            </>
+                          )}
+                        </p>
+
+                        {/* 2. Stats Row (HP, Weakness, Resistance, Retreat styled like SWCCG badges) */}
+                        <div
+                          className="flex flex-wrap items-center gap-2 mt-2"
+                          aria-label="Pokemon card stats"
+                        >
+                          {details.hp != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[50px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                HP
+                              </span>
+                              <span className="text-base font-black text-rose-400">
+                                {details.hp}
+                              </span>
+                            </div>
+                          )}
+                          {pokemonExtra?.weaknesses && pokemonExtra.weaknesses.length > 0 && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[60px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Weakness
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {pokemonExtra.weaknesses.map((w, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="flex items-center gap-0.5 text-xs font-bold text-foreground"
+                                  >
+                                    {w.type && <PokemonEnergyIcon type={w.type} size={14} />}
+                                    <span>{w.value}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {pokemonExtra?.resistances && pokemonExtra.resistances.length > 0 && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[60px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Resistance
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {pokemonExtra.resistances.map((r, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="flex items-center gap-0.5 text-xs font-bold text-foreground"
+                                  >
+                                    {r.type && <PokemonEnergyIcon type={r.type} size={14} />}
+                                    <span>{r.value}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {pokemonExtra?.retreat != null && (
+                            <div className="flex flex-col items-center justify-center rounded border border-white/20 bg-card/60 px-2.5 py-1 min-w-[60px]">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                                Retreat
+                              </span>
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                {pokemonExtra.retreat === 0 ? (
+                                  <span className="text-xs font-bold text-muted-foreground">
+                                    None
+                                  </span>
+                                ) : (
+                                  Array.from({ length: pokemonExtra.retreat }).map((_, idx) => (
+                                    <PokemonEnergyIcon key={idx} type="Colorless" size={14} />
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Text (Attacks & Abilities rendered with PokemonEnergyIcon) */}
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Card Text
+                        </h3>
+                        <PokemonCardText text={rulesTextSource} />
+                      </div>
+
+                      {/* Pokédex description / Lore */}
+                      {details.lore && (
+                        <div className="space-y-1 pt-2 border-t border-border/40">
+                          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Pokédex Entry
+                          </h3>
+                          <p className="text-sm italic text-muted-foreground leading-relaxed">
+                            {details.lore}
+                          </p>
                         </div>
                       )}
                     </div>

@@ -126,6 +126,7 @@ public sealed class CardsMappingProfile : Profile
             .ForCtorParam(nameof(CardDetailResponse.ExtraCardDataJson), o => o.MapFrom(s => s.ExtraCardDataJson))
             .ForCtorParam(nameof(CardDetailResponse.BackTitle), o => o.MapFrom(s => s.BackTitle))
             .ForCtorParam(nameof(CardDetailResponse.BackText), o => o.MapFrom(s => s.BackText))
-            .ForCtorParam(nameof(CardDetailResponse.Persona), o => o.MapFrom(s => s.Persona));
+            .ForCtorParam(nameof(CardDetailResponse.Persona), o => o.MapFrom(s => s.Persona))
+            .ForCtorParam(nameof(CardDetailResponse.Stage), o => o.MapFrom(s => s.Stage));
     }
 }

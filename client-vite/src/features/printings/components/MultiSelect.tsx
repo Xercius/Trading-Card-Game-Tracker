@@ -2,10 +2,12 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+export type MultiSelectOption = string | { label: string; value: string };
+
 type MultiSelectProps = {
   label: string;
   values: string[];
-  options: string[];
+  options: MultiSelectOption[];
   placeholder?: string;
   onChange: (values: string[]) => void;
   className?: string;
@@ -72,6 +74,18 @@ export function MultiSelect({
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
+  const normalizedOptions = React.useMemo(() => {
+    return options.map((opt) => (typeof opt === "string" ? { label: opt, value: opt } : opt));
+  }, [options]);
+
+  const labelMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const opt of normalizedOptions) {
+      map.set(opt.value, opt.label);
+    }
+    return map;
+  }, [normalizedOptions]);
+
   const summary = React.useMemo(() => {
     if (values.length === 0) return label;
     if (method && method !== "or") {
@@ -83,9 +97,13 @@ export function MultiSelect({
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredOptions = React.useMemo(() => {
-    if (!normalizedSearch) return options;
-    return options.filter((option) => option.toLowerCase().includes(normalizedSearch));
-  }, [normalizedSearch, options]);
+    if (!normalizedSearch) return normalizedOptions;
+    return normalizedOptions.filter(
+      (option) =>
+        option.label.toLowerCase().includes(normalizedSearch) ||
+        option.value.toLowerCase().includes(normalizedSearch)
+    );
+  }, [normalizedSearch, normalizedOptions]);
 
   const toggleValue = React.useCallback(
     (value: string) => {
@@ -211,19 +229,19 @@ export function MultiSelect({
                 <div className="px-3 py-2 text-muted-foreground">No results.</div>
               ) : (
                 filteredOptions.map((option) => {
-                  const selected = values.includes(option);
+                  const selected = values.includes(option.value);
                   return (
                     <button
-                      key={option}
+                      key={option.value}
                       type="button"
                       role="option"
                       aria-selected={selected}
-                      onClick={() => toggleValue(option)}
+                      onClick={() => toggleValue(option.value)}
                       className={`flex w-full items-center justify-between px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground ${
                         selected ? "font-semibold" : ""
                       }`}
                     >
-                      <span className="truncate">{option}</span>
+                      <span className="truncate">{option.label}</span>
                       <CheckIcon className={selected ? "text-accent-foreground" : "opacity-0"} />
                     </button>
                   );
@@ -235,27 +253,30 @@ export function MultiSelect({
       </div>
       {values.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {values.map((value) => (
-            <Badge
-              key={value}
-              variant="secondary"
-              className={
-                method === "exclude"
-                  ? "gap-1 border-destructive/40 bg-destructive/10 text-destructive"
-                  : "gap-1"
-              }
-            >
-              <span>{method === "exclude" ? `NOT ${value}` : value}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${value}`}
-                className="ml-1 inline-flex items-center justify-center rounded-full p-0.5 hover:bg-secondary/80"
-                onClick={() => removeValue(value)}
+          {values.map((value) => {
+            const displayLabel = labelMap.get(value) ?? value;
+            return (
+              <Badge
+                key={value}
+                variant="secondary"
+                className={
+                  method === "exclude"
+                    ? "gap-1 border-destructive/40 bg-destructive/10 text-destructive"
+                    : "gap-1"
+                }
               >
-                <XIcon />
-              </button>
-            </Badge>
-          ))}
+                <span>{method === "exclude" ? `NOT ${displayLabel}` : displayLabel}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${displayLabel}`}
+                  className="ml-1 inline-flex items-center justify-center rounded-full p-0.5 hover:bg-secondary/80"
+                  onClick={() => removeValue(value)}
+                >
+                  <XIcon />
+                </button>
+              </Badge>
+            );
+          })}
         </div>
       )}
     </div>

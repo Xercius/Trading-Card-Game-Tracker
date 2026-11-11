@@ -364,7 +364,8 @@ public class CardsController : ControllerBase
             c.LightSideIcons,
             c.DarkSideIcons,
             c.BackLightSideIcons,
-            c.BackDarkSideIcons);
+            c.BackDarkSideIcons,
+            c.Stage);
 
     /// <summary>
     /// Core implementation for creating or updating a card printing record.

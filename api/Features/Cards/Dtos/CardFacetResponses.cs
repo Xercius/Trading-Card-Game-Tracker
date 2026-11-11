@@ -130,6 +130,11 @@ public sealed record CardsFacetResponse
     /// List of available Dark Side icon facets with counts based on current filters.
     /// </summary>
     public IReadOnlyList<FacetOption> DarkSideIcons { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available stage facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> Stages { get; init; } = Array.Empty<FacetOption>();
 }
 
 /// <summary>

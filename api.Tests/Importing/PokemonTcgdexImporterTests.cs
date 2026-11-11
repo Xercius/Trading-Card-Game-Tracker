@@ -166,9 +166,12 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         Assert.Contains(card.Printings, p => p.Treatment?.Name == "Holo" && p.IsFoil);
         Assert.Contains(card.Printings, p => p.Treatment?.Name == "1st Edition");
 
-        // Rules text has attacks & abilities
-        Assert.Contains("[Pokemon Power] Energy Burn", card.Rules);
-        Assert.Contains("[Fire][Fire][Fire][Fire] Fire Spin (100)", card.Rules);
+        // Stage
+        Assert.Equal("Stage 2", card.Stage);
+
+        // Rules text has attacks & abilities in Text
+        Assert.Contains("[Pokemon Power] Energy Burn", card.Text);
+        Assert.Contains("[Fire][Fire][Fire][Fire] Fire Spin (100)", card.Text);
     }
 
     [Fact]
