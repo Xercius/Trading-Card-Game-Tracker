@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactNode } from "react";
 import CardsPage from "../CardsPage";
 import { GameProvider } from "@/state/GameProvider";
+import { useGame } from "@/state/useGame";
 import * as printingsApi from "../../api/usePrintings";
 import * as printingFacetsApi from "../../api/usePrintingFacets";
 import type { PrintingsResult } from "../../api/printings";
@@ -17,6 +18,16 @@ vi.mock("../../api/usePrintingFacets", () => ({
 
 // Define a strongly-typed mock result for usePrintings
 type UsePrintingsResult = ReturnType<typeof printingsApi.usePrintings>;
+
+function GameSwitcher() {
+  const { setActiveGame } = useGame();
+
+  return (
+    <button type="button" onClick={() => setActiveGame("Star Wars Unlimited")}>
+      Switch to SWU
+    </button>
+  );
+}
 
 // Helper function to wrap components with required providers
 function createTestWrapper(
@@ -182,6 +193,37 @@ describe("CardsPage filter wiring", () => {
     expect(callArgs.sort).toBe("name");
 
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  });
+
+  it("omits a selected Pokémon stage after switching to SWU", () => {
+    const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+      data: { items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as UsePrintingsResult);
+
+    render(
+      <>
+        <CardsPage />
+        <GameSwitcher />
+      </>,
+      {
+        wrapper: createTestWrapper(["/cards?stage=Stage+1"], "Pokemon TCG"),
+      }
+    );
+
+    expect(usePrintingsSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      stages: ["Stage 1"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to SWU" }));
+
+    expect(usePrintingsSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+      games: ["Star Wars Unlimited"],
+      stages: [],
+    });
   });
 
   it("renders filter buttons for Card Type, Arena, Aspects, and Traits in the expandable menu", () => {
