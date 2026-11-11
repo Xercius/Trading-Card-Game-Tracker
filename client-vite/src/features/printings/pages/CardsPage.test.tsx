@@ -201,6 +201,42 @@ describe("CardsPage", () => {
     expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({ hps: [] });
   });
 
+  it("shows and clears a stage-only Pokémon filter", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?game=Pokemon%20TCG&stage=Stage+1"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(container?.textContent).toContain("Stage: Stage 1");
+
+    const filtersButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Filters")
+    );
+    await act(async () => {
+      filtersButton?.click();
+    });
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Clear Filters"
+    );
+    expect(clearButton).toBeDefined();
+    expect(clearButton).not.toBeDisabled();
+
+    await act(async () => {
+      clearButton?.click();
+    });
+
+    expect(usePrintingsMock.mock.calls.at(-1)?.[0]).toMatchObject({ stages: [] });
+  });
+
   it("does not render a redundant page-level search input", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }]);
 

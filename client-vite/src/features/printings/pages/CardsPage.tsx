@@ -32,7 +32,8 @@ type FilterArrayKey =
   | "abilities"
   | "lightSideIcons"
   | "darkSideIcons"
-  | "hps";
+  | "hps"
+  | "stages";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -246,6 +247,7 @@ export default function CardsPage() {
       lightSideIcons: [],
       darkSideIcons: [],
       hps: [],
+      stages: [],
       page: 1,
     }));
   }, [setFilters, activeGame]);
@@ -447,6 +449,11 @@ export default function CardsPage() {
               label: "HP",
               items: (filters.hps ?? []).map((v) => ({ display: v, value: v })),
             },
+            {
+              key: "stages" as const,
+              label: "Stage",
+              items: (filters.stages ?? []).map((v) => ({ display: v, value: v })),
+            },
           ]
         : []),
       {
@@ -491,6 +498,7 @@ export default function CardsPage() {
     filters.side,
     filters.types,
     filters.hps,
+    filters.stages,
     filters.subTypes,
     filters.personas,
     filters.sets,
