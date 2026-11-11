@@ -64,6 +64,7 @@ export default function CardsPage() {
   const { activeGame } = useGame();
   const { filters, setFilters } = useCardFilters();
   const isSwccg = activeGame === "Star Wars CCG";
+  const isPokemon = activeGame === "Pokemon TCG";
 
   const previousGameRef = React.useRef(activeGame);
   React.useEffect(() => {
@@ -97,6 +98,7 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      stages: isPokemon ? filters.stages : [],
       arenas: isSwccg ? [] : filters.arenas,
       aspects: isSwccg ? [] : filters.aspects,
       aspectMethod: isSwccg ? "or" : filters.aspectMethod,
@@ -115,7 +117,7 @@ export default function CardsPage() {
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, effectivePageSize]
+    [filters, activeGame, isSwccg, isPokemon, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
