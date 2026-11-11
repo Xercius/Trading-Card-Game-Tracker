@@ -99,7 +99,7 @@ export default function CardsPage() {
       games: [activeGame],
       arenas: isSwccg ? [] : filters.arenas,
       aspects: isSwccg ? [] : filters.aspects,
-      aspectMethod: isSwccg ? "or" : filters.aspectMethod,
+      aspectMethod: isSwccg || activeGame === "Pokemon TCG" ? "or" : filters.aspectMethod,
       keywords: isSwccg ? [] : filters.keywords,
       keywordMethod: isSwccg ? "or" : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,

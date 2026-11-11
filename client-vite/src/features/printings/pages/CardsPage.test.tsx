@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
+const mocks = vi.hoisted(() => ({ activeGame: "Star Wars Unlimited" }));
 const usePrintingsMock = vi.fn<(_query: unknown) => unknown>();
 const usePrintingFacetsMock = vi.fn(() => ({
   data: { games: [], sets: [], rarities: [], types: [], arenas: [], aspects: [], traits: [] },
@@ -23,9 +24,9 @@ vi.mock("@/features/cards/components/CardModal", () => ({
 
 vi.mock("@/state/useGame", () => ({
   useGame: () => ({
-    activeGame: "Star Wars Unlimited",
+    activeGame: mocks.activeGame,
     setActiveGame: vi.fn(),
-    games: ["Star Wars Unlimited"],
+    games: [mocks.activeGame],
     isLoadingGames: false,
   }),
 }));
@@ -38,6 +39,7 @@ describe("CardsPage", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    mocks.activeGame = "Star Wars Unlimited";
     usePrintingsMock.mockReset();
     CardModalMock.mockReset();
     usePrintingsMock.mockImplementation(() => ({
@@ -103,6 +105,27 @@ describe("CardsPage", () => {
       page: 1,
       pageSize: 20,
       sort: "name",
+    });
+  });
+
+  it("uses OR for Pokémon types even when the URL contains another aspect method", async () => {
+    mocks.activeGame = "Pokemon TCG";
+    const router = createMemoryRouter([{ path: "/", element: <CardsPage /> }], {
+      initialEntries: ["/?aspect=Grass,Fire&aspectMethod=exclude"],
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root!.render(<RouterProvider router={router} />);
+    });
+
+    expect(usePrintingsMock.mock.calls[0]?.[0]).toMatchObject({
+      games: ["Pokemon TCG"],
+      aspects: ["Grass", "Fire"],
+      aspectMethod: "or",
     });
   });
 
