@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using api.Data;
 using api.Models;
@@ -258,7 +259,17 @@ public sealed class PokemonCatalog
         var primaryType = ResolvePrimaryCardType(card.Category, card.TrainerType);
         var normalizedStage = NormalizeStage(card.Stage);
         var rulesText = BuildRulesText(card);
-        return ComputeMechanicalCardUid(primaryType, card.Name, normalizedStage, card.Hp, card.Types, rulesText);
+        return ComputeMechanicalCardUid(
+            primaryType,
+            card.Name,
+            normalizedStage,
+            card.Hp,
+            card.Types,
+            rulesText,
+            card.EvolveFrom,
+            card.Retreat,
+            card.Weaknesses,
+            card.Resistances);
     }
 
     public static string ComputeMechanicalCardUid(Card existingCard)
@@ -271,7 +282,18 @@ public sealed class PokemonCatalog
             .Select(ca => ca.Aspect?.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name!);
-        return ComputeMechanicalCardUid(primaryType, existingCard.Name, normalizedStage, existingCard.Hp, types, existingCard.Text);
+        var mechanics = ReadMechanicalDetails(existingCard.ExtraCardDataJson);
+        return ComputeMechanicalCardUid(
+            primaryType,
+            existingCard.Name,
+            normalizedStage,
+            existingCard.Hp,
+            types,
+            existingCard.Text,
+            mechanics?.EvolveFrom,
+            mechanics?.Retreat,
+            mechanics?.Weaknesses,
+            mechanics?.Resistances);
     }
 
     public static string ComputeMechanicalCardUid(
@@ -280,7 +302,11 @@ public sealed class PokemonCatalog
         string? normalizedStage,
         int? hp,
         IEnumerable<string>? types,
-        string? rulesText)
+        string? rulesText,
+        string? evolveFrom = null,
+        int? retreat = null,
+        IEnumerable<TcgdexWeakRes>? weaknesses = null,
+        IEnumerable<TcgdexWeakRes>? resistances = null)
     {
         var normType = NormalizeIdentityPart(primaryType ?? "Pokemon");
         var normName = NormalizeIdentityPart(name);
@@ -295,13 +321,62 @@ public sealed class PokemonCatalog
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(t => t, StringComparer.Ordinal));
         var normRules = NormalizeRulesTextForIdentity(rulesText);
+        var normEvolution = NormalizeIdentityPart(evolveFrom);
+        var normRetreat = retreat?.ToString() ?? string.Empty;
+        var normWeaknesses = NormalizeWeakRes(weaknesses);
+        var normResistances = NormalizeWeakRes(resistances);
 
-        var fingerprint = $"{normType}|{normName}|{normStage}|{normHp}|{normTypes}|{normRules}";
+        var fingerprint = $"{normType}|{normName}|{normStage}|{normHp}|{normTypes}|{normRules}|{normEvolution}|{normRetreat}|{normWeaknesses}|{normResistances}";
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
         var hashHex = Convert.ToHexString(hashBytes, 0, 8).ToLowerInvariant();
         var slug = BuildCardSlug(name);
 
         return $"pkmn:{slug}:{hashHex}";
+    }
+
+    private static string NormalizeWeakRes(IEnumerable<TcgdexWeakRes>? entries)
+    {
+        return entries == null
+            ? string.Empty
+            : string.Join(",",
+                entries
+                    .Select(entry => $"{NormalizeIdentityPart(entry.Type)}:{NormalizeIdentityPart(entry.Value)}")
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(entry => entry, StringComparer.Ordinal));
+    }
+
+    private static MechanicalCardDetails? ReadMechanicalDetails(string? extraCardDataJson)
+    {
+        if (string.IsNullOrWhiteSpace(extraCardDataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MechanicalCardDetails>(
+                extraCardDataJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            return new MechanicalCardDetails { EvolveFrom = extraCardDataJson };
+        }
+    }
+
+    private sealed class MechanicalCardDetails
+    {
+        [JsonPropertyName("evolveFrom")]
+        public string? EvolveFrom { get; set; }
+
+        [JsonPropertyName("retreat")]
+        public int? Retreat { get; set; }
+
+        [JsonPropertyName("weaknesses")]
+        public List<TcgdexWeakRes>? Weaknesses { get; set; }
+
+        [JsonPropertyName("resistances")]
+        public List<TcgdexWeakRes>? Resistances { get; set; }
     }
 
     private static string NormalizeIdentityPart(string? value)
@@ -430,6 +505,7 @@ public sealed class PokemonCatalog
             variantId = variantDetail?.VariantId,
             variantType = variantDetail?.Type,
             variantSubtype = variantDetail?.Subtype,
+            variantSize = variantDetail?.Size,
             variantFoil = variantDetail?.Foil,
             variantStamps = variantDetail?.Stamp,
             thirdParty = variantDetail?.ThirdParty ?? card.ThirdParty

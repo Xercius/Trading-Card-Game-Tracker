@@ -268,7 +268,8 @@ public sealed class PrintingsController : ControllerBase
                     .OrderByDescending(candidate => !string.IsNullOrEmpty(candidate.ImageUrl))
                     .ThenByDescending(candidate => candidate.Treatment != null
                         && (candidate.Treatment.NameNormalized == "standard"
-                            || (requestedGames.Contains("pokemon tcg") && candidate.Treatment.NameNormalized == "holo")))
+                            || (candidate.Card.Game != null && candidate.Card.Game.Name == "Pokemon TCG"
+                                && candidate.Treatment.NameNormalized == "holo")))
                     .ThenBy(candidate => candidate.ApiCreatedAt == null)
                     .ThenBy(candidate => AppDbContext.SqliteJulianDay(candidate.ApiCreatedAt))
                     .ThenBy(candidate => candidate.CatalogSet == null || candidate.CatalogSet.ReleasedAt == null)

@@ -35,6 +35,63 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
     }
 
     [Fact]
+    public async Task ComputeMechanicalCardUid_IncludesGameplayRequirementsForIncomingAndPersistedCards()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var catalog = new PokemonCatalog(db);
+
+        TcgdexCard CreateCard(
+            string evolveFrom = "Ivysaur",
+            int retreat = 2,
+            string weaknessValue = "x2",
+            string resistanceValue = "-30")
+        {
+            return new TcgdexCard
+            {
+                Name = "Venusaur",
+                Category = "Pokemon",
+                Hp = 180,
+                Stage = "Stage2",
+                Types = ["Grass"],
+                EvolveFrom = evolveFrom,
+                Retreat = retreat,
+                Weaknesses = [new() { Type = "Fire", Value = weaknessValue }],
+                Resistances = [new() { Type = "Psychic", Value = resistanceValue }]
+            };
+        }
+
+        var card = CreateCard();
+        var fingerprint = catalog.ComputeMechanicalCardUid(card);
+        var persistedCard = new Card
+        {
+            Name = card.Name,
+            Hp = card.Hp,
+            Stage = PokemonCatalog.NormalizeStage(card.Stage),
+            Text = catalog.BuildRulesText(card),
+            ExtraCardDataJson = catalog.BuildExtraCardDataJson(card)
+        };
+        persistedCard.CardTypes.Add(new CardCardType
+        {
+            Card = persistedCard,
+            CardType = new CardType { Name = "Pokemon" },
+            SourceRole = "Type"
+        });
+        persistedCard.CardAspects.Add(new CardAspect
+        {
+            Card = persistedCard,
+            Aspect = new Aspect { Name = "Grass" },
+            Count = 1
+        });
+
+        Assert.Equal(fingerprint, PokemonCatalog.ComputeMechanicalCardUid(persistedCard));
+        Assert.NotEqual(fingerprint, catalog.ComputeMechanicalCardUid(CreateCard(evolveFrom: "Gloom")));
+        Assert.NotEqual(fingerprint, catalog.ComputeMechanicalCardUid(CreateCard(retreat: 3)));
+        Assert.NotEqual(fingerprint, catalog.ComputeMechanicalCardUid(CreateCard(weaknessValue: "x3")));
+        Assert.NotEqual(fingerprint, catalog.ComputeMechanicalCardUid(CreateCard(resistanceValue: "-20")));
+    }
+
+    [Fact]
     public async Task SyncSetsAsync_PopulatesSetsWithEraAndReleaseDate()
     {
         using var scope = factory.Services.CreateScope();
@@ -395,6 +452,147 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         Assert.Contains(pikachu.Printings, p => p.Treatment?.Name == "Standard" && !p.IsFoil);
         Assert.Contains(pikachu.Printings, p => p.Treatment?.Name == "Poké Ball Reverse Holo" && p.IsFoil);
         Assert.Contains(pikachu.Printings, p => p.Treatment?.Name == "Master Ball Reverse Holo" && p.IsFoil);
+    }
+
+    [Fact]
+    public async Task SyncCardsAsync_ReconcilesChangedMechanicsAndFirstEditionTreatmentByStablePrintingIdentity()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var cardDetail = new TcgdexCard
+        {
+            Id = "identity-set-1",
+            LocalId = "1",
+            Name = "Identitymon",
+            Category = "Pokemon",
+            Hp = 60,
+            Types = ["Grass"],
+            Stage = "Basic",
+            VariantsDetailed =
+            [
+                new() { VariantId = "holo-first", Type = "holo", Subtype = "1st-edition", Size = "standard" }
+            ]
+        };
+        var client = new StubPokemonApiClient
+        {
+            Sets = [new() { Id = "identity-set", Name = "Identity Set" }],
+            SetDetails =
+            {
+                ["identity-set"] = new()
+                {
+                    Id = "identity-set",
+                    Name = "Identity Set",
+                    ReleaseDate = "2024-01-01",
+                    Serie = new() { Id = "sv", Name = "Scarlet & Violet" },
+                    Cards = [new() { Id = cardDetail.Id, LocalId = cardDetail.LocalId, Name = cardDetail.Name }]
+                }
+            },
+            Cards = { [cardDetail.Id] = cardDetail }
+        };
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncSetsAsync();
+        await importer.SyncCardsAsync(["identity-set"]);
+
+        var initialCard = await db.Cards
+            .Include(c => c.Printings).ThenInclude(p => p.Treatment)
+            .SingleAsync(c => c.Name == "Identitymon");
+        var initialPrinting = Assert.Single(initialCard.Printings);
+        var printingId = initialPrinting.Id;
+        Assert.Equal("1st Edition", initialPrinting.Treatment?.Name);
+        initialPrinting.CardUid = $"{cardDetail.Id}:1stedition";
+        db.UserCards.Add(new UserCard { UserId = 1, CardPrintingId = printingId, QuantityOwned = 1 });
+        await db.SaveChangesAsync();
+
+        cardDetail.Hp = 70;
+        cardDetail.VariantsDetailed =
+        [
+            new() { VariantId = "holo-first", Type = "holo", Subtype = "1st-edition", Size = "standard" },
+            new() { VariantId = "normal-first", Type = "normal", Subtype = "1st-edition", Size = "standard" }
+        ];
+        await importer.SyncCardsAsync(["identity-set"], forceFullSync: true);
+
+        var reconciledCard = await db.Cards
+            .Include(c => c.Printings).ThenInclude(p => p.Treatment)
+            .SingleAsync(c => c.Name == "Identitymon");
+        Assert.Equal(70, reconciledCard.Hp);
+        Assert.Equal(2, reconciledCard.Printings.Count);
+        var reconciledPrinting = Assert.Single(reconciledCard.Printings, p => p.Id == printingId);
+        Assert.Equal("1st Edition Holo", reconciledPrinting.Treatment?.Name);
+        Assert.StartsWith($"{cardDetail.Id}:variant:", reconciledPrinting.CardUid);
+        Assert.Equal(1, await db.UserCards.Where(uc => uc.CardPrintingId == printingId).Select(uc => uc.QuantityOwned).SingleAsync());
+    }
+
+    [Fact]
+    public async Task SyncCardsAsync_ConsolidatesTrackedUserDeckAndPriceTargetsWithoutUniqueKeyConflicts()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var catalog = new PokemonCatalog(db);
+        await catalog.InitializeAsync();
+        var game = catalog.Game;
+        var set = new Set
+        {
+            GameId = game.Id,
+            Code = "tracked-merge",
+            Name = "Tracked Merge",
+            Era = "Test",
+            ReleasedAt = new DateOnly(2024, 1, 1)
+        };
+        var treatment = catalog.GetOrCreateTreatment("Holo");
+        var uid = PokemonCatalog.ComputeMechanicalCardUid("Pokemon", "Trackedmon", "Basic", 60, [], null);
+        var cards = Enumerable.Range(0, 3)
+            .Select(_ => new Card
+            {
+                GameId = game.Id,
+                CardUid = uid,
+                Name = "Trackedmon",
+                Hp = 60,
+                Stage = "Basic"
+            })
+            .ToList();
+        db.Sets.Add(set);
+        db.Cards.AddRange(cards);
+        await db.SaveChangesAsync();
+
+        var printings = cards.Select(card => new CardPrinting
+        {
+            Card = card,
+            SetId = set.Id,
+            Number = "1",
+            Treatment = treatment,
+            IsFoil = true
+        }).ToList();
+        db.CardPrintings.AddRange(printings);
+        var deck = new Deck { UserId = 1, Name = "Tracked merge", Game = PokemonCatalog.GameName };
+        db.Decks.Add(deck);
+        await db.SaveChangesAsync();
+
+        db.UserCards.AddRange(
+            new UserCard { UserId = 1, CardPrintingId = printings[1].Id, QuantityOwned = 2 },
+            new UserCard { UserId = 1, CardPrintingId = printings[2].Id, QuantityOwned = 3 });
+        db.DeckCards.AddRange(
+            new DeckCard { DeckId = deck.Id, CardPrintingId = printings[1].Id, QuantityInDeck = 2, IsStarting = false },
+            new DeckCard { DeckId = deck.Id, CardPrintingId = printings[2].Id, QuantityInDeck = 3, IsStarting = true });
+        db.CardPriceHistories.AddRange(
+            new CardPriceHistory { CardPrintingId = printings[1].Id, CapturedAt = new DateOnly(2024, 1, 2), Price = 1m },
+            new CardPriceHistory { CardPrintingId = printings[2].Id, CapturedAt = new DateOnly(2024, 1, 2), Price = 2m });
+        await db.SaveChangesAsync();
+
+        var client = new StubPokemonApiClient
+        {
+            SetDetails = { ["tracked-merge"] = new() { Id = "tracked-merge", Cards = [] } }
+        };
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncCardsAsync(["tracked-merge"]);
+
+        var canonicalPrintingId = printings[0].Id;
+        var userCard = await db.UserCards.SingleAsync(uc => uc.CardPrintingId == canonicalPrintingId);
+        Assert.Equal(5, userCard.QuantityOwned);
+        var deckCard = await db.DeckCards.SingleAsync(dc => dc.CardPrintingId == canonicalPrintingId);
+        Assert.Equal(5, deckCard.QuantityInDeck);
+        Assert.True(deckCard.IsStarting);
+        var priceHistory = await db.CardPriceHistories.SingleAsync(ph => ph.CardPrintingId == canonicalPrintingId);
+        Assert.Equal(new DateOnly(2024, 1, 2), priceHistory.CapturedAt);
     }
 
     [Fact]

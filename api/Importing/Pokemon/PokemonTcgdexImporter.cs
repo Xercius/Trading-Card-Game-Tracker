@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using api.Data;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -196,13 +198,19 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 .ToDictionaryAsync(s => s.Code.Trim(), StringComparer.OrdinalIgnoreCase, ct);
 
             // Load all existing Pokemon cards across the entire game keyed by canonical CardUid
-            var existingCardsByUid = await _db.Cards
+            var existingCards = await _db.Cards
                 .Include(c => c.CardAspects)
                 .Include(c => c.CardTypes)
                 .Include(c => c.CardSubTypes)
-                .Include(c => c.Printings)
-                .Where(c => c.GameId == game.Id && c.CardUid != null)
-                .ToDictionaryAsync(c => c.CardUid!.Trim(), StringComparer.OrdinalIgnoreCase, ct);
+                .Include(c => c.Printings).ThenInclude(p => p.Treatment)
+                .Where(c => c.GameId == game.Id)
+                .AsSplitQuery()
+                .ToListAsync(ct);
+            var existingCardsByUid = existingCards
+                .Where(c => !string.IsNullOrWhiteSpace(c.CardUid))
+                .GroupBy(c => c.CardUid!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            var existingPrintings = existingCards.SelectMany(c => c.Printings).ToList();
 
             var cardFetchSemaphore = new SemaphoreSlim(6);
 
@@ -262,22 +270,39 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     var localId = cardDetail.LocalId.Trim();
                     var canonicalCardUid = catalog.ComputeMechanicalCardUid(cardDetail);
                     existingCardsByUid.TryGetValue(canonicalCardUid, out var existingCard);
+                    var normalizedStage = PokemonCatalog.NormalizeStage(cardDetail.Stage);
+                    var rulesText = catalog.BuildRulesText(cardDetail);
+                    var variantPlans = DetermineVariants(cardDetail)
+                        .Select(variant =>
+                        {
+                            var printingUid = BuildPrintingUid(cardDetail.Id, variant.TreatmentName, variant.Detail);
+                            var printing = existingPrintings.FirstOrDefault(p =>
+                                p.SetId == dbSet.Id &&
+                                string.Equals(p.Number, localId, StringComparison.OrdinalIgnoreCase) &&
+                                IsPrintingIdentityMatch(p, cardDetail.Id, printingUid, variant.TreatmentName, variant.Detail));
+                            return (Variant: variant, PrintingUid: printingUid, ExistingPrinting: printing);
+                        })
+                        .ToList();
+                    existingCard = variantPlans
+                        .Select(plan => plan.ExistingPrinting?.Card)
+                        .FirstOrDefault(card => card != null)
+                        ?? existingCard;
 
                     // Check if this specific collector number in this set is already present and unchanged
-                    var existingPrintingsForNumber = existingCard?.Printings
-                        .Where(p => p.SetId == dbSet.Id && string.Equals(p.Number, localId, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
                     if (!forceFullSync &&
                         existingCard != null &&
-                        existingPrintingsForNumber is { Count: > 0 } &&
+                        string.Equals(existingCard.CardUid, canonicalCardUid, StringComparison.Ordinal) &&
+                        variantPlans.Count > 0 &&
+                        variantPlans.All(plan =>
+                            plan.ExistingPrinting is { } printing &&
+                            string.Equals(printing.CardUid, plan.PrintingUid, StringComparison.Ordinal) &&
+                            string.Equals(printing.Treatment?.Name, plan.Variant.TreatmentName, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(printing.DetailsJson, catalog.BuildPrintingDetailsJson(cardDetail, plan.Variant.Detail), StringComparison.Ordinal)) &&
                         cardUpdated != DateTimeOffset.MinValue &&
                         cardUpdated <= lowerBoundTime)
                     {
                         continue; // Skip unchanged printing
                     }
-
-                    var normalizedStage = PokemonCatalog.NormalizeStage(cardDetail.Stage);
-                    var rulesText = catalog.BuildRulesText(cardDetail);
 
                     // 1. Upsert Card (shared across all printings/treatments of this mechanical card)
                     if (existingCard == null)
@@ -296,7 +321,6 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                             LastSyncedAt = _timeProvider.GetUtcNow()
                         };
                         _db.Cards.Add(existingCard);
-                        existingCardsByUid[canonicalCardUid] = existingCard;
                         cardsUpsertedInSet.Add(canonicalCardUid);
                         summary.CardsCreated++;
                         setCardsUpserted++;
@@ -322,27 +346,23 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                             setCardsUpserted++;
                         }
                     }
+                    existingCardsByUid[canonicalCardUid] = existingCard;
 
                     // 2. Link Aspects, CardTypes & SubTypes without duplicating tracked join entities
                     SyncCardLinks(existingCard, cardDetail, catalog);
 
                     // 3. Upsert Printings for each physical variant of this collector number
-                    var variants = DetermineVariants(cardDetail);
                     var rarity = catalog.GetOrCreateRarity(cardDetail.Rarity);
                     var imageUrl = !string.IsNullOrWhiteSpace(cardDetail.Image) ? $"{cardDetail.Image}/high.webp" : null;
 
-                    foreach (var (treatmentName, isFoil, variantDetail) in variants)
+                    foreach (var plan in variantPlans)
                     {
+                        var (treatmentName, isFoil, variantDetail) = plan.Variant;
                         var treatment = catalog.GetOrCreateTreatment(treatmentName);
-                        var variantSlug = BuildVariantSlug(treatmentName);
-                        var printingUid = $"{cardDetail.Id.Trim()}:{variantSlug}";
+                        var printingUid = plan.PrintingUid;
                         var detailsJson = catalog.BuildPrintingDetailsJson(cardDetail, variantDetail);
 
-                        var printing = existingCard.Printings.FirstOrDefault(p =>
-                            p.SetId == dbSet.Id &&
-                            (string.Equals(p.CardUid, printingUid, StringComparison.OrdinalIgnoreCase) ||
-                             (string.Equals(p.Number, localId, StringComparison.OrdinalIgnoreCase) &&
-                              (p.TreatmentId == treatment.Id || p.Treatment == treatment))));
+                        var printing = plan.ExistingPrinting;
 
                         if (printing == null)
                         {
@@ -362,10 +382,18 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                             };
                             existingCard.Printings.Add(printing);
                             _db.CardPrintings.Add(printing);
+                            existingPrintings.Add(printing);
                             summary.PrintingsCreated++;
                         }
                         else
                         {
+                            if (!ReferenceEquals(printing.Card, existingCard))
+                            {
+                                printing.Card?.Printings.Remove(printing);
+                                printing.Card = existingCard;
+                                printing.CardId = existingCard.Id;
+                                existingCard.Printings.Add(printing);
+                            }
                             printing.CardUid = printingUid;
                             printing.Number = localId;
                             printing.ImageUrl = imageUrl;
@@ -418,6 +446,13 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 summary.Messages.Add($"Set '{trimmedCode}': {setCardsUpserted} cards upserted, {setPrintingsUpserted} printings upserted.");
             }
 
+            var postSyncConsolidatedCount = await ConsolidateDuplicateCardsCoreAsync(game, ct);
+            if (postSyncConsolidatedCount > 0)
+            {
+                await _db.SaveChangesAsync(ct);
+                summary.Messages.Add($"Consolidated {postSyncConsolidatedCount} duplicate Pokemon cards into canonical card records.");
+            }
+
             return summary;
         });
     }
@@ -446,6 +481,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             .Include(c => c.CardSubTypes).ThenInclude(cst => cst.SubType)
             .Include(c => c.Printings)
             .Where(c => c.GameId == game.Id)
+            .AsSplitQuery()
             .ToListAsync(ct);
 
         if (allPokemonCards.Count == 0)
@@ -536,8 +572,6 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 // Re-parent printings to canonicalCard so all CardPrinting.Id references in UserCards/Decks/Wishlists stay intact
                 foreach (var printing in dupCard.Printings.ToList())
                 {
-                    dupCard.Printings.Remove(printing);
-
                     var conflictingPrinting = canonicalCard.Printings.FirstOrDefault(p =>
                         p.SetId == printing.SetId &&
                         string.Equals(p.Number, printing.Number, StringComparison.OrdinalIgnoreCase) &&
@@ -545,6 +579,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
 
                     if (conflictingPrinting == null)
                     {
+                        dupCard.Printings.Remove(printing);
                         printing.CardId = canonicalCard.Id;
                         printing.Card = canonicalCard;
                         canonicalCard.Printings.Add(printing);
@@ -552,6 +587,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     else
                     {
                         await MergeConflictingPrintingReferencesAsync(printing.Id, conflictingPrinting.Id, ct);
+                        dupCard.Printings.Remove(printing);
                         _db.CardPrintings.Remove(printing);
                     }
                 }
@@ -579,8 +615,10 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             .ToListAsync(ct);
         foreach (var uc in userCards)
         {
-            var existingTarget = await _db.UserCards.FirstOrDefaultAsync(
-                x => x.UserId == uc.UserId && x.CardPrintingId == canonicalPrintingId, ct);
+            var existingTarget = _db.UserCards.Local.FirstOrDefault(
+                x => !ReferenceEquals(x, uc) && x.UserId == uc.UserId && x.CardPrintingId == canonicalPrintingId)
+                ?? await _db.UserCards.FirstOrDefaultAsync(
+                    x => x.UserId == uc.UserId && x.CardPrintingId == canonicalPrintingId, ct);
             if (existingTarget != null)
             {
                 existingTarget.QuantityOwned += uc.QuantityOwned;
@@ -606,14 +644,17 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             .ToListAsync(ct);
         foreach (var dc in deckCards)
         {
-            var existingTarget = await _db.DeckCards.FirstOrDefaultAsync(
-                x => x.DeckId == dc.DeckId && x.CardPrintingId == canonicalPrintingId && x.IsStarting == dc.IsStarting, ct);
+            var existingTarget = _db.DeckCards.Local.FirstOrDefault(
+                x => !ReferenceEquals(x, dc) && x.DeckId == dc.DeckId && x.CardPrintingId == canonicalPrintingId)
+                ?? await _db.DeckCards.FirstOrDefaultAsync(
+                    x => x.DeckId == dc.DeckId && x.CardPrintingId == canonicalPrintingId, ct);
             if (existingTarget != null)
             {
                 existingTarget.QuantityInDeck += dc.QuantityInDeck;
                 existingTarget.QuantityIdea += dc.QuantityIdea;
                 existingTarget.QuantityAcquire += dc.QuantityAcquire;
                 existingTarget.QuantityProxy += dc.QuantityProxy;
+                existingTarget.IsStarting |= dc.IsStarting;
                 _db.DeckCards.Remove(dc);
             }
             else
@@ -627,8 +668,10 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             .ToListAsync(ct);
         foreach (var ph in priceHistories)
         {
-            var exists = await _db.CardPriceHistories.AnyAsync(
-                x => x.CardPrintingId == canonicalPrintingId && x.CapturedAt == ph.CapturedAt, ct);
+            var exists = _db.CardPriceHistories.Local.Any(
+                    x => !ReferenceEquals(x, ph) && x.CardPrintingId == canonicalPrintingId && x.CapturedAt == ph.CapturedAt)
+                || await _db.CardPriceHistories.AnyAsync(
+                    x => x.CardPrintingId == canonicalPrintingId && x.CapturedAt == ph.CapturedAt, ct);
             if (exists)
             {
                 _db.CardPriceHistories.Remove(ph);
@@ -727,6 +770,131 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 });
             }
         }
+    }
+
+    private static string BuildPrintingUid(string cardId, string treatmentName, TcgdexVariantDetailed? variantDetail)
+    {
+        var sourceId = cardId.Trim();
+        if (variantDetail == null)
+        {
+            return $"{sourceId}:{BuildVariantSlug(treatmentName)}";
+        }
+
+        var variantIdentity = !string.IsNullOrWhiteSpace(variantDetail.VariantId)
+            ? $"id|{NormalizeVariantPart(variantDetail.VariantId)}"
+            : string.Join("|",
+                NormalizeVariantPart(variantDetail.Type),
+                NormalizeVariantPart(variantDetail.Subtype),
+                NormalizeVariantPart(variantDetail.Size),
+                NormalizeVariantPart(variantDetail.Foil),
+                NormalizeVariantList(variantDetail.Stamp));
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(variantIdentity)), 0, 8).ToLowerInvariant();
+        return $"{sourceId}:variant:{hash}";
+    }
+
+    private static bool IsPrintingIdentityMatch(
+        CardPrinting printing,
+        string cardId,
+        string printingUid,
+        string treatmentName,
+        TcgdexVariantDetailed? variantDetail)
+    {
+        if (string.Equals(printing.CardUid, printingUid, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                printing.CardUid,
+                $"{cardId.Trim()}:{BuildVariantSlug(treatmentName)}",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (variantDetail == null || string.IsNullOrWhiteSpace(printing.DetailsJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(printing.DetailsJson);
+            var root = document.RootElement;
+            if (!string.Equals(
+                    GetJsonString(root, "tcgdexId"),
+                    cardId.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var storedVariantId = GetJsonString(root, "variantId");
+            if (!string.IsNullOrWhiteSpace(storedVariantId) &&
+                !string.IsNullOrWhiteSpace(variantDetail.VariantId) &&
+                string.Equals(storedVariantId, variantDetail.VariantId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return MatchesStoredVariantPart(root, "variantType", variantDetail.Type) &&
+                   MatchesStoredVariantPart(root, "variantSubtype", variantDetail.Subtype) &&
+                   MatchesStoredVariantPart(root, "variantSize", variantDetail.Size) &&
+                   MatchesStoredVariantPart(root, "variantFoil", variantDetail.Foil) &&
+                   MatchesStoredVariantStamps(root, variantDetail.Stamp);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool MatchesStoredVariantPart(JsonElement root, string propertyName, string? value)
+    {
+        if (!root.TryGetProperty(propertyName, out var storedValue) || storedValue.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        return string.Equals(
+            NormalizeVariantPart(storedValue.GetString()),
+            NormalizeVariantPart(value),
+            StringComparison.Ordinal);
+    }
+
+    private static bool MatchesStoredVariantStamps(JsonElement root, IEnumerable<string>? stamps)
+    {
+        if (!root.TryGetProperty("variantStamps", out var storedStamps) || storedStamps.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        var storedValues = storedStamps.ValueKind == JsonValueKind.Array
+            ? NormalizeVariantList(storedStamps.EnumerateArray().Select(value => value.GetString()))
+            : string.Empty;
+        return string.Equals(storedValues, NormalizeVariantList(stamps), StringComparison.Ordinal);
+    }
+
+    private static string? GetJsonString(JsonElement root, string propertyName)
+    {
+        return root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+    }
+
+    private static string NormalizeVariantPart(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : string.Join(" ", value.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+    }
+
+    private static string NormalizeVariantList(IEnumerable<string?>? values)
+    {
+        return values == null
+            ? string.Empty
+            : string.Join(",",
+                values
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(NormalizeVariantPart)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(value => value, StringComparer.Ordinal));
     }
 
     private static string BuildVariantSlug(string treatmentName)
