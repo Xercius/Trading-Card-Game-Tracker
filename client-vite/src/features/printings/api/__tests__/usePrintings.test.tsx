@@ -78,6 +78,20 @@ describe("usePrintings pagination", () => {
     });
   });
 
+  it("passes selected Pokemon HP values to the printing query", async () => {
+    fetchPrintingsMock.mockResolvedValueOnce({ items: [], total: 0 });
+
+    const { result } = renderHook(
+      () => usePrintings({ ...filters, games: ["Pokemon TCG"], hps: ["100"] }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.data?.total).toBe(0));
+    expect(fetchPrintingsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ game: ["Pokemon TCG"], hps: ["100"] })
+    );
+  });
+
   it("starts a new result set at the requested first page after filters change", async () => {
     fetchPrintingsMock.mockResolvedValue([printing("new")]);
     const { result, rerender } = renderHook(
