@@ -99,6 +99,7 @@ export default function CardsPage() {
     () => ({
       ...filters,
       games: [activeGame],
+      stages: isPokemon ? filters.stages : [],
       arenas: isSwccg ? [] : filters.arenas,
       aspects: isSwccg ? [] : filters.aspects,
       aspectMethod: isSwccg ? "or" : filters.aspectMethod,
