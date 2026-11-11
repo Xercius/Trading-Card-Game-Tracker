@@ -53,21 +53,26 @@ public class DecksControllerTests_Upsert(CustomWebApplicationFactory factory) : 
         Assert.Equal(2, secondRow!.QuantityInDeck);
         Assert.Equal(3, secondRow.Availability);
 
-        var tooHigh = await client.PostAsJsonAsync(
+        var aboveOwned = await client.PostAsJsonAsync(
             $"/api/decks/{deckId}/cards/upsert",
             new { printingId, qty = 6 }
         );
-        Assert.Equal(HttpStatusCode.BadRequest, tooHigh.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, aboveOwned.StatusCode);
+        var aboveOwnedRow = await aboveOwned.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
+        Assert.NotNull(aboveOwnedRow);
+        Assert.Equal(6, aboveOwnedRow.QuantityInDeck);
+        Assert.Equal(0, aboveOwnedRow.Availability);
+        Assert.Equal(0, aboveOwnedRow.AvailabilityWithProxies);
 
         var withProxies = await client.PostAsJsonAsync(
             $"/api/decks/{deckId}/cards/upsert?includeProxies=true",
-            new { printingId, qty = 6 }
+            new { printingId, qty = 7 }
         );
         Assert.Equal(HttpStatusCode.OK, withProxies.StatusCode);
 
         var withProxiesRow = await withProxies.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
         Assert.NotNull(withProxiesRow);
-        Assert.Equal(6, withProxiesRow!.QuantityInDeck);
+        Assert.Equal(7, withProxiesRow!.QuantityInDeck);
         Assert.Equal(0, withProxiesRow.Availability);
         Assert.Equal(0, withProxiesRow.AvailabilityWithProxies);
     }

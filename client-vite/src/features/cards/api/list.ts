@@ -1,5 +1,5 @@
 // client-vite/src/features/cards/api/list.ts
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { CardSummary } from "@/components/CardTile";
 import type { CardAspect } from "./types";
@@ -250,6 +250,9 @@ export type PrintingDto = {
   cardName: string;
   game: string;
   style?: string;
+  cost?: number | null;
+  subtitle?: string | null;
+  destiny?: string | null;
   releaseDate?: string | null;
   backImageUrl?: string | null;
   imageOrientation?: "horizontal" | "vertical" | null;
@@ -298,7 +301,7 @@ export function usePrintings(q: PrintingsQuery) {
     queryKey: ["cards", "printings", q],
     queryFn: () => listPrintings(q),
     staleTime: 60_000,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 }
 

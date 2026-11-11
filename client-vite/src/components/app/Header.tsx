@@ -97,8 +97,8 @@ function GameLogoButton({
         isSelected
           ? "border-primary bg-primary/20 ring-2 ring-primary/60 shadow-md"
           : game.selectable
-          ? "border-transparent bg-transparent hover:border-border hover:bg-card/60 cursor-pointer"
-          : "border-transparent bg-transparent opacity-40 hover:opacity-75 hover:border-border/40 hover:bg-card/20 cursor-not-allowed"
+            ? "border-transparent bg-transparent hover:border-border hover:bg-card/60 cursor-pointer"
+            : "border-transparent bg-transparent opacity-40 hover:opacity-75 hover:border-border/40 hover:bg-card/20 cursor-not-allowed"
       }`}
     >
       {!imgError && logoUrl ? (
@@ -133,6 +133,7 @@ export default function Header() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [brandImgError, setBrandImgError] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const adminDropdownRef = useRef<HTMLDivElement>(null);
   const adminTriggerRef = useRef<HTMLButtonElement>(null);
@@ -241,7 +242,19 @@ export default function Header() {
             className="shrink-0 flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
             aria-label="TCG Tracker"
           >
-            <span className="text-xl font-bold tracking-tight">TCG Tracker</span>
+            {!brandImgError ? (
+              <>
+                <img
+                  src={resolveImageUrl("/images/tcg_tracker_logo.png")}
+                  alt="TCG Tracker"
+                  className="h-9 w-auto max-h-9 object-contain"
+                  onError={() => setBrandImgError(true)}
+                />
+                <span className="sr-only">TCG Tracker</span>
+              </>
+            ) : (
+              <span className="text-xl font-bold tracking-tight">TCG Tracker</span>
+            )}
           </NavLink>
 
           <nav className="hidden md:flex gap-1 ml-4 items-center">

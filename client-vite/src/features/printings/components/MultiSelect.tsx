@@ -238,8 +238,12 @@ export function MultiSelect({
           {values.map((value) => (
             <Badge
               key={value}
-              variant={method === "exclude" ? "destructive" : "secondary"}
-              className="gap-1"
+              variant="secondary"
+              className={
+                method === "exclude"
+                  ? "gap-1 border-destructive/40 bg-destructive/10 text-destructive"
+                  : "gap-1"
+              }
             >
               <span>{method === "exclude" ? `NOT ${value}` : value}</span>
               <button

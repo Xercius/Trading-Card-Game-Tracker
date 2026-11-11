@@ -314,21 +314,17 @@ describe("WishlistPage", () => {
 
     const postMock = vi
       .spyOn(http, "post")
-      .mockImplementation((url, body: { cardPrintingId: number }) => {
-        if (body.cardPrintingId === 3001) {
-          return Promise.resolve({
-            data: {
-              printingId: 3001,
-              wantedAfter: 0,
-              ownedAfter: 2,
-              proxyAfter: 0,
-              availability: 2,
-              availabilityWithProxies: 2,
-            },
-          });
-        }
-        return Promise.reject(new Error("boom"));
-      });
+      .mockResolvedValueOnce({
+        data: {
+          printingId: 3001,
+          wantedAfter: 0,
+          ownedAfter: 2,
+          proxyAfter: 0,
+          availability: 2,
+          availabilityWithProxies: 2,
+        },
+      })
+      .mockRejectedValueOnce(new Error("boom"));
 
     const promptMock = vi.spyOn(window, "prompt").mockReturnValueOnce("1").mockReturnValueOnce("1");
 

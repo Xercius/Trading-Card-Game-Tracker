@@ -99,11 +99,11 @@ describe("QtyField", () => {
   });
 
   it("optimistically updates value before the request resolves", async () => {
-    let resolveFn: (() => void) | null = null;
+    const resolveRequest = vi.fn<() => void>();
     const putSpy = vi.spyOn(api, "put").mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveFn = () => resolve({ data: null } as never);
+          resolveRequest.mockImplementation(() => resolve({ data: null } as never));
         })
     );
 
@@ -117,7 +117,7 @@ describe("QtyField", () => {
     const input = container.querySelector<HTMLInputElement>("input");
     expect(input?.value).toBe("2");
 
-    resolveFn?.();
+    resolveRequest();
     await act(async () => {
       await Promise.resolve();
     });

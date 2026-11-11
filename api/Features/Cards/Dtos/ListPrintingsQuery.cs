@@ -69,6 +69,13 @@ public sealed class ListPrintingsQuery
     public string? AspectMethod { get; init; }
 
     /// <summary>
+    /// Optional comma-separated aspect budget for deck building. Repeated names supply multiple symbols.
+    /// Only cards whose entire aspect cost fits this budget are returned; an empty value allows neutral cards only.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.DisplayFormat(ConvertEmptyStringToNull = false)]
+    public string? AvailableAspects { get; init; }
+
+    /// <summary>
     /// Optional filter by card trait (e.g., "Rebel", "Imperial", "Vehicle").
     /// </summary>
     public string? Trait { get; init; }

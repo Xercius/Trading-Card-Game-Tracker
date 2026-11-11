@@ -476,6 +476,10 @@ namespace api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Format")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Game")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -483,6 +487,10 @@ namespace api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Side")
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedUtc")
@@ -508,6 +516,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("DeckId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsStarting")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityAcquire")

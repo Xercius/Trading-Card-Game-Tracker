@@ -16,8 +16,7 @@ function normalizeQty(val: string): number {
 export default function CardQuantitiesEditor({ printingId }: CardQuantitiesEditorProps) {
   const quantitiesQuery = usePrintingQuantitiesQuery(printingId);
   const { data: quantities, isLoading } = quantitiesQuery;
-  const quantitiesReady =
-    quantitiesQuery.isSuccess && quantities?.cardPrintingId === printingId;
+  const quantitiesReady = quantitiesQuery.isSuccess && quantities?.cardPrintingId === printingId;
   const mutation = useSetCardQuantitiesMutation();
 
   const [ownedDraft, setOwnedDraft] = useState("0");

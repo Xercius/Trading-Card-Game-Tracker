@@ -211,7 +211,9 @@ export default function MoxfieldCardSearch({
           ) : (
             results.map((item, index) => {
               const isSelected = index === highlightedIndex;
-              const setDisplay = item.setCode ? `[${item.setCode.toUpperCase()}]` : `[${item.setName}]`;
+              const setDisplay = item.setCode
+                ? `[${item.setCode.toUpperCase()}]`
+                : `[${item.setName}]`;
               const numDisplay = item.number ? `#${item.number}` : "";
               const styleDisplay = item.style && item.style !== "Standard" ? `(${item.style})` : "";
 

@@ -60,6 +60,7 @@ export const LongName: Story = {
 };
 
 export const GridOfCards: Story = {
+  args: { card: mockCard },
   render: () => (
     <div className="grid grid-cols-4 gap-3 p-4">
       {Array.from({ length: 8 }, (_, i) => ({

@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { resolveImageUrl } from "@/lib/http";
 import { useCardPrintings } from "@/features/cards/api";
-import { useSetCardQuantitiesMutation, usePrintingQuantitiesQuery, type CollectionItem } from "./api";
+import {
+  useSetCardQuantitiesMutation,
+  usePrintingQuantitiesQuery,
+  type CollectionItem,
+} from "./api";
 
 type WishlistOrCollectionItem = {
   cardPrintingId: number;
@@ -274,7 +278,9 @@ export default function EditCardModal({
               </div>
             </div>
             {quantitiesQuery.isError && (
-              <p className="text-xs text-red-400">Failed to load this printing's saved quantities.</p>
+              <p className="text-xs text-red-400">
+                Failed to load this printing's saved quantities.
+              </p>
             )}
 
             {/* Modal Actions */}

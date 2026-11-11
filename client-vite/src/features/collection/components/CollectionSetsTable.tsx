@@ -6,7 +6,11 @@ import { paths } from "@/routes/paths";
 
 export const CollectionSetsTable: React.FC = () => {
   const { activeGame } = useGame();
-  const { data: summary, isLoading, error } = useCollectionSetsSummaryQuery(activeGame ?? undefined);
+  const {
+    data: summary,
+    isLoading,
+    error,
+  } = useCollectionSetsSummaryQuery(activeGame ?? undefined);
 
   const [expandedSets, setExpandedSets] = useState<Record<string, boolean>>({});
   const [filterQuery, setFilterQuery] = useState("");
@@ -35,9 +39,7 @@ export const CollectionSetsTable: React.FC = () => {
     if (!filterQuery.trim()) return summary.sets;
     const q = filterQuery.toLowerCase();
     return summary.sets.filter(
-      (s) =>
-        s.setName.toLowerCase().includes(q) ||
-        s.setCode.toLowerCase().includes(q)
+      (s) => s.setName.toLowerCase().includes(q) || s.setCode.toLowerCase().includes(q)
     );
   }, [summary?.sets, filterQuery]);
 
@@ -95,7 +97,9 @@ export const CollectionSetsTable: React.FC = () => {
           <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-800">
             <div
               className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, summary.overallCompletionPercentage))}%` }}
+              style={{
+                width: `${Math.min(100, Math.max(0, summary.overallCompletionPercentage))}%`,
+              }}
             />
           </div>
         </div>
@@ -164,9 +168,7 @@ export const CollectionSetsTable: React.FC = () => {
                 return (
                   <React.Fragment key={set.setCode}>
                     {/* Main Set Row */}
-                    <tr
-                      className="group bg-zinc-900 hover:bg-zinc-800/70 transition-colors"
-                    >
+                    <tr className="group bg-zinc-900 hover:bg-zinc-800/70 transition-colors">
                       <td className="px-3 py-3 text-center">
                         {hasSubsets && (
                           <button
@@ -215,7 +217,9 @@ export const CollectionSetsTable: React.FC = () => {
                           <div className="h-2 w-24 overflow-hidden rounded-full bg-zinc-800">
                             <div
                               className="h-full bg-purple-500 transition-all duration-300"
-                              style={{ width: `${Math.min(100, Math.max(0, set.completionPercentage))}%` }}
+                              style={{
+                                width: `${Math.min(100, Math.max(0, set.completionPercentage))}%`,
+                              }}
                             />
                           </div>
                           <span className="w-14 text-right font-mono text-xs font-semibold text-zinc-200">
@@ -243,12 +247,8 @@ export const CollectionSetsTable: React.FC = () => {
                               {subset.treatmentName}
                             </Link>
                           </td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">
-                            —
-                          </td>
-                          <td className="px-4 py-2.5 text-center text-xs text-zinc-500">
-                            —
-                          </td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">—</td>
+                          <td className="px-4 py-2.5 text-center text-xs text-zinc-500">—</td>
                           <td className="px-4 py-2.5 text-right font-mono text-xs text-zinc-300">
                             <span className="font-semibold text-zinc-200">{subset.ownedCards}</span>
                             <span className="text-zinc-500"> / {subset.totalCards}</span>
@@ -258,7 +258,9 @@ export const CollectionSetsTable: React.FC = () => {
                               <div className="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-800">
                                 <div
                                   className="h-full bg-purple-400/80 transition-all duration-300"
-                                  style={{ width: `${Math.min(100, Math.max(0, subset.completionPercentage))}%` }}
+                                  style={{
+                                    width: `${Math.min(100, Math.max(0, subset.completionPercentage))}%`,
+                                  }}
                                 />
                               </div>
                               <span className="w-14 text-right font-mono text-xs text-zinc-400">

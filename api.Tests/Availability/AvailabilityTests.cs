@@ -82,9 +82,16 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
             printingId = Seed.LightningBetaPrintingId,
             qtyDelta = 1
         });
-        over.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var message = await over.Content.ReadAsStringAsync();
-        message.Should().Contain("Insufficient availability");
+        over.StatusCode.Should().Be(HttpStatusCode.OK);
+        var overSnapshot = await over.Content.ReadFromJsonAsync<DeckCardAvailabilityContract>();
+        overSnapshot.Should().NotBeNull();
+        overSnapshot!.QuantityInDeck.Should().Be(4);
+        overSnapshot.Availability.Should().Be(0);
+
+        var collection = await client.GetFromJsonAsync<PagedResponse<CollectionItemContract>>("/api/collection");
+        var owned = collection!.Items.Should().ContainSingle(i => i.CardPrintingId == Seed.LightningBetaPrintingId).Which;
+        owned.QuantityOwned.Should().Be(3);
+        owned.Availability.Should().Be(0);
     }
 
     private sealed record PagedResponse<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);

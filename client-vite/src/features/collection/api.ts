@@ -360,7 +360,9 @@ export type CollectionSetSummaryResponse = {
   overallCompletionPercentage: number;
 };
 
-export async function fetchCollectionSetsSummary(game?: string): Promise<CollectionSetSummaryResponse> {
+export async function fetchCollectionSetsSummary(
+  game?: string
+): Promise<CollectionSetSummaryResponse> {
   try {
     const response = await api.get<CollectionSetSummaryResponse>("collection/sets-summary", {
       params: { game: game || undefined },

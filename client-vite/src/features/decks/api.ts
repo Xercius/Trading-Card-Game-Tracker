@@ -5,6 +5,14 @@ import { QUERY_STALE_MS_VALUE_HISTORY } from "@/constants";
 import type { ValuePoint } from "@/types/value";
 import { toProblemDetailsError } from "@/lib/problemDetails";
 
+export type DeckFeaturedCard = {
+  cardPrintingId: number;
+  cardName: string;
+  imageUrl: string | null;
+  cardType: string;
+  isHorizontal: boolean;
+};
+
 export type DeckDetails = {
   id: number;
   userId: number;
@@ -13,6 +21,39 @@ export type DeckDetails = {
   description: string | null;
   createdUtc: string;
   updatedUtc: string | null;
+  cardCount?: number;
+  featuredCards?: DeckFeaturedCard[];
+  format?: string | null;
+  side?: string | null;
+  aspects?: string[] | null;
+  baseCard?: DeckFeaturedCard | null;
+  defensiveShieldCount?: number;
+  mainDeckCardCount?: number;
+};
+
+export type DeckListItem = {
+  id: number;
+  userId: number;
+  game: string;
+  name: string;
+  description: string | null;
+  createdUtc: string;
+  updatedUtc: string | null;
+  cardCount: number;
+  featuredCards?: DeckFeaturedCard[];
+  format?: string | null;
+  side?: string | null;
+  aspects?: string[] | null;
+  baseCard?: DeckFeaturedCard | null;
+  defensiveShieldCount?: number;
+  mainDeckCardCount?: number;
+};
+
+export type PagedDecks = {
+  items: DeckListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
 };
 
 export type DeckCardWithAvailability = {
@@ -22,10 +63,21 @@ export type DeckCardWithAvailability = {
   quantityInDeck: number;
   availability: number;
   availabilityWithProxies: number;
+  cardType?: string | null;
+  isHorizontal?: boolean;
+  isStarting?: boolean;
+  cardId?: number;
+  cost?: number | null;
+  aspects?: Array<{ name: string; count: number }> | null;
+  side?: string | null;
+  setName?: string | null;
 };
 
 export const deckBuilderKeys = {
   all: ["deck-builder"] as const,
+  lists: () => ["deck-builder", "list"] as const,
+  list: (game?: string, name?: string, page = 1, pageSize = 50) =>
+    ["deck-builder", "list", { game, name, page, pageSize }] as const,
   deck: (deckId: number | null) => ["deck-builder", "meta", deckId] as const,
   cardsRoot: (deckId: number | null) => ["deck-builder", "cards", deckId] as const,
   cards: (deckId: number | null, includeProxies: boolean) =>
@@ -33,6 +85,168 @@ export const deckBuilderKeys = {
   valueHistory: (deckId: number | null, days: number) =>
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
+
+export async function fetchDecks(
+  game?: string,
+  name?: string,
+  page = 1,
+  pageSize = 50
+): Promise<PagedDecks> {
+  try {
+    const response = await api.get<PagedDecks>("decks", {
+      params: { game, name, page, pageSize },
+    });
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+export function useDecksListQuery(game?: string, name?: string, page = 1, pageSize = 50) {
+  return useQuery({
+    queryKey: deckBuilderKeys.list(game, name, page, pageSize),
+    queryFn: () => fetchDecks(game, name, page, pageSize),
+    staleTime: 30_000,
+  });
+}
+
+export async function createDeck(payload: {
+  game: string;
+  name: string;
+  description?: string;
+  format?: string | null;
+  side?: string | null;
+}): Promise<DeckDetails> {
+  try {
+    const response = await api.post<DeckDetails>("decks", payload);
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+export function useCreateDeckMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createDeck,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
+    },
+  });
+}
+
+export async function updateDeck(
+  deckId: number,
+  payload: {
+    game?: string;
+    name?: string;
+    description?: string | null;
+    format?: string | null;
+    side?: string | null;
+  }
+): Promise<void> {
+  try {
+    await api.patch(`decks/${deckId}`, payload);
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+export function useUpdateDeckMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      deckId,
+      payload,
+    }: {
+      deckId: number;
+      payload: {
+        game?: string;
+        name?: string;
+        description?: string | null;
+        format?: string | null;
+        side?: string | null;
+      };
+    }) => updateDeck(deckId, payload),
+    onSuccess: (_, { deckId }) => {
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
+    },
+  });
+}
+
+export async function patchDeckCard(
+  deckId: number,
+  printingId: number,
+  updates: { isStarting?: boolean; quantityInDeck?: number }
+): Promise<void> {
+  try {
+    await api.patch(`decks/${deckId}/cards/${printingId}`, updates);
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+export function usePatchDeckCardMutation(deckId: number | null, includeProxies: boolean) {
+  const queryClient = useQueryClient();
+  const queryKey = deckBuilderKeys.cards(deckId, includeProxies);
+
+  return useMutation({
+    mutationFn: async ({
+      printingId,
+      updates,
+    }: {
+      printingId: number;
+      updates: { isStarting?: boolean; quantityInDeck?: number };
+    }) => {
+      if (deckId == null) throw new Error("Deck not selected");
+      await patchDeckCard(deckId, printingId, updates);
+    },
+    onMutate: async ({ printingId, updates }) => {
+      if (deckId == null) return;
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<DeckCardWithAvailability[]>(queryKey);
+      if (!previous) return { previous };
+
+      const next = previous.map((row) =>
+        row.printingId === printingId ? { ...row, ...updates } : row
+      );
+      queryClient.setQueryData(queryKey, next);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      if (deckId != null) {
+        queryClient.invalidateQueries({ queryKey });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
+      }
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
+    },
+  });
+}
+
+export async function deleteDeck(deckId: number): Promise<void> {
+  try {
+    await api.delete(`decks/${deckId}`);
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+export function useDeleteDeckMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteDeck,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
+    },
+  });
+}
 
 export async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
   try {
@@ -112,6 +326,8 @@ type QuantityMutationVariables = {
   qtyDelta: number;
   cardName?: string;
   imageUrl?: string | null;
+  cardType?: string | null;
+  isHorizontal?: boolean;
   initialAvailability?: number;
   initialAvailabilityWithProxies?: number;
 };
@@ -160,6 +376,8 @@ function applyQuantityDelta(
         printingId,
         cardName: variables.cardName ?? `Printing #${printingId}`,
         imageUrl: variables.imageUrl ?? null,
+        cardType: variables.cardType,
+        isHorizontal: variables.isHorizontal,
         quantityInDeck: qtyDelta,
         availability: Math.max(0, initialAvailability - qtyDelta),
         availabilityWithProxies: Math.max(0, initialAvailabilityWithProxies - qtyDelta),
@@ -207,7 +425,9 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
       if (deckId != null) {
         queryClient.invalidateQueries({ queryKey });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
       }
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: collectionKeys.all });
     },
   });

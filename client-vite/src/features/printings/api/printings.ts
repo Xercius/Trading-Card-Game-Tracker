@@ -11,6 +11,9 @@ export type PrintingListItem = {
   rarity?: string | null;
   imageUrl?: string | null;
   style?: string | null;
+  cost?: number | null;
+  subtitle?: string | null;
+  destiny?: string | null;
   releaseDate?: string | null;
   backImageUrl?: string | null;
   imageOrientation?: "horizontal" | "vertical" | null;
@@ -28,6 +31,7 @@ export type PrintingQuery = {
   arenas?: string[];
   aspects?: string[];
   aspectMethod?: "or" | "and" | "exclude";
+  availableAspects?: string[];
   traits?: string[];
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
@@ -64,6 +68,8 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.aspects?.length) params.set("aspect", query.aspects.join(","));
   if (query.aspectMethod && query.aspectMethod !== "or")
     params.set("aspectMethod", query.aspectMethod);
+  if (query.availableAspects !== undefined)
+    params.set("availableAspects", query.availableAspects.join(","));
   if (query.traits?.length) params.set("trait", query.traits.join(","));
   if (query.traitMethod && query.traitMethod !== "or") params.set("traitMethod", query.traitMethod);
   if (query.keywords?.length) params.set("keyword", query.keywords.join(","));

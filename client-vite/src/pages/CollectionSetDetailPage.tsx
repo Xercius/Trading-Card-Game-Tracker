@@ -457,10 +457,7 @@ export default function CollectionSetDetailPage() {
                     className="cursor-pointer bg-zinc-900 hover:bg-zinc-800/60 transition-colors group"
                   >
                     {/* Thumbnail with Hover Zoom */}
-                    <td
-                      className="px-2 py-2 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center w-12 h-11 mx-auto">
                         <CardImageHoverPreview
                           imageUrl={row.imageUrl}
@@ -488,20 +485,20 @@ export default function CollectionSetDetailPage() {
                     </td>
 
                     {/* Rarity */}
-                    <td className="px-3 py-2 text-xs text-zinc-400 font-medium">
-                      {row.rarity}
-                    </td>
+                    <td className="px-3 py-2 text-xs text-zinc-400 font-medium">{row.rarity}</td>
 
                     {/* Owned Quantity Stepper */}
-                    <td
-                      className="px-2 py-2 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "owned", row.owned - 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.owned <= 0}
+                          disabled={
+                            !printingsLoaded ||
+                            !collectionLoaded ||
+                            setQuantitiesMutation.isPending ||
+                            row.owned <= 0
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -511,7 +508,9 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.owned}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           onChange={(e) =>
                             handleUpdateQty(row, "owned", parseInt(e.target.value, 10) || 0)
                           }
@@ -520,7 +519,9 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "owned", row.owned + 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +
@@ -529,15 +530,17 @@ export default function CollectionSetDetailPage() {
                     </td>
 
                     {/* Proxy Quantity Stepper */}
-                    <td
-                      className="px-2 py-2 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "proxy", row.proxy - 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.proxy <= 0}
+                          disabled={
+                            !printingsLoaded ||
+                            !collectionLoaded ||
+                            setQuantitiesMutation.isPending ||
+                            row.proxy <= 0
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -547,7 +550,9 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.proxy}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           onChange={(e) =>
                             handleUpdateQty(row, "proxy", parseInt(e.target.value, 10) || 0)
                           }
@@ -556,7 +561,9 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "proxy", row.proxy + 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +
@@ -565,15 +572,17 @@ export default function CollectionSetDetailPage() {
                     </td>
 
                     {/* Wishlist Quantity Stepper */}
-                    <td
-                      className="px-2 py-2 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "wanted", row.wanted - 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending || row.wanted <= 0}
+                          disabled={
+                            !printingsLoaded ||
+                            !collectionLoaded ||
+                            setQuantitiesMutation.isPending ||
+                            row.wanted <= 0
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
@@ -583,7 +592,9 @@ export default function CollectionSetDetailPage() {
                           min={0}
                           max={999}
                           value={row.wanted}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           onChange={(e) =>
                             handleUpdateQty(row, "wanted", parseInt(e.target.value, 10) || 0)
                           }
@@ -592,7 +603,9 @@ export default function CollectionSetDetailPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateQty(row, "wanted", row.wanted + 1)}
-                          disabled={!printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending}
+                          disabled={
+                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
+                          }
                           className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
                         >
                           +
@@ -601,10 +614,7 @@ export default function CollectionSetDetailPage() {
                     </td>
 
                     {/* Edit Modal Button */}
-                    <td
-                      className="px-3 py-2 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => handleOpenEditModal(row)}

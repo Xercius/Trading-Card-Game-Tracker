@@ -72,7 +72,9 @@ export type ForceIconBadgeProps = {
 export function ForceIconBadge({ side, count }: ForceIconBadgeProps) {
   const isDark = side === "dark";
   const label = isDark ? "Dark Icons" : "Light Icons";
-  const borderColor = isDark ? "border-red-500/30 bg-red-950/20" : "border-blue-500/30 bg-blue-950/20";
+  const borderColor = isDark
+    ? "border-red-500/30 bg-red-950/20"
+    : "border-blue-500/30 bg-blue-950/20";
   const textColor = isDark ? "text-red-400" : "text-blue-400";
   const title = `${count} ${isDark ? "Dark Side" : "Light Side"} Force icon${count === 1 ? "" : "s"}`;
 

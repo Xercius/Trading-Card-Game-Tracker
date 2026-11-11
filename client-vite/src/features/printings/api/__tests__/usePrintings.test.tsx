@@ -93,4 +93,28 @@ describe("usePrintings pagination", () => {
       expect.objectContaining({ q: "new query", page: 1 })
     );
   });
+
+  it("includes the deck aspect budget in the server request and cache key", async () => {
+    fetchPrintingsMock.mockResolvedValue({ items: [printing("1")], total: 1 });
+    const initialProps: { budget: string[] | undefined } = {
+      budget: ["Command", "Command", "Villainy"],
+    };
+    const { result, rerender } = renderHook(
+      ({ budget }: { budget: string[] | undefined }) => usePrintings(filters, budget),
+      { initialProps, wrapper: createWrapper() }
+    );
+    await waitFor(() => expect(result.current.data?.total).toBe(1));
+    expect(fetchPrintingsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableAspects: ["Command", "Command", "Villainy"] })
+    );
+    rerender({ budget: [] });
+    await waitFor(() =>
+      expect(fetchPrintingsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ availableAspects: [] })
+      )
+    );
+    rerender({ budget: undefined });
+    await waitFor(() => expect(fetchPrintingsMock).toHaveBeenCalledTimes(3));
+    expect(fetchPrintingsMock.mock.lastCall?.[0]).not.toHaveProperty("availableAspects");
+  });
 });

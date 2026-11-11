@@ -3,4 +3,6 @@ namespace api.Features.Decks.Dtos;
 public sealed record UpdateDeckRequest(
     string Game,
     string Name,
-    string? Description);
+    string? Description,
+    string? Format = null,
+    string? Side = null);

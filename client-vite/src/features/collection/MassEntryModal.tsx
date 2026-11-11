@@ -71,7 +71,8 @@ export default function MassEntryModal({
               const obj = s as { value?: string; label?: string; code?: string; name?: string };
               const val = obj.value || obj.code || obj.name || obj.label || "";
               const lbl = obj.label || obj.name || obj.value || obj.code || "";
-              const code = obj.code || (obj.value && obj.value !== obj.label ? obj.value : undefined);
+              const code =
+                obj.code || (obj.value && obj.value !== obj.label ? obj.value : undefined);
               return { value: val, label: lbl, code };
             }
             return null;
@@ -155,7 +156,9 @@ export default function MassEntryModal({
         });
 
         // Sort by collector number
-        newRows.sort((a, b) => a.numericNumber - b.numericNumber || a.number.localeCompare(b.number));
+        newRows.sort(
+          (a, b) => a.numericNumber - b.numericNumber || a.number.localeCompare(b.number)
+        );
         setRows(newRows);
         setIsReady(true);
       })
@@ -182,11 +185,7 @@ export default function MassEntryModal({
     );
   }, [rows]);
 
-  const handleCellChange = (
-    index: number,
-    field: "owned" | "proxy" | "wanted",
-    value: string
-  ) => {
+  const handleCellChange = (index: number, field: "owned" | "proxy" | "wanted", value: string) => {
     if (!isReady || batchMutation.isPending) return;
     const parsed = parseInt(value, 10);
     const validQty = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -284,16 +283,23 @@ export default function MassEntryModal({
             className="w-80 rounded border border-white/20 bg-[#141416] text-white px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             {sets.map((s) => {
-              const codeDisplay = s.code ? ` (${s.code.toUpperCase()})` : (s.value !== s.label ? ` (${s.value.toUpperCase()})` : "");
+              const codeDisplay = s.code
+                ? ` (${s.code.toUpperCase()})`
+                : s.value !== s.label
+                  ? ` (${s.value.toUpperCase()})`
+                  : "";
               return (
                 <option key={s.value} value={s.value} className="bg-[#141416] text-white">
-                  {s.label}{codeDisplay}
+                  {s.label}
+                  {codeDisplay}
                 </option>
               );
             })}
           </select>
 
-          {isLoading && <span className="text-xs text-muted-foreground animate-pulse">Loading set cards…</span>}
+          {isLoading && (
+            <span className="text-xs text-muted-foreground animate-pulse">Loading set cards…</span>
+          )}
         </div>
         {loadError && (
           <p role="alert" className="text-sm text-red-400">
@@ -338,9 +344,7 @@ export default function MassEntryModal({
                       <td className="py-1.5 px-3 text-center font-mono font-medium text-muted-foreground">
                         #{row.number}
                       </td>
-                      <td className="py-1.5 px-3 font-medium">
-                        {row.cardName}
-                      </td>
+                      <td className="py-1.5 px-3 font-medium">{row.cardName}</td>
                       <td className="py-1.5 px-3 text-center text-muted-foreground">
                         {row.rarity}
                       </td>

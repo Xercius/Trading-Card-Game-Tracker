@@ -17,5 +17,8 @@ namespace api.Models
         public int QuantityIdea { get; set; } = 0;
         public int QuantityProxy { get; set; } = 0;
         public int QuantityAcquire { get; set; } = 0;
+
+        // Flag indicating if this card is deployed at game start (e.g. SWCCG starting cards)
+        public bool IsStarting { get; set; } = false;
     }
 }

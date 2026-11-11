@@ -41,7 +41,7 @@ export default function FilterDropdown({
     [isControlled, onOpenChange]
   );
 
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number; right?: number } | null>(
     null

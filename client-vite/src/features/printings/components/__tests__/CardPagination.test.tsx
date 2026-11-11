@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardPagination } from "../CardPagination";
@@ -6,6 +6,7 @@ import { CardPagination } from "../CardPagination";
 describe("CardPagination", () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
   it("disables first and previous buttons on the first page", () => {
     const onPageChange = vi.fn();
@@ -130,5 +131,60 @@ describe("CardPagination", () => {
     await user.click(option40);
 
     expect(onPageSizeChange).toHaveBeenCalledWith(40);
+  });
+
+  it("opens page size options above a footer near the viewport bottom", async () => {
+    const user = userEvent.setup();
+    const onPageSizeChange = vi.fn();
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(120);
+    render(
+      <CardPagination
+        page={1}
+        totalPages={5}
+        pageSize={20}
+        onPageChange={vi.fn()}
+        onPageSizeChange={onPageSizeChange}
+      />
+    );
+    const trigger = screen.getByRole("combobox", { name: "Cards per page" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(100, window.innerHeight - 45, 120, 36)
+    );
+    await user.click(trigger);
+    const listbox = screen.getByRole("listbox");
+    const top = Number.parseFloat(listbox.style.top);
+    expect(top).toBeGreaterThanOrEqual(8);
+    expect(top + 120).toBeLessThan(window.innerHeight - 45);
+    expect(listbox).toHaveStyle({ position: "fixed" });
+
+    await user.click(screen.getByRole("option", { name: "100 / page" }));
+    expect(onPageSizeChange).toHaveBeenCalledWith(100);
+    expect(trigger).toHaveFocus();
+  });
+
+  it("constrains long page menus to available space and repositions on resize", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1200);
+    render(
+      <CardPagination
+        page={1}
+        totalPages={100}
+        pageSize={20}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />
+    );
+    const trigger = screen.getByRole("combobox", { name: "Select page" });
+    const rectSpy = vi
+      .spyOn(trigger, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(100, 100, 120, 36));
+    await user.click(trigger);
+    const listbox = screen.getByRole("listbox");
+    expect(Number.parseFloat(listbox.style.maxHeight)).toBeLessThanOrEqual(240);
+    rectSpy.mockReturnValue(new DOMRect(100, window.innerHeight - 45, 120, 36));
+    fireEvent.resize(window);
+    expect(Number.parseFloat(listbox.style.top)).toBeLessThan(window.innerHeight - 45);
+    expect(Number.parseFloat(listbox.style.maxHeight)).toBeGreaterThan(0);
+    expect(listbox).toHaveClass("overflow-auto");
   });
 });

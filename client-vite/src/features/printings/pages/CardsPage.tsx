@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePrintings } from "../api/usePrintings";
 import { usePrintingFacets } from "../api/usePrintingFacets";
-import { useCardFilters } from "@/features/cards/filters/useCardFilters";
+import { useCardFilters, type CardFilters } from "@/features/cards/filters/useCardFilters";
 import { useGame } from "@/state/useGame";
 import { isHorizontalPrinting } from "../utils/cardOrientation";
 import { PrintingCard } from "../components/PrintingCard";
@@ -93,15 +93,15 @@ export default function CardsPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
   const effectivePageSize = Math.min(viewMode === "table" ? 200 : filters.pageSize || 20, 500);
 
-  const scopedFilters = React.useMemo(
+  const scopedFilters = React.useMemo<CardFilters>(
     () => ({
       ...filters,
       games: [activeGame],
       arenas: isSwccg ? [] : filters.arenas,
       aspects: isSwccg ? [] : filters.aspects,
-      aspectMethod: isSwccg ? undefined : filters.aspectMethod,
+      aspectMethod: isSwccg ? "or" : filters.aspectMethod,
       keywords: isSwccg ? [] : filters.keywords,
-      keywordMethod: isSwccg ? undefined : filters.keywordMethod,
+      keywordMethod: isSwccg ? "or" : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,
       personas: isSwccg ? filters.personas : [],
       subTypes: isSwccg ? filters.subTypes : [],
@@ -238,7 +238,7 @@ export default function CardsPage() {
       darkSideIcons: [],
       page: 1,
     }));
-  }, [setFilters, isSwccg]);
+  }, [setFilters, activeGame]);
 
   const removeFilterValue = React.useCallback(
     (key: FilterArrayKey | "side", value: string) => {
@@ -293,7 +293,11 @@ export default function CardsPage() {
 
   const activeFilters = React.useMemo(() => {
     if (isSwccg) {
-      const list: Array<{ key: FilterArrayKey | "side"; label: string; items: Array<{ display: string; value: string }> }> = [];
+      const list: Array<{
+        key: FilterArrayKey | "side";
+        label: string;
+        items: Array<{ display: string; value: string }>;
+      }> = [];
       if (filters.side) {
         list.push({
           key: "side",

@@ -202,7 +202,6 @@ describe("UsersAdminPage", () => {
     });
 
     const confirmMock = vi.fn(() => true);
-    // @ts-expect-error jsdom does not define confirm by default
     globalThis.confirm = confirmMock;
 
     const { container, cleanup } = await renderWithProviders(users);

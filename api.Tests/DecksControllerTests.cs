@@ -80,15 +80,19 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
         Assert.Equal(5, alphaAfterAdd.QuantityInDeck);
         Assert.Equal(0, alphaAfterAdd.Availability);
 
-        var failResponse = await client.PostAsJsonAsync(
+        var aboveOwnedResponse = await client.PostAsJsonAsync(
             $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards/quantity-delta",
             new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = 1 }
         );
-        Assert.Equal(HttpStatusCode.BadRequest, failResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, aboveOwnedResponse.StatusCode);
+        var aboveOwnedRow = await aboveOwnedResponse.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
+        Assert.NotNull(aboveOwnedRow);
+        Assert.Equal(6, aboveOwnedRow.QuantityInDeck);
+        Assert.Equal(0, aboveOwnedRow.Availability);
 
         var subtractResponse = await client.PostAsJsonAsync(
             $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards/quantity-delta",
-            new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = -2 }
+            new { printingId = TestDataSeeder.LightningBoltAlphaPrintingId, qtyDelta = -3 }
         );
         Assert.Equal(HttpStatusCode.OK, subtractResponse.StatusCode);
         var subtractRow = await subtractResponse.Content.ReadFromJsonAsync<DeckCardAvailabilityDto>(JsonOptions);
