@@ -2,6 +2,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Importing.Pokemon;
 using api.Importing.Swccg;
 using api.Infrastructure.Auth;
 using api.Models;
@@ -259,6 +260,16 @@ internal static class ServiceCollectionExtensions
             client.BaseAddress = new Uri("https://raw.githubusercontent.com/swccgpc/swccg-card-json/main/");
             client.Timeout = TimeSpan.FromMinutes(5);
         });
+
+        // Typed HTTP client for Pokémon TCG from TCGdex.
+        services.AddHttpClient<IPokemonApiClient, TcgdexApiClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.tcgdex.net/v2/en/");
+            client.Timeout = TimeSpan.FromMinutes(5);
+        });
+
+        services.AddScoped<PokemonTcgdexImporter>();
+        services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<PokemonTcgdexImporter>());
 
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(

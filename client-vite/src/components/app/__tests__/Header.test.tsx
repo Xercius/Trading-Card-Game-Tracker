@@ -73,19 +73,22 @@ describe("Header", () => {
       ).toBeTruthy();
     }
 
-    // Star Wars CCG is active and selectable, SWU is also selectable
+    // Star Wars CCG is active and selectable, SWU and Pokemon are also selectable
     const swuButton = buttons[0];
     const swccgButton = buttons[1];
+    const pokemonButton = buttons[4];
     expect(swccgButton).toHaveAttribute("aria-pressed", "true");
     expect(swccgButton).toBeEnabled();
     expect(swuButton).toHaveAttribute("aria-pressed", "false");
     expect(swuButton).toBeEnabled();
+    expect(pokemonButton).toHaveAttribute("aria-pressed", "false");
+    expect(pokemonButton).toBeEnabled();
 
-    // The other games are disabled (not selectable)
-    for (let i = 2; i < buttons.length; i++) {
-      expect(buttons[i]).toBeDisabled();
-      expect(buttons[i]).toHaveAttribute("aria-pressed", "false");
-    }
+    // Hellbreak and MTG are disabled (not selectable yet)
+    expect(buttons[2]).toBeDisabled();
+    expect(buttons[2]).toHaveAttribute("aria-pressed", "false");
+    expect(buttons[3]).toBeDisabled();
+    expect(buttons[3]).toHaveAttribute("aria-pressed", "false");
   });
 
   it("renders the search bar to the right of the Admin dropdown in the top row", async () => {
