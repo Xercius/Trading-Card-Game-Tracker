@@ -1017,7 +1017,7 @@ public class DecksController : ControllerBase
                 availableWithProxy = available;
             }
 
-            var cardType = card.CardTypes?.FirstOrDefault()?.CardType?.Name;
+            var cardType = card.CardTypes?.OrderBy(type => type.SourceRole == "Type" ? 0 : 1).FirstOrDefault()?.CardType?.Name;
             var isHorizontal = printing.ArtFrontHorizontal == true;
             var aspects = card.CardAspects?
                 .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
