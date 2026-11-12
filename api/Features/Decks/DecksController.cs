@@ -1,6 +1,7 @@
 using api.Common.Errors;
 using api.Data;
 using api.Features.Decks.Dtos;
+using api.Features.Decks.Services;
 using api.Infrastructure.Startup;
 using api.Models;
 using api.Shared;
@@ -22,14 +23,20 @@ public class DecksController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
     private readonly ILogger<DecksController> _logger;
+    private readonly PokemonDeckValidationService _pokemonDeckValidationService;
     private const int UserId = DbSeeder.DefaultUserId;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
-    public DecksController(AppDbContext db, IMapper mapper, ILogger<DecksController> logger)
+    public DecksController(
+        AppDbContext db,
+        IMapper mapper,
+        ILogger<DecksController> logger,
+        PokemonDeckValidationService pokemonDeckValidationService)
     {
         _db = db;
         _mapper = mapper;
         _logger = logger;
+        _pokemonDeckValidationService = pokemonDeckValidationService;
     }
 
     // -----------------------------
@@ -367,6 +374,36 @@ public class DecksController : ControllerBase
         var mapped = _mapper.Map<DeckResponse>(d);
         var enriched = await EnrichDecksWithCountsAndFeaturedCardsAsync(new List<DeckResponse> { mapped }, HttpContext.RequestAborted);
         return Ok(enriched[0]);
+    }
+
+    private async Task<IActionResult> GetPokemonDeckValidationCore(int deckId)
+    {
+        var (deck, error) = await GetDeckForCaller(deckId);
+        if (error is not null) return error;
+        if (!string.Equals(deck!.Game, "Pokemon TCG", StringComparison.OrdinalIgnoreCase))
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                detail: "Pokémon deck validation is only available for Pokémon TCG decks.");
+        }
+
+        var cards = await _db.DeckCards
+            .Where(card => card.DeckId == deckId && card.QuantityInDeck > 0)
+            .Include(card => card.CardPrinting!)
+                .ThenInclude(printing => printing.RarityLookup)
+            .Include(card => card.CardPrinting!)
+                .ThenInclude(printing => printing.Card)
+                    .ThenInclude(card => card.CardTypes)
+                        .ThenInclude(type => type.CardType)
+            .Include(card => card.CardPrinting!)
+                .ThenInclude(printing => printing.Card)
+                    .ThenInclude(card => card.CardSubTypes)
+                        .ThenInclude(type => type.SubType)
+            .AsSplitQuery()
+            .AsNoTracking()
+            .ToListAsync(HttpContext.RequestAborted);
+
+        return Ok(_pokemonDeckValidationService.Validate(deck.Format, cards));
     }
 
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
@@ -1140,6 +1177,11 @@ public class DecksController : ControllerBase
     [HttpGet("/api/deck/{deckId:int}")]
     [HttpGet("/api/decks/{deckId:int}")] // alias
     public async Task<IActionResult> GetDeck(int deckId) => await GetDeckCore(deckId);
+
+    [HttpGet("/api/deck/{deckId:int}/validation")]
+    [HttpGet("/api/decks/{deckId:int}/validation")] // alias
+    public async Task<IActionResult> GetPokemonDeckValidation(int deckId) =>
+        await GetPokemonDeckValidationCore(deckId);
 
     // PATCH /api/deck/{deckId}
     // PATCH /api/deck/{deckId}
