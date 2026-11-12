@@ -16,6 +16,10 @@ vi.mock("@/state/useGame", () => ({
   }),
 }));
 
+vi.mock("@/features/decks/components/DeckConstructionModal", () => ({
+  DeckConstructionModal: () => null,
+}));
+
 const mockDecksResponse = {
   items: [
     {
