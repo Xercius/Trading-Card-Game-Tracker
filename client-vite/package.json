@@ -20,7 +20,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.106.1",
+    "@tanstack/react-query": "^5.107.1",
     "@tanstack/react-virtual": "^3.14.26",
     "axios": "^1.21.0",
     "react": "^19.3.1",
