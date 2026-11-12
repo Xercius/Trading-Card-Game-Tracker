@@ -1,5 +1,6 @@
 using api.Common.Errors;
 using api.Data;
+using api.Features.Decks.Services;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
 using api.Importing.Pokemon;
@@ -269,6 +270,7 @@ internal static class ServiceCollectionExtensions
         });
 
         services.AddScoped<PokemonTcgdexImporter>();
+        services.AddScoped<PokemonDeckValidationService>();
         services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<PokemonTcgdexImporter>());
 
         services.AddScoped<ISourceImporter>(sp =>

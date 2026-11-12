@@ -225,6 +225,32 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         Assert.Equal("Test Set", card.GetProperty("setName").GetString());
     }
 
+    [Fact]
+    public async Task PokemonDeckValidation_EmptyStandardDeck_ReturnsAllApplicableViolations()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var deck = new Deck
+        {
+            UserId = TestDataSeeder.UserId,
+            Game = "Pokemon TCG",
+            Format = "Standard",
+            Name = "Pokémon validation"
+        };
+        db.Decks.Add(deck);
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/decks/{deck.Id}/validation");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.False(result.GetProperty("isValid").GetBoolean());
+        Assert.Equal(0, result.GetProperty("cardCount").GetInt64());
+        Assert.Equal(2, result.GetProperty("violations").GetArrayLength());
+    }
+
     private async Task<(int DeckId, int PrintingId)> SeedDeckAsync(string gameName, int owned, int proxies)
     {
         await factory.ResetDatabaseAsync();
