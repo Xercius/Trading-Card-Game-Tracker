@@ -594,7 +594,6 @@ public class CollectionsController : ControllerBase
             {
                 cp.Id,
                 SetId = cp.SetId!.Value,
-                cp.CardId,
                 cp.TreatmentId,
                 TreatmentName = cp.Treatment != null ? cp.Treatment.Name : "Standard",
                 cp.IsFoil
@@ -609,8 +608,8 @@ public class CollectionsController : ControllerBase
 
         // 5. Build set summaries
         var setSummaries = new List<CollectionSetSummaryDto>();
-        var allUniqueCardIdsInGame = new HashSet<int>();
-        var allOwnedCardIdsInGame = new HashSet<int>();
+        var allPrintingIdsInGame = new HashSet<int>();
+        var allOwnedPrintingIdsInGame = new HashSet<int>();
 
         foreach (var set in sets)
         {
@@ -633,10 +632,10 @@ public class CollectionsController : ControllerBase
                 continue;
             }
 
-            var uniqueCardIdsInSet = setPrintings.Select(p => p.CardId).Distinct().ToHashSet();
-            allUniqueCardIdsInGame.UnionWith(uniqueCardIdsInSet);
+            var printingIdsInSet = setPrintings.Select(p => p.Id).ToHashSet();
+            allPrintingIdsInGame.UnionWith(printingIdsInSet);
 
-            var ownedCardIdsInSet = new HashSet<int>();
+            var ownedPrintingIdsInSet = new HashSet<int>();
             foreach (var p in setPrintings)
             {
                 if (userCards.TryGetValue(p.Id, out var uc))
@@ -647,14 +646,14 @@ public class CollectionsController : ControllerBase
 
                     if (isOwned)
                     {
-                        ownedCardIdsInSet.Add(p.CardId);
-                        allOwnedCardIdsInGame.Add(p.CardId);
+                        ownedPrintingIdsInSet.Add(p.Id);
+                        allOwnedPrintingIdsInGame.Add(p.Id);
                     }
                 }
             }
 
-            int totalSetCards = uniqueCardIdsInSet.Count;
-            int ownedSetCards = ownedCardIdsInSet.Count;
+            int totalSetCards = printingIdsInSet.Count;
+            int ownedSetCards = ownedPrintingIdsInSet.Count;
             double setPct = totalSetCards > 0 ? Math.Round((double)ownedSetCards / totalSetCards * 100, 1) : 0;
 
             // Group subsets by treatment
@@ -708,8 +707,8 @@ public class CollectionsController : ControllerBase
             ));
         }
 
-        int totalInGame = allUniqueCardIdsInGame.Count;
-        int totalOwnedInGame = allOwnedCardIdsInGame.Count;
+        int totalInGame = allPrintingIdsInGame.Count;
+        int totalOwnedInGame = allOwnedPrintingIdsInGame.Count;
         double overallPct = totalInGame > 0 ? Math.Round((double)totalOwnedInGame / totalInGame * 100, 1) : 0;
 
         return Ok(new CollectionSetSummaryResponse(
