@@ -259,7 +259,7 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var game = await db.Games.SingleOrDefaultAsync(g => g.Name == "Pokemon TCG")
             ?? new Game { Name = "Pokemon TCG" };
-        var rarity = new Rarity { Game = game, Name = "ACE SPEC" };
+        var rarity = new Rarity { Game = game, Name = "Ace Spec Rare" };
         var deck = new Deck
         {
             UserId = TestDataSeeder.UserId,

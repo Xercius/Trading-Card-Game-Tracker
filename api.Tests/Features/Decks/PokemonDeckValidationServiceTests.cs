@@ -83,8 +83,8 @@ public sealed class PokemonDeckValidationServiceTests
         var cards = BuildDeck(
             60,
             CreateDeckCard(CreateCard("Basic Pokémon", "Pokemon", "Basic"), 1),
-            CreateDeckCard(CreateCard("Prime Catcher", "Item", text: "You can't have more than 1 ACE SPEC card in your deck."), 1),
-            CreateDeckCard(CreateCard("Legacy Energy", "Energy", text: "ACE SPEC"), 1));
+            CreateDeckCard(CreateCard("Prime Catcher", "Item"), 1, rarityName: "Ace Spec Rare"),
+            CreateDeckCard(CreateCard("Legacy Energy", "Energy"), 1, rarityName: "Ace Spec Rare"));
 
         var result = _service.Validate("Standard", cards);
 
@@ -92,12 +92,25 @@ public sealed class PokemonDeckValidationServiceTests
     }
 
     [Fact]
+    public void Validate_AceSpecNameOrTextWithoutRarity_DoesNotCountTowardDeckLimit()
+    {
+        var cards = BuildDeck(
+            60,
+            CreateDeckCard(CreateCard("ACE SPEC Special Item", "Item"), 1),
+            CreateDeckCard(CreateCard("Other Item", "Item", text: "ACE SPEC"), 1));
+
+        var result = _service.Validate("Standard", cards);
+
+        Assert.DoesNotContain(result.Violations, issue => issue.Contains("ACE SPEC", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validate_AceSpecRarityWithoutOtherClassification_EnforcesDeckLimit()
     {
         var cards = BuildDeck(
             60,
-            CreateDeckCard(CreateCard("Special card one", "Item"), 1, rarityName: "ACE SPEC"),
-            CreateDeckCard(CreateCard("Special card two", "Item"), 1, rarityName: "ACE SPEC"));
+            CreateDeckCard(CreateCard("Special card one", "Item"), 1, rarityName: "Ace Spec Rare"),
+            CreateDeckCard(CreateCard("Special card two", "Item"), 1, rarityName: "Ace Spec Rare"));
 
         var result = _service.Validate("Standard", cards);
 
@@ -141,8 +154,8 @@ public sealed class PokemonDeckValidationServiceTests
         var cards = BuildDeck(
             61,
             CreateDeckCard(CreateCard("Over-limit", "Trainer"), 5),
-            CreateDeckCard(CreateCard("Prime Catcher", "Item", text: "ACE SPEC"), 1),
-            CreateDeckCard(CreateCard("Legacy Energy", "Energy", text: "ACE SPEC"), 1),
+            CreateDeckCard(CreateCard("Prime Catcher", "Item"), 1, rarityName: "Ace Spec Rare"),
+            CreateDeckCard(CreateCard("Legacy Energy", "Energy"), 1, rarityName: "Ace Spec Rare"),
             CreateDeckCard(CreateCard("Radiant Charizard", "Pokemon"), 1),
             CreateDeckCard(CreateCard("Radiant Greninja", "Pokemon"), 1));
 

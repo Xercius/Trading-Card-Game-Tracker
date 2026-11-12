@@ -37,7 +37,7 @@ public sealed class PokemonDeckValidationService
             AddCopyLimitViolations(cards, violations);
             AddGlobalLimitViolation(
                 cards,
-                card => IsAceSpec(card.CardPrinting?.Card, card.CardPrinting?.RarityLookup?.Name),
+                card => IsAceSpec(card.CardPrinting?.RarityLookup?.Name),
                 "Standard decks may contain no more than 1 ACE SPEC card",
                 violations);
             AddGlobalLimitViolation(
@@ -111,25 +111,14 @@ public sealed class PokemonDeckValidationService
              string.Equals(energyType, "Basic Energy", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsAceSpec(Card? card, string? rarity)
-    {
-        if (card is null) return false;
-
-        return ContainsAceSpec(rarity) ||
-            ContainsAceSpec(card.Name) ||
-            ContainsAceSpec(card.Text) ||
-            ContainsAceSpec(card.Rules) ||
-            TryReadMetadata(card.ExtraCardDataJson, "suffix", out var suffix) && ContainsAceSpec(suffix);
-    }
+    private static bool IsAceSpec(string? rarity) =>
+        string.Equals(rarity?.Trim(), "Ace Spec Rare", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsRadiantPokemon(Card? card) =>
         card is not null &&
         card.CardTypes.Any(type =>
             string.Equals(type.CardType?.Name?.Trim(), "Pokemon", StringComparison.OrdinalIgnoreCase)) &&
         card.Name.StartsWith("Radiant ", StringComparison.OrdinalIgnoreCase);
-
-    private static bool ContainsAceSpec(string? value) =>
-        value?.Contains("ACE SPEC", StringComparison.OrdinalIgnoreCase) == true;
 
     private static bool TryReadMetadata(string? json, string propertyName, out string? value)
     {
