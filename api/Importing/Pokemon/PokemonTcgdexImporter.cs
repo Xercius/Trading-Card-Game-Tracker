@@ -242,6 +242,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 if (setDetail?.Cards == null || setDetail.Cards.Count == 0)
                 {
                     summary.Messages.Add($"Set '{trimmedCode}' has no cards in TCGdex.");
+                    await _db.SaveChangesAsync(ct);
                     continue;
                 }
 

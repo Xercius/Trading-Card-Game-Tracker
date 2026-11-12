@@ -889,4 +889,47 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         Assert.NotNull(refreshedSet);
         Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh4/logo.webp", refreshedSet.LogoUrl);
     }
+
+    [Fact]
+    public async Task SyncCardsAsync_BackfillsSetLogoUrlWhenSetHasNoCards()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var catalog = new PokemonCatalog(db);
+        await catalog.InitializeAsync();
+
+        var setWithoutLogo = new Set
+        {
+            GameId = catalog.Game.Id,
+            Code = "swsh5",
+            Name = "Battle Styles",
+            Era = "Sword & Shield",
+            ReleasedAt = new DateOnly(2021, 3, 19),
+            LastSyncedAt = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        db.Sets.Add(setWithoutLogo);
+        await db.SaveChangesAsync();
+
+        var client = new StubPokemonApiClient
+        {
+            SetDetails =
+            {
+                ["swsh5"] = new()
+                {
+                    Id = "swsh5",
+                    Name = "Battle Styles",
+                    Logo = "https://assets.tcgdex.net/en/swsh/swsh5/logo",
+                    Cards = []
+                }
+            }
+        };
+
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncCardsAsync(["swsh5"]);
+
+        var refreshedSet = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh5");
+        Assert.NotNull(refreshedSet);
+        Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh5/logo.webp", refreshedSet.LogoUrl);
+    }
 }
