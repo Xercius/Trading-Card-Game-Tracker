@@ -1,0 +1,70 @@
+name: Development Task
+description: Create a technical, maintenance, research, or internal development task.
+title: "[Task]: "
+type: task
+projects: ["Xercius/2"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for development work that is not a bug report or feature request.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part(s) of the application does this task affect?
+      multiple: true
+      options:
+        - API/Backend
+        - Client/Frontend
+        - Card Details
+        - Card Import
+        - Collections
+        - Decks
+        - Wishlist
+        - Admin
+        - Values
+        - Developer Experience
+        - Documentation
+        - Testing
+        - Database
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game
+    attributes:
+      label: Affected Game (if applicable)
+      description: Is the bug specific to a trading card game?
+      multiple: true
+      options:
+        - Magic the Gathering
+        - Star Wars Unlimited
+        - Pokémon TCG
+        - Disney Lorcana
+        - Flesh and Blood
+        - Star Wars CCG
+        - Hellbreak TCG
+        - Guardians
+        - Transformers TCG
+        - New Game
+
+  - type: textarea
+    id: task
+    attributes:
+      label: Task Description
+      description: Describe the work that needs to be completed.
+      placeholder: "Describe what needs to be done and any relevant technical details."
+    validations:
+      required: true
+
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, upload screenshots showing the problem.
+    validations:
+      required: false

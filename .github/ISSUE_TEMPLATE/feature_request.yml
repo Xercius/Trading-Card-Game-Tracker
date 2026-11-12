@@ -1,7 +1,8 @@
 name: Feature Request
 description: Suggest a new feature or improvement for the Trading Card Game Tracker.
 title: "[Feature]: "
-labels: ["enhancement"]
+type: feature
+projects: ["Xercius/2"]
 body:
   - type: markdown
     attributes:
@@ -14,20 +15,38 @@ body:
       label: Area
       description: Which part of the application would this feature affect?
       options:
-        - API / Backend
-        - Client / Frontend
+        - API/Backend
+        - Client/Frontend
+        - Card Details
         - Card Import
         - Collections
         - Decks
         - Wishlist
         - Admin
-        - Authentication
-        - Pricing / Values
+        - Values
         - New Game Support
-        - Developer Experience / Tooling
+        - Developer Experience
         - Other
     validations:
       required: true
+
+  - type: dropdown
+    id: game
+    attributes:
+      label: Affected Game (if applicable)
+      description: Is the bug specific to a trading card game?
+      multiple: true
+      options:
+        - Magic the Gathering
+        - Star Wars Unlimited
+        - Pokémon TCG
+        - Disney Lorcana
+        - Flesh and Blood
+        - Star Wars CCG
+        - Hellbreak TCG
+        - Guardians
+        - Transformers TCG
+        - New Game
 
   - type: textarea
     id: problem
@@ -44,46 +63,12 @@ body:
       label: Proposed Solution
       description: Describe the feature you'd like to see implemented.
     validations:
-      required: true
-
-  - type: textarea
-    id: acceptance
-    attributes:
-      label: Acceptance Criteria
-      description: How will we know this feature is complete? List testable conditions.
-      placeholder: |
-        - [ ] Users can ...
-        - [ ] The API returns ...
-        - [ ] The UI shows ...
-    validations:
       required: false
 
-  - type: textarea
-    id: alternatives
+  - type: upload
+    id: screenshots
     attributes:
-      label: Alternatives Considered
-      description: Describe any alternative approaches you've considered.
-
-  - type: dropdown
-    id: game
-    attributes:
-      label: Related Game (if applicable)
-      description: Is this feature specific to a trading card game?
-      options:
-        - N/A – not game-specific
-        - Magic the Gathering (MTG)
-        - Star Wars Unlimited (SWU)
-        - Disney Lorcana
-        - Flesh and Blood (FAB)
-        - Star Wars CCG (SWCCG)
-        - Guardians
-        - Dicemasters
-        - Pokémon TCG
-        - Transformers
-        - Other / New Game
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: Add any other context, mockups, or screenshots about the feature request.
+      label: Screenshots
+      description: If applicable, upload screenshots showing the problem.
+    validations:
+      required: false
