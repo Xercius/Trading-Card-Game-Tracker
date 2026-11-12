@@ -35,6 +35,20 @@ public sealed class PokemonDeckValidationServiceTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  \t")]
+    public void Validate_NullOrWhitespaceFormat_DefaultsToStandard(string? format)
+    {
+        var cards = BuildDeck(60, CreateDeckCard(CreateCard("Basic Pokémon", "Pokemon", "Basic"), 1));
+
+        var result = _service.Validate(format, cards);
+
+        Assert.Equal("Standard", result.Format);
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Violations));
+    }
+
+    [Theory]
     [InlineData(2, 2, true)]
     [InlineData(4, 4, false)]
     public void Validate_SameNameAcrossPrintings_UsesCombinedCopyCount(int firstPrintingCopies, int secondPrintingCopies, bool isValid)
@@ -71,6 +85,19 @@ public sealed class PokemonDeckValidationServiceTests
             CreateDeckCard(CreateCard("Basic Pokémon", "Pokemon", "Basic"), 1),
             CreateDeckCard(CreateCard("Prime Catcher", "Item", text: "You can't have more than 1 ACE SPEC card in your deck."), 1),
             CreateDeckCard(CreateCard("Legacy Energy", "Energy", text: "ACE SPEC"), 1));
+
+        var result = _service.Validate("Standard", cards);
+
+        Assert.Contains(result.Violations, issue => issue.Contains("ACE SPEC", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_AceSpecRarityWithoutOtherClassification_EnforcesDeckLimit()
+    {
+        var cards = BuildDeck(
+            60,
+            CreateDeckCard(CreateCard("Special card one", "Item"), 1, rarityName: "ACE SPEC"),
+            CreateDeckCard(CreateCard("Special card two", "Item"), 1, rarityName: "ACE SPEC"));
 
         var result = _service.Validate("Standard", cards);
 
@@ -160,13 +187,18 @@ public sealed class PokemonDeckValidationServiceTests
         return card;
     }
 
-    private static DeckCard CreateDeckCard(Card card, int quantity, string? setCode = null)
+    private static DeckCard CreateDeckCard(
+        Card card,
+        int quantity,
+        string? setCode = null,
+        string? rarityName = null)
     {
         var printing = new CardPrinting
         {
             Card = card,
             Number = "1",
-            CatalogSet = setCode is null ? null : new Set { Code = setCode, Name = setCode, GameId = 1 }
+            CatalogSet = setCode is null ? null : new Set { Code = setCode, Name = setCode, GameId = 1 },
+            RarityLookup = rarityName is null ? null : new Rarity { Name = rarityName, GameId = 1 }
         };
         return new DeckCard
         {

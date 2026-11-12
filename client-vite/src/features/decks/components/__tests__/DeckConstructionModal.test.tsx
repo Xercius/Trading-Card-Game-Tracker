@@ -96,6 +96,7 @@ describe("DeckConstructionModal", () => {
   let persistedDeckCards: DeckCardWithAvailability[];
   let deckDetails: typeof mockDeckDetails & { format: string };
   let validationResult: DeckValidation;
+  let failPokemonValidation: boolean;
 
   beforeEach(() => {
     container = document.createElement("div");
@@ -110,6 +111,7 @@ describe("DeckConstructionModal", () => {
       basicPokemonCount: 1,
       violations: [],
     };
+    failPokemonValidation = false;
 
     vi.spyOn(api, "get").mockImplementation((url) => {
       const u = String(url);
@@ -117,6 +119,7 @@ describe("DeckConstructionModal", () => {
         return Promise.resolve({ data: persistedDeckCards } as never);
       }
       if (u.includes("/validation")) {
+        if (failPokemonValidation) return Promise.reject(new Error("validation unavailable"));
         return Promise.resolve({ data: validationResult } as never);
       }
       if (u.includes("decks/1")) {
@@ -245,6 +248,34 @@ describe("DeckConstructionModal", () => {
 
     expect(await screen.findByText(validationResult.violations[0])).toBeInTheDocument();
     expect(screen.getByText(validationResult.violations[1])).toBeInTheDocument();
+  });
+
+  it("does not trust cached Pokémon validation after a failed refetch", async () => {
+    const client = createClient();
+    deckDetails = { ...mockDeckDetails, game: "Pokemon TCG", format: "Standard" };
+    vi.spyOn(api, "post").mockResolvedValue({ data: {} } as never);
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DeckConstructionModal deckId={1} isOpen={true} onClose={vi.fn()} game="Pokemon TCG" />
+        </QueryClientProvider>
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /Legal Deck/ }));
+    expect(await screen.findByText("All Standard rules satisfied.")).toBeInTheDocument();
+
+    failPokemonValidation = true;
+    fireEvent.click(
+      screen.getByRole("button", { name: "Increase Boba Fett — Collecting the Bounty quantity" })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Pokémon deck validation is temporarily unavailable."
+    );
+    expect(screen.getByRole("button", { name: /Incomplete/ })).toBeInTheDocument();
+    expect(screen.queryByText("All Standard rules satisfied.")).not.toBeInTheDocument();
   });
 
   it("shows a friendly message when deck metadata cannot be saved", async () => {

@@ -14,8 +14,8 @@ public sealed class PokemonDeckValidationService
     /// </summary>
     public DeckValidationResponse Validate(string? format, IReadOnlyCollection<DeckCard> deckCards)
     {
-        var standard = string.Equals(format?.Trim(), "Standard", StringComparison.OrdinalIgnoreCase);
         var normalizedFormat = string.IsNullOrWhiteSpace(format) ? "Standard" : format.Trim();
+        var standard = string.Equals(normalizedFormat, "Standard", StringComparison.OrdinalIgnoreCase);
         var cards = deckCards.Where(card => card.QuantityInDeck > 0).ToList();
         var cardCount = cards.Sum(card => (long)card.QuantityInDeck);
         var basicPokemonCount = cards
@@ -37,12 +37,12 @@ public sealed class PokemonDeckValidationService
             AddCopyLimitViolations(cards, violations);
             AddGlobalLimitViolation(
                 cards,
-                IsAceSpec,
+                card => IsAceSpec(card.CardPrinting?.Card, card.CardPrinting?.RarityLookup?.Name),
                 "Standard decks may contain no more than 1 ACE SPEC card",
                 violations);
             AddGlobalLimitViolation(
                 cards,
-                IsRadiantPokemon,
+                card => IsRadiantPokemon(card.CardPrinting?.Card),
                 "Standard decks may contain no more than 1 Radiant Pokémon",
                 violations);
         }
@@ -74,11 +74,11 @@ public sealed class PokemonDeckValidationService
 
     private static void AddGlobalLimitViolation(
         IEnumerable<DeckCard> cards,
-        Func<Card?, bool> matches,
+        Func<DeckCard, bool> matches,
         string message,
         ICollection<string> violations)
     {
-        var count = cards.Where(card => matches(card.CardPrinting?.Card))
+        var count = cards.Where(matches)
             .Sum(card => (long)card.QuantityInDeck);
         if (count > 1)
         {
@@ -111,11 +111,12 @@ public sealed class PokemonDeckValidationService
              string.Equals(energyType, "Basic Energy", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsAceSpec(Card? card)
+    private static bool IsAceSpec(Card? card, string? rarity)
     {
         if (card is null) return false;
 
-        return ContainsAceSpec(card.Name) ||
+        return ContainsAceSpec(rarity) ||
+            ContainsAceSpec(card.Name) ||
             ContainsAceSpec(card.Text) ||
             ContainsAceSpec(card.Rules) ||
             TryReadMetadata(card.ExtraCardDataJson, "suffix", out var suffix) && ContainsAceSpec(suffix);

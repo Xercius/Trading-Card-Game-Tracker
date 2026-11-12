@@ -390,6 +390,8 @@ public class DecksController : ControllerBase
         var cards = await _db.DeckCards
             .Where(card => card.DeckId == deckId && card.QuantityInDeck > 0)
             .Include(card => card.CardPrinting!)
+                .ThenInclude(printing => printing.RarityLookup)
+            .Include(card => card.CardPrinting!)
                 .ThenInclude(printing => printing.Card)
                     .ThenInclude(card => card.CardTypes)
                         .ThenInclude(type => type.CardType)

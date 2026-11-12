@@ -82,6 +82,7 @@ export function DeckConstructionModal({
     isError: isPokemonValidationError,
     isLoading: isPokemonValidationLoading,
   } = usePokemonDeckValidation(isPokemon ? deckId : null);
+  const currentPokemonValidation = isPokemonValidationError ? undefined : pokemonValidation;
 
   const updateDeckMutation = useUpdateDeckMutation();
   const quantityMutation = useDeckQuantityMutation(deckId, includeProxies);
@@ -160,7 +161,7 @@ export function DeckConstructionModal({
     : isSwccg
       ? Boolean(swccgValidation?.isValid)
       : isPokemon
-        ? Boolean(pokemonValidation?.isValid)
+        ? Boolean(currentPokemonValidation?.isValid)
         : true;
 
   // Search and filter state for card pool
@@ -801,15 +802,15 @@ export function DeckConstructionModal({
               )}
               {isPokemon && (
                 <div className="basis-full">
-                  {pokemonValidation ? (
+                  {currentPokemonValidation ? (
                     <>
                       <p>
-                        • Cards: {pokemonValidation.cardCount} / 60 • Basic Pokémon:{" "}
-                        {pokemonValidation.basicPokemonCount} / 1 min
+                        • Cards: {currentPokemonValidation.cardCount} / 60 • Basic Pokémon:{" "}
+                        {currentPokemonValidation.basicPokemonCount} / 1 min
                       </p>
-                      {pokemonValidation.violations.length > 0 ? (
+                      {currentPokemonValidation.violations.length > 0 ? (
                         <ul className="mt-1 list-disc pl-4 text-amber-300">
-                          {pokemonValidation.violations.map((violation, index) => (
+                          {currentPokemonValidation.violations.map((violation, index) => (
                             <li key={`${index}-${violation}`}>{violation}</li>
                           ))}
                         </ul>

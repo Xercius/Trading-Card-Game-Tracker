@@ -251,6 +251,38 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         Assert.Equal(2, result.GetProperty("violations").GetArrayLength());
     }
 
+    [Fact]
+    public async Task PokemonDeckValidation_AceSpecRarityOnly_EnforcesDeckLimit()
+    {
+        await factory.ResetDatabaseAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var game = await db.Games.SingleOrDefaultAsync(g => g.Name == "Pokemon TCG")
+            ?? new Game { Name = "Pokemon TCG" };
+        var rarity = new Rarity { Game = game, Name = "ACE SPEC" };
+        var deck = new Deck
+        {
+            UserId = TestDataSeeder.UserId,
+            Game = "Pokemon TCG",
+            Format = "Standard",
+            Name = "ACE SPEC rarity validation"
+        };
+        var card = new Card { Name = "Special Item", Game = game };
+        var printing = new CardPrinting { Card = card, Number = "001", RarityLookup = rarity };
+        db.Decks.Add(deck);
+        db.DeckCards.Add(new DeckCard { Deck = deck, CardPrinting = printing, QuantityInDeck = 2 });
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/decks/{deck.Id}/validation");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Contains(
+            result.GetProperty("violations").EnumerateArray().Select(issue => issue.GetString()),
+            issue => issue?.Contains("ACE SPEC", StringComparison.Ordinal) == true);
+    }
+
     private async Task<(int DeckId, int PrintingId)> SeedDeckAsync(string gameName, int owned, int proxies)
     {
         await factory.ResetDatabaseAsync();
