@@ -491,7 +491,8 @@ internal static class QueryExtensions
                         Rarity = p.RarityLookup == null ? string.Empty : p.RarityLookup.Name,
                         Style = p.Treatment == null ? "Standard" : p.Treatment.Name,
                         ImageUrl = string.IsNullOrEmpty(p.ImageUrl) ? placeholderImage : p.ImageUrl,
-                        ReleaseDate = p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt
+                        ReleaseDate = p.CatalogSet == null ? null : p.CatalogSet.ReleasedAt,
+                        SetLogoUrl = p.CatalogSet == null ? null : p.CatalogSet.LogoUrl
                     })
                     .FirstOrDefault()
             });

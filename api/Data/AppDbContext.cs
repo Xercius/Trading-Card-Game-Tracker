@@ -227,6 +227,7 @@ namespace api.Data
                 e.HasKey(s => s.Id);
                 e.Property(s => s.Code).IsRequired().HasMaxLength(32);
                 e.Property(s => s.Name).HasMaxLength(256);
+                e.Property(s => s.LogoUrl).HasMaxLength(1024);
                 e.HasIndex(s => new { s.GameId, s.Code })
                     .IsUnique()
                     .HasDatabaseName("UX_Sets_GameId_Code");

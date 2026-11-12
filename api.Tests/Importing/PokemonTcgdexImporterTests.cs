@@ -744,4 +744,149 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         var card = await db.Cards.FirstOrDefaultAsync(c => c.Name == "Testmon");
         Assert.Null(card);
     }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData("https://assets.tcgdex.net/en/swsh/swsh3/logo", "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp")]
+    [InlineData("https://assets.tcgdex.net/en/swsh/swsh3/logo/", "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp")]
+    [InlineData("https://assets.tcgdex.net/en/swsh/swsh3/logo.webp", "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp")]
+    [InlineData("https://assets.tcgdex.net/en/swsh/swsh3/logo.png", "https://assets.tcgdex.net/en/swsh/swsh3/logo.png")]
+    [InlineData("https://assets.tcgdex.net/en/swsh/swsh3/logo.jpg", "https://assets.tcgdex.net/en/swsh/swsh3/logo.jpg")]
+    public void NormalizeSetLogoUrl_AppendsWebpOnlyWhenMissingExtension(string? rawLogoUrl, string? expected)
+    {
+        Assert.Equal(expected, PokemonCatalog.NormalizeSetLogoUrl(rawLogoUrl));
+    }
+
+    [Fact]
+    public async Task SyncSetsAsync_PopulatesAndBackfillsSetLogoUrl()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var catalog = new PokemonCatalog(db);
+        await catalog.InitializeAsync();
+
+        // Pre-seed an existing set that already has Era and ReleasedAt, but is missing LogoUrl
+        var preExistingSet = new Set
+        {
+            GameId = catalog.Game.Id,
+            Code = "swsh3",
+            Name = "Darkness Ablaze",
+            Era = "Sword & Shield",
+            ReleasedAt = new DateOnly(2020, 8, 14),
+            LogoUrl = null,
+            LastSyncedAt = DateTimeOffset.UtcNow.AddDays(-5)
+        };
+        db.Sets.Add(preExistingSet);
+        await db.SaveChangesAsync();
+
+        var client = new StubPokemonApiClient
+        {
+            Sets =
+            [
+                new()
+                {
+                    Id = "swsh3",
+                    Name = "Darkness Ablaze",
+                    Logo = null // Force fallback to GetSetAsync detail when existing.LogoUrl is null
+                },
+                new()
+                {
+                    Id = "svp",
+                    Name = "SVP Black Star Promos",
+                    Logo = null
+                }
+            ],
+            SetDetails =
+            {
+                ["swsh3"] = new()
+                {
+                    Id = "swsh3",
+                    Name = "Darkness Ablaze",
+                    Logo = "https://assets.tcgdex.net/en/swsh/swsh3/logo",
+                    ReleaseDate = "2020-08-14",
+                    Serie = new() { Id = "swsh", Name = "Sword & Shield" }
+                },
+                ["svp"] = new()
+                {
+                    Id = "svp",
+                    Name = "SVP Black Star Promos",
+                    Logo = null,
+                    ReleaseDate = "2023-03-31",
+                    Serie = new() { Id = "sv", Name = "Scarlet & Violet" }
+                }
+            }
+        };
+
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncSetsAsync();
+
+        var updatedSwsh3 = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh3");
+        Assert.NotNull(updatedSwsh3);
+        Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh3/logo.webp", updatedSwsh3.LogoUrl);
+
+        var syncedSvp = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "svp");
+        Assert.NotNull(syncedSvp);
+        Assert.Null(syncedSvp.LogoUrl);
+    }
+
+    [Fact]
+    public async Task SyncCardsAsync_BackfillsSetLogoUrlFromSetDetail()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var catalog = new PokemonCatalog(db);
+        await catalog.InitializeAsync();
+
+        var setWithoutLogo = new Set
+        {
+            GameId = catalog.Game.Id,
+            Code = "swsh4",
+            Name = "Vivid Voltage",
+            Era = "Sword & Shield",
+            ReleasedAt = new DateOnly(2020, 11, 13),
+            LogoUrl = null,
+            LastSyncedAt = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        db.Sets.Add(setWithoutLogo);
+        await db.SaveChangesAsync();
+
+        var client = new StubPokemonApiClient
+        {
+            SetDetails =
+            {
+                ["swsh4"] = new()
+                {
+                    Id = "swsh4",
+                    Name = "Vivid Voltage",
+                    Logo = "https://assets.tcgdex.net/en/swsh/swsh4/logo",
+                    Cards = [new() { Id = "swsh4-43", LocalId = "43", Name = "Pikachu V" }]
+                }
+            },
+            Cards =
+            {
+                ["swsh4-43"] = new()
+                {
+                    Id = "swsh4-43",
+                    LocalId = "43",
+                    Name = "Pikachu V",
+                    Category = "Pokemon",
+                    Hp = 190,
+                    Stage = "Basic",
+                    Types = ["Lightning"],
+                    Variants = new() { Holo = true }
+                }
+            }
+        };
+
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncCardsAsync(["swsh4"]);
+
+        var refreshedSet = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh4");
+        Assert.NotNull(refreshedSet);
+        Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh4/logo.webp", refreshedSet.LogoUrl);
+    }
 }

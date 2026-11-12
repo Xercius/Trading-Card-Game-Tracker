@@ -243,6 +243,21 @@ public sealed class PokemonCatalog
         return trimmed;
     }
 
+    public static string? NormalizeSetLogoUrl(string? rawLogoUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawLogoUrl)) return null;
+        var trimmed = rawLogoUrl.Trim().TrimEnd('/');
+        if (trimmed.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+        return $"{trimmed}.webp";
+    }
+
     public static string ResolvePrimaryCardType(string? category, string? trainerType)
     {
         var resolvedCategory = !string.IsNullOrWhiteSpace(category) ? category.Trim() : "Pokemon";

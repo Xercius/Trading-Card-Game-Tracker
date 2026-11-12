@@ -699,7 +699,8 @@ public class CardsController : ControllerBase
             printing.BackImageUrl,
             GetOrientation(printing.ArtFrontHorizontal),
             GetOrientation(printing.ArtBackHorizontal),
-            printing.Artist);
+            printing.Artist,
+            printing.CatalogSet?.LogoUrl);
 
     private static PrintingDto ToPrintingDto(CardPrinting printing)
         => new(
@@ -715,6 +716,7 @@ public class CardsController : ControllerBase
         {
             Style = printing.Treatment?.Name ?? "Standard",
             ReleaseDate = GetReleaseDate(printing),
+            SetLogoUrl = printing.CatalogSet?.LogoUrl,
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = GetOrientation(printing.ArtFrontHorizontal),
             BackImageOrientation = GetOrientation(printing.ArtBackHorizontal),

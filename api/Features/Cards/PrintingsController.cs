@@ -376,6 +376,7 @@ public sealed class PrintingsController : ControllerBase
                 ?? (printing.ApiPublishedAt is { } publishedAt
                     ? DateOnly.FromDateTime(publishedAt.UtcDateTime)
                     : null),
+            SetLogoUrl = printing.CatalogSet?.LogoUrl,
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = printing.ArtFrontHorizontal == true ? "horizontal" :
                 printing.ArtFrontHorizontal == false ? "vertical" : null,

@@ -46,27 +46,47 @@ const SET_CODE_TO_LOGO: Record<string, string> = {
   icn: "logo_icons_2027.png",
 };
 
-function getSetLogoUrl(setCode?: string | null, setName?: string | null): string | null {
-  if (setCode) {
-    const filename = SET_CODE_TO_LOGO[setCode.toLowerCase().trim()];
-    if (filename) {
+function getSetLogoUrl(
+  setLogoUrl?: string | null,
+  setCode?: string | null,
+  setName?: string | null,
+  isSwu?: boolean
+): string | null {
+  if (setLogoUrl && setLogoUrl.trim()) {
+    return resolveImageUrl(setLogoUrl.trim());
+  }
+  if (isSwu) {
+    if (setCode) {
+      const filename = SET_CODE_TO_LOGO[setCode.toLowerCase().trim()];
+      if (filename) {
+        return resolveImageUrl(`/images/swu/sets/${filename}`);
+      }
+    }
+    if (setName) {
+      const slug = setName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      const filename = `logo_${slug}.png`;
       return resolveImageUrl(`/images/swu/sets/${filename}`);
     }
-  }
-  if (setName) {
-    const slug = setName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-    const filename = `logo_${slug}.png`;
-    return resolveImageUrl(`/images/swu/sets/${filename}`);
   }
   return null;
 }
 
-function SetLogo({ setCode, setName }: { setCode?: string | null; setName?: string | null }) {
+function SetLogo({
+  setLogoUrl,
+  setCode,
+  setName,
+  isSwu,
+}: {
+  setLogoUrl?: string | null;
+  setCode?: string | null;
+  setName?: string | null;
+  isSwu?: boolean;
+}) {
   const [failed, setFailed] = useState(false);
-  const logoUrl = getSetLogoUrl(setCode, setName);
+  const logoUrl = getSetLogoUrl(setLogoUrl, setCode, setName, isSwu);
 
   useEffect(() => {
     setFailed(false);
@@ -573,8 +593,10 @@ export default function CardModal({
               <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
                 <div className="flex items-center min-w-0 pr-2">
                   <SetLogo
+                    setLogoUrl={selectedPrinting?.setLogoUrl ?? printingDetail?.setLogoUrl}
                     setCode={selectedPrinting?.setCode || printingDetail?.set}
                     setName={selectedPrinting?.setName || printingDetail?.set}
+                    isSwu={details?.game === "Star Wars Unlimited"}
                   />
                 </div>
                 <span className="font-semibold text-sm shrink-0 text-foreground">

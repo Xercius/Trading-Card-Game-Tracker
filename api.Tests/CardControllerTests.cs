@@ -4,6 +4,8 @@
 using api.Features.Cards.Dtos;
 using api.Shared;
 using api.Tests.Fixtures;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -202,6 +204,40 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
 
 
+    }
+
+    [Fact]
+    public async Task Card_And_Printings_Endpoints_IncludeSetLogoUrl_WhenPresentOnSet()
+    {
+        await factory.ResetDatabaseAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var alphaSet = await db.Sets.FirstOrDefaultAsync(s => s.Code == "Alpha");
+            Assert.NotNull(alphaSet);
+            alphaSet!.LogoUrl = "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp";
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+
+        var detail = await client.GetFromJsonAsync<CardDetailResponse>(
+            $"/api/cards/{TestDataSeeder.LightningBoltCardId}",
+            _jsonOptions);
+        Assert.NotNull(detail);
+        var alphaPrinting = Assert.Single(detail!.Printings, p => p.Id == TestDataSeeder.LightningBoltAlphaPrintingId);
+        var betaPrinting = Assert.Single(detail.Printings, p => p.Id == TestDataSeeder.LightningBoltBetaPrintingId);
+        Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh3/logo.webp", alphaPrinting.SetLogoUrl);
+        Assert.Null(betaPrinting.SetLogoUrl);
+
+        var cardPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
+            $"/api/cards/{TestDataSeeder.LightningBoltCardId}/printings",
+            _jsonOptions);
+        Assert.NotNull(cardPrintings);
+        var alphaDto = Assert.Single(cardPrintings!, p => p.PrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+        var betaDto = Assert.Single(cardPrintings, p => p.PrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+        Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh3/logo.webp", alphaDto.SetLogoUrl);
+        Assert.Null(betaDto.SetLogoUrl);
     }
 
     private static async Task<Paged<T>> ReadPagedAsync<T>(HttpResponseMessage response)

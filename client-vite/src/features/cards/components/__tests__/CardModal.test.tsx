@@ -674,4 +674,70 @@ describe("CardModal", () => {
     expect(screen.getByText("Dark Icons")).toBeInTheDocument();
     expect(screen.getByText("Light Icons")).toBeInTheDocument();
   });
+
+  it("renders Pokemon TCG set logo from setLogoUrl and falls back to set name on error or when missing", async () => {
+    getSpy.mockImplementation((url: string) => {
+      if (url === "cards/401") {
+        return Promise.resolve({
+          data: {
+            id: 401,
+            name: "Charizard VMAX",
+            game: "Pokemon TCG",
+            cardType: "Pokemon",
+            hp: 330,
+            stage: "VMAX",
+            text: "[Fire][Fire][Fire][Colorless][Colorless] G-Max Wildfire (300)",
+            printings: [],
+          },
+        });
+      }
+      if (url === "cards/401/printings") {
+        return Promise.resolve({
+          data: [
+            {
+              printingId: 4001,
+              setName: "Darkness Ablaze",
+              setCode: "swsh3",
+              setLogoUrl: "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp",
+              number: "020",
+              rarity: "Rare Holo VMAX",
+              style: "Holo",
+              imageUrl: "https://assets.tcgdex.net/en/swsh/swsh3/020/high.webp",
+            },
+            {
+              printingId: 4002,
+              setName: "SVP Black Star Promos",
+              setCode: "svp",
+              setLogoUrl: null,
+              number: "056",
+              rarity: "Promo",
+              style: "Holo",
+              imageUrl: "https://assets.tcgdex.net/en/sv/svp/056/high.webp",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected GET ${url}`);
+    });
+
+    await renderModal({ cardId: 401, initialPrintingId: 4001 });
+
+    const metadata = await screen.findByTestId("selected-printing-metadata");
+    const logoImg = await within(metadata).findByAltText("Darkness Ablaze");
+    expect(logoImg).toHaveAttribute("src", "https://assets.tcgdex.net/en/swsh/swsh3/logo.webp");
+
+    // Simulate image load error -> falls back to text label
+    fireEvent.error(logoImg);
+    expect(within(metadata).queryByRole("img")).toBeNull();
+    expect(within(metadata).getByText("Darkness Ablaze")).toBeInTheDocument();
+
+    // Select second printing without a setLogoUrl -> renders text immediately without a broken SWU image
+    const options = screen.getAllByRole("option");
+    await act(async () => {
+      options[1].click();
+    });
+
+    expect(within(metadata).queryByRole("img")).toBeNull();
+    expect(within(metadata).getByText("SVP Black Star Promos")).toBeInTheDocument();
+  });
 });
