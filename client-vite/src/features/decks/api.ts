@@ -73,6 +73,14 @@ export type DeckCardWithAvailability = {
   setName?: string | null;
 };
 
+export type DeckValidation = {
+  format: string;
+  isValid: boolean;
+  cardCount: number;
+  basicPokemonCount: number;
+  violations: string[];
+};
+
 export const deckBuilderKeys = {
   all: ["deck-builder"] as const,
   lists: () => ["deck-builder", "list"] as const,
@@ -82,6 +90,7 @@ export const deckBuilderKeys = {
   cardsRoot: (deckId: number | null) => ["deck-builder", "cards", deckId] as const,
   cards: (deckId: number | null, includeProxies: boolean) =>
     ["deck-builder", "cards", deckId, { includeProxies }] as const,
+  validation: (deckId: number | null) => ["deck-builder", "validation", deckId] as const,
   valueHistory: (deckId: number | null, days: number) =>
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
@@ -170,6 +179,7 @@ export function useUpdateDeckMutation() {
     }) => updateDeck(deckId, payload),
     onSuccess: (_, { deckId }) => {
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
     },
   });
@@ -224,6 +234,7 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
         queryClient.invalidateQueries({ queryKey });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
       }
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
     },
@@ -270,6 +281,33 @@ export async function fetchDeckCards(
   } catch (error) {
     throw toProblemDetailsError(error);
   }
+}
+
+/**
+ * Fetches Pokémon deck violations from the domain service to avoid duplicating rules in the client.
+ */
+export async function fetchPokemonDeckValidation(deckId: number): Promise<DeckValidation> {
+  try {
+    const response = await api.get<DeckValidation>(`decks/${deckId}/validation`);
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Keeps the deck builder's validation view synchronized with server-side Pokémon rules.
+ */
+export function usePokemonDeckValidation(deckId: number | null) {
+  return useQuery({
+    queryKey: deckBuilderKeys.validation(deckId),
+    queryFn: () => {
+      if (deckId == null) throw new Error("Deck not selected");
+      return fetchPokemonDeckValidation(deckId);
+    },
+    enabled: deckId != null,
+    staleTime: 0,
+  });
 }
 
 export async function fetchDeckValueHistory(deckId: number, days: number): Promise<ValuePoint[]> {
@@ -426,6 +464,7 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
         queryClient.invalidateQueries({ queryKey });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
       }
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: collectionKeys.all });

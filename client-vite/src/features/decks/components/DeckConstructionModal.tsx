@@ -15,6 +15,7 @@ import { isHorizontalPrinting } from "@/features/printings/utils/cardOrientation
 import {
   useDeckDetails,
   useDeckCardsWithAvailability,
+  usePokemonDeckValidation,
   useDeckQuantityMutation,
   usePatchDeckCardMutation,
   useUpdateDeckMutation,
@@ -68,6 +69,7 @@ export function DeckConstructionModal({
   const currentGame = deck?.game || game || "Star Wars Unlimited";
   const isSwu = currentGame.toLowerCase().includes("unlimited");
   const isSwccg = currentGame.toLowerCase().includes("ccg");
+  const isPokemon = currentGame.toLowerCase().includes("pokemon");
 
   const [includeProxies, setIncludeProxies] = React.useState(true);
   const { data: deckCardsRaw = [] } = useDeckCardsWithAvailability(deckId, includeProxies);
@@ -75,6 +77,11 @@ export function DeckConstructionModal({
     () => (Array.isArray(deckCardsRaw) ? deckCardsRaw : []),
     [deckCardsRaw]
   );
+  const {
+    data: pokemonValidation,
+    isError: isPokemonValidationError,
+    isLoading: isPokemonValidationLoading,
+  } = usePokemonDeckValidation(isPokemon ? deckId : null);
 
   const updateDeckMutation = useUpdateDeckMutation();
   const quantityMutation = useDeckQuantityMutation(deckId, includeProxies);
@@ -152,7 +159,9 @@ export function DeckConstructionModal({
     ? Boolean(swuValidation?.isValid)
     : isSwccg
       ? Boolean(swccgValidation?.isValid)
-      : true;
+      : isPokemon
+        ? Boolean(pokemonValidation?.isValid)
+        : true;
 
   // Search and filter state for card pool
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -789,6 +798,33 @@ export function DeckConstructionModal({
                     • Defensive Shields: {swccgValidation.defensiveShieldCount} (max 1 per shield)
                   </span>
                 </>
+              )}
+              {isPokemon && (
+                <div className="basis-full">
+                  {pokemonValidation ? (
+                    <>
+                      <p>
+                        • Cards: {pokemonValidation.cardCount} / 60 • Basic Pokémon:{" "}
+                        {pokemonValidation.basicPokemonCount} / 1 min
+                      </p>
+                      {pokemonValidation.violations.length > 0 ? (
+                        <ul className="mt-1 list-disc pl-4 text-amber-300">
+                          {pokemonValidation.violations.map((violation, index) => (
+                            <li key={`${index}-${violation}`}>{violation}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-emerald-400">All Standard rules satisfied.</p>
+                      )}
+                    </>
+                  ) : isPokemonValidationError ? (
+                    <p role="alert" className="text-amber-300">
+                      Pokémon deck validation is temporarily unavailable.
+                    </p>
+                  ) : isPokemonValidationLoading ? (
+                    <p className="text-zinc-400">Checking Pokémon deck rules...</p>
+                  ) : null}
+                </div>
               )}
             </div>
             <button

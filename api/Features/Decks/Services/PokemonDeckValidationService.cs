@@ -29,45 +29,61 @@ public sealed class PokemonDeckValidationService
         }
         else
         {
-            if (cardCount != StandardDeckSize)
-            {
-                violations.Add($"Standard decks must contain exactly 60 cards (currently {cardCount}).");
-            }
-
+            AddDeckSizeViolation(cardCount, violations);
             if (basicPokemonCount == 0)
             {
                 violations.Add("Standard decks must contain at least one Basic Pokémon.");
             }
-
-            foreach (var group in cards
-                .Where(card => !IsBasicEnergy(card.CardPrinting?.Card))
-                .GroupBy(card => card.CardPrinting?.Card?.Name ?? string.Empty, StringComparer.Ordinal))
-            {
-                var nameCount = group.Sum(card => (long)card.QuantityInDeck);
-                if (nameCount > MaxCopiesPerName)
-                {
-                    violations.Add($"\"{group.Key}\" exceeds the limit of 4 copies ({nameCount} present).");
-                }
-            }
-
-            var aceSpecCount = cards
-                .Where(card => IsAceSpec(card.CardPrinting?.Card))
-                .Sum(card => (long)card.QuantityInDeck);
-            if (aceSpecCount > 1)
-            {
-                violations.Add($"Standard decks may contain no more than 1 ACE SPEC card ({aceSpecCount} present).");
-            }
-
-            var radiantCount = cards
-                .Where(card => IsRadiantPokemon(card.CardPrinting?.Card))
-                .Sum(card => (long)card.QuantityInDeck);
-            if (radiantCount > 1)
-            {
-                violations.Add($"Standard decks may contain no more than 1 Radiant Pokémon ({radiantCount} present).");
-            }
+            AddCopyLimitViolations(cards, violations);
+            AddGlobalLimitViolation(
+                cards,
+                IsAceSpec,
+                "Standard decks may contain no more than 1 ACE SPEC card",
+                violations);
+            AddGlobalLimitViolation(
+                cards,
+                IsRadiantPokemon,
+                "Standard decks may contain no more than 1 Radiant Pokémon",
+                violations);
         }
 
         return new DeckValidationResponse(normalizedFormat, violations.Count == 0, cardCount, basicPokemonCount, violations);
+    }
+
+    private static void AddDeckSizeViolation(long cardCount, ICollection<string> violations)
+    {
+        if (cardCount != StandardDeckSize)
+        {
+            violations.Add($"Standard decks must contain exactly 60 cards (currently {cardCount}).");
+        }
+    }
+
+    private static void AddCopyLimitViolations(IEnumerable<DeckCard> cards, ICollection<string> violations)
+    {
+        foreach (var group in cards
+            .Where(card => !IsBasicEnergy(card.CardPrinting?.Card))
+            .GroupBy(card => card.CardPrinting?.Card?.Name ?? string.Empty, StringComparer.Ordinal))
+        {
+            var nameCount = group.Sum(card => (long)card.QuantityInDeck);
+            if (nameCount > MaxCopiesPerName)
+            {
+                violations.Add($"\"{group.Key}\" exceeds the limit of 4 copies ({nameCount} present).");
+            }
+        }
+    }
+
+    private static void AddGlobalLimitViolation(
+        IEnumerable<DeckCard> cards,
+        Func<Card?, bool> matches,
+        string message,
+        ICollection<string> violations)
+    {
+        var count = cards.Where(card => matches(card.CardPrinting?.Card))
+            .Sum(card => (long)card.QuantityInDeck);
+        if (count > 1)
+        {
+            violations.Add($"{message} ({count} present).");
+        }
     }
 
     private static bool IsBasicPokemon(Card? card) =>

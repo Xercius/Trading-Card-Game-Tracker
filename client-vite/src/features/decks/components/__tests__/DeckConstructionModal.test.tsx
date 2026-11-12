@@ -5,7 +5,7 @@ import { act } from "react";
 import { fireEvent, waitFor, screen } from "@testing-library/react";
 import { DeckConstructionModal } from "../DeckConstructionModal";
 import { api } from "@/lib/api";
-import type { DeckCardWithAvailability } from "../../api";
+import type { DeckCardWithAvailability, DeckValidation } from "../../api";
 
 const mockDeckDetails = {
   id: 1,
@@ -95,6 +95,7 @@ describe("DeckConstructionModal", () => {
   let root: ReturnType<typeof createRoot>;
   let persistedDeckCards: DeckCardWithAvailability[];
   let deckDetails: typeof mockDeckDetails & { format: string };
+  let validationResult: DeckValidation;
 
   beforeEach(() => {
     container = document.createElement("div");
@@ -102,11 +103,21 @@ describe("DeckConstructionModal", () => {
     root = createRoot(container);
     persistedDeckCards = [...mockDeckCards];
     deckDetails = { ...mockDeckDetails, format: "Premier" };
+    validationResult = {
+      format: "Standard",
+      isValid: true,
+      cardCount: 60,
+      basicPokemonCount: 1,
+      violations: [],
+    };
 
     vi.spyOn(api, "get").mockImplementation((url) => {
       const u = String(url);
       if (u.includes("cards-with-availability")) {
         return Promise.resolve({ data: persistedDeckCards } as never);
+      }
+      if (u.includes("/validation")) {
+        return Promise.resolve({ data: validationResult } as never);
       }
       if (u.includes("decks/1")) {
         return Promise.resolve({ data: deckDetails } as never);
@@ -206,6 +217,34 @@ describe("DeckConstructionModal", () => {
     await waitFor(() => {
       expect(screen.queryByText("Stage: Stage 1")).not.toBeInTheDocument();
     });
+  });
+
+  it("displays Pokémon validation violations from the domain API", async () => {
+    const client = createClient();
+    deckDetails = { ...mockDeckDetails, game: "Pokemon TCG", format: "Standard" };
+    validationResult = {
+      format: "Standard",
+      isValid: false,
+      cardCount: 59,
+      basicPokemonCount: 0,
+      violations: [
+        "Standard decks must contain exactly 60 cards (currently 59).",
+        "Standard decks must contain at least one Basic Pokémon.",
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DeckConstructionModal deckId={1} isOpen={true} onClose={vi.fn()} game="Pokemon TCG" />
+        </QueryClientProvider>
+      );
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /Incomplete/ }));
+
+    expect(await screen.findByText(validationResult.violations[0])).toBeInTheDocument();
+    expect(screen.getByText(validationResult.violations[1])).toBeInTheDocument();
   });
 
   it("shows a friendly message when deck metadata cannot be saved", async () => {
