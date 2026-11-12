@@ -1,3 +1,4 @@
+import { resolveImageUrl } from "@/lib/http";
 import { POKEMON_ENERGY_CONFIG } from "./pokemonEnergy";
 
 export function PokemonEnergyIcon({
@@ -25,7 +26,7 @@ export function PokemonEnergyIcon({
 
   return (
     <span
-      className={`relative inline-flex items-center justify-center rounded-full font-bold shadow-sm select-none border shrink-0 ${config.bg} ${config.text} ${config.border} ${className}`}
+      className={`relative inline-flex items-center justify-center rounded-full overflow-hidden select-none shrink-0 ${className}`}
       style={{
         width: `${size}px`,
         height: `${size}px`,
@@ -33,14 +34,13 @@ export function PokemonEnergyIcon({
         minHeight: `${size}px`,
       }}
       title={`${config.name} Energy`}
-      aria-label={`${config.name} Energy`}
     >
-      <span
-        style={{ fontSize: `${Math.round(size * 0.65)}px`, lineHeight: 1 }}
-        className="pointer-events-none select-none flex items-center justify-center"
-      >
-        {config.symbol}
-      </span>
+      <img
+        src={resolveImageUrl(config.imagePath)}
+        alt={`${config.name} Energy`}
+        aria-label={`${config.name} Energy`}
+        className="h-full w-full object-contain scale-[1.47] pointer-events-none select-none"
+      />
     </span>
   );
 }
