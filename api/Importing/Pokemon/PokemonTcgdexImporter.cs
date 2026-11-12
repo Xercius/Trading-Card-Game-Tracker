@@ -243,7 +243,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     await cardFetchSemaphore.WaitAsync(ct);
                     try
                     {
-                        return await _api.GetCardAsync(stub.Id, ct);
+                        return (Stub: stub, Detail: await _api.GetCardAsync(stub.Id, ct));
                     }
                     finally
                     {
@@ -257,7 +257,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 int setPrintingsUpserted = 0;
                 var cardsUpsertedInSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var cardDetail in cardsFetched)
+                foreach (var (cardStub, cardDetail) in cardsFetched)
                 {
                     if (cardDetail == null) continue;
 
@@ -268,6 +268,8 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     }
 
                     var localId = cardDetail.LocalId.Trim();
+                    var image = !string.IsNullOrWhiteSpace(cardDetail.Image) ? cardDetail.Image : cardStub.Image;
+                    var imageUrl = !string.IsNullOrWhiteSpace(image) ? $"{image}/high.webp" : null;
                     var canonicalCardUid = catalog.ComputeMechanicalCardUid(cardDetail);
                     existingCardsByUid.TryGetValue(canonicalCardUid, out var existingCard);
                     var normalizedStage = PokemonCatalog.NormalizeStage(cardDetail.Stage);
@@ -297,7 +299,8 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                             plan.ExistingPrinting is { } printing &&
                             string.Equals(printing.CardUid, plan.PrintingUid, StringComparison.Ordinal) &&
                             string.Equals(printing.Treatment?.Name, plan.Variant.TreatmentName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(printing.DetailsJson, catalog.BuildPrintingDetailsJson(cardDetail, plan.Variant.Detail), StringComparison.Ordinal)) &&
+                            string.Equals(printing.DetailsJson, catalog.BuildPrintingDetailsJson(cardDetail, plan.Variant.Detail), StringComparison.Ordinal) &&
+                            string.Equals(printing.ImageUrl, imageUrl, StringComparison.Ordinal)) &&
                         cardUpdated != DateTimeOffset.MinValue &&
                         cardUpdated <= lowerBoundTime)
                     {
@@ -353,7 +356,6 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
 
                     // 3. Upsert Printings for each physical variant of this collector number
                     var rarity = catalog.GetOrCreateRarity(cardDetail.Rarity);
-                    var imageUrl = !string.IsNullOrWhiteSpace(cardDetail.Image) ? $"{cardDetail.Image}/high.webp" : null;
 
                     foreach (var plan in variantPlans)
                     {
