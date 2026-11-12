@@ -13,6 +13,7 @@ ci:
     - any-glob-to-any-file:
       - '.github/workflows/**'
       - '.github/dependabot.yml'
+      - '.github/labeler.yml'
 
 dependencies:
   - changed-files:

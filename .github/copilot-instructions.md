@@ -3,10 +3,9 @@
 Local single-user app. Stack: .NET 10 / ASP.NET Core / EF Core 10 (SQLite) in `api/`; React + Vite + TypeScript + TanStack Query + Tailwind/shadcn in `client-vite/`; npm (CI uses npm; `package-lock.json`); xUnit (`api.Tests/`) + Vitest.
 
 Precedence: scoped file > this file > CONTRIBUTING/README. If CI (`.github/workflows/ci.yml`) differs from these commands, follow CI and report it.
-Path-specific rules: `.github/instructions/{api,client,database,importers,testing}.instructions.md`.
+Path-specific rules: `.github/instructions/{api,client,database,importers,swu-importer,swccg-importer,pokemon-importer,admin,testing}.instructions.md`.
 
 ## Scope
-- Work on **Star Wars Unlimited (SWU) only**. Do not edit non-SWU importers, tests, docs or references unless one blocks SWU from running; then make the smallest possible change.
 - Shared models/services stay game-aware (use `GameId`); never hardcode SWU assumptions into shared code.
 
 ## Domain invariants
@@ -29,14 +28,14 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,testin
 - API: unhandled exceptions become RFC 7807 `ProblemDetails` via `DefaultProblemDetailsFactory`; never expose exception text. Log business-rule failures at `Warning`, unexpected ones at `Error`.
 - Client: route components sit under `ErrorBoundary`; show friendly messages and `toast` for mutations; never render raw error objects.
 
-## Commands (CI parity; all must pass before a PR)
+## Commands (CI runs all listed checks; locally, run the touched half)
 ```bash
 dotnet build ./api/api.sln -c Release -warnaserror
 dotnet format ./api/api.sln --verify-no-changes
 ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
 cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run && npm run build
 ```
-Run only the half you touched, but both when a DTO or route changes.
+Before a PR, CI must pass all listed checks. Locally, run only the API or client checks you touched, but run both when a DTO or route changes.
 Run API: `dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"`.
 Run client: `cd client-vite && npm run dev`; needs `client-vite/.env.local` with `VITE_API_BASE=https://localhost:7226/api`.
 
@@ -49,7 +48,6 @@ Run client: `cd client-vite && npm run dev`; needs `client-vite/.env.local` with
 - Changing auth, admin-session, CSRF or forwarded-header handling.
 - Changing an existing route or response shape.
 - Adding a dependency.
-- Editing non-SWU code (state which file and why it blocks SWU).
 - Any failing CI-equivalent command you cannot fix in two attempts.
 
 ## Final report must contain

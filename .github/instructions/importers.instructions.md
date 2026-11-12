@@ -1,11 +1,8 @@
 ---
-applyTo: "api/Importing/**,api/Features/Admin/**"
+applyTo: "api/Importing/**"
 ---
 
-# SWU importers and sync
+# Importers
 
-- Identity is `CardUid`; set/number/style fallback adopts only legacy printings without a UID.
-- Aspect multiplicity lives in `CardAspect.Count`, never duplicate rows.
-- Upserts are idempotent; `dryRun` writes a sync log but no catalog checkpoint.
-- Sync endpoints require an AdminSession cookie + CSRF, or AdminToken. The client user selector is not an admin identity.
-- Tests must cover run-twice-no-duplicates and `dryRun`.
+- Implement source adapters through `ISourceImporter` and register each with a unique key in `ImporterRegistry`. Keep provider parsing, identity, and normalization in game-specific importers/catalogs rather than shared code.
+- Replaying the same source data must be idempotent: resolve existing cards, printings, sets, and associations using that importer's identity rules instead of creating duplicates.
