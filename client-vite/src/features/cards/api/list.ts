@@ -26,6 +26,7 @@ type RawPrimaryCamel = {
   imageUrl?: string | null;
   set?: string | null;
   setCode?: string | null;
+  setLogoUrl?: string | null;
   number?: string | null;
   rarity?: string | null;
   releaseDate?: string | null;
@@ -36,6 +37,7 @@ type RawPrimaryPascal = {
   ImageUrl?: string | null;
   Set?: string | null;
   SetCode?: string | null;
+  SetLogoUrl?: string | null;
   Number?: string | null;
   Rarity?: string | null;
   ReleaseDate?: string | null;
@@ -149,6 +151,7 @@ export async function fetchCardsPage({
       setName: primaryCamel?.set ?? primaryPascal?.Set ?? item.setName ?? item.SetName ?? null,
       setCode:
         primaryCamel?.setCode ?? primaryPascal?.SetCode ?? item.setCode ?? item.SetCode ?? null,
+      setLogoUrl: primaryCamel?.setLogoUrl ?? primaryPascal?.SetLogoUrl ?? null,
       number: primaryCamel?.number ?? primaryPascal?.Number ?? item.number ?? item.Number ?? null,
       rarity: primaryCamel?.rarity ?? primaryPascal?.Rarity ?? item.rarity ?? item.Rarity ?? null,
       releaseDate:

@@ -870,11 +870,13 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
         await importer.SyncSetsAsync();
 
-        var updatedSwsh3 = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh3");
+        var updatedSwsh3 = await db.Sets.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh3");
         Assert.NotNull(updatedSwsh3);
         Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh3/logo.webp", updatedSwsh3.LogoUrl);
 
-        var syncedSvp = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "svp");
+        var syncedSvp = await db.Sets.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "svp");
         Assert.NotNull(syncedSvp);
         Assert.Null(syncedSvp.LogoUrl);
     }
@@ -932,7 +934,8 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
         await importer.SyncCardsAsync(["swsh4"]);
 
-        var refreshedSet = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh4");
+        var refreshedSet = await db.Sets.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh4");
         Assert.NotNull(refreshedSet);
         Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh4/logo.webp", refreshedSet.LogoUrl);
     }
@@ -975,7 +978,8 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
         await importer.SyncCardsAsync(["swsh5"]);
 
-        var refreshedSet = await db.Sets.FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh5");
+        var refreshedSet = await db.Sets.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.GameId == catalog.Game.Id && s.Code == "swsh5");
         Assert.NotNull(refreshedSet);
         Assert.Equal("https://assets.tcgdex.net/en/swsh/swsh5/logo.webp", refreshedSet.LogoUrl);
     }
