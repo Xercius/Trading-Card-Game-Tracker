@@ -135,6 +135,53 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
     }
 
     [Fact]
+    public async Task SyncCardsAsync_UsesSetCardImageWhenDetailImageMissingAndBackfillsStoredPrinting()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        const string setCode = "image-fallback";
+        const string cardId = "image-fallback-1";
+        const string image = "https://assets.tcgdex.net/en/test/image-fallback/1";
+
+        var client = new StubPokemonApiClient
+        {
+            Sets = [new() { Id = setCode, Name = "Image Fallback" }],
+            SetDetails =
+            {
+                [setCode] = new()
+                {
+                    Id = setCode,
+                    Name = "Image Fallback",
+                    Cards = [new() { Id = cardId, LocalId = "1", Name = "Testmon" }]
+                }
+            },
+            Cards =
+            {
+                [cardId] = new()
+                {
+                    Id = cardId,
+                    LocalId = "1",
+                    Name = "Testmon",
+                    Category = "Pokemon",
+                    Types = ["Fire"],
+                    Updated = "2024-01-01T00:00:00.000Z"
+                }
+            }
+        };
+
+        var importer = new PokemonTcgdexImporter(db, client, NullLogger<PokemonTcgdexImporter>.Instance);
+        await importer.SyncSetsAsync();
+        await importer.SyncCardsAsync([setCode]);
+
+        client.SetDetails[setCode].Cards![0].Image = image;
+        await importer.SyncCardsAsync([setCode]);
+
+        var setId = await db.Sets.Where(s => s.Code == setCode).Select(s => s.Id).SingleAsync();
+        var printing = await db.CardPrintings.SingleAsync(p => p.Number == "1" && p.SetId == setId);
+        Assert.Equal($"{image}/high.webp", printing.ImageUrl);
+    }
+
+    [Fact]
     public async Task SyncCardsAsync_DecomposesVariantsAndLinksAspects()
     {
         using var scope = factory.Services.CreateScope();
