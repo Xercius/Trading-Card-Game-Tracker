@@ -1,3 +1,5 @@
+# Trading Card Game Tracker
+
 As a home project and learning experience I am building a web app to run locally on my PC to track my trading card collections. This will also include tracking deck construction, wish lists, and hopefully collection/deck values.
 The goal is start with Star Wars Unlimited, then expand to Star Wars CCG and then to eventually incorporate cards from the following games:
 --Magic the Gathering
@@ -10,61 +12,85 @@ The goal is start with Star Wars Unlimited, then expand to Star Wars CCG and the
 --Transformers
 
 ## Development Environment
+
 - **.NET SDK**: 10.0 (pinned via `global.json`)
+
 - **Node.js**: 20+ (for Vite client)
 - **Entity Framework Core**: 10.0.10 (Sqlite provider, design, and tools packages)
 
 ### Running the Development Servers
 
 #### API Server
+
 From the repository root:
+
 ```bash
+
 dotnet restore ./api/api.csproj
 dotnet build ./api/api.csproj
 dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"
+
 ```
+
 The API will run on `https://localhost:7226` and `http://localhost:5229`.
 
 To verify the API is running, access the health endpoint:
+
 ```bash
+
 curl -k https://localhost:7226/api/health
 ```
 
 #### Vite Development Server
+
 From the repository root:
+
 ```bash
+
 pnpm install --filter client-vite...
 pnpm --filter client-vite dev
+
 ```
+
 The Vite dev server will run on `http://localhost:5173`.
 
 #### Client Configuration
+
 Create a `.env.local` file in the `client-vite` directory (already gitignored):
+
 ```bash
+
 # Point directly to the API server (recommended - no proxy)
 VITE_API_BASE=https://localhost:7226/api
 ```
 
 This configures the client to make requests directly to the API server. Alternatively, you can copy the provided `.env.example` file:
+
 ```bash
+
 cd client-vite
 cp .env.example .env.local
 ```
 
 To verify the API is reachable, access the health endpoint:
+
 ```bash
+
 curl -k https://localhost:7226/api/health
 ```
 
 ### Single-owner local access
+
 The local web app opens directly as the seeded owner (`owner`, `DbSeeder.DefaultUserId`); no regular site login or owner password is required. Collection, deck, wishlist, and value views always use this owner. SWU Sync has a separate administrator sign-in and authorization flow.
 
 ### Minimal developer seed data
+
 - Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
 
 ## API overview
 
 ### Cards
+
 - `GET /api/cards` – paged, filtered card search (supports `game`, `set`, `rarity`, `q` query parameters).
 - `GET /api/cards/search` – alias for the main search endpoint.
 - `GET /api/cards/{id}` – retrieve a single card by ID.
@@ -79,6 +105,7 @@ The local web app opens directly as the seeded owner (`owner`, `DbSeeder.Default
 - `GET /api/cards/facets/rarities` – distinct rarity values.
 
 ### Collection
+
 - `GET /api/collection` – list the owner's owned cards.
 - `POST /api/collection/items` – quick-add endpoint that increments the owner's quantity.
 - `POST /api/collection` – add a card to the collection.
@@ -90,6 +117,7 @@ The local web app opens directly as the seeded owner (`owner`, `DbSeeder.Default
 - `GET /api/collection/value/history?days=90` – produces daily totals for the owner's collection with proxies excluded.
 
 ### Decks
+
 Decks for all games can include cards you do not own or quantities above your collection counts. Adding a card to a deck does not add it to your collection. Availability is shown separately as the remaining owned copies after deck quantities, clamped at zero; "Include proxies" only changes this availability readout, not which cards can be added. Cards must still match the deck's game.
 
 SWU deck building enables "In-aspect only" after the required leader(s) and base are selected. This filter checks every required aspect symbol before pagination, so page counts and result totals reflect the matching cards. The printings API accepts an optional `availableAspects` CSV budget (repeat names for multiple symbols) independently of the ordinary aspect filters.
@@ -114,6 +142,7 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 - `GET /api/decks/{deckId}/value/history?days=90` – daily deck values across owned printings with proxies excluded.
 
 ### Wishlist
+
 - `GET /api/wishlist` – list the owner's wishlist entries.
 - `POST /api/wishlist/items` – quick-add endpoint that increments the owner's desired quantity.
 - `POST /api/wishlist` – add a card to the wishlist.
@@ -122,6 +151,7 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 - `DELETE /api/wishlist/{cardPrintingId}` – remove a card from the wishlist.
 
 ### Prices & values
+
 - `GET /api/prices/{printingId}/history` – price history for a specific printing.
 - `GET /api/value/collection/summary` – aggregated collection value summary for the owner.
 - `GET /api/value/cardprinting/{id}` – current value for a specific card printing.
@@ -129,12 +159,15 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 - `POST /api/value/refresh` – trigger a value recalculation.
 
 ### Health
+
 - `GET /api/health` – returns a simple health check status to verify API connectivity.
 
 ### Users
+
 - `GET /api/user/{id}` – retrieve a user by ID.
 
 ## Admin operations
+
 - `/api/admin/import/options` – returns the available importers, supported games, and known set codes.
 - `/api/admin/import/dry-run` – preview an import without persisting changes (JSON payload or `multipart/form-data`).
 - `/api/admin/import/apply` – commit an import. Mirrors the dry-run payloads.

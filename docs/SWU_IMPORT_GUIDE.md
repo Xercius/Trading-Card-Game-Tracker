@@ -194,7 +194,7 @@ This is the preferred path for unit tests because it avoids live API dependencie
 ### 4. Mapping rules
 
 | SWU field | Current repository behavior |
-|---|---|
+| --- | --- |
 | `title` + `subtitle` | Combined display name (`Title` or `Title — Subtitle`), used as the logical card identity (`(Game, Name)`), grouping all printings of a card under one `Card` row. |
 | `cardUid` | Stored per printing on `CardPrinting.CardUid` and on the canonical printing's `Card.CardUid`; numeric record `id` is stored as `CardPrinting.StrapiId`. |
 | `type` / `type2` | Game-scoped card types, associated with source roles `Type` / `Type2`; legacy strings remain populated. |

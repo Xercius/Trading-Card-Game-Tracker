@@ -87,7 +87,7 @@ After importing SWU cards, the available expansion codes (sets) are accessible t
 
 ### Retrieve all SWU sets
 
-```
+```http
 GET /api/cards/facets/sets?game=Star+Wars+Unlimited
 ```
 
@@ -100,10 +100,10 @@ GET /api/cards/facets/sets?game=Star+Wars+Unlimited
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `game` | `string` | The game filter applied. Present when a `game` query parameter is supplied. |
-| `sets` | `string[]` | Distinct expansion codes stored during import, sorted alphabetically. Each code matches the `attributes.expansion.data.attributes.code` field from the SWU Strapi API, normalised to uppercase (e.g. `"SOR"`, `"SHD"`, `"TWI"`). |
+| Field  | Type       | Description
+|--------|------------|-------------
+| `game` | `string`   | The game filter applied. Present when a `game` query parameter is supplied.
+| `sets` | `string[]` | Distinct expansion codes stored during import, sorted alphabetically. Each code matches the `attributes.expansion.data.attributes.code` field from the SWU Strapi API, normalised to uppercase (e.g. `"SOR"`, `"SHD"`, `"TWI"`).
 
 The sets list reflects only expansions that have at least one imported card printing.
 
@@ -111,7 +111,7 @@ The sets list reflects only expansions that have at least one imported card prin
 
 The combined facets endpoint returns set counts alongside game and rarity breakdowns:
 
-```
+```http
 GET /api/cards/facets?game=Star+Wars+Unlimited
 ```
 
@@ -127,19 +127,19 @@ GET /api/cards/facets?game=Star+Wars+Unlimited
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `sets[].value` | `string` | Expansion code (e.g. `"SOR"`). |
-| `sets[].count` | `integer` | Number of card printings in that expansion. |
+| Field          | Type      | Description
+|----------------|-----------|--------------------------------------------------
+| `sets[].value` | `string`  | Expansion code (e.g. `"SOR"`).
+| `sets[].count` | `integer` | Number of card printings in that expansion.
 
 ### Known SWU expansion codes
 
-| Code | Name |
-|------|------|
-| `SOR` | Spark of Rebellion |
-| `SHD` | Shadows of the Galaxy |
-| `TWI` | Twilight of the Republic |
-| `JTL` | Jump to Lightspeed |
+| Code | Name
+| ------ | ------
+| `SOR` | Spark of Rebellion
+| `SHD` | Shadows of the Galaxy
+| `TWI` | Twilight of the Republic
+| `JTL` | Jump to Lightspeed
 
 Expansion codes are sourced from the SWU API during import and stored verbatim (uppercase) in the `CardPrinting.Set` column. New expansions appear automatically after a fresh import.
 
@@ -158,6 +158,7 @@ SWU_API_PASSWORD="your-password" \
 ```
 
 The script validates:
+
 - `data` is a non-empty array
 - each record includes `id` and `attributes`
 - `meta.pagination` includes `page`, `pageSize`, `pageCount`, and `total`

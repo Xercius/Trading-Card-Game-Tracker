@@ -1,60 +1,60 @@
 ## Summary
 
-<!-- Briefly describe what this PR does and why. Link any related issues with "Closes #N" or "Fixes #N". -->
+<!-- Briefly describe what this PR changes and why. -->
+
+## Related Issue
+
+<!--
+Link the issue this PR addresses.
+
+Examples:
+Closes #123
+Fixes #456
+
+Remove this section if there is no related issue.
+-->
 
 ## Changes
 
-<!-- List the key changes made. -->
+<!-- List the important changes made in this PR. -->
 
 - 
 
 ## Testing
 
-<!-- Describe the commands you ran and the expected output. -->
+<!--
+Briefly describe how you verified the changes.
+CI will handle the standard automated checks.
+-->
 
-```bash
-# Backend
-ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
+- [ ] Tested locally
+- [ ] Automated tests added or updated, if applicable
+- [ ] Existing tests pass
 
-# Frontend
-cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run
-```
+## Screenshots
 
-## Checklist
+<!--
+For visible UI changes, add before/after screenshots if helpful.
+Remove this section if not applicable.
+-->
 
-### General
-- [ ] PR targets the correct branch (`master`)
-- [ ] One concern per PR — unrelated changes are split into separate PRs
-- [ ] Commit messages are clear and descriptive
+## Database Changes
 
-### Code Quality
-- [ ] `dotnet format ./api/api.sln --verify-no-changes` passes (or `dotnet format` was run locally)
-- [ ] `npm run lint:strict` passes with zero warnings
-- [ ] `npm run typecheck` passes
-- [ ] `npm run format` (Prettier) was run on all modified TS/TSX/JSON files
+<!-- Remove this section if not applicable. -->
 
-### Testing
-- [ ] All existing tests pass (`dotnet test` + `npm test -- --run`)
-- [ ] New feature/fix is covered by at least one test
-- [ ] No tests were removed or disabled without justification
+- [ ] Includes a database migration
+- [ ] Migration has been tested
 
-### Database (if applicable)
-- [ ] A named EF Core migration was added (`dotnet ef migrations add <Name>`)
-- [ ] Migration snapshot diff is included in the PR
+## Additional Notes
 
-### API / Routes (if applicable)
-- [ ] New routes follow `/api/<plural>` REST conventions (no verbs in paths)
-- [ ] `POST` endpoints return `201 Created` with a `Location` header
-- [ ] Error responses use RFC 7807 `ProblemDetails`
-- [ ] `CancellationToken` is threaded through to EF queries
+<!--
+Anything reviewers should know that isn't obvious from the code.
+Remove this section if not needed.
+-->
 
-### Frontend (if applicable)
-- [ ] New components are in feature folders or `components/`; one component per file
-- [ ] Server state managed via TanStack Query; local UI state in component
-- [ ] New query keys added to `client-vite/src/lib/queryKeys.ts`
-- [ ] Accessibility: keyboard reachable, proper `aria-*` attributes
+## Final Checklist
 
-### Security
-- [ ] No secrets or credentials committed
-- [ ] No new dependencies added without reviewing the advisory database
-- [ ] Input is validated (FluentValidation on the API; zod on the client)
+- [ ] This PR addresses one primary concern
+- [ ] No secrets or credentials are included
+- [ ] I have reviewed my own changes
+- [ ] The PR is ready for review
