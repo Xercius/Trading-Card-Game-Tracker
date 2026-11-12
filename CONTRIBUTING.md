@@ -22,7 +22,7 @@ Thank you for your interest in contributing! This guide explains how to set up y
 ### Prerequisites
 
 | Tool | Version |
-|------|---------|
+| ------ | --------- |
 | .NET SDK | 9.0 (pinned in `global.json`) |
 | Node.js | 20+ |
 | pnpm | 9+ (`npm i -g pnpm`) |
@@ -69,7 +69,7 @@ pnpm --filter client-vite dev
 
 Create `client-vite/.env.local`:
 
-```
+```dotenv
 VITE_API_BASE=https://localhost:7226/api
 ```
 
@@ -77,7 +77,7 @@ VITE_API_BASE=https://localhost:7226/api
 
 ## Project Structure
 
-```
+```text
 api/                     .NET 9 ASP.NET Core API
   Authentication/        JWT token provider
   Controllers/           Non-feature controllers (ImportExport)
@@ -205,6 +205,7 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 ## Submitting Changes
 
 1. **Fork and branch** from `dev`:
+
    ```bash
    git checkout dev
    git pull origin dev
@@ -214,11 +215,13 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 2. **Make your changes** following the coding standards above.
 
 3. **Run all checks locally** before pushing:
+
    ```bash
    dotnet format ./api/api.sln --verify-no-changes
    ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
    cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run
-   ```
+
+    ```
 
 4. **Open a PR** against `dev` (not `master`). Use the PR template and fill out every section.
 
@@ -229,7 +232,7 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 ## Branch Strategy
 
 | Branch | Purpose |
-|--------|---------|
+| -------- | --------- |
 | `master` | Stable, production-ready code |
 | `dev` | Integration branch for features/fixes |
 | `feature/<name>` | New feature development |
