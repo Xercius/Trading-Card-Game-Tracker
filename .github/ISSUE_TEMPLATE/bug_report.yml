@@ -1,7 +1,8 @@
 name: Bug Report
 description: Report a bug or unexpected behavior in the Trading Card Game Tracker.
 title: "[Bug]: "
-labels: ["bug", "triage"]
+type: bug
+projects: ["Xercius/2"]
 body:
   - type: markdown
     attributes:
@@ -9,20 +10,34 @@ body:
         Thanks for taking the time to report a bug! Please fill out the sections below so we can reproduce and fix the issue quickly.
 
   - type: dropdown
+    id: severity
+    attributes:
+      label: Impact
+      description: How much does this problem affect normal use?
+      options:
+        - Minor - Cosmetic or small inconvenience
+        - Moderate - Feature works incorrectly but has a workaround
+        - Major - Feature is unusable
+        - Critical - Application is unusable or data may be lost
+    validations:
+      required: true
+
+  - type: dropdown
     id: area
     attributes:
       label: Area
       description: Which part of the application is affected?
+      multiple: true
       options:
-        - API / Backend
-        - Client / Frontend
+        - API/Backend
+        - Client/Frontend
+        - Card Details
         - Card Import
         - Collections
         - Decks
         - Wishlist
         - Admin
-        - Authentication
-        - Pricing / Values
+        - Values
         - Other
     validations:
       required: true
@@ -32,18 +47,17 @@ body:
     attributes:
       label: Affected Game (if applicable)
       description: Is the bug specific to a trading card game?
+      multiple: true
       options:
-        - N/A – not game-specific
-        - Magic the Gathering (MTG)
-        - Star Wars Unlimited (SWU)
-        - Disney Lorcana
-        - Flesh and Blood (FAB)
-        - Star Wars CCG (SWCCG)
-        - Guardians
-        - Dicemasters
+        - Magic the Gathering
+        - Star Wars Unlimited
         - Pokémon TCG
-        - Transformers
-        - Other
+        - Disney Lorcana
+        - Flesh and Blood
+        - Star Wars CCG
+        - Hellbreak TCG
+        - Guardians
+        - Transformers TCG
 
   - type: textarea
     id: description
@@ -55,18 +69,6 @@ body:
       required: true
 
   - type: textarea
-    id: steps
-    attributes:
-      label: Steps to Reproduce
-      description: Detailed steps to reliably reproduce the bug.
-      placeholder: |
-        1. Navigate to '...'
-        2. Click on '...'
-        3. Observe '...'
-    validations:
-      required: true
-
-  - type: textarea
     id: expected
     attributes:
       label: Expected Behavior
@@ -74,31 +76,10 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: actual
+  - type: upload
+    id: screenshots
     attributes:
-      label: Actual Behavior
-      description: What actually happened? Include error messages, stack traces, or screenshots.
-    validations:
-      required: true
-
-  - type: textarea
-    id: environment
-    attributes:
-      label: Environment
-      description: |
-        Please provide relevant environment details.
-      value: |
-        - OS:
-        - Browser (if frontend):
-        - .NET SDK version (from global.json): 9.0.x
-        - Node.js version:
-        - API URL:
+      label: Screenshots
+      description: If applicable, upload screenshots showing the problem.
     validations:
       required: false
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: Any other context, logs, or screenshots that might help.
