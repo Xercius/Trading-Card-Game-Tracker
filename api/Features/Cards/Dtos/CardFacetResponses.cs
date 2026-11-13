@@ -135,6 +135,11 @@ public sealed record CardsFacetResponse
     /// List of available stage facets with counts based on current filters.
     /// </summary>
     public IReadOnlyList<FacetOption> Stages { get; init; } = Array.Empty<FacetOption>();
+
+    /// <summary>
+    /// List of available special Pokémon type facets with counts based on current filters.
+    /// </summary>
+    public IReadOnlyList<FacetOption> SpecialTypes { get; init; } = Array.Empty<FacetOption>();
 }
 
 /// <summary>

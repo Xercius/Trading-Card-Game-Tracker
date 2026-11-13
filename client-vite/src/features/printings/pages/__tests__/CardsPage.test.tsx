@@ -753,5 +753,59 @@ describe("CardsPage filter wiring", () => {
       // After render, clamp effect detects page 5 > totalPages 1 and resets page
       expect(mockUsePrintings).toHaveBeenCalled();
     });
+
+    it("clears all filters when switching to a different game (#730)", () => {
+      const usePrintingsSpy = vi.spyOn(printingsApi, "usePrintings").mockReturnValue({
+        data: { items: [], total: 0 },
+        isLoading: false,
+        isError: false,
+        error: null,
+      } as unknown as UsePrintingsResult);
+
+      render(
+        <>
+          <GameSwitcher />
+          <CardsPage />
+        </>,
+        {
+          wrapper: createTestWrapper(
+            [
+              "/cards?q=pika&set=Base&rarity=Rare&stage=Stage+1&hp=100&specialType=Pok%C3%A9mon+V&evolvesFrom=Pikachu&page=3",
+            ],
+            "Pokemon TCG"
+          ),
+        }
+      );
+
+      expect(usePrintingsSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          games: ["Pokemon TCG"],
+          q: "pika",
+          sets: ["Base"],
+          rarities: ["Rare"],
+          stages: ["Stage 1"],
+          hps: ["100"],
+          specialTypes: ["Pokémon V"],
+          evolvesFrom: "Pikachu",
+          page: 3,
+        })
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Switch to SWU" }));
+
+      expect(usePrintingsSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          games: ["Star Wars Unlimited"],
+          q: "",
+          sets: [],
+          rarities: [],
+          stages: [],
+          hps: [],
+          specialTypes: [],
+          evolvesFrom: undefined,
+          page: 1,
+        })
+      );
+    });
   });
 });

@@ -3,6 +3,7 @@ using api.Data;
 using api.Features._Common;
 using api.Features.Cards.Dtos;
 using api.Features.Cards.Mapping;
+using api.Features.Cards.Services;
 using api.Models;
 using api.Shared;
 using AutoMapper;
@@ -35,11 +36,34 @@ public class CardsController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
+    private readonly PokemonEvolutionService _pokemonEvolutionService;
 
-    public CardsController(AppDbContext db, IMapper mapper)
+    public CardsController(
+        AppDbContext db,
+        IMapper mapper,
+        PokemonEvolutionService pokemonEvolutionService)
     {
         _db = db;
         _mapper = mapper;
+        _pokemonEvolutionService = pokemonEvolutionService;
+    }
+
+    /// <summary>
+    /// Searches distinct Pokémon card names matching the supplied query string for autocomplete.
+    /// </summary>
+    [HttpGet("pokemon-names")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetPokemonNames(
+        [FromQuery] string? q = null,
+        [FromQuery] int limit = 20,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            return Ok(Array.Empty<string>());
+        }
+
+        var names = await _pokemonEvolutionService.SearchPokemonNamesAsync(q, limit, ct);
+        return Ok(names);
     }
 
     /// <summary>

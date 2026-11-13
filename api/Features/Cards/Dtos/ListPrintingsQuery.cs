@@ -156,6 +156,16 @@ public sealed record ListPrintingsQuery
     public string? Stage { get; init; }
 
     /// <summary>
+    /// Optional filter by special Pokémon type (e.g. Pokémon V, Pokémon EX / ex, Mega Evolution, Ancient, Future).
+    /// </summary>
+    public string? SpecialType { get; init; }
+
+    /// <summary>
+    /// Optional filter by Pokémon name to include its full evolutionary lineage.
+    /// </summary>
+    public string? EvolvesFrom { get; init; }
+
+    /// <summary>
     /// Optional filter by print style (e.g., "Standard", "Foil", "Hyperspace", "Showcase").
     /// Case-insensitive exact match. Null to include all styles.
     /// </summary>

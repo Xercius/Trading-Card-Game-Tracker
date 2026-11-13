@@ -3,6 +3,7 @@
  */
 export const queryKeys = {
   games: () => ["card-games"] as const,
+  pokemonNames: (q: string) => ["pokemon-names", q] as const,
   card: (cardId: number) => ["card", cardId] as const,
   cardPrintings: (cardId: number) => ["card", cardId, "printings"] as const,
   sparkline: (cardId: number, days: number) => ["sparkline", cardId, days] as const,

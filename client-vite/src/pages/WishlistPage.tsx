@@ -27,7 +27,7 @@ function formatMovedMessage(count: number) {
 
 export default function WishlistPage() {
   const { userId } = useUser();
-  const [q] = useQueryState("q", "");
+  const [q, setQ] = useQueryState("q", "");
   const { activeGame } = useGame();
   const [pageParamRaw, setPageParam] = useQueryState("page", "1");
   const [pageSizeParamRaw] = useQueryState("pageSize", String(DEFAULT_PAGE_SIZE));
@@ -46,11 +46,14 @@ export default function WishlistPage() {
     (previousFiltersRef.current.q !== q || previousFiltersRef.current.game !== activeGame);
 
   useEffect(() => {
+    if (previousFiltersRef.current.game !== activeGame) {
+      setQ("");
+    }
     if (shouldResetPage) {
       setPageParam("1");
     }
     previousFiltersRef.current = { q, game: activeGame };
-  }, [shouldResetPage, setPageParam, q, activeGame]);
+  }, [shouldResetPage, setPageParam, setQ, q, activeGame]);
 
   const updatePage = (nextPage: number) => {
     const safeNext = nextPage < 1 ? 1 : nextPage;

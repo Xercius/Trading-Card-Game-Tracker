@@ -195,6 +195,7 @@ export type CardsFacetResponse = {
   lightSideIcons?: FacetOption[];
   darkSideIcons?: FacetOption[];
   stages?: FacetOption[];
+  specialTypes?: FacetOption[];
 };
 
 function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): string[] {
@@ -210,6 +211,18 @@ function normalizeFacetList(values?: ReadonlyArray<string | null | undefined>): 
   }
   result.sort((a, b) => a.localeCompare(b));
   return result;
+}
+
+/**
+ * Fetches distinct Pokémon card names matching the search term for autocomplete.
+ */
+export async function fetchPokemonNames(q: string, limit = 20): Promise<string[]> {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const res = await http.get<string[]>("cards/pokemon-names", {
+    params: { q: trimmed, limit },
+  });
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 export async function fetchCardGames(): Promise<string[]> {
@@ -241,6 +254,8 @@ export async function fetchCardFacets({
   darkSideIcons,
   hp,
   stage,
+  specialType,
+  evolvesFrom,
   q,
   printingSearch,
 }: {
@@ -267,6 +282,8 @@ export async function fetchCardFacets({
   darkSideIcons?: string[];
   hp?: string;
   stage?: string[];
+  specialType?: string[];
+  evolvesFrom?: string;
   q?: string;
   printingSearch?: boolean;
 }): Promise<CardsFacetResponse> {
@@ -294,6 +311,8 @@ export async function fetchCardFacets({
   if (darkSideIcons?.length) params.set("darkSideIcon", darkSideIcons.join(","));
   if (hp) params.set("hp", hp);
   if (stage?.length) params.set("stage", stage.join(","));
+  if (specialType?.length) params.set("specialType", specialType.join(","));
+  if (evolvesFrom) params.set("evolvesFrom", evolvesFrom);
   if (q) params.set("q", q);
   if (printingSearch) params.set("printingSearch", "true");
 
