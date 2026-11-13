@@ -16,10 +16,15 @@ Thumbs.db
 # ---- .NET build outputs ----
 **/bin/
 **/obj/
+**/TestResults/
+*.trx
+*.coverage
 
 # ---- Frontend: Vite (client-vite) ----
 client-vite/node_modules/
 client-vite/dist/
+client-vite/storybook-static/
+client-vite/coverage/
 client-vite/.vite/
 client-vite/.turbo/
 client-vite/.eslintcache
@@ -28,6 +33,8 @@ client-vite/.eslintcache
 **/node_modules/
 **/dist/
 **/.vite/
+**/.vitest/
+**/.vitest-cache/
 
 # ---- SQLite database files ----
 # Keep the main DB file ignored and include sidecars
