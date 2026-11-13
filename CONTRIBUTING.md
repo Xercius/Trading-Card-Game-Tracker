@@ -25,7 +25,7 @@ Thank you for your interest in contributing! This guide explains how to set up y
 | ------ | --------- |
 | .NET SDK | 9.0 (pinned in `global.json`) |
 | Node.js | 20+ |
-| pnpm | 9+ (`npm i -g pnpm`) |
+| npm | Bundled with Node.js (CI uses `npm ci` with `client-vite/package-lock.json`) |
 | SQLite | Any recent version (bundled via EF Core) |
 
 ### 1. Clone and restore
@@ -38,7 +38,7 @@ cd Trading-Card-Game-Tracker
 dotnet restore ./api/api.csproj
 
 # Frontend
-pnpm install --filter client-vite...
+cd client-vite && npm ci && cd ..
 ```
 
 ### 2. Configure JWT secret (local only)
@@ -64,7 +64,7 @@ dotnet run seed   # runs migrations and ensures default user exists; exits witho
 dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"
 
 # Terminal 2 – Vite client (:5173)
-pnpm --filter client-vite dev
+cd client-vite && npm run dev
 ```
 
 Create `client-vite/.env.local`:
@@ -137,7 +137,7 @@ client-vite/             React 19 + TypeScript + Vite frontend
 - Forms use `react-hook-form` + `@hookform/resolvers/zod`. No ad-hoc uncontrolled state.
 - Validate request/response shapes with **zod**.
 - Accessibility: all interactive elements must be keyboard-reachable with correct `aria-*` attributes.
-- Format before committing: `pnpm --filter client-vite format:write`
+- Format before committing: `cd client-vite && npm run format:write`
 
 ---
 
