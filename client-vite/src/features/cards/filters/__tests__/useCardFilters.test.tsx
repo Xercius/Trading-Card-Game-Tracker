@@ -230,4 +230,32 @@ describe("useCardFilters", () => {
 
     latest = undefined;
   });
+
+  it("parses and serializes specialType and evolvesFrom params", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/cards?game=Pokemon+TCG&specialType=Pok%C3%A9mon+V,Future&evolvesFrom=Pikachu",
+          ]}
+        >
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    expect(latest?.filters.specialTypes).toEqual(["Pokémon V", "Future"]);
+    expect(latest?.filters.evolvesFrom).toBe("Pikachu");
+    expect(latest?.search).toContain("specialType=");
+    expect(latest?.search).toContain("evolvesFrom=Pikachu");
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
 });

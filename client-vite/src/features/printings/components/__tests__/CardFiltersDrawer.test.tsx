@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardFiltersDrawer } from "../CardFiltersDrawer";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
@@ -88,20 +89,23 @@ describe("CardFiltersDrawer", () => {
 
   it("uses OR when selecting Pokémon types", () => {
     const setFilters = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <CardFiltersDrawer
-        open={true}
-        onOpenChange={vi.fn()}
-        filters={{ ...defaultFilters, aspects: ["Grass"], aspectMethod: "exclude" }}
-        setFilters={setFilters}
-        availableFacets={defaultFacets}
-        isFacetsLoading={false}
-        isFacetsError={false}
-        onRetryFacets={vi.fn()}
-        onClearFilters={vi.fn()}
-        hasActiveFilters={true}
-        game="Pokemon TCG"
-      />
+      <QueryClientProvider client={queryClient}>
+        <CardFiltersDrawer
+          open={true}
+          onOpenChange={vi.fn()}
+          filters={{ ...defaultFilters, aspects: ["Grass"], aspectMethod: "exclude" }}
+          setFilters={setFilters}
+          availableFacets={defaultFacets}
+          isFacetsLoading={false}
+          isFacetsError={false}
+          onRetryFacets={vi.fn()}
+          onClearFilters={vi.fn()}
+          hasActiveFilters={true}
+          game="Pokemon TCG"
+        />
+      </QueryClientProvider>
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Types \(Grass\)/ }));
@@ -348,27 +352,32 @@ describe("CardFiltersDrawer", () => {
     expect(screen.queryByRole("button", { name: /^Keywords/i })).not.toBeInTheDocument();
   });
 
-  it("renders Pokemon filters (Energy Types, Card Type, Stage, HP, Set, Rarity) and hides SWU facets when game is Pokemon TCG", () => {
+  it("renders Pokemon filters (Energy Types, Card Type, Stage, Special Type, Evolves From, HP, Set, Rarity) and hides SWU facets when game is Pokemon TCG", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <CardFiltersDrawer
-        open={true}
-        onOpenChange={vi.fn()}
-        filters={defaultFilters}
-        setFilters={vi.fn()}
-        availableFacets={defaultFacets}
-        isFacetsLoading={false}
-        isFacetsError={false}
-        onRetryFacets={vi.fn()}
-        onClearFilters={vi.fn()}
-        hasActiveFilters={false}
-        game="Pokemon TCG"
-      />
+      <QueryClientProvider client={queryClient}>
+        <CardFiltersDrawer
+          open={true}
+          onOpenChange={vi.fn()}
+          filters={defaultFilters}
+          setFilters={vi.fn()}
+          availableFacets={defaultFacets}
+          isFacetsLoading={false}
+          isFacetsError={false}
+          onRetryFacets={vi.fn()}
+          onClearFilters={vi.fn()}
+          hasActiveFilters={false}
+          game="Pokemon TCG"
+        />
+      </QueryClientProvider>
     );
 
     // Pokemon specific controls
     expect(screen.getByRole("button", { name: /^Types/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Card Type/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Stage/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Special Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^Evolves From/i })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /^HP/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Set/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Rarity/i })).toBeInTheDocument();

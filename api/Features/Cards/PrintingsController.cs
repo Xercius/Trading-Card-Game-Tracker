@@ -2,6 +2,7 @@ using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
 using api.Features.Cards.Mapping;
+using api.Features.Cards.Services;
 using api.Features._Common;
 using api.Shared;
 using Microsoft.AspNetCore.Mvc;
@@ -25,7 +26,18 @@ namespace api.Features.Cards;
 public sealed class PrintingsController : ControllerBase
 {
     private readonly AppDbContext _db;
-    public PrintingsController(AppDbContext db) => _db = db;
+    private readonly PokemonFilterService _pokemonFilterService;
+    private readonly PokemonEvolutionService _pokemonEvolutionService;
+
+    public PrintingsController(
+        AppDbContext db,
+        PokemonFilterService pokemonFilterService,
+        PokemonEvolutionService pokemonEvolutionService)
+    {
+        _db = db;
+        _pokemonFilterService = pokemonFilterService;
+        _pokemonEvolutionService = pokemonEvolutionService;
+    }
 
     /// <summary>
     /// Lists card printing records with optional filters for game, set, rarity, style, and search terms.
@@ -227,6 +239,18 @@ public sealed class PrintingsController : ControllerBase
             var normalizedStages = stages.Select(SqliteCaseNormalizer.Normalize).ToList();
             query = query.Where(p => p.Card.Stage != null &&
                 normalizedStages.Contains(EF.Functions.Collate(p.Card.Stage, "NOCASE")));
+        }
+
+        var specialTypes = CsvUtils.Parse(qp.SpecialType);
+        if (specialTypes.Count > 0)
+        {
+            query = _pokemonFilterService.ApplySpecialTypeFilter(query, specialTypes);
+        }
+
+        if (!string.IsNullOrWhiteSpace(qp.EvolvesFrom))
+        {
+            var lineageCardIds = await _pokemonEvolutionService.ResolveLineageCardIdsAsync(qp.EvolvesFrom, ct);
+            query = query.Where(p => lineageCardIds.Contains(p.CardId));
         }
 
         // Filter by style(s) - supports comma-separated list

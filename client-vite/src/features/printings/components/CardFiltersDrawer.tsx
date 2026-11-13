@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { MultiSelect } from "./MultiSelect";
 import { AspectFilter } from "./AspectFilter";
 import { PokemonTypeFilter } from "./PokemonTypeFilter";
+import { EvolvesFromFilter } from "./EvolvesFromFilter";
 import { Input } from "@/components/ui/input";
 import { LightsaberBlade } from "@/features/cards/components/SwccgForceIcons";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
@@ -505,6 +506,38 @@ export function CardFiltersDrawer({
                 }
                 placeholder="Search stages…"
                 onChange={(values) => setFilters((prev) => ({ ...prev, stages: values, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Special Type"
+                className="w-full justify-between"
+                values={filters.specialTypes ?? []}
+                options={
+                  availableFacets.specialTypes && availableFacets.specialTypes.length > 0
+                    ? availableFacets.specialTypes
+                    : [
+                        "Pokémon V",
+                        "Pokémon EX / ex",
+                        "Mega Evolution",
+                        "Pokémon-GX",
+                        "Radiant",
+                        "Tera",
+                        "Ancient",
+                        "Future",
+                        "ACE SPEC",
+                      ]
+                }
+                placeholder="Search special types…"
+                onChange={(values) =>
+                  setFilters((prev) => ({ ...prev, specialTypes: values, page: 1 }))
+                }
+              />
+
+              <EvolvesFromFilter
+                value={filters.evolvesFrom}
+                onChange={(evolvesFrom) =>
+                  setFilters((prev) => ({ ...prev, evolvesFrom, page: 1 }))
+                }
               />
 
               {/* HP Numeric Filter */}

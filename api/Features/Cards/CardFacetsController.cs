@@ -1,6 +1,7 @@
 using api.Data;
 using api.Features._Common;
 using api.Features.Cards.Dtos;
+using api.Features.Cards.Services;
 using api.Models;
 using api.Shared;
 using Microsoft.AspNetCore.Mvc;
@@ -18,14 +19,20 @@ namespace api.Features.Cards;
 public sealed class CardFacetsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly PokemonFilterService _pokemonFilterService;
+    private readonly PokemonEvolutionService _pokemonEvolutionService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CardFacetsController"/> class.
     /// </summary>
-    /// <param name="db">The database context for accessing card and printing data.</param>
-    public CardFacetsController(AppDbContext db)
+    public CardFacetsController(
+        AppDbContext db,
+        PokemonFilterService pokemonFilterService,
+        PokemonEvolutionService pokemonEvolutionService)
     {
         _db = db;
+        _pokemonFilterService = pokemonFilterService;
+        _pokemonEvolutionService = pokemonEvolutionService;
     }
 
     /// <summary>
@@ -55,6 +62,8 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="darkSideIcon">Optional comma-separated list of dark side icon counts to filter by.</param>
     /// <param name="hp">Optional HP value or numeric comparison expression to filter by.</param>
     /// <param name="stage">Optional comma-separated list of Pokémon stages to filter by.</param>
+    /// <param name="specialType">Optional comma-separated list of special Pokémon types to filter by.</param>
+    /// <param name="evolvesFrom">Optional Pokémon name to filter by its full evolutionary lineage.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -88,6 +97,8 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? darkSideIcon = null,
         [FromQuery] string? hp = null,
         [FromQuery] string? stage = null,
+        [FromQuery] string? specialType = null,
+        [FromQuery] string? evolvesFrom = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -113,6 +124,10 @@ public sealed class CardFacetsController : ControllerBase
         var darkSideIcons = CsvUtils.Parse(darkSideIcon);
         var hps = CsvUtils.Parse(hp);
         var stages = CsvUtils.Parse(stage);
+        var specialTypes = CsvUtils.Parse(specialType);
+        var evolvesFromCardIds = !string.IsNullOrWhiteSpace(evolvesFrom)
+            ? await _pokemonEvolutionService.ResolveLineageCardIdsAsync(evolvesFrom, ct)
+            : null;
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameLookupQuery = _db.Games.AsNoTracking().AsQueryable();
         if (games.Count > 0)
@@ -199,6 +214,10 @@ public sealed class CardFacetsController : ControllerBase
                 query = query.Where(p => p.Card.Stage != null &&
                     normalizedStages.Contains(EF.Functions.Collate(p.Card.Stage, "NOCASE")));
             }
+            if (excludedFilter != "specialType" && specialTypes.Count > 0)
+                query = _pokemonFilterService.ApplySpecialTypeFilter(query, specialTypes);
+            if (excludedFilter != "evolvesFrom" && evolvesFromCardIds is not null)
+                query = query.Where(p => evolvesFromCardIds.Contains(p.CardId));
 
             return query;
         }
@@ -528,6 +547,13 @@ public sealed class CardFacetsController : ControllerBase
             .Select(s => new FacetOption { Value = s.Value, Label = s.Value, Count = s.Count })
             .ToList();
 
+        var isPokemonScope = games.Count == 0
+            || gamesNormalized.Contains("pokemon tcg")
+            || gamesNormalized.Contains("pokemontcg");
+        var specialTypeFacets = isPokemonScope
+            ? await _pokemonFilterService.ComputeSpecialTypeFacetsAsync(BuildStatFacetQuery("specialType"), ct)
+            : Array.Empty<FacetOption>();
+
         var response = new CardsFacetResponse
         {
             Games = gameFacets,
@@ -549,6 +575,7 @@ public sealed class CardFacetsController : ControllerBase
             LightSideIcons = lightSideIconFacets,
             DarkSideIcons = darkSideIconFacets,
             Stages = stageFacets,
+            SpecialTypes = specialTypeFacets,
         };
 
         return Ok(response);

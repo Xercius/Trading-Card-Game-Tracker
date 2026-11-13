@@ -30,6 +30,8 @@ export type CardFilters = {
   darkSideIcons?: string[];
   hps?: string[];
   stages?: string[];
+  specialTypes?: string[];
+  evolvesFrom?: string;
   page: number;
   pageSize: number;
   sort?: string;
@@ -59,6 +61,8 @@ const filterKeys = [
   "darkSideIcon",
   "hp",
   "stage",
+  "specialType",
+  "evolvesFrom",
   "q",
   "page",
   "pageSize",
@@ -172,6 +176,8 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     darkSideIcons: sanitizeList(input.darkSideIcons ?? []),
     hps: sanitizeList(input.hps ?? []),
     stages: sanitizeList(input.stages ?? []),
+    specialTypes: sanitizeList(input.specialTypes ?? []),
+    evolvesFrom: input.evolvesFrom?.trim() || undefined,
     page: input.page > 0 ? Math.floor(input.page) : DEFAULT_PAGE,
     pageSize: input.pageSize > 0 ? Math.floor(input.pageSize) : DEFAULT_PAGE_SIZE,
     sort: input.sort?.trim() || undefined,
@@ -208,6 +214,8 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const darkSideIcons = parseCsv(params.get("darkSideIcon"));
   const hps = parseCsv(params.get("hp"));
   const stages = parseCsv(params.get("stage"));
+  const specialTypes = parseCsv(params.get("specialType"));
+  const evolvesFrom = params.get("evolvesFrom") || undefined;
   const rawKeywordMethod = params.get("keywordMethod")?.toLowerCase();
   const keywordMethod: KeywordMethod =
     rawKeywordMethod === "and" || rawKeywordMethod === "exclude" ? rawKeywordMethod : "or";
@@ -247,6 +255,8 @@ function parseFilters(params: URLSearchParams): CardFilters {
     darkSideIcons,
     hps,
     stages,
+    specialTypes,
+    evolvesFrom,
     page,
     pageSize,
     sort,
@@ -327,6 +337,12 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   }
   if (filters.stages && filters.stages.length > 0) {
     next.set("stage", filters.stages.join(","));
+  }
+  if (filters.specialTypes && filters.specialTypes.length > 0) {
+    next.set("specialType", filters.specialTypes.join(","));
+  }
+  if (filters.evolvesFrom) {
+    next.set("evolvesFrom", filters.evolvesFrom);
   }
   if (filters.q.length > 0) {
     next.set("q", filters.q);

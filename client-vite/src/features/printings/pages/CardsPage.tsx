@@ -33,7 +33,8 @@ type FilterArrayKey =
   | "lightSideIcons"
   | "darkSideIcons"
   | "hps"
-  | "stages";
+  | "stages"
+  | "specialTypes";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
 
 const MIN_CARD_SIZE = 80;
@@ -74,9 +75,35 @@ export default function CardsPage() {
     if (previousGameRef.current !== activeGame) {
       previousGameRef.current = activeGame;
       setFilters((prev) => ({
-        ...prev,
+        q: "",
         games: [activeGame],
+        sets: [],
+        rarities: [],
+        types: [],
+        arenas: [],
+        aspects: [],
+        aspectMethod: "or",
+        traits: [],
+        traitMethod: "or",
+        keywords: [],
+        keywordMethod: "or",
+        side: undefined,
+        personas: [],
+        subTypes: [],
+        destinies: [],
+        deploys: [],
+        forfeits: [],
+        powers: [],
+        abilities: [],
+        lightSideIcons: [],
+        darkSideIcons: [],
+        hps: [],
+        stages: [],
+        specialTypes: [],
+        evolvesFrom: undefined,
         page: 1,
+        pageSize: prev.pageSize,
+        sort: undefined,
       }));
     }
   }, [activeGame, setFilters]);
@@ -122,6 +149,8 @@ export default function CardsPage() {
       lightSideIcons: isSwccg ? filters.lightSideIcons : [],
       darkSideIcons: isSwccg ? filters.darkSideIcons : [],
       hps: isPokemon ? filters.hps : [],
+      specialTypes: isPokemon ? filters.specialTypes : [],
+      evolvesFrom: isPokemon ? filters.evolvesFrom : undefined,
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
@@ -248,17 +277,26 @@ export default function CardsPage() {
       darkSideIcons: [],
       hps: [],
       stages: [],
+      specialTypes: [],
+      evolvesFrom: undefined,
       page: 1,
     }));
   }, [setFilters, activeGame]);
 
   const removeFilterValue = React.useCallback(
-    (key: FilterArrayKey | "side", value: string) => {
+    (key: FilterArrayKey | "side" | "evolvesFrom", value: string) => {
       setFilters((prev) => {
         if (key === "side") {
           return {
             ...prev,
             side: undefined,
+            page: 1,
+          };
+        }
+        if (key === "evolvesFrom") {
+          return {
+            ...prev,
+            evolvesFrom: undefined,
             page: 1,
           };
         }
@@ -454,6 +492,20 @@ export default function CardsPage() {
               label: "Stage",
               items: (filters.stages ?? []).map((v) => ({ display: v, value: v })),
             },
+            {
+              key: "specialTypes" as const,
+              label: "Special Type",
+              items: (filters.specialTypes ?? []).map((v) => ({ display: v, value: v })),
+            },
+            ...(filters.evolvesFrom
+              ? [
+                  {
+                    key: "evolvesFrom" as const,
+                    label: "Evolves From",
+                    items: [{ display: filters.evolvesFrom, value: filters.evolvesFrom }],
+                  },
+                ]
+              : []),
           ]
         : []),
       {
@@ -499,6 +551,8 @@ export default function CardsPage() {
     filters.types,
     filters.hps,
     filters.stages,
+    filters.specialTypes,
+    filters.evolvesFrom,
     filters.subTypes,
     filters.personas,
     filters.sets,

@@ -76,6 +76,7 @@ export default function DecksPage() {
 
   React.useEffect(() => {
     setPage(1);
+    setSearchQuery("");
   }, [activeGame]);
 
   React.useEffect(() => {
