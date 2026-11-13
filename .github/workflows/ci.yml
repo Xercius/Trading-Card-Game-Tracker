@@ -46,7 +46,18 @@ jobs:
       - name: Restore
         run: dotnet restore
       - name: .NET vulnerability scan
-        run: dotnet list api.sln package --vulnerable --include-transitive
+        # `dotnet list package --vulnerable` always exits 0, so fail explicitly on any reported advisory
+        # except those suppressed (with justification) via <NuGetAuditSuppress> in Directory.Build.props.
+        run: |
+          dotnet list api.sln package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          suppressed=$(grep -oE 'https://github.com/advisories/GHSA-[a-z0-9-]+' ../Directory.Build.props | sort -u || true)
+          reported=$(grep -oE 'https://github.com/advisories/GHSA-[a-z0-9-]+' vulnerable.txt | sort -u || true)
+          unsuppressed=$(comm -23 <(echo "$reported" | sed '/^$/d') <(echo "$suppressed" | sed '/^$/d'))
+          if [ -n "$unsuppressed" ]; then
+            echo "::error::Unsuppressed vulnerable NuGet packages detected:"
+            echo "$unsuppressed"
+            exit 1
+          fi
       - name: Build
         run: dotnet build -c Release --no-restore -warnaserror
       - name: dotnet format check
@@ -73,13 +84,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: client-vite/package-lock.json
       - name: Install
         run: npm ci
       - name: npm audit
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
       - name: Lint (strict)
         run: npm run lint:strict
       - name: Type check

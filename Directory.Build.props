@@ -3,9 +3,12 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Suppress NuGet audit for SQLitePCLRaw.lib.e_sqlite3 (GHSA-2m69-gcr7-jv3q).
-         No patched version exists; the vulnerability is in the bundled native SQLite binary
-         and cannot be resolved by upgrading the NuGet package alone. -->
-    <NuGetAuditLevel>critical</NuGetAuditLevel>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- SQLitePCLRaw.lib.e_sqlite3 (GHSA-2m69-gcr7-jv3q): no patched package exists; the vulnerability is
+         in the bundled native SQLite binary and cannot be resolved by upgrading the NuGet package alone.
+         Suppress only this advisory so every other advisory (any severity) still fails restore/build.
+         Revisit when SQLitePCLRaw ships a fixed e_sqlite3 bundle. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
 </Project>
