@@ -283,6 +283,36 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
             issue => issue?.Contains("ACE SPEC", StringComparison.Ordinal) == true);
     }
 
+    [Fact]
+    public async Task PokemonDeckValidation_MissingDeck_ReturnsNotFound()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/decks/999999/validation");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(404, problem.GetProperty("status").GetInt32());
+        Assert.Contains("999999", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PokemonDeckValidation_NonPokemonDeck_ReturnsBadRequest()
+    {
+        var (deckId, _) = await SeedDeckAsync("Star Wars Unlimited", 0, 0);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/decks/{deckId}/validation");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(400, problem.GetProperty("status").GetInt32());
+        Assert.Equal(
+            "Pokémon deck validation is only available for Pokémon TCG decks.",
+            problem.GetProperty("detail").GetString());
+    }
+
     private async Task<(int DeckId, int PrintingId)> SeedDeckAsync(string gameName, int owned, int proxies)
     {
         await factory.ResetDatabaseAsync();
