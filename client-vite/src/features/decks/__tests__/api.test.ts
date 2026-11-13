@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { ProblemDetailsError } from "@/lib/problemDetails";
 import { fetchDeckDetails, postDeckQuantityDelta } from "../api";
 
@@ -9,7 +9,7 @@ afterEach(() => {
 
 describe("deck api", () => {
   it("returns friendly message for missing decks", async () => {
-    vi.spyOn(api, "get").mockRejectedValue({
+    vi.spyOn(http, "get").mockRejectedValue({
       isAxiosError: true,
       toJSON: () => ({}),
       message: "Not Found",
@@ -30,7 +30,7 @@ describe("deck api", () => {
   });
 
   it("surfaces conflicts when updating deck quantities", async () => {
-    vi.spyOn(api, "post").mockRejectedValue({
+    vi.spyOn(http, "post").mockRejectedValue({
       isAxiosError: true,
       toJSON: () => ({}),
       message: "Conflict",

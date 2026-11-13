@@ -4,11 +4,11 @@ const { getMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({
-  api: { get: getMock },
+vi.mock("@/lib/http", () => ({
+  default: { get: getMock },
 }));
 
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { fetchPrintings } from "../printings";
 
 describe("fetchPrintings", () => {
@@ -19,12 +19,12 @@ describe("fetchPrintings", () => {
   it("serializes selected Pokemon HP values as the hp query parameter", async () => {
     await fetchPrintings({ game: ["Pokemon TCG"], hps: ["100"] });
 
-    expect(api.get).toHaveBeenCalledWith(expect.stringContaining("hp=100"));
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining("hp=100"));
   });
 
   it("serializes selected stages as the stage query parameter", async () => {
     await fetchPrintings({ stages: ["Stage 1"] });
 
-    expect(api.get).toHaveBeenCalledWith(expect.stringContaining("stage=Stage+1"));
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining("stage=Stage+1"));
   });
 });

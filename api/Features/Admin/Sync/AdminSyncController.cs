@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using api.Common.Errors;
 using api.Data;
 using api.Features.Admin.Sync.Dtos;
@@ -5,6 +6,7 @@ using api.Features.Admin.Sync.Services;
 using api.Importing;
 using api.Importing.Pokemon;
 using api.Models;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -21,7 +23,8 @@ public sealed class AdminSyncController(
     AdminSyncExecutionTracker executionTracker,
     TimeProvider timeProvider,
     ILogger<AdminSyncController> logger,
-    PokemonTcgdexImporter pokemonImporter) : ControllerBase
+    PokemonTcgdexImporter pokemonImporter,
+    IValidator<AdminSwccgSyncRequest> swccgSyncValidator) : ControllerBase
 {
     private const string SwuImporterKey = "swu";
     private const string CatalogHistoryKey = "swu-catalog";
@@ -37,43 +40,10 @@ public sealed class AdminSyncController(
     private const string PokemonSyncRouteKey = "pokemon";
 
     [HttpGet("star-wars-unlimited/logs")]
-    public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
+    public Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
         [FromQuery] int limit = 50,
         CancellationToken ct = default)
-    {
-        if (limit is <= 0 or > 200)
-        {
-            limit = 50;
-        }
-
-        var totalCount = await db.SyncLogs.CountAsync(ct);
-
-        var allLogs = await db.SyncLogs
-            .AsNoTracking()
-            .Select(l => new AdminSyncLogEntry(
-                l.Id,
-                l.SetId,
-                l.Set != null ? l.Set.Code : null,
-                l.StartedAt,
-                l.CompletedAt,
-                l.IsIncremental,
-                l.UpdatedSince,
-                l.CardsReturned,
-                l.CardsUpserted,
-                l.Status,
-                l.ErrorMessage))
-            .ToListAsync(ct);
-
-        var logs = allLogs
-            .OrderByDescending(l => l.StartedAt)
-            .Take(limit)
-            .ToList();
-
-        return Ok(new AdminSyncLogsResponse(
-            Source: SwuImporterKey,
-            TotalCount: totalCount,
-            Logs: logs));
-    }
+        => GetSyncLogsAsync(SwuImporterKey, filter: null, limit, usePokemonSetFallback: false, ct);
 
     [HttpGet("star-wars-unlimited/status")]
     public async Task<ActionResult<AdminSyncStatusDetailsResponse>> GetStarWarsUnlimitedStatus(CancellationToken ct)
@@ -218,44 +188,15 @@ public sealed class AdminSyncController(
     }
 
     [HttpGet("star-wars-ccg/logs")]
-    public async Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsCcgLogs(
+    public Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsCcgLogs(
         [FromQuery] int limit = 50,
         CancellationToken ct = default)
-    {
-        if (limit is <= 0 or > 200)
-        {
-            limit = 50;
-        }
-
-        var totalCount = await db.SyncLogs.CountAsync(l => l.CatalogScope == SwccgCatalogScope, ct);
-
-        var allLogs = await db.SyncLogs
-            .AsNoTracking()
-            .Where(l => l.CatalogScope == SwccgCatalogScope)
-            .Select(l => new AdminSyncLogEntry(
-                l.Id,
-                l.SetId,
-                l.Set != null ? l.Set.Code : null,
-                l.StartedAt,
-                l.CompletedAt,
-                l.IsIncremental,
-                l.UpdatedSince,
-                l.CardsReturned,
-                l.CardsUpserted,
-                l.Status,
-                l.ErrorMessage))
-            .ToListAsync(ct);
-
-        var logs = allLogs
-            .OrderByDescending(l => l.StartedAt)
-            .Take(limit)
-            .ToList();
-
-        return Ok(new AdminSyncLogsResponse(
-            Source: SwccgImporterKey,
-            TotalCount: totalCount,
-            Logs: logs));
-    }
+        => GetSyncLogsAsync(
+            SwccgImporterKey,
+            l => l.CatalogScope == SwccgCatalogScope,
+            limit,
+            usePokemonSetFallback: false,
+            ct);
 
     [HttpGet("star-wars-ccg/status")]
     public async Task<ActionResult<AdminSyncStatusDetailsResponse>> GetStarWarsCcgStatus(CancellationToken ct)
@@ -302,6 +243,18 @@ public sealed class AdminSyncController(
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AdminSwccgSyncRequest? request = null,
         [FromQuery] bool forceFullSync = false)
     {
+        if (request is not null)
+        {
+            var validation = await swccgSyncValidator.ValidateAsync(request, ct);
+            if (!validation.IsValid)
+            {
+                var errors = validation.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+                return this.CreateValidationProblem(errors);
+            }
+        }
+
         var startedAt = timeProvider.GetUtcNow();
         if (!executionTracker.TryStart(SwccgSyncRouteKey, startedAt))
         {
@@ -495,7 +448,7 @@ public sealed class AdminSyncController(
         var startedAt = timeProvider.GetUtcNow();
         if (!executionTracker.TryStart(PokemonSyncRouteKey, startedAt))
         {
-            return Conflict(new { message = "A Pokémon sync is already running." });
+            return this.CreateProblem(StatusCodes.Status409Conflict, detail: "A Pokémon sync is already running.");
         }
 
         try
@@ -505,8 +458,8 @@ public sealed class AdminSyncController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to sync Pokémon sets.");
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            logger.LogError(new EventId(3101, "PokemonSyncSetsFailed"), ex, "Failed to sync Pokémon sets.");
+            return this.CreateProblem(StatusCodes.Status500InternalServerError, detail: "Sync failed. See server logs for details.");
         }
         finally
         {
@@ -519,13 +472,13 @@ public sealed class AdminSyncController(
     {
         if (request?.SetCodes == null || request.SetCodes.Count == 0)
         {
-            return BadRequest(new { message = "At least one set code is required." });
+            return this.CreateProblem(StatusCodes.Status400BadRequest, detail: "At least one set code is required.");
         }
 
         var startedAt = timeProvider.GetUtcNow();
         if (!executionTracker.TryStart(PokemonSyncRouteKey, startedAt))
         {
-            return Conflict(new { message = "A Pokémon sync is already running." });
+            return this.CreateProblem(StatusCodes.Status409Conflict, detail: "A Pokémon sync is already running.");
         }
 
         try
@@ -535,8 +488,8 @@ public sealed class AdminSyncController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to sync Pokémon cards.");
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
+            logger.LogError(new EventId(3102, "PokemonSyncCardsFailed"), ex, "Failed to sync Pokémon cards.");
+            return this.CreateProblem(StatusCodes.Status500InternalServerError, detail: "Sync failed. See server logs for details.");
         }
         finally
         {
@@ -545,24 +498,48 @@ public sealed class AdminSyncController(
     }
 
     [HttpGet("pokemon/logs")]
-    public async Task<ActionResult<AdminSyncLogsResponse>> GetPokemonLogs(
+    public Task<ActionResult<AdminSyncLogsResponse>> GetPokemonLogs(
         [FromQuery] int limit = 50,
         CancellationToken ct = default)
+        => GetSyncLogsAsync(
+            PokemonImporterKey,
+            l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"),
+            limit,
+            usePokemonSetFallback: true,
+            ct);
+
+    private async Task<ActionResult<AdminSyncLogsResponse>> GetSyncLogsAsync(
+        string source,
+        Expression<Func<SyncLog, bool>>? filter,
+        int limit,
+        bool usePokemonSetFallback,
+        CancellationToken ct)
     {
         if (limit is <= 0 or > 200)
         {
             limit = 50;
         }
 
-        var totalCount = await db.SyncLogs.CountAsync(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"), ct);
+        var query = db.SyncLogs.AsNoTracking();
+        if (filter is not null)
+        {
+            query = query.Where(filter);
+        }
 
-        var rawLogs = await db.SyncLogs
-            .AsNoTracking()
-            .Where(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"))
+        var totalCount = await query.CountAsync(ct);
+
+        var logs = await query
+            .OrderByDescending(l => AppDbContext.SqliteJulianDay(l.StartedAt))
+            .ThenByDescending(l => l.Id)
+            .Take(limit)
             .Select(l => new AdminSyncLogEntry(
                 l.Id,
                 l.SetId,
-                l.Set != null ? l.Set.Code : l.CatalogScope!.Replace("Pokemon:", ""),
+                l.Set != null
+                    ? l.Set.Code
+                    : usePokemonSetFallback && l.CatalogScope != null
+                        ? l.CatalogScope.Replace("Pokemon:", "")
+                        : null,
                 l.StartedAt,
                 l.CompletedAt,
                 l.IsIncremental,
@@ -573,15 +550,10 @@ public sealed class AdminSyncController(
                 l.ErrorMessage))
             .ToListAsync(ct);
 
-        var allLogs = rawLogs
-            .OrderByDescending(l => l.StartedAt)
-            .Take(limit)
-            .ToList();
-
         return Ok(new AdminSyncLogsResponse(
-            Source: PokemonImporterKey,
+            Source: source,
             TotalCount: totalCount,
-            Logs: allLogs));
+            Logs: logs));
     }
 
     private async Task<SyncLog> CreatePendingSyncLogAsync(

@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGame } from "@/state/useGame";
 import { useUser } from "@/state/useUser";
+import { queryKeys } from "@/lib/queryKeys";
 import { fetchAllPrintings } from "@/features/printings/api/printings";
 import {
   fetchAllCollection,
@@ -80,7 +81,7 @@ export default function CollectionSetDetailPage() {
     error: printingsError,
     isSuccess: printingsLoaded,
   } = useQuery({
-    queryKey: ["printings", "set", setCode, activeGame],
+    queryKey: queryKeys.printings.set(setCode, activeGame),
     queryFn: async () => {
       if (!setCode) return [];
       return fetchAllPrintings({
@@ -92,7 +93,7 @@ export default function CollectionSetDetailPage() {
   });
 
   // 3. Fetch user's collection for this set
-  const collectionQueryKey = ["collection", "set-detail", setCode, userId, activeGame] as const;
+  const collectionQueryKey = queryKeys.collection.setDetail(setCode, userId, activeGame);
   const {
     data: collectionData,
     isLoading: collectionLoading,
@@ -641,7 +642,7 @@ export default function CollectionSetDetailPage() {
               setEditingCard(null);
               // Invalidate query on close to refresh row values if changed
               queryClient.invalidateQueries({
-                queryKey: ["collection", "set-detail", setCode],
+                queryKey: queryKeys.collection.setDetailPrefix(setCode),
               });
             }
           }}

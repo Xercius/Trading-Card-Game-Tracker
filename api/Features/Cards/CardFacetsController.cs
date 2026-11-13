@@ -114,7 +114,7 @@ public sealed class CardFacetsController : ControllerBase
         var hps = CsvUtils.Parse(hp);
         var stages = CsvUtils.Parse(stage);
         var gamesNormalized = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameLookupQuery = _db.Games.AsQueryable();
+        var gameLookupQuery = _db.Games.AsNoTracking().AsQueryable();
         if (games.Count > 0)
             gameLookupQuery = gameLookupQuery.Where(candidate => gamesNormalized.Contains(candidate.NameNormalized));
         var gameIds = await gameLookupQuery
@@ -594,7 +594,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         var games = CsvUtils.Parse(game);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameLookupQuery = _db.Games.AsQueryable();
+        var gameLookupQuery = _db.Games.AsNoTracking().AsQueryable();
         if (games.Count > 0)
             gameLookupQuery = gameLookupQuery.Where(candidate => normalizedGames.Contains(candidate.NameNormalized));
         var gameIds = await gameLookupQuery
@@ -638,7 +638,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         var games = CsvUtils.Parse(game);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
-        var gameLookupQuery = _db.Games.AsQueryable();
+        var gameLookupQuery = _db.Games.AsNoTracking().AsQueryable();
         if (games.Count > 0)
             gameLookupQuery = gameLookupQuery.Where(candidate => normalizedGames.Contains(candidate.NameNormalized));
         var gameIds = await gameLookupQuery
@@ -705,8 +705,7 @@ public sealed class CardFacetsController : ControllerBase
     {
         return gameIds.Count == 0
             ? query.Where(_ => false)
-            : query.Where(printing => printing.Card.GameId.HasValue
-                && gameIds.Contains(printing.Card.GameId.Value));
+            : query.Where(printing => gameIds.Contains(printing.Card.GameId));
     }
 
     private static IQueryable<CardPrinting> ApplySetFilter(

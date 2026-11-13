@@ -252,7 +252,11 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
             .Include(c => c.CardAspects).ThenInclude(ca => ca.Aspect)
             .Include(c => c.CardTypes).ThenInclude(ct => ct.CardType)
             .Include(c => c.Printings).ThenInclude(p => p.Treatment)
-            .FirstOrDefaultAsync(c => c.Printings.Any(p => p.CardUid == "base1-4:holo"));
+            .FirstOrDefaultAsync(c => c.Printings.Any(p =>
+                p.CardUid != null &&
+                p.CardUid.StartsWith("base1-4:") &&
+                p.Treatment != null &&
+                p.Treatment.Name == "Holo"));
 
         Assert.NotNull(card);
         Assert.StartsWith("pkmn:charizard:", card.CardUid);

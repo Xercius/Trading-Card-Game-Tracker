@@ -25,7 +25,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task InvalidQuery_ReturnsValidationProblemDetailsWithTraceId()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         var response = await client.GetAsync("/api/cards?skip=foo");
 
@@ -45,7 +45,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task ValueRefresh_MissingGame_ReturnsValidationProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         var payload = new[]
         {
@@ -78,7 +78,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task CardsPrinting_InvalidPayload_ReturnsValidationProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         var response = await client.PostAsJsonAsync(
             "/api/cards/printing",
@@ -109,7 +109,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task GetCard_MissingResource_ReturnsNotFoundProblemDetailsWithDetail()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         var response = await client.GetAsync("/api/cards/999999");
 
@@ -131,7 +131,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task AdminImportDryRun_InvalidJson_ReturnsBadRequestProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         using var content = new StringContent("{\"source\":", Encoding.UTF8, "application/json");
         var response = await client.PostAsync("/api/admin/import/dry-run", content);
@@ -156,7 +156,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task AdminImportDryRun_InvalidLimit_ReturnsBadRequestProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var response = await client.PostAsync("/api/admin/import/dry-run?limit=invalid", content);
@@ -181,7 +181,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task MissingResource_ReturnsNotFoundProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
 
         var response = await client.GetAsync("/api/user/99999");
 

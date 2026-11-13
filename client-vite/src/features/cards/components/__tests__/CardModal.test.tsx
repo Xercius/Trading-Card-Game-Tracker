@@ -14,7 +14,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import CardModal from "../CardModal";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 
 let originalIntersectionObserver: typeof window.IntersectionObserver | undefined;
 let container: HTMLDivElement;
@@ -55,7 +55,7 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  getSpy = vi.spyOn(api, "get");
+  getSpy = vi.spyOn(http, "get");
 });
 
 afterEach(() => {

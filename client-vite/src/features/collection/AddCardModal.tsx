@@ -1,9 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { resolveImageUrl } from "@/lib/http";
+import { getErrorMessage } from "@/lib/getErrorMessage";
 import { useCardPrintings } from "@/features/cards/api";
 import { useSetCardQuantitiesMutation, usePrintingQuantitiesQuery } from "./api";
 import type { PrintingListItem } from "@/features/printings/api/printings";
+
+type QuantityDraft = {
+  printingId: number;
+  owned: number;
+  proxy: number;
+  wishlist: number;
+};
 
 type AddCardModalProps = {
   open: boolean;
@@ -21,74 +29,89 @@ export default function AddCardModal({
   onSuccess,
 }: AddCardModalProps) {
   const [selectedPrintingId, setSelectedPrintingId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<QuantityDraft | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const cardId = initialPrinting ? Number(initialPrinting.cardId) : 0;
   const { data: printings = [] } = useCardPrintings(cardId);
 
+  const initialPrintingId = initialPrinting ? Number(initialPrinting.printingId) : null;
   const activePrintingId =
-    selectedPrintingId ?? (initialPrinting ? Number(initialPrinting.printingId) : null);
+    selectedPrintingId && printings.some((p) => Number(p.printingId) === selectedPrintingId)
+      ? selectedPrintingId
+      : initialPrintingId;
 
   // Load existing quantities if user already has copies of this printing
   const quantitiesQuery = usePrintingQuantitiesQuery(activePrintingId);
   const { data: existingQuantities } = quantitiesQuery;
 
-  const [ownedQty, setOwnedQty] = useState(mode === "collection" ? 1 : 0);
-  const [proxyQty, setProxyQty] = useState(0);
-  const [wishlistQty, setWishlistQty] = useState(mode === "wishlist" ? 1 : 0);
+  const quantitiesReady =
+    quantitiesQuery.isSuccess && existingQuantities?.cardPrintingId === activePrintingId;
 
-  useEffect(() => {
-    if (initialPrinting) {
-      setSelectedPrintingId(Number(initialPrinting.printingId));
-    }
-  }, [initialPrinting]);
+  const hasSavedQuantities =
+    quantitiesReady &&
+    (existingQuantities.quantityOwned > 0 ||
+      existingQuantities.quantityProxyOwned > 0 ||
+      existingQuantities.quantityWanted > 0);
 
-  useEffect(() => {
-    setOwnedQty(mode === "collection" ? 1 : 0);
-    setProxyQty(0);
-    setWishlistQty(mode === "wishlist" ? 1 : 0);
-  }, [activePrintingId, mode]);
+  const baseOwned = hasSavedQuantities
+    ? existingQuantities.quantityOwned
+    : mode === "collection"
+      ? 1
+      : 0;
+  const baseProxy = hasSavedQuantities ? existingQuantities.quantityProxyOwned : 0;
+  const baseWishlist = hasSavedQuantities
+    ? existingQuantities.quantityWanted
+    : mode === "wishlist"
+      ? 1
+      : 0;
 
-  useEffect(() => {
-    if (quantitiesQuery.isSuccess && existingQuantities?.cardPrintingId === activePrintingId) {
-      const hasSavedQuantities =
-        existingQuantities.quantityOwned > 0 ||
-        existingQuantities.quantityProxyOwned > 0 ||
-        existingQuantities.quantityWanted > 0;
-      setOwnedQty(
-        hasSavedQuantities ? existingQuantities.quantityOwned : mode === "collection" ? 1 : 0
-      );
-      setProxyQty(hasSavedQuantities ? existingQuantities.quantityProxyOwned : 0);
-      setWishlistQty(
-        hasSavedQuantities ? existingQuantities.quantityWanted : mode === "wishlist" ? 1 : 0
-      );
-    }
-  }, [activePrintingId, existingQuantities, mode, quantitiesQuery.isSuccess]);
+  const activeDraft = draft && draft.printingId === activePrintingId ? draft : null;
+  const ownedQty = activeDraft ? activeDraft.owned : baseOwned;
+  const proxyQty = activeDraft ? activeDraft.proxy : baseProxy;
+  const wishlistQty = activeDraft ? activeDraft.wishlist : baseWishlist;
+
+  const updateDraft = (patch: Partial<Omit<QuantityDraft, "printingId">>) => {
+    if (!activePrintingId) return;
+    setSaveError(null);
+    setDraft({
+      printingId: activePrintingId,
+      owned: patch.owned ?? ownedQty,
+      proxy: patch.proxy ?? proxyQty,
+      wishlist: patch.wishlist ?? wishlistQty,
+    });
+  };
+
+  const selectPrinting = (nextId: number) => {
+    setSelectedPrintingId(nextId);
+    setDraft(null);
+    setSaveError(null);
+  };
 
   const selectedPrinting = printings.find((p) => Number(p.printingId) === activePrintingId);
   const activePrinting = selectedPrinting
     ? { ...selectedPrinting, cardName: initialPrinting?.cardName ?? "Card" }
     : initialPrinting;
-  const quantitiesReady =
-    quantitiesQuery.isSuccess && existingQuantities?.cardPrintingId === activePrintingId;
 
   const currentPrintingIndex = printings.findIndex((p) => p.printingId === activePrintingId);
 
   const handlePrevPrinting = () => {
     if (printings.length <= 1) return;
     const prevIndex = currentPrintingIndex > 0 ? currentPrintingIndex - 1 : printings.length - 1;
-    setSelectedPrintingId(printings[prevIndex].printingId);
+    selectPrinting(printings[prevIndex].printingId);
   };
 
   const handleNextPrinting = () => {
     if (printings.length <= 1) return;
     const nextIndex = currentPrintingIndex < printings.length - 1 ? currentPrintingIndex + 1 : 0;
-    setSelectedPrintingId(printings[nextIndex].printingId);
+    selectPrinting(printings[nextIndex].printingId);
   };
 
   const mutation = useSetCardQuantitiesMutation();
 
   const handleSave = async (closeAfter: boolean) => {
     if (!activePrintingId || !quantitiesReady) return;
+    setSaveError(null);
 
     try {
       await mutation.mutateAsync({
@@ -105,7 +128,7 @@ export default function AddCardModal({
         onOpenChange(false);
       }
     } catch (err) {
-      console.error("[AddCardModal] Failed to save quantities:", err);
+      setSaveError(getErrorMessage(err));
     }
   };
 
@@ -186,7 +209,7 @@ export default function AddCardModal({
               {printings.length > 0 ? (
                 <select
                   value={activePrintingId ?? ""}
-                  onChange={(e) => setSelectedPrintingId(Number(e.target.value))}
+                  onChange={(e) => selectPrinting(Number(e.target.value))}
                   className="w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   {printings.map((p) => (
@@ -214,7 +237,9 @@ export default function AddCardModal({
                   min="0"
                   value={ownedQty}
                   disabled={!quantitiesReady || mutation.isPending}
-                  onChange={(e) => setOwnedQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  onChange={(e) =>
+                    updateDraft({ owned: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                  }
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -228,7 +253,9 @@ export default function AddCardModal({
                   min="0"
                   value={proxyQty}
                   disabled={!quantitiesReady || mutation.isPending}
-                  onChange={(e) => setProxyQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  onChange={(e) =>
+                    updateDraft({ proxy: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                  }
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -242,7 +269,9 @@ export default function AddCardModal({
                   min="0"
                   value={wishlistQty}
                   disabled={!quantitiesReady || mutation.isPending}
-                  onChange={(e) => setWishlistQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  onChange={(e) =>
+                    updateDraft({ wishlist: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                  }
                   className="h-9 w-full rounded border border-white/20 bg-[#141416] text-white px-3 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -250,6 +279,11 @@ export default function AddCardModal({
             {quantitiesQuery.isError && (
               <p className="text-xs text-red-400">
                 Failed to load this printing's saved quantities.
+              </p>
+            )}
+            {saveError && (
+              <p role="alert" className="text-xs text-red-400">
+                Failed to save quantities: {saveError}
               </p>
             )}
 

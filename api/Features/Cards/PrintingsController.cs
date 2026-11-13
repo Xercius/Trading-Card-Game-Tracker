@@ -1,6 +1,7 @@
 using api.Data;                 // your DbContext namespace
 using api.Models;              // Card, CardPrinting
 using api.Features.Cards.Dtos;
+using api.Features.Cards.Mapping;
 using api.Features._Common;
 using api.Shared;
 using Microsoft.AspNetCore.Mvc;
@@ -58,10 +59,12 @@ public sealed class PrintingsController : ControllerBase
         var games = CsvUtils.Parse(qp.Game); // Suggest: rename 'games' → 'gameNames'
         var requestedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
+            .AsNoTracking()
             .Where(game => requestedGames.Contains(game.NameNormalized))
             .Select(game => game.Id)
             .ToListAsync(ct);
         var swuGameIds = await _db.Games
+            .AsNoTracking()
             .Where(game => game.NameNormalized == "star wars unlimited")
             .Select(game => game.Id)
             .ToListAsync(ct);
@@ -70,12 +73,12 @@ public sealed class PrintingsController : ControllerBase
             var otherGameIds = gameIds.Where(gameId => !swuGameIds.Contains(gameId)).ToList();
             var includesSwu = requestedGames.Contains("star wars unlimited");
             query = query.Where(p =>
-                p.Card.GameId.HasValue && otherGameIds.Contains(p.Card.GameId.Value)
+                otherGameIds.Contains(p.Card.GameId)
                 || includesSwu && (
                     p.CatalogSet != null && swuGameIds.Contains(p.CatalogSet.GameId)
                     || p.CatalogSet == null && (
                         p.Card.CardTypes.Any(type => swuGameIds.Contains(type.CardType.GameId))
-                        || p.Card.GameId.HasValue && swuGameIds.Contains(p.Card.GameId.Value))));
+                        || swuGameIds.Contains(p.Card.GameId))));
         }
 
         // Filter by set(s) - supports comma-separated list
@@ -349,42 +352,8 @@ public sealed class PrintingsController : ControllerBase
             .Include(p => p.Card).ThenInclude(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
             .AsSplitQuery()
             .ToListAsync(ct);
-        var rows = printings.Select(ToPrintingDto).ToList();
+        var rows = printings.Select(PrintingMapper.ToPrintingDto).ToList();
 
         return Ok(rows);
     }
-
-    private static PrintingDto ToPrintingDto(CardPrinting printing)
-        => new(
-            printing.Id,
-            printing.CatalogSet == null ? string.Empty : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
-            printing.CatalogSet?.Code,
-            printing.Number,
-            printing.RarityLookup?.Name ?? string.Empty,
-            string.IsNullOrWhiteSpace(printing.ImageUrl)
-                ? "/images/placeholders/card-3x4.png"
-                : printing.ImageUrl,
-            printing.CardId,
-            printing.Card.Name,
-            printing.Card.Game?.Name ?? string.Empty)
-        {
-            Style = printing.Treatment?.Name ?? "Standard",
-            Cost = printing.Card.Cost,
-            Subtitle = printing.Card.Subtitle,
-            Destiny = printing.Card.Destiny,
-            ReleaseDate = printing.CatalogSet?.ReleasedAt
-                ?? (printing.ApiPublishedAt is { } publishedAt
-                    ? DateOnly.FromDateTime(publishedAt.UtcDateTime)
-                    : null),
-            SetLogoUrl = printing.CatalogSet?.LogoUrl,
-            BackImageUrl = printing.BackImageUrl,
-            ImageOrientation = printing.ArtFrontHorizontal == true ? "horizontal" :
-                printing.ArtFrontHorizontal == false ? "vertical" : null,
-            BackImageOrientation = printing.ArtBackHorizontal == true ? "horizontal" :
-                printing.ArtBackHorizontal == false ? "vertical" : null,
-            CardTypes = printing.Card.CardTypes.Select(type => type.CardType.Name)
-                .Distinct().OrderBy(name => name).ToList(),
-            Aspects = printing.Card.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
-                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
-        };
 }

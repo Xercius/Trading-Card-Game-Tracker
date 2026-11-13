@@ -402,8 +402,8 @@ internal static class QueryExtensions
                 .Where(g => !string.IsNullOrEmpty(g))
                 .ToList();
             query = query.Where(c =>
-                c.Game != null && normalizedGames.Contains(c.Game.NameNormalized)
-                || c.GameId.HasValue && gameIds.Contains(c.GameId.Value));
+                normalizedGames.Contains(c.Game.NameNormalized)
+                || gameIds.Contains(c.GameId));
         }
 
         if (sets.Count > 0)

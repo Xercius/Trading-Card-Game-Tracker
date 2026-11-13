@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchCardGames } from "@/features/cards/api/list";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   DEFAULT_GAME,
   GameContext,
   type GameContextValue,
   STORAGE_KEY_ACTIVE_GAME,
-  STORAGE_KEY_SELECTED_GAME,
 } from "./GameContext";
 
 function getInitialGame(defaultProp?: string): string {
@@ -15,9 +15,7 @@ function getInitialGame(defaultProp?: string): string {
   }
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      const stored =
-        window.localStorage.getItem(STORAGE_KEY_ACTIVE_GAME) ||
-        window.localStorage.getItem(STORAGE_KEY_SELECTED_GAME);
+      const stored = window.localStorage.getItem(STORAGE_KEY_ACTIVE_GAME);
       if (stored && stored.trim()) {
         return stored.trim();
       }
@@ -37,7 +35,7 @@ export function GameProvider({ children, defaultGame }: GameProviderProps) {
   const [activeGame, setActiveGameState] = useState<string>(() => getInitialGame(defaultGame));
 
   const gamesQuery = useQuery({
-    queryKey: ["card-games"],
+    queryKey: queryKeys.games(),
     queryFn: fetchCardGames,
     staleTime: 5 * 60 * 1000,
   });
@@ -60,7 +58,6 @@ export function GameProvider({ children, defaultGame }: GameProviderProps) {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(STORAGE_KEY_ACTIVE_GAME, trimmed);
-        window.localStorage.setItem(STORAGE_KEY_SELECTED_GAME, trimmed);
       }
     } catch {
       // Ignore localStorage access failures

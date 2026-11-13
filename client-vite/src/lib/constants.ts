@@ -1,2 +1,0 @@
-export const DEFAULT_PRICE_HISTORY_DAYS = 30;
-export const PRICE_HISTORY_STALE_TIME_MS = 5 * 60_000;

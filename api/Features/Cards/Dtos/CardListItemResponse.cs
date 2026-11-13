@@ -16,7 +16,7 @@ namespace api.Features.Cards.Dtos;
 /// - GET /api/cards (list view) - Paginated card browsing
 /// - Card search/filter endpoints
 /// </remarks>
-public sealed class CardListItemResponse
+public sealed record CardListItemResponse
 {
     /// <summary>
     /// Unique identifier for the card in the database.
@@ -64,7 +64,7 @@ public sealed class CardListItemResponse
     /// Nested response DTO representing a single printing variation of a card.
     /// Contains the essential printing details needed for list view display.
     /// </summary>
-    public sealed class PrimaryPrintingResponse
+    public sealed record PrimaryPrintingResponse
     {
         /// <summary>
         /// Unique identifier for this specific printing in the database.

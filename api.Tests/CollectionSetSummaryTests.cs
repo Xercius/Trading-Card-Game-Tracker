@@ -64,9 +64,9 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
             var standard = await db.CardPrintings.Include(p => p.Card)
                 .SingleAsync(p => p.Id == TestDataSeeder.LightningBoltAlphaPrintingId);
-            Assert.NotNull(standard.Card.GameId);
+            Assert.True(standard.Card.GameId > 0);
 
-            var hyperspace = new Treatment { GameId = standard.Card.GameId.Value, Name = "Hyperspace" };
+            var hyperspace = new Treatment { GameId = standard.Card.GameId, Name = "Hyperspace" };
             var hyperspacePrinting = new CardPrinting
             {
                 CardId = standard.CardId,

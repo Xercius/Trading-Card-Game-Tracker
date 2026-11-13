@@ -1,8 +1,7 @@
-import { act } from "react";
-import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import CollectionPage from "../CollectionPage";
 
 const mockSummary = {
@@ -75,40 +74,36 @@ vi.mock("../useCollectionValueHistory", () => ({
 }));
 
 describe("CollectionPage", () => {
-  it("renders collection value and sets overview table", async () => {
-    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
-
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<RouterProvider router={router} />);
+  function renderCollectionPage() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
     });
+    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    );
+  }
 
-    expect(container.textContent).toContain("Proxies excluded");
+  it("renders collection value and sets overview table", async () => {
+    const { container } = renderCollectionPage();
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Proxies excluded");
+    });
     expect(container.textContent).toContain("Sets & Expansions");
     expect(container.textContent).toContain("Spark of Rebellion");
     expect(container.textContent).toContain("SOR");
     expect(container.textContent).toContain("71.4%");
-
-    await act(() => {
-      root.unmount();
-    });
-    container.remove();
   });
 
   it("expands subsets when clicking expand toggle", async () => {
-    const router = createMemoryRouter([{ path: "/", element: <CollectionPage /> }]);
+    const { container } = renderCollectionPage();
 
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<RouterProvider router={router} />);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Spark of Rebellion");
     });
-
     expect(container.textContent).not.toContain("Hyperspace");
 
     // Click expand subsets chevron
@@ -121,10 +116,5 @@ describe("CollectionPage", () => {
       expect(container.textContent).toContain("Hyperspace");
       expect(container.textContent).toContain("11.9%");
     });
-
-    await act(() => {
-      root.unmount();
-    });
-    container.remove();
   });
 });

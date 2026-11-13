@@ -34,7 +34,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Arenas_GameId_Name");
 
                     b.ToTable("Arenas", (string)null);
                 });
@@ -60,7 +61,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Aspects_GameId_Name");
 
                     b.ToTable("Aspects", (string)null);
                 });
@@ -132,7 +134,7 @@ namespace api.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("GameId")
+                    b.Property<int>("GameId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("Hp")
@@ -216,7 +218,8 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NameNormalized");
+                    b.HasIndex("NameNormalized")
+                        .HasDatabaseName("IX_Cards_NameNormalized");
 
                     b.HasIndex("GameId", "Name")
                         .HasDatabaseName("IX_Cards_GameId_Name");
@@ -237,7 +240,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "ArenaId");
 
-                    b.HasIndex("ArenaId");
+                    b.HasIndex("ArenaId")
+                        .HasDatabaseName("IX_CardArenas_ArenaId");
 
                     b.ToTable("CardArenas", (string)null);
                 });
@@ -255,7 +259,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "AspectId");
 
-                    b.HasIndex("AspectId");
+                    b.HasIndex("AspectId")
+                        .HasDatabaseName("IX_CardAspects_AspectId");
 
                     b.ToTable("CardAspects", null, t =>
                         {
@@ -277,7 +282,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "CardTypeId", "SourceRole");
 
-                    b.HasIndex("CardTypeId");
+                    b.HasIndex("CardTypeId")
+                        .HasDatabaseName("IX_CardCardTypes_CardTypeId");
 
                     b.ToTable("CardCardTypes", null, t =>
                         {
@@ -295,7 +301,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "KeywordId");
 
-                    b.HasIndex("KeywordId");
+                    b.HasIndex("KeywordId")
+                        .HasDatabaseName("IX_CardKeywords_KeywordId");
 
                     b.ToTable("CardKeywords", (string)null);
                 });
@@ -318,7 +325,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CardPrintingId", "CapturedAt")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_CardPriceHistories_CardPrintingId_CapturedAt");
 
                     b.ToTable("CardPriceHistories");
                 });
@@ -363,6 +371,7 @@ namespace api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ImageUrl")
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsFoil")
@@ -393,21 +402,25 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CardId");
+                    b.HasIndex("CardId")
+                        .HasDatabaseName("IX_CardPrintings_CardId");
 
-                    b.HasIndex("RarityId");
+                    b.HasIndex("RarityId")
+                        .HasDatabaseName("IX_CardPrintings_RarityId");
 
                     b.HasIndex("ReprintOfId");
 
-                    b.HasIndex("SetId");
+                    b.HasIndex("SetId")
+                        .HasDatabaseName("IX_CardPrintings_SetId");
 
-                    b.HasIndex("TreatmentId");
+                    b.HasIndex("TreatmentId")
+                        .HasDatabaseName("IX_CardPrintings_TreatmentId");
 
                     b.HasIndex("VariantOfId");
 
                     b.HasIndex("CardId", "SetId", "Number", "TreatmentId")
                         .IsUnique()
-                        .HasDatabaseName("UX_CardPrintings");
+                        .HasDatabaseName("UX_CardPrintings_CardId_SetId_Number_TreatmentId");
 
                     b.ToTable("CardPrintings");
                 });
@@ -422,7 +435,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "SubTypeId");
 
-                    b.HasIndex("SubTypeId");
+                    b.HasIndex("SubTypeId")
+                        .HasDatabaseName("IX_CardSubTypes_SubTypeId");
 
                     b.ToTable("CardSubTypes", (string)null);
                 });
@@ -437,7 +451,8 @@ namespace api.Migrations
 
                     b.HasKey("CardId", "TraitId");
 
-                    b.HasIndex("TraitId");
+                    b.HasIndex("TraitId")
+                        .HasDatabaseName("IX_CardTraits_TraitId");
 
                     b.ToTable("CardTraits", (string)null);
                 });
@@ -463,7 +478,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_CardTypes_GameId_Name");
 
                     b.ToTable("CardTypes", (string)null);
                 });
@@ -474,7 +490,7 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedUtc")
+                    b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -486,7 +502,11 @@ namespace api.Migrations
 
                     b.Property<string>("Game")
                         .IsRequired()
+                        .HasMaxLength(80)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("GameId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -497,7 +517,7 @@ namespace api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("UpdatedUtc")
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("UserId")
@@ -505,7 +525,11 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("GameId")
+                        .HasDatabaseName("IX_Decks_GameId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_Decks_UserId");
 
                     b.ToTable("Decks");
                 });
@@ -542,7 +566,8 @@ namespace api.Migrations
                     b.HasIndex("CardPrintingId");
 
                     b.HasIndex("DeckId", "CardPrintingId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_DeckCards_DeckId_CardPrintingId");
 
                     b.ToTable("DeckCards");
                 });
@@ -602,7 +627,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ImporterKey", "SetCode")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_ImportSyncHistories_ImporterKey_SetCode");
 
                     b.ToTable("ImportSyncHistories");
                 });
@@ -624,7 +650,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Keywords_GameId_Name");
 
                     b.ToTable("Keywords", (string)null);
                 });
@@ -658,7 +685,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Rarities_GameId_Name");
 
                     b.ToTable("Rarities", (string)null);
                 });
@@ -721,7 +749,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_SubTypes_GameId_Name");
 
                     b.ToTable("SubTypes", (string)null);
                 });
@@ -767,7 +796,8 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SetId", "StartedAt");
+                    b.HasIndex("SetId", "StartedAt")
+                        .HasDatabaseName("IX_SyncLogs_SetId_StartedAt");
 
                     b.ToTable("SyncLogs", (string)null);
                 });
@@ -789,7 +819,8 @@ namespace api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GameId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("UX_Traits_GameId_Name");
 
                     b.ToTable("Traits", (string)null);
                 });
@@ -804,6 +835,7 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("IconUrl")
+                        .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -832,24 +864,31 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("CreatedUtc")
+                    b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
+                        .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
+                        .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Username")
                         .IsRequired()
+                        .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Username")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Users_Username");
 
                     b.ToTable("Users");
                 });
@@ -890,7 +929,7 @@ namespace api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("AsOfUtc")
+                    b.Property<DateTimeOffset>("AsOfUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<long>("PriceCents")
@@ -904,6 +943,7 @@ namespace api.Migrations
 
                     b.Property<string>("Source")
                         .IsRequired()
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -940,7 +980,8 @@ namespace api.Migrations
                     b.HasOne("api.Models.Game", "Game")
                         .WithMany()
                         .HasForeignKey("GameId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Game");
                 });
@@ -1129,11 +1170,18 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.Deck", b =>
                 {
+                    b.HasOne("api.Models.Game", "GameNavigation")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("api.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("GameNavigation");
 
                     b.Navigation("User");
                 });

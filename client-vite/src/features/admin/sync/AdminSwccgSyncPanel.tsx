@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminSyncLoginCard } from "./AdminSyncLoginCard";
 import {
   isAdminSyncUnauthorized,
   useAdminSyncLoginMutation,
@@ -59,59 +60,16 @@ export default function AdminSwccgSyncPanel() {
 
   if (isAdminSyncUnauthorized(statusQuery.error) || isAdminSyncUnauthorized(runSync.error)) {
     return (
-      <section className="space-y-3 rounded border p-4">
-        <h2 className="text-lg font-semibold">Star Wars CCG sync</h2>
-        <p>Sign in with an administrator account to manage sync.</p>
-        <form
-          className="space-y-3"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const data = new FormData(form);
-            try {
-              await login.mutateAsync({
-                username: String(data.get("username") ?? ""),
-                password: String(data.get("password") ?? ""),
-              });
-              form.reset();
-              runSync.reset();
-              setFeedback(null);
-            } catch {
-              form.reset();
-            }
-          }}
-        >
-          <label className="block">
-            Username
-            <input
-              className="block rounded border p-2"
-              name="username"
-              autoComplete="username"
-              required
-              maxLength={200}
-            />
-          </label>
-          <label className="block">
-            Password
-            <input
-              className="block rounded border p-2"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              maxLength={1024}
-            />
-          </label>
-          {login.isError && (
-            <p role="alert">
-              Sign-in failed. Check your administrator credentials or try again later.
-            </p>
-          )}
-          <Button type="submit" disabled={login.isPending}>
-            {login.isPending ? "Signing in…" : "Sign in"}
-          </Button>
-        </form>
-      </section>
+      <AdminSyncLoginCard
+        title="Star Wars CCG sync"
+        isPending={login.isPending}
+        error={login.error}
+        onSubmit={async (credentials) => {
+          await login.mutateAsync(credentials);
+          runSync.reset();
+          setFeedback(null);
+        }}
+      />
     );
   }
 

@@ -168,7 +168,7 @@ internal sealed class SWUApiClient : ISWUApiClient
         int attempt = 0;
         while (true)
         {
-            using var response = await _http.GetAsync(relativeUrl, ct);
+            using var response = await _http.GetAsync(relativeUrl, HttpCompletionOption.ResponseHeadersRead, ct);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < MaxRetries)
             {
@@ -182,7 +182,8 @@ internal sealed class SWUApiClient : ISWUApiClient
 
             response.EnsureSuccessStatusCode();
             await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            return await JsonSerializer.DeserializeAsync<StrapiPagedResponse>(stream, JsonOptions, ct)
+            var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);
+            return JsonSerializer.Deserialize<StrapiPagedResponse>(bytes, JsonOptions)
                    ?? throw new InvalidOperationException("Empty response from Star Wars: Unlimited API.");
         }
     }

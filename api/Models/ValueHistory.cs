@@ -14,7 +14,7 @@ namespace api.Models
         public int ScopeId { get; set; }
 
         public long PriceCents { get; set; }
-        public DateTime AsOfUtc { get; set; }
+        public DateTimeOffset AsOfUtc { get; set; }
         public string Source { get; set; } = "manual";
     }
 }

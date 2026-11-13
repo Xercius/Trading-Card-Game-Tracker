@@ -28,7 +28,22 @@ internal static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddSingleton<Microsoft.AspNetCore.Mvc.Infrastructure.ProblemDetailsFactory, api.Common.Errors.DefaultProblemDetailsFactory>();
+        services.AddProblemDetailsAndErrors();
+        services.AddControllers(options => options.Filters.Add<AdminSyncAntiforgeryFilter>())
+            .AddJsonOptions(JsonOptionsConfigurator.Configure);
+        services.AddAdminAuthAndAntiforgery();
+        services.AddApiBehaviorAndMapping();
+        services.AddCorsConfiguration(configuration);
+        services.AddForwardedHeadersConfiguration(configuration);
+        services.AddHttpsRedirection(options => options.HttpsPort = 7226);
+
+        return services;
+    }
+
+    private static void AddProblemDetailsAndErrors(this IServiceCollection services)
+    {
+        services.AddSingleton<ProblemDetailsFactory, api.Common.Errors.DefaultProblemDetailsFactory>();
+        services.AddExceptionHandler<ApiExceptionHandler>();
 
         services.AddProblemDetails(options =>
         {
@@ -54,10 +69,10 @@ internal static class ServiceCollectionExtensions
                 }
             };
         });
+    }
 
-        services.AddControllers(options => options.Filters.Add<AdminSyncAntiforgeryFilter>())
-            .AddJsonOptions(JsonOptionsConfigurator.Configure);
-
+    private static void AddAdminAuthAndAntiforgery(this IServiceCollection services)
+    {
         services.AddAuthentication(AdminTokenAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, AdminTokenAuthenticationHandler>(
                 AdminTokenAuthenticationHandler.SchemeName,
@@ -72,17 +87,10 @@ internal static class ServiceCollectionExtensions
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(20);
                 options.SlidingExpiration = false;
                 options.Events.OnValidatePrincipal = AdminSession.ValidateAsync;
-                options.Events.OnRedirectToLogin = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    return Task.CompletedTask;
-                };
-                options.Events.OnRedirectToAccessDenied = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    return Task.CompletedTask;
-                };
+                options.Events.OnRedirectToLogin = ctx => { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return Task.CompletedTask; };
+                options.Events.OnRedirectToAccessDenied = ctx => { ctx.Response.StatusCode = StatusCodes.Status403Forbidden; return Task.CompletedTask; };
             });
+
         services.AddAntiforgery(options =>
         {
             options.HeaderName = AdminSession.CsrfHeader;
@@ -92,6 +100,7 @@ internal static class ServiceCollectionExtensions
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Strict;
         });
+
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<AdminCredentialVerifier>();
         services.AddScoped<AdminAccountProvisioner>();
@@ -101,93 +110,54 @@ internal static class ServiceCollectionExtensions
             options.AddPolicy("admin-login", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 5,
-                        Window = TimeSpan.FromMinutes(5),
-                        QueueLimit = 0
-                    }));
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
         });
         services.AddAuthorization();
+    }
 
-
+    private static void AddApiBehaviorAndMapping(this IServiceCollection services)
+    {
         services.Configure<ApiBehaviorOptions>(options =>
         {
-            // Title/Link defaults for automatic 4xx responses
-            options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData
-            {
-                Link = ProblemTypes.BadRequest.Type,
-                Title = ProblemTypes.BadRequest.Title
-            };
-            options.ClientErrorMapping[StatusCodes.Status404NotFound] = new ClientErrorData
-            {
-                Link = ProblemTypes.NotFound.Type,
-                Title = ProblemTypes.NotFound.Title
-            };
-            options.ClientErrorMapping[StatusCodes.Status409Conflict] = new ClientErrorData
-            {
-                Link = ProblemTypes.Conflict.Type,
-                Title = ProblemTypes.Conflict.Title
-            };
+            options.ClientErrorMapping[StatusCodes.Status400BadRequest] = new ClientErrorData { Link = ProblemTypes.BadRequest.Type, Title = ProblemTypes.BadRequest.Title };
+            options.ClientErrorMapping[StatusCodes.Status404NotFound] = new ClientErrorData { Link = ProblemTypes.NotFound.Type, Title = ProblemTypes.NotFound.Title };
+            options.ClientErrorMapping[StatusCodes.Status409Conflict] = new ClientErrorData { Link = ProblemTypes.Conflict.Type, Title = ProblemTypes.Conflict.Title };
 
-            // Custom payload for model validation failures
             options.InvalidModelStateResponseFactory = context =>
             {
                 var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
                 var pd = factory.CreateValidationProblemDetails(context.HttpContext, context.ModelState);
-                return new ObjectResult(pd)
-                {
-                    StatusCode = pd.Status ?? StatusCodes.Status400BadRequest,
-                    ContentTypes = { "application/problem+json" }
-                };
+                return new ObjectResult(pd) { StatusCode = pd.Status ?? StatusCodes.Status400BadRequest, ContentTypes = { "application/problem+json" } };
             };
         });
 
         services.AddAutoMapper(cfg => cfg.AddMaps(typeof(Program).Assembly));
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+    }
 
-        var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName)
-            .Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
-        ValidateCorsCredentialsWithOrigins(
-            corsPolicyOptions,
-            ConfigurationPath.Combine(CorsPolicyOptions.SectionName, nameof(CorsPolicyOptions.Origins)));
-        var resolvedCorsPolicyName = string.IsNullOrWhiteSpace(corsPolicyOptions.PolicyName)
-            ? "AllowReact"
-            : corsPolicyOptions.PolicyName;
-
-        services.Configure<CorsPolicyOptions>(options =>
-        {
-            options.PolicyName = resolvedCorsPolicyName;
-            options.Origins = corsPolicyOptions.Origins;
-            options.Headers = corsPolicyOptions.Headers;
-            options.Methods = corsPolicyOptions.Methods;
-            options.AllowCredentials = corsPolicyOptions.AllowCredentials;
-            options.PreflightMaxAge = corsPolicyOptions.PreflightMaxAge;
-        });
-
-        var forwardedHeadersSettings = configuration.GetSection(ForwardedHeadersSettings.SectionName)
-            .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
-
-        services.Configure<ForwardedHeadersSettings>(options =>
-        {
-            options.ForwardedHeaders = forwardedHeadersSettings.ForwardedHeaders;
-            options.ForwardLimit = forwardedHeadersSettings.ForwardLimit;
-            options.KnownProxies = forwardedHeadersSettings.KnownProxies ?? Array.Empty<string>();
-            options.KnownNetworks = forwardedHeadersSettings.KnownNetworks ?? Array.Empty<ForwardedHeadersSettings.NetworkEntry>();
-        });
-
-        services.AddOptions<ForwardedHeadersOptions>()
-            .Configure<ILoggerFactory>((options, loggerFactory) =>
+    private static void AddCorsConfiguration(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<CorsPolicyOptions>()
+            .BindConfiguration(CorsPolicyOptions.SectionName)
+            .PostConfigure(options =>
             {
-                var logger = loggerFactory?.CreateLogger("ServiceCollectionExtensions")
-                    ?? NullLogger.Instance;
-                ConfigureForwardedHeadersOptions(options, forwardedHeadersSettings, logger);
-            });
+                if (string.IsNullOrWhiteSpace(options.PolicyName))
+                {
+                    options.PolicyName = "AllowReact";
+                }
+            })
+            .Validate(options =>
+            {
+                ValidateCorsCredentialsWithOrigins(
+                    options,
+                    ConfigurationPath.Combine(CorsPolicyOptions.SectionName, nameof(CorsPolicyOptions.Origins)));
+                return true;
+            })
+            .ValidateOnStart();
 
-        // Explicit HTTPS port for redirects
-        services.AddHttpsRedirection(options => options.HttpsPort = 7226);
+        var corsPolicyOptions = configuration.GetSection(CorsPolicyOptions.SectionName).Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+        var resolvedCorsPolicyName = string.IsNullOrWhiteSpace(corsPolicyOptions.PolicyName) ? "AllowReact" : corsPolicyOptions.PolicyName;
 
-        // CORS: Vite only
         services.AddCors(options =>
         {
             options.AddPolicy(resolvedCorsPolicyName, policy =>
@@ -197,46 +167,36 @@ internal static class ServiceCollectionExtensions
                 {
                     policy.WithOrigins(origins);
                 }
-                else if (!corsPolicyOptions.AllowCredentials)
-                {
-                    policy.AllowAnyOrigin();
-                }
 
                 var headers = corsPolicyOptions.Headers ?? Array.Empty<string>();
-                if (headers.Length > 0)
-                {
-                    policy.WithHeaders(headers);
-                }
-                else
-                {
-                    policy.AllowAnyHeader();
-                }
+                if (headers.Length > 0) { policy.WithHeaders(headers); } else { policy.AllowAnyHeader(); }
 
                 var methods = corsPolicyOptions.Methods ?? Array.Empty<string>();
-                if (methods.Length > 0)
-                {
-                    policy.WithMethods(methods);
-                }
-                else
-                {
-                    policy.AllowAnyMethod();
-                }
+                if (methods.Length > 0) { policy.WithMethods(methods); } else { policy.AllowAnyMethod(); }
 
-                if (corsPolicyOptions.AllowCredentials)
-                {
-                    policy.AllowCredentials();
-                }
+                if (corsPolicyOptions.AllowCredentials) { policy.AllowCredentials(); }
 
                 policy.WithExposedHeaders("X-Total-Count");
-
-                if (corsPolicyOptions.PreflightMaxAge is { } maxAge)
-                {
-                    policy.SetPreflightMaxAge(maxAge);
-                }
+                if (corsPolicyOptions.PreflightMaxAge is { } maxAge) { policy.SetPreflightMaxAge(maxAge); }
             });
         });
+    }
 
-        return services;
+    private static void AddForwardedHeadersConfiguration(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<ForwardedHeadersSettings>()
+            .BindConfiguration(ForwardedHeadersSettings.SectionName)
+            .ValidateOnStart();
+
+        var forwardedHeadersSettings = configuration.GetSection(ForwardedHeadersSettings.SectionName)
+            .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
+
+        services.AddOptions<ForwardedHeadersOptions>()
+            .Configure<ILoggerFactory>((options, loggerFactory) =>
+            {
+                var logger = loggerFactory?.CreateLogger("ServiceCollectionExtensions") ?? NullLogger.Instance;
+                ConfigureForwardedHeadersOptions(options, forwardedHeadersSettings, logger);
+            });
     }
 
     public static void AddAppServices(
@@ -287,6 +247,8 @@ internal static class ServiceCollectionExtensions
                 sp.GetRequiredService<TimeProvider>()));
         services.AddScoped<ImporterRegistry>();
         services.AddScoped<FileParser>();
+        services.AddScoped<api.Features.Admin.Prices.AdminPricesService>();
+        services.AddScoped<api.Features.ImportExport.Services.ImportExportService>();
         services.AddSingleton<AdminSyncExecutionTracker>();
     }
 

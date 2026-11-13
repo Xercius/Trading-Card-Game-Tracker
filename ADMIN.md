@@ -57,8 +57,13 @@ work. For separate trusted HTTPS origins, configure explicit CORS origins,
 Existing non-browser bearer clients do not need antiforgery tokens.
 
 - `GET /api/admin/import/options` — returns the available importers, supported games, and known set codes. Use this to populate selection lists in the UI.
-- `POST /api/admin/import/dry-run` — accepts either a JSON payload (`{ "source": "dummy", "set": "ALP" }`) or `multipart/form-data` with `source` and a `.csv`/`.json` upload. No database changes are persisted; the response includes a summary with new/update counts and preview rows.
+- `GET /api/admin/import/history` — returns recent remote import checkpoint history.
+- `POST /api/admin/import/dry-run` — accepts either a JSON payload (`{ "source": "swu", "set": "SOR" }`) or `multipart/form-data` with `source` and a `.csv`/`.json` upload (currently only `swu` is supported). No database changes are persisted; the response includes a summary with new/update counts and preview rows.
 - `POST /api/admin/import/apply` — mirrors the dry-run payloads but commits the changes.
+- `GET / POST / DELETE /api/admin/sync/session` — checks, creates (login), or clears the HttpOnly `AdminSession` cookie.
+- `POST /api/admin/sync/star-wars-unlimited`, `GET /api/admin/sync/star-wars-unlimited/status`, `GET /api/admin/sync/star-wars-unlimited/logs` — runs SWU full/incremental sync and retrieves sync status/logs.
+- `POST /api/admin/sync/star-wars-ccg`, `GET /api/admin/sync/star-wars-ccg/status`, `GET /api/admin/sync/star-wars-ccg/logs` — runs Star Wars CCG sync and retrieves sync status/logs.
+- `GET /api/admin/sync/pokemon/status`, `POST /api/admin/sync/pokemon/sets`, `POST /api/admin/sync/pokemon/cards`, `GET /api/admin/sync/pokemon/logs` — runs Pokémon TCG (TCGdex) set/card syncs and retrieves status/logs.
 - `POST /api/admin/prices/ingest` — ingests daily price snapshots. Each array item should include `cardPrintingId`, `capturedAt` (`YYYY-MM-DD`), and a decimal `price`. The endpoint upserts on `(cardPrintingId, capturedAt)` and ignores invalid printings.
 
 All dry-run/apply requests honor the importer-specific options (set codes, limit, etc.). Errors are returned as `ProblemDetails` with a `400` status.
@@ -96,14 +101,14 @@ GET /api/cards/facets/sets?game=Star+Wars+Unlimited
 ```json
 {
   "game": "Star Wars Unlimited",
-  "sets": ["SHD", "SOR", "TWI"]
+  "sets": ["Jump to Lightspeed", "Shadows of the Galaxy", "Spark of Rebellion"]
 }
 ```
 
 | Field  | Type       | Description
 |--------|------------|-------------
 | `game` | `string`   | The game filter applied. Present when a `game` query parameter is supplied.
-| `sets` | `string[]` | Distinct expansion codes stored during import, sorted alphabetically. Each code matches the `attributes.expansion.data.attributes.code` field from the SWU Strapi API, normalised to uppercase (e.g. `"SOR"`, `"SHD"`, `"TWI"`).
+| `sets` | `string[]` | Distinct set names (`Sets.Name`, falling back to `Sets.Code` when blank) for imported printings, sorted alphabetically.
 
 The sets list reflects only expansions that have at least one imported card printing.
 
@@ -141,7 +146,7 @@ GET /api/cards/facets?game=Star+Wars+Unlimited
 | `TWI` | Twilight of the Republic
 | `JTL` | Jump to Lightspeed
 
-Expansion codes are sourced from the SWU API during import and stored verbatim (uppercase) in the `CardPrinting.Set` column. New expansions appear automatically after a fresh import.
+Expansion codes and names are sourced from the SWU API during import and stored in `Sets` (`Sets.Code` / `Sets.Name`), linked via `CardPrinting.SetId`. New expansions appear automatically after a fresh import.
 
 ## Star Wars Unlimited API connectivity check
 

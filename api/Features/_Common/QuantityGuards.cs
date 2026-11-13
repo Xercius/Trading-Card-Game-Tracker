@@ -1,5 +1,3 @@
-using api.Shared;
-
 namespace api.Features._Common;
 
 /// <summary>
@@ -13,11 +11,7 @@ internal static class QuantityGuards
     /// <summary>
     /// Clamps the provided quantity to the non-negative range.
     /// </summary>
-    internal static int Clamp(int value) => value < MinimumQuantity
-        ? MinimumQuantity
-        : value > MaximumQuantity
-            ? MaximumQuantity
-            : value;
+    internal static int Clamp(int value) => Math.Max(MinimumQuantity, value);
 
     /// <summary>
     /// Clamps the provided quantity, accepting long inputs to prevent overflow.
@@ -31,5 +25,5 @@ internal static class QuantityGuards
     /// <summary>
     /// Adds a delta to a quantity and clamps the result within the supported range.
     /// </summary>
-    internal static int ClampDelta(int current, int delta) => UserCardMath.AddClamped(current, delta);
+    internal static int ClampDelta(int current, int delta) => Clamp((long)current + delta);
 }

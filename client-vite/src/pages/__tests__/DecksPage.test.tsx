@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { fireEvent, waitFor, within, screen } from "@testing-library/react";
 import DecksPage from "../DecksPage";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 
 vi.mock("@/state/useGame", () => ({
   useGame: () => ({
@@ -72,7 +72,7 @@ describe("DecksPage", () => {
     document.body.appendChild(container);
     root = createRoot(container);
 
-    vi.spyOn(api, "get").mockImplementation((url) => {
+    vi.spyOn(http, "get").mockImplementation((url) => {
       const u = typeof url === "string" ? url : "";
       if (u.includes("cards-with-availability")) {
         return Promise.resolve({ data: [] } as never);
@@ -161,7 +161,7 @@ describe("DecksPage", () => {
 
   it("restores pagination for deck results beyond the first page", async () => {
     const client = createClient();
-    vi.spyOn(api, "get").mockImplementation(() =>
+    vi.spyOn(http, "get").mockImplementation(() =>
       Promise.resolve({ data: { ...mockDecksResponse, total: 101 } } as never)
     );
 
@@ -181,14 +181,14 @@ describe("DecksPage", () => {
     });
 
     expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
-    expect(api.get).toHaveBeenLastCalledWith("decks", {
+    expect(http.get).toHaveBeenLastCalledWith("decks", {
       params: { game: "Star Wars Unlimited", name: undefined, page: 2, pageSize: 50 },
     });
   });
 
   it("shows a friendly delete error and clears it when the dialog is closed", async () => {
     const client = createClient();
-    vi.spyOn(api, "delete").mockRejectedValue(new Error("server detail"));
+    vi.spyOn(http, "delete").mockRejectedValue(new Error("server detail"));
 
     await act(async () => {
       root.render(
@@ -218,7 +218,7 @@ describe("DecksPage", () => {
 
   it("opens CreateDeckDialog when + Create Deck is clicked and submits deck", async () => {
     const client = createClient();
-    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+    const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 2,
         userId: 1,

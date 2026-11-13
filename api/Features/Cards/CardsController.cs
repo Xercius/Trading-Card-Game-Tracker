@@ -2,6 +2,7 @@ using api.Common.Errors;
 using api.Data;
 using api.Features._Common;
 using api.Features.Cards.Dtos;
+using api.Features.Cards.Mapping;
 using api.Models;
 using api.Shared;
 using AutoMapper;
@@ -25,7 +26,6 @@ namespace api.Features.Cards;
 [Route("api/cards")] // plural route
 public class CardsController : ControllerBase
 {
-    private const string PlaceholderCardImage = "/images/placeholders/card-3x4.png";
     private const int VirtualizedDefaultTake = 60;
     private const int VirtualizedMaxTake = 200;
     private const int MinimumSkip = 0;
@@ -96,6 +96,7 @@ public class CardsController : ControllerBase
         var keywords = CsvUtils.Parse(keyword);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
+            .AsNoTracking()
             .Where(g => normalizedGames.Contains(g.NameNormalized))
             .Select(g => g.Id)
             .ToListAsync(ct);
@@ -116,7 +117,7 @@ public class CardsController : ControllerBase
         var items = await query
             .Skip(skip)
             .Take(take)
-            .SelectCardSummaries(PlaceholderCardImage)
+            .SelectCardSummaries(PrintingMapper.PlaceholderCardImage)
             .ToListAsync(ct);
         var cardIds = items.Select(item => item.CardId).ToList();
         if (cardIds.Count > 0)
@@ -218,6 +219,7 @@ public class CardsController : ControllerBase
         var keywords = CsvUtils.Parse(keyword);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
         var gameIds = await _db.Games
+            .AsNoTracking()
             .Where(candidate => normalizedGames.Contains(candidate.NameNormalized))
             .Select(candidate => candidate.Id)
             .ToListAsync(ct);
@@ -287,6 +289,7 @@ public class CardsController : ControllerBase
     {
         var c = await _db.Cards
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(card => card.CardTypes).ThenInclude(type => type.CardType)
             .Include(card => card.Game)
             .Include(card => card.CardAspects).ThenInclude(aspect => aspect.Aspect)
@@ -641,6 +644,7 @@ public class CardsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<PrintingDto>>> GetCardPrintings(int cardId, CancellationToken ct)
     {
         var releaseOrderedGameIds = await _db.Games
+            .AsNoTracking()
             .Where(game => game.NameNormalized == "star wars unlimited" || game.NameNormalized == "pokemon tcg")
             .Select(game => game.Id)
             .ToListAsync(ct);
@@ -648,7 +652,7 @@ public class CardsController : ControllerBase
             .AsNoTracking()
             .Where(card => card.Id == cardId)
             .Select(card => (bool?)(
-                releaseOrderedGameIds.Contains(card.GameId ?? 0) ||
+                releaseOrderedGameIds.Contains(card.GameId) ||
                 card.CardTypes.Any(type => releaseOrderedGameIds.Contains(type.CardType.GameId)) ||
                 card.Printings.Any(printing => printing.CatalogSet != null &&
                     releaseOrderedGameIds.Contains(printing.CatalogSet.GameId))))
@@ -681,7 +685,7 @@ public class CardsController : ControllerBase
                 .ThenBy(cp => cp.Id);
         var printings = await orderedPrintings
             .ToListAsync(ct);
-        var rows = printings.Select(ToPrintingDto).ToList();
+        var rows = printings.Select(PrintingMapper.ToPrintingDto).ToList();
 
         return Ok(rows);
     }
@@ -695,36 +699,12 @@ public class CardsController : ControllerBase
             printing.Treatment?.Name ?? "Standard",
             printing.ImageUrl,
             printing.CatalogSet?.Code,
-            GetReleaseDate(printing),
+            PrintingMapper.GetReleaseDate(printing),
             printing.BackImageUrl,
-            GetOrientation(printing.ArtFrontHorizontal),
-            GetOrientation(printing.ArtBackHorizontal),
+            PrintingMapper.GetOrientation(printing.ArtFrontHorizontal),
+            PrintingMapper.GetOrientation(printing.ArtBackHorizontal),
             printing.Artist,
             printing.CatalogSet?.LogoUrl);
-
-    private static PrintingDto ToPrintingDto(CardPrinting printing)
-        => new(
-            printing.Id,
-            printing.CatalogSet == null ? string.Empty : printing.CatalogSet.Name ?? printing.CatalogSet.Code,
-            printing.CatalogSet?.Code,
-            printing.Number,
-            printing.RarityLookup?.Name ?? string.Empty,
-            printing.ImageUrl ?? PlaceholderCardImage,
-            printing.CardId,
-            printing.Card.Name,
-            printing.Card.Game?.Name ?? string.Empty)
-        {
-            Style = printing.Treatment?.Name ?? "Standard",
-            ReleaseDate = GetReleaseDate(printing),
-            SetLogoUrl = printing.CatalogSet?.LogoUrl,
-            BackImageUrl = printing.BackImageUrl,
-            ImageOrientation = GetOrientation(printing.ArtFrontHorizontal),
-            BackImageOrientation = GetOrientation(printing.ArtBackHorizontal),
-            CardTypes = printing.Card.CardTypes.Select(type => type.CardType.Name)
-                .Distinct().OrderBy(name => name).ToList(),
-            Aspects = printing.Card.CardAspects.OrderBy(aspect => aspect.Aspect.Name)
-                .Select(aspect => new CardAspectResponse(aspect.Aspect.Name, aspect.Count)).ToList()
-        };
 
     private async Task<Treatment> GetOrCreateTreatmentAsync(int? gameId, string? name)
     {
@@ -752,15 +732,6 @@ public class CardsController : ControllerBase
         _db.Treatments.Add(treatment);
         return treatment;
     }
-
-    private static string? GetOrientation(bool? horizontal)
-        => horizontal switch { true => "horizontal", false => "vertical", _ => null };
-
-    private static DateOnly? GetReleaseDate(CardPrinting printing)
-        => printing.CatalogSet?.ReleasedAt
-            ?? (printing.ApiPublishedAt is { } publishedAt
-                ? DateOnly.FromDateTime(publishedAt.UtcDateTime)
-                : null);
 
     private async Task<Set?> GetOrCreateSetAsync(int? gameId, string? code)
     {
@@ -814,6 +785,7 @@ public class CardsController : ControllerBase
     /// Creates a new printing if no match is found. Set and Number are required when Id is null.
     /// </remarks>
     [HttpPost("printing")]
+    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
@@ -831,6 +803,7 @@ public class CardsController : ControllerBase
     /// Otherwise, creates a new printing. Items without Set or Number are skipped.
     /// </remarks>
     [HttpPost("{cardId:int}/printings/import")]
+    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
 

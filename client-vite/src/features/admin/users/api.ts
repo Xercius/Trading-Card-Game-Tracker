@@ -2,15 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import http from "@/lib/http";
 import { toProblemDetailsError } from "@/lib/problemDetails";
 import { mapAdminUser } from "@/lib/mapUser";
+import { queryKeys } from "@/lib/queryKeys";
 import type { AdminUser, AdminUserApi } from "@/types/user";
-
-export const adminUsersKeys = {
-  all: ["admin", "users"] as const,
-};
 
 export function useAdminUsersQuery(enabled: boolean) {
   return useQuery<AdminUser[]>({
-    queryKey: adminUsersKeys.all,
+    queryKey: queryKeys.admin.users(),
     queryFn: async () => {
       try {
         const response = await http.get<AdminUserApi[]>("admin/users");
@@ -40,8 +37,8 @@ export function useCreateAdminUserMutation() {
       }
     },
     onMutate: async (name: string) => {
-      await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });
-      const previous = queryClient.getQueryData<AdminUser[]>(adminUsersKeys.all) ?? [];
+      await queryClient.cancelQueries({ queryKey: queryKeys.admin.users() });
+      const previous = queryClient.getQueryData<AdminUser[]>(queryKeys.admin.users()) ?? [];
       const trimmed = name.trim();
       const optimistic: AdminUser = {
         id: tempUserId--,
@@ -51,30 +48,30 @@ export function useCreateAdminUserMutation() {
         isAdmin: false,
         createdUtc: new Date().toISOString(),
       };
-      queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, [...previous, optimistic]);
+      queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), [...previous, optimistic]);
       return { previous, tempId: optimistic.id };
     },
     onError: (_error, _name, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(adminUsersKeys.all, context.previous);
+        queryClient.setQueryData(queryKeys.admin.users(), context.previous);
       }
     },
     onSuccess: (user, _name, context) => {
       if (!context) {
-        queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, (prev) => {
+        queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), (prev) => {
           const next = prev ? [...prev, user] : [user];
           return next;
         });
         return;
       }
 
-      queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, (prev) => {
+      queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), (prev) => {
         if (!prev) return [user];
         return prev.map((existing) => (existing.id === context.tempId ? user : existing));
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUsersKeys.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
     },
   });
 }
@@ -102,14 +99,14 @@ export function useUpdateAdminUserMutation() {
       }
     },
     onMutate: async ({ id, updates }) => {
-      await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });
-      const previous = queryClient.getQueryData<AdminUser[]>(adminUsersKeys.all) ?? [];
+      await queryClient.cancelQueries({ queryKey: queryKeys.admin.users() });
+      const previous = queryClient.getQueryData<AdminUser[]>(queryKeys.admin.users()) ?? [];
 
       const hasName = Object.prototype.hasOwnProperty.call(updates, "name");
       const trimmedName = updates.name?.trim();
       const hasAdmin = Object.prototype.hasOwnProperty.call(updates, "isAdmin");
 
-      queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, (prev) => {
+      queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), (prev) => {
         const current = prev ?? previous;
         return current.map((user) => {
           if (user.id !== id) return user;
@@ -134,17 +131,17 @@ export function useUpdateAdminUserMutation() {
     },
     onError: (_error, _input, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(adminUsersKeys.all, context.previous);
+        queryClient.setQueryData(queryKeys.admin.users(), context.previous);
       }
     },
     onSuccess: (user) => {
-      queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, (prev) => {
+      queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), (prev) => {
         if (!prev) return [user];
         return prev.map((existing) => (existing.id === user.id ? user : existing));
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUsersKeys.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
     },
   });
 }
@@ -163,9 +160,9 @@ export function useDeleteAdminUserMutation() {
       }
     },
     onMutate: async (id: number) => {
-      await queryClient.cancelQueries({ queryKey: adminUsersKeys.all });
-      const previous = queryClient.getQueryData<AdminUser[]>(adminUsersKeys.all) ?? [];
-      queryClient.setQueryData<AdminUser[]>(adminUsersKeys.all, (prev) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.admin.users() });
+      const previous = queryClient.getQueryData<AdminUser[]>(queryKeys.admin.users()) ?? [];
+      queryClient.setQueryData<AdminUser[]>(queryKeys.admin.users(), (prev) => {
         const current = prev ?? previous;
         return current.filter((user) => user.id !== id);
       });
@@ -173,11 +170,11 @@ export function useDeleteAdminUserMutation() {
     },
     onError: (_error, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(adminUsersKeys.all, context.previous);
+        queryClient.setQueryData(queryKeys.admin.users(), context.previous);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: adminUsersKeys.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
     },
   });
 }

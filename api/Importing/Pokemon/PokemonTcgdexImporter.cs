@@ -281,7 +281,8 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
 
                     var localId = cardDetail.LocalId.Trim();
                     var image = !string.IsNullOrWhiteSpace(cardDetail.Image) ? cardDetail.Image : cardStub.Image;
-                    var imageUrl = !string.IsNullOrWhiteSpace(image) ? $"{image}/high.webp" : null;
+                    var rawImageUrl = !string.IsNullOrWhiteSpace(image) ? $"{image}/high.webp" : null;
+                    var imageUrl = ImportHttpGuard.SanitizeAllowedImageUrl(rawImageUrl, AllowedImageHosts);
                     var canonicalCardUid = catalog.ComputeMechanicalCardUid(cardDetail);
                     existingCardsByUid.TryGetValue(canonicalCardUid, out var existingCard);
                     var normalizedStage = PokemonCatalog.NormalizeStage(cardDetail.Stage);
@@ -786,21 +787,24 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
         }
     }
 
+    private static readonly HashSet<string> AllowedImageHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "assets.tcgdex.net"
+    };
+
     private static string BuildPrintingUid(string cardId, string treatmentName, TcgdexVariantDetailed? variantDetail)
     {
         var sourceId = cardId.Trim();
         if (variantDetail == null)
         {
-            return $"{sourceId}:{BuildVariantSlug(treatmentName)}";
+            return $"{sourceId}:default";
         }
 
         var variantIdentity = !string.IsNullOrWhiteSpace(variantDetail.VariantId)
             ? $"id|{NormalizeVariantPart(variantDetail.VariantId)}"
             : string.Join("|",
                 NormalizeVariantPart(variantDetail.Type),
-                NormalizeVariantPart(variantDetail.Subtype),
-                NormalizeVariantPart(variantDetail.Size),
-                NormalizeVariantPart(variantDetail.Foil),
+                NormalizeVariantPart(treatmentName),
                 NormalizeVariantList(variantDetail.Stamp));
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(variantIdentity)), 0, 8).ToLowerInvariant();
         return $"{sourceId}:variant:{hash}";

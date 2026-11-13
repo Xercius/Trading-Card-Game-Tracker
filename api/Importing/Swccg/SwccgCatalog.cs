@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Net;
-using System.Text;
 using System.Text.Json;
 using api.Data;
 using api.Models;
@@ -572,17 +570,26 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
         return rarity;
     }
 
+    internal static bool IsFoilRarity(string? rarity)
+    {
+        if (string.IsNullOrWhiteSpace(rarity)) return false;
+        var trimmed = rarity.Trim();
+        return trimmed.Equals("Foil", StringComparison.OrdinalIgnoreCase)
+            || trimmed.EndsWith(" Foil", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static string ResolveTreatmentName(SwccgCardRecord record)
     {
         var title = record.Front?.Title ?? "";
+        var treatments = new List<string>(3);
         if (title.Contains("(V)", StringComparison.OrdinalIgnoreCase))
-            return "Virtual";
+            treatments.Add("Virtual");
         if (title.Contains("(AI)", StringComparison.OrdinalIgnoreCase))
-            return "Alternate Image";
-        if (record.Rarity?.Contains("Foil", StringComparison.OrdinalIgnoreCase) == true)
-            return "Foil";
+            treatments.Add("Alternate Image");
+        if (IsFoilRarity(record.Rarity))
+            treatments.Add("Foil");
 
-        return "Standard";
+        return treatments.Count > 0 ? string.Join(" / ", treatments) : "Standard";
     }
 
     internal static string? NormalizeSide(string? rawSide)
@@ -594,109 +601,40 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
         return side;
     }
 
-    internal static string BuildRulesStyled(SwccgCardRecord record)
+    internal static string? BuildRulesStyled(SwccgCardRecord record)
     {
-        var sb = new StringBuilder();
+        var sections = new List<string>();
 
-        // 1. Rulings
-        if (record.Rulings is { Count: > 0 })
+        static void AppendListSection(List<string> target, string title, IReadOnlyList<string>? items)
         {
-            sb.Append("<div class=\"swccg-rulings\"><h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground\">Rulings</h3><ul class=\"list-disc pl-4 space-y-1\">");
-            foreach (var ruling in record.Rulings.Where(r => !string.IsNullOrWhiteSpace(r)))
-            {
-                sb.Append($"<li>{WebUtility.HtmlEncode(ruling.Trim())}</li>");
-            }
-            sb.Append("</ul></div>");
+            if (items is not { Count: > 0 })
+                return;
+
+            var clean = items.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => $"- {x.Trim()}").ToList();
+            if (clean.Count > 0)
+                target.Add($"{title}:\n{string.Join("\n", clean)}");
         }
 
-        // 2. Pulled By
-        if (record.PulledBy is { Count: > 0 })
-        {
-            sb.Append("<div class=\"swccg-pulled-by pt-2\"><h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground\">Pulled By</h3><ul class=\"list-disc pl-4 space-y-1\">");
-            foreach (var item in record.PulledBy.Where(p => !string.IsNullOrWhiteSpace(p)))
-            {
-                sb.Append($"<li>{WebUtility.HtmlEncode(item.Trim())}</li>");
-            }
-            sb.Append("</ul></div>");
-        }
+        AppendListSection(sections, "Rulings", record.Rulings);
+        AppendListSection(sections, "Pulled By", record.PulledBy);
+        AppendListSection(sections, "Pulls", record.Pulls);
+        AppendListSection(sections, "Combos", record.Combo);
+        AppendListSection(sections, "Matching", record.Matching);
+        AppendListSection(sections, "Matching Weapon", record.MatchingWeapon);
 
-        // 3. Pulls
-        if (record.Pulls is { Count: > 0 })
-        {
-            sb.Append("<div class=\"swccg-pulls pt-2\"><h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground\">Pulls</h3><ul class=\"list-disc pl-4 space-y-1\">");
-            foreach (var item in record.Pulls.Where(p => !string.IsNullOrWhiteSpace(p)))
-            {
-                sb.Append($"<li>{WebUtility.HtmlEncode(item.Trim())}</li>");
-            }
-            sb.Append("</ul></div>");
-        }
-
-        // 4. Combos
-        if (record.Combo is { Count: > 0 })
-        {
-            sb.Append("<div class=\"swccg-combos pt-2\"><h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground\">Combos</h3><ul class=\"list-disc pl-4 space-y-1\">");
-            foreach (var combo in record.Combo.Where(c => !string.IsNullOrWhiteSpace(c)))
-            {
-                sb.Append($"<li>{WebUtility.HtmlEncode(combo.Trim())}</li>");
-            }
-            sb.Append("</ul></div>");
-        }
-
-        // 5. Matching & Matching Weapons
-        if (record.Matching is { Count: > 0 } || record.MatchingWeapon is { Count: > 0 })
-        {
-            sb.Append("<div class=\"swccg-matching pt-2\">");
-            if (record.Matching is { Count: > 0 })
-            {
-                sb.Append("<h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground\">Matching</h3><ul class=\"list-disc pl-4 space-y-1\">");
-                foreach (var item in record.Matching.Where(m => !string.IsNullOrWhiteSpace(m)))
-                {
-                    sb.Append($"<li>{WebUtility.HtmlEncode(item.Trim())}</li>");
-                }
-                sb.Append("</ul>");
-            }
-            if (record.MatchingWeapon is { Count: > 0 })
-            {
-                sb.Append("<h3 class=\"text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-2\">Matching Weapon</h3><ul class=\"list-disc pl-4 space-y-1\">");
-                foreach (var item in record.MatchingWeapon.Where(m => !string.IsNullOrWhiteSpace(m)))
-                {
-                    sb.Append($"<li>{WebUtility.HtmlEncode(item.Trim())}</li>");
-                }
-                sb.Append("</ul>");
-            }
-            sb.Append("</div>");
-        }
-
-        // 6. Meta: Underlying Card For, Personas, Counterpart, Misc
-        var metaItems = new List<string>();
+        var meta = new List<string>();
         if (record.UnderlyingCardFor is { Count: > 0 })
-        {
-            metaItems.Add($"<strong>Underlying Card For:</strong> {WebUtility.HtmlEncode(string.Join(", ", record.UnderlyingCardFor))}");
-        }
+            meta.Add($"Underlying Card For: {string.Join(", ", record.UnderlyingCardFor.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))}");
         if (record.Personas is { Count: > 0 })
-        {
-            metaItems.Add($"<strong>Personas:</strong> {WebUtility.HtmlEncode(string.Join(", ", record.Personas))}");
-        }
+            meta.Add($"Personas: {string.Join(", ", record.Personas.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))}");
         if (!string.IsNullOrWhiteSpace(record.Counterpart))
-        {
-            metaItems.Add($"<strong>Counterpart:</strong> {WebUtility.HtmlEncode(record.Counterpart.Trim())}");
-        }
+            meta.Add($"Counterpart: {record.Counterpart.Trim()}");
         if (!string.IsNullOrWhiteSpace(record.Misc))
-        {
-            metaItems.Add($"<strong>Misc:</strong> {WebUtility.HtmlEncode(record.Misc.Trim())}");
-        }
+            meta.Add($"Misc: {record.Misc.Trim()}");
+        if (meta.Count > 0)
+            sections.Add(string.Join("\n", meta));
 
-        if (metaItems.Count > 0)
-        {
-            sb.Append("<div class=\"swccg-meta pt-2 space-y-1\">");
-            foreach (var meta in metaItems)
-            {
-                sb.Append($"<p>{meta}</p>");
-            }
-            sb.Append("</div>");
-        }
-
-        return sb.ToString();
+        return sections.Count > 0 ? string.Join("\n\n", sections) : null;
     }
 
     internal static string BuildExtraCardDataJson(SwccgCardRecord record)

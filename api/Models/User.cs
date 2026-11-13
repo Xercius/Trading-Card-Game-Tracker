@@ -7,7 +7,7 @@ namespace api.Models
         public string DisplayName { get; set; } = null!;
         public string? PasswordHash { get; set; }
         public bool IsAdmin { get; set; } = false;
-        public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+        public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
 
         public ICollection<UserCard> UserCards { get; set; } = new List<UserCard>();
     }

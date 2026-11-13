@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { collectionKeys } from "@/features/collection/api";
 import { QUERY_STALE_MS_VALUE_HISTORY } from "@/constants";
 import type { ValuePoint } from "@/types/value";
@@ -102,7 +102,7 @@ export async function fetchDecks(
   pageSize = 50
 ): Promise<PagedDecks> {
   try {
-    const response = await api.get<PagedDecks>("decks", {
+    const response = await http.get<PagedDecks>("decks", {
       params: { game, name, page, pageSize },
     });
     return response.data;
@@ -127,7 +127,7 @@ export async function createDeck(payload: {
   side?: string | null;
 }): Promise<DeckDetails> {
   try {
-    const response = await api.post<DeckDetails>("decks", payload);
+    const response = await http.post<DeckDetails>("decks", payload);
     return response.data;
   } catch (error) {
     throw toProblemDetailsError(error);
@@ -155,7 +155,7 @@ export async function updateDeck(
   }
 ): Promise<void> {
   try {
-    await api.patch(`decks/${deckId}`, payload);
+    await http.patch(`decks/${deckId}`, payload);
   } catch (error) {
     throw toProblemDetailsError(error);
   }
@@ -191,7 +191,7 @@ export async function patchDeckCard(
   updates: { isStarting?: boolean; quantityInDeck?: number }
 ): Promise<void> {
   try {
-    await api.patch(`decks/${deckId}/cards/${printingId}`, updates);
+    await http.patch(`decks/${deckId}/cards/${printingId}`, updates);
   } catch (error) {
     throw toProblemDetailsError(error);
   }
@@ -243,7 +243,7 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
 
 export async function deleteDeck(deckId: number): Promise<void> {
   try {
-    await api.delete(`decks/${deckId}`);
+    await http.delete(`decks/${deckId}`);
   } catch (error) {
     throw toProblemDetailsError(error);
   }
@@ -261,7 +261,7 @@ export function useDeleteDeckMutation() {
 
 export async function fetchDeckDetails(deckId: number): Promise<DeckDetails> {
   try {
-    const response = await api.get<DeckDetails>(`decks/${deckId}`);
+    const response = await http.get<DeckDetails>(`decks/${deckId}`);
     return response.data;
   } catch (error) {
     throw toProblemDetailsError(error);
@@ -273,7 +273,7 @@ export async function fetchDeckCards(
   includeProxies: boolean
 ): Promise<DeckCardWithAvailability[]> {
   try {
-    const response = await api.get<DeckCardWithAvailability[]>(
+    const response = await http.get<DeckCardWithAvailability[]>(
       `decks/${deckId}/cards-with-availability`,
       { params: { includeProxies } }
     );
@@ -288,7 +288,7 @@ export async function fetchDeckCards(
  */
 export async function fetchPokemonDeckValidation(deckId: number): Promise<DeckValidation> {
   try {
-    const response = await api.get<DeckValidation>(`decks/${deckId}/validation`);
+    const response = await http.get<DeckValidation>(`decks/${deckId}/validation`);
     return response.data;
   } catch (error) {
     throw toProblemDetailsError(error);
@@ -312,7 +312,7 @@ export function usePokemonDeckValidation(deckId: number | null) {
 
 export async function fetchDeckValueHistory(deckId: number, days: number): Promise<ValuePoint[]> {
   try {
-    const response = await api.get<ValuePoint[]>(`decks/${deckId}/value/history`, {
+    const response = await http.get<ValuePoint[]>(`decks/${deckId}/value/history`, {
       params: { days },
     });
     return response.data;
@@ -478,7 +478,9 @@ export async function postDeckQuantityDelta(
   payload: QuantityDeltaPayload
 ) {
   try {
-    await api.post(`decks/${deckId}/cards/quantity-delta`, payload, { params: { includeProxies } });
+    await http.post(`decks/${deckId}/cards/quantity-delta`, payload, {
+      params: { includeProxies },
+    });
   } catch (error) {
     throw toProblemDetailsError(error);
   }

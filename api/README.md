@@ -20,7 +20,7 @@ Bash:
 
 ### What the scripts do
 
-* Add a migration under `/Data/Migrations`.
+* Add a migration under `/Migrations`.
 * Apply it to the local SQLite database.
 * Target .NET 10 and EF Core 10 tooling.
 
@@ -28,7 +28,7 @@ Bash:
 
 ```powershell
 Set-Location .\api
-Add-Migration AddCardsTable -OutputDir Data\Migrations
+Add-Migration AddCardsTable -OutputDir Migrations
 Update-Database
 ```
 
@@ -45,15 +45,6 @@ Inspect the SQLite schema:
 ```bash
 sqlite3 ./api/app.db ".schema"
 ```
-
-### JWT secrets
-
-- Production deployments must set a 32-byte (or longer) signing key via `JWT__KEY`. The application refuses to start in Production/Staging without it.
-- During development you can store a deterministic key with user-secrets:
-  ```bash
-  dotnet user-secrets set "Jwt:Key" "DevOnly_Minimum_32_Chars_Key_For_Local_Use_1234" --project ./api/api.csproj
-  ```
-- Development/Testing environments fall back to a built-in key when none is configured and log a startup warning.
 
 > **Notes**
 >

@@ -10,11 +10,16 @@ public sealed class ScryfallImporter : ISourceImporter
     private readonly AppDbContext _db;
     private readonly HttpClient _http;
 
+    private static readonly HashSet<string> AllowedApiHosts = new(StringComparer.OrdinalIgnoreCase) { "api.scryfall.com" };
+    private static readonly HashSet<string> AllowedImageHosts = new(StringComparer.OrdinalIgnoreCase) { "cards.scryfall.io", "c1.scryfall.com", "c2.scryfall.com" };
+    private const int MaxPages = 200;
+
     public ScryfallImporter(AppDbContext db, IHttpClientFactory httpFactory)
     {
         _db = db;
         _http = httpFactory.CreateClient(nameof(ScryfallImporter));
         _http.BaseAddress = new Uri("https://api.scryfall.com/");
+        _http.Timeout = TimeSpan.FromMinutes(2);
     }
 
     public string Key => "scryfall";
@@ -51,7 +56,8 @@ public sealed class ScryfallImporter : ISourceImporter
             var url = $"cards/search?q=set:{Uri.EscapeDataString(setCode)}+unique:prints&order=set";
             int processed = 0;
 
-            while (!string.IsNullOrEmpty(url) && processed < limit)
+            var pageCount = 0;
+            while (!string.IsNullOrEmpty(url) && processed < limit && pageCount++ < MaxPages)
             {
                 var page = await GetPageAsync(url, ct);
                 foreach (var c in page.Data)
@@ -112,8 +118,9 @@ public sealed class ScryfallImporter : ISourceImporter
             throw new InvalidOperationException("Missing collector_number.");
 
         // Prefer nonfoil image, else any face image
-        string? imageUrl = c.ImageUris?.Normal
+        string? rawImageUrl = c.ImageUris?.Normal
                            ?? c.CardFaces?.FirstOrDefault()?.ImageUris?.Normal;
+        string? imageUrl = ImportHttpGuard.SanitizeAllowedImageUrl(rawImageUrl, AllowedImageHosts);
 
         string rarity = c.Rarity ?? "common";
         var setLookup = TreatmentLookup.UpsertSet(_db, gameEntity, set, c.ReleasedAt);
@@ -172,13 +179,22 @@ public sealed class ScryfallImporter : ISourceImporter
 
     private async Task<ScryPage> GetPageAsync(string relativeOrAbsolute, CancellationToken ct)
     {
-        var uri = relativeOrAbsolute.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? new Uri(relativeOrAbsolute)
-            : new Uri(_http.BaseAddress!, relativeOrAbsolute);
+        Uri uri;
+        if (relativeOrAbsolute.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ImportHttpGuard.TryValidateAllowedHttpsUri(relativeOrAbsolute, AllowedApiHosts, out var validated) || validated is null)
+            {
+                throw new InvalidOperationException("Rejected Scryfall pagination URL outside allow-listed host.");
+            }
+            uri = validated;
+        }
+        else
+        {
+            uri = new Uri(_http.BaseAddress!, relativeOrAbsolute);
+        }
 
-        using var resp = await _http.GetAsync(uri, ct);
-        resp.EnsureSuccessStatusCode();
-        var page = await resp.Content.ReadFromJsonAsync<ScryPage>(_json, ct);
+        var bytes = await ImportHttpGuard.GetBytesWithLimitAsync(_http, uri, ImportHttpGuard.DefaultMaxJsonBytes, ct);
+        var page = JsonSerializer.Deserialize<ScryPage>(bytes, _json);
         return page ?? throw new InvalidOperationException("Empty response from Scryfall.");
     }
 

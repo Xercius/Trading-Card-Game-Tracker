@@ -549,7 +549,7 @@ public sealed class AdminImportControllerTests(CustomWebApplicationFactory facto
             }
         });
 
-        var client = customized.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        var client = customized.CreateClient().WithUser(TestDataSeeder.AdminUserId).AsAdmin();
         return (client, customized.Services, loggerProvider ?? new TestLoggerProvider());
     }
 

@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 
 export type PrintingListItem = {
   printingId: number | string;
@@ -96,7 +96,7 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.uniqueCards) params.set("uniqueCards", "true");
 
   const paramString = params.toString();
-  const res = await api.get<PrintingListItem[]>(
+  const res = await http.get<PrintingListItem[]>(
     `cards/printings${paramString ? `?${paramString}` : ""}`
   );
   const totalHeader = res.headers?.["x-total-count"] ?? res.headers?.["X-Total-Count"];

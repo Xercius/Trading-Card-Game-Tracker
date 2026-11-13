@@ -4,7 +4,7 @@ applyTo: "client-vite/src/**/*.{ts,tsx}"
 
 # React / TypeScript
 
-- New page: component in `src/pages/` → route in `src/routes/index.tsx` (lazy, `Suspense` + `ErrorBoundary`) → API function in `features/api/` using `lib/http.ts` → key in `lib/queryKeys.ts` → Vitest test in an adjacent `__tests__/`.
+- New page: component in `src/pages/` (or feature panel for admin sync routes) → route in `src/routes/index.tsx` (lazy, `Suspense` + `ErrorBoundary`) → API function in `features/<area>/api.ts` (or `features/<area>/api/`) using `lib/http.ts` → key in `lib/queryKeys.ts` → Vitest test in an adjacent `__tests__/`.
 - Feature code lives in `features/<area>/`; shared hooks in `hooks/`; route components only compose feature components.
 - Server data lives only in TanStack Query; never copy it into `useState`. Set `staleTime` per query; optimistic updates use `onMutate/onError/onSettled`. For new queries, prefer `queryOptions()` factories so the key and fetcher are defined together and reused by `useQuery`, `prefetchQuery` and `invalidateQueries`.
 - `UserContext` is for auth/current user only.

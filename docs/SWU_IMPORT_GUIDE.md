@@ -11,7 +11,7 @@ Historical roadmap context:
 - #553 — manually validate real sync behavior and timestamp tracking
 - #557 — document limitations, gotchas, and workarounds after implementation/testing
 
-Use `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/SWUAPI_DOCUMENTATION.txt` as the low-level API contract reference. Use this guide for repository-specific implementation details.
+Use `docs/SWUAPI_DOCUMENTATION.txt` as the low-level API contract reference. Use this guide for repository-specific implementation details.
 
 ## Who
 
@@ -39,7 +39,7 @@ Today SWU is implemented as a generic importer:
 The importer writes into the shared normalized tables:
 
 - logical card data goes into `Card` (keyed by `(Game, Name)` built from `(Title, Subtitle)`, so all printings of a card share a single `Card` row)
-- printing data goes into `CardPrinting` (each printing retains its own `StrapiId`, `CardUid`, `Number`, `TreatmentId`, and relationship metadata in `CardPrinting.DetailsJson`)
+- printing data goes into `CardPrinting` (each printing retains its own `CardUid`, `Number`, `TreatmentId`, `SetId`, and relationship metadata in `CardPrinting.DetailsJson`)
 - expansion codes, names, and `publishedAt` dates are upserted into `Sets` (`Sets.ReleasedAt`)
 - aspect names and colors are upserted into `Aspects` (`Aspects.Color`)
 - rarity names, characters, and colors are upserted into `Rarities` (`Rarities.Character`, `Rarities.Color`)
@@ -60,18 +60,18 @@ The admin sync panel uses the global `swu-catalog` checkpoint, separate from the
 - **Run sync** fetches the full catalog when no global checkpoint exists. Later runs fetch all records updated after that checkpoint minus one minute, without expansion filters, so new expansions are discovered automatically.
 - **Full reconciliation** ignores checkpoints and imports the unfiltered catalog, including previously unknown expansions. Use it periodically, after suspected upstream changes, and once when upgrading from older releases whose checkpoints could advance after limited or partially failed imports.
 - Record checkpoints **only for complete, error-free remote apply runs**. File imports, dry-runs, limited runs, and failed runs cannot establish full-set coverage.
-- Re-run `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/scripts/test-swu-api-connectivity.sh` whenever the SWU API changes or starts failing unexpectedly.
+- Re-run `./api/scripts/test-swu-api-connectivity.sh` from the repository root whenever the SWU API changes or starts failing unexpectedly.
 
 ## Where
 
-- Current importer: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/Importing/SwuDbImporter.cs`
-- Shared import options/models: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/Importing/ImportModels.cs`
-- Admin entrypoint: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/Features/Admin/Import/AdminImportController.cs`
-- Import sync history model: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/Models/ImportSyncHistory.cs`
-- DI registration: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/Infrastructure/Startup/ServiceCollectionExtensions.cs`
-- API behavior notes: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/docs/SWUAPI_DOCUMENTATION.txt`
-- Connectivity smoke test: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api/scripts/test-swu-api-connectivity.sh`
-- Importer test coverage: `/home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker/api.Tests/Importing/SwuDbImporterTests.cs`
+- Current importer: `api/Importing/SwuDbImporter.cs`
+- Shared import options/models: `api/Importing/ImportModels.cs`
+- Admin entrypoint: `api/Features/Admin/Import/AdminImportController.cs`
+- Import sync history model: `api/Models/ImportSyncHistory.cs`
+- DI registration: `api/Infrastructure/Startup/ServiceCollectionExtensions.cs`
+- API behavior notes: `docs/SWUAPI_DOCUMENTATION.txt`
+- Connectivity smoke test: `api/scripts/test-swu-api-connectivity.sh`
+- Importer test coverage: `api.Tests/Importing/SwuDbImporterTests.cs`
 
 ## Why
 
@@ -196,10 +196,10 @@ This is the preferred path for unit tests because it avoids live API dependencie
 | SWU field | Current repository behavior |
 | --- | --- |
 | `title` + `subtitle` | Combined display name (`Title` or `Title — Subtitle`), used as the logical card identity (`(Game, Name)`), grouping all printings of a card under one `Card` row. |
-| `cardUid` | Stored per printing on `CardPrinting.CardUid` and on the canonical printing's `Card.CardUid`; numeric record `id` is stored as `CardPrinting.StrapiId`. |
+| `cardUid` | Stored per printing on `CardPrinting.CardUid` and on the canonical printing's `Card.CardUid`. |
 | `type` / `type2` | Game-scoped card types, associated with source roles `Type` / `Type2`; legacy strings remain populated. |
-| `text` / `textStyled` | `Card.Description` / `Card.TextStyled`. |
-| `expansion.data.attributes.code` / `name` | Uppercase `CardPrinting.Set`, shared `Sets` row, and printing `SetId`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
+| `text` / `textStyled` | `Card.Text` / `Card.TextStyled`. |
+| `expansion.data.attributes.code` / `name` | Uppercase `Sets.Code`, shared `Sets` row, and printing `SetId`. Global remote imports reject missing codes/names; legacy file imports retain the `UNK` fallback. |
 | `expansion.data.attributes.publishedAt` / `releaseDate` | Populates `Sets.ReleasedAt` (`DateOnly` from `releaseDate` or UTC date of `publishedAt`). |
 | `serialCode` | Preferred printing identity and stored as `CardPrinting.Number` when present. |
 | `cardNumber` | Used as fallback printing number; if missing, record `id` is used. |
@@ -261,7 +261,6 @@ POST /api/admin/import/apply
 #### Connectivity check
 
 ```bash
-cd /home/runner/work/Trading-Card-Game-Tracker/Trading-Card-Game-Tracker
 ./api/scripts/test-swu-api-connectivity.sh
 ```
 

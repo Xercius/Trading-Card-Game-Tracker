@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Options;
 
 namespace api.Infrastructure.Startup;
@@ -8,22 +7,7 @@ internal static class WebApplicationExtensions
     public static WebApplication UseApiPipeline(this WebApplication app)
     {
         app.UseForwardedHeaders();
-
-        app.UseExceptionHandler(errorApp =>
-        {
-            errorApp.Run(async context =>
-            {
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                context.Response.ContentType = "application/problem+json";
-
-                var problemDetailsFactory = context.RequestServices.GetRequiredService<ProblemDetailsFactory>();
-                var problemDetails = problemDetailsFactory.CreateProblemDetails(
-                    context,
-                    context.Response.StatusCode);
-
-                await context.Response.WriteAsJsonAsync(problemDetails);
-            });
-        });
+        app.UseExceptionHandler();
 
         if (!app.Environment.IsEnvironment("Testing"))
         {

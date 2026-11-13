@@ -25,7 +25,9 @@ type RenderResult = {
 };
 
 async function renderWithProviders(initialUsers: AdminUserApi[]): Promise<RenderResult> {
-  const client = new QueryClient();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

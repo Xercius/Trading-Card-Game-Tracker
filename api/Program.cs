@@ -38,17 +38,16 @@ if (isSeedCommand)
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
-    MinimalDbSeeder.Seed(db);
+    DbSeeder.Seed(db);
     return;
 }
 
-// DB migrate + seed (skip in dedicated testing environment)
+// DB migrate (skip in dedicated testing environment; never seed production data on startup)
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
-    DbSeeder.Seed(db);
 }
 
 if (app.Environment.IsDevelopment())

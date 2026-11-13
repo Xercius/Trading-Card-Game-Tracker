@@ -1,71 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
-import http from "@/lib/http";
 import { useQueryState } from "@/hooks/useQueryState";
-import {
-  collectionKeys,
-  type CollectionItem,
-  type Paged as CollectionPaged,
-} from "@/features/collection/api";
+import { DEFAULT_PAGE_SIZE } from "@/constants";
+import { queryKeys } from "@/lib/queryKeys";
 import MoxfieldCardSearch from "@/components/search/MoxfieldCardSearch";
 import AddCardModal from "@/features/collection/AddCardModal";
 import EditCardModal from "@/features/collection/EditCardModal";
 import type { PrintingListItem } from "@/features/printings/api/printings";
-
-const DEFAULT_PAGE_SIZE = 50;
-
-type WishlistItemDto = {
-  cardPrintingId: number;
-  quantityWanted: number;
-  cardId: number;
-  cardName: string;
-  game: string;
-  set: string;
-  number: string;
-  rarity: string;
-  style: string;
-  imageUrl: string | null;
-};
-
-type Paged<T> = {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
-
-type MoveToCollectionResponse = {
-  printingId: number;
-  wantedAfter: number;
-  ownedAfter: number;
-  proxyAfter: number;
-  availability: number;
-  availabilityWithProxies: number;
-};
-
-type MoveVariables = {
-  printingId: number;
-  quantity: number;
-  useProxy?: boolean;
-};
+import {
+  useMoveToCollectionMutation,
+  useWishlistQuery,
+  type WishlistItemDto,
+} from "@/features/wishlist/api";
+import { MoveToCollectionDialog } from "@/features/wishlist/MoveToCollectionDialog";
 
 type ToastMessage = {
   type: "success" | "error" | "info";
   message: string;
 };
-
-function promptForQuantity(item: WishlistItemDto): number | null {
-  const defaultQty = Math.max(1, item.quantityWanted);
-  const input = window.prompt(`Move how many copies of ${item.cardName}?`, String(defaultQty));
-  if (input == null) return null;
-  const parsed = Number(input);
-  if (!Number.isFinite(parsed)) return null;
-  const normalized = Math.trunc(parsed);
-  if (normalized <= 0) return null;
-  return normalized;
-}
 
 function formatMovedMessage(count: number) {
   if (count <= 0) return "No copies moved.";
@@ -105,11 +58,10 @@ export default function WishlistPage() {
   };
 
   const wishlistQueryKey = useMemo(
-    () => ["wishlist", userId, page, pageSize, q, activeGame] as const,
+    () => queryKeys.wishlist.list(userId, page, pageSize, q, activeGame),
     [userId, page, pageSize, q, activeGame]
   );
 
-  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [isBulkRunning, setIsBulkRunning] = useState(false);
@@ -118,6 +70,7 @@ export default function WishlistPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalItem, setEditModalItem] = useState<WishlistItemDto | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [moveDialogItems, setMoveDialogItems] = useState<WishlistItemDto[] | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -125,16 +78,22 @@ export default function WishlistPage() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const { data, isLoading, error } = useQuery<Paged<WishlistItemDto>>({
-    queryKey: wishlistQueryKey,
-    queryFn: async () => {
-      if (!userId) throw new Error("User not selected");
-      const res = await http.get<Paged<WishlistItemDto>>(`user/${userId}/wishlist`, {
-        params: { page, pageSize, name: q || undefined, game: activeGame },
-      });
-      return res.data;
-    },
-    enabled: !!userId && !shouldResetPage,
+  const { data, isLoading, error } = useWishlistQuery({
+    userId,
+    page,
+    pageSize,
+    q,
+    game: activeGame,
+    enabled: !shouldResetPage,
+  });
+
+  const moveMutation = useMoveToCollectionMutation(wishlistQueryKey, (printingId) => {
+    setSelectedIds((prev) => {
+      if (!prev.has(printingId)) return prev;
+      const next = new Set(prev);
+      next.delete(printingId);
+      return next;
+    });
   });
 
   const items = data?.items ?? [];
@@ -142,134 +101,51 @@ export default function WishlistPage() {
   const canGoPrev = page > 1;
   const canGoNext = items.length === pageSize && page * pageSize < total;
 
-  const moveMutation = useMutation({
-    mutationFn: async (variables: MoveVariables) => {
-      const response = await http.post<MoveToCollectionResponse>("wishlist/move-to-collection", {
-        cardPrintingId: variables.printingId,
-        quantity: variables.quantity,
-        useProxy: variables.useProxy ?? false,
-      });
-      return response.data;
-    },
-    onSuccess: (snapshot) => {
-      queryClient.setQueryData<Paged<WishlistItemDto>>(wishlistQueryKey, (existing) => {
-        if (!existing) return existing;
-
-        const present = existing.items.some((item) => item.cardPrintingId === snapshot.printingId);
-        if (!present) return existing;
-
-        if (snapshot.wantedAfter <= 0) {
-          const nextItems = existing.items.filter(
-            (item) => item.cardPrintingId !== snapshot.printingId
-          );
-          const nextTotal = Math.max(0, existing.total - 1);
-          return { ...existing, items: nextItems, total: nextTotal } as Paged<WishlistItemDto>;
-        }
-
-        const nextItems = existing.items.map((item) =>
-          item.cardPrintingId === snapshot.printingId
-            ? { ...item, quantityWanted: snapshot.wantedAfter }
-            : item
-        );
-        return { ...existing, items: nextItems } as Paged<WishlistItemDto>;
-      });
-
-      const collectionQueries = queryClient.getQueriesData<unknown>({
-        queryKey: collectionKeys.all,
-      });
-      for (const [key, cachedValue] of collectionQueries) {
-        if (
-          !cachedValue ||
-          typeof cachedValue !== "object" ||
-          !Array.isArray((cachedValue as { items?: unknown }).items)
-        ) {
-          continue;
-        }
-        const value = cachedValue as CollectionPaged<CollectionItem>;
-        const idx = value.items.findIndex((item) => item.cardPrintingId === snapshot.printingId);
-        if (idx < 0) continue;
-
-        const nextItems = value.items.map((item) =>
-          item.cardPrintingId === snapshot.printingId
-            ? {
-                ...item,
-                quantityOwned: snapshot.ownedAfter,
-                quantityProxyOwned: snapshot.proxyAfter,
-                availability: snapshot.availability,
-                availabilityWithProxies: snapshot.availabilityWithProxies,
-              }
-            : item
-        );
-        queryClient.setQueryData(key, { ...value, items: nextItems });
-      }
-
-      queryClient.invalidateQueries({
-        queryKey: collectionKeys.all,
-        predicate: (query) =>
-          query.queryKey.length === 2 &&
-          typeof query.queryKey[1] === "object" &&
-          query.queryKey[1] !== null,
-      });
-      queryClient.invalidateQueries({ queryKey: ["collection", "sets-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["collection", "set-detail"] });
-
-      setSelectedIds((prev) => {
-        if (!prev.has(snapshot.printingId)) return prev;
-        const next = new Set(prev);
-        next.delete(snapshot.printingId);
-        return next;
-      });
-    },
-  });
-
-  const handleMove = async (item: WishlistItemDto) => {
+  const openSingleMoveDialog = (item: WishlistItemDto) => {
     if (item.quantityWanted <= 0) {
       setToast({ type: "info", message: "Nothing left to move." });
       return;
     }
-
-    const quantity = promptForQuantity(item);
-    if (quantity == null) {
-      setToast({ type: "error", message: "Quantity must be a positive number." });
-      return;
-    }
-
-    try {
-      const snapshot = await moveMutation.mutateAsync({
-        printingId: item.cardPrintingId,
-        quantity,
-      });
-      const moved = Math.max(0, item.quantityWanted - snapshot.wantedAfter);
-      setToast({ type: moved > 0 ? "success" : "info", message: formatMovedMessage(moved) });
-    } catch (err) {
-      console.error("[WishlistPage] Failed to move to collection", err);
-      setToast({ type: "error", message: "Failed to move card to collection." });
-    }
+    setMoveDialogItems([item]);
   };
 
-  const handleToggle = (printingId: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(printingId)) next.delete(printingId);
-      else next.add(printingId);
-      return next;
-    });
-  };
-
-  const handleBulkMove = async () => {
+  const openBulkMoveDialog = () => {
     if (selectedIds.size === 0) return;
     const selectedItems = items.filter((item) => selectedIds.has(item.cardPrintingId));
     if (selectedItems.length === 0) return;
+    setMoveDialogItems(selectedItems);
+  };
+
+  const handleConfirmMove = async (quantities: Map<number, number>) => {
+    const targetItems = moveDialogItems ?? [];
+    if (targetItems.length === 0) return;
+
+    if (targetItems.length === 1) {
+      const item = targetItems[0];
+      const quantity = quantities.get(item.cardPrintingId) ?? 0;
+      try {
+        const snapshot = await moveMutation.mutateAsync({
+          printingId: item.cardPrintingId,
+          quantity,
+        });
+        const moved = Math.max(0, item.quantityWanted - snapshot.wantedAfter);
+        setToast({ type: moved > 0 ? "success" : "info", message: formatMovedMessage(moved) });
+        setMoveDialogItems(null);
+      } catch {
+        setToast({ type: "error", message: "Failed to move card to collection." });
+      }
+      return;
+    }
 
     setIsBulkRunning(true);
     try {
       const results = await Promise.allSettled(
-        selectedItems.map(async (item) => {
+        targetItems.map(async (item) => {
           if (item.quantityWanted <= 0) {
             throw new Error("Nothing left to move.");
           }
-          const quantity = promptForQuantity(item);
-          if (quantity == null) throw new Error("Quantity must be a positive number.");
+          const quantity = quantities.get(item.cardPrintingId);
+          if (!quantity || quantity <= 0) throw new Error("Quantity must be a positive number.");
 
           const snapshot = await moveMutation.mutateAsync({
             printingId: item.cardPrintingId,
@@ -283,7 +159,7 @@ export default function WishlistPage() {
       const failures: string[] = [];
 
       results.forEach((result, index) => {
-        const item = selectedItems[index];
+        const item = targetItems[index];
         if (result.status === "fulfilled") {
           const moved = Math.max(0, item.quantityWanted - result.value.snapshot.wantedAfter);
           successes.push(`${item.cardName} (${moved})`);
@@ -299,9 +175,19 @@ export default function WishlistPage() {
       } else if (successes.length > 0) {
         setToast({ type: "success", message: `Moved ${successes.length} item(s) to collection.` });
       }
+      setMoveDialogItems(null);
     } finally {
       setIsBulkRunning(false);
     }
+  };
+
+  const handleToggle = (printingId: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(printingId)) next.delete(printingId);
+      else next.add(printingId);
+      return next;
+    });
   };
 
   const toastClass = (() => {
@@ -369,7 +255,7 @@ export default function WishlistPage() {
               </button>
               <button
                 className="rounded border px-2 py-1 disabled:opacity-50"
-                onClick={handleBulkMove}
+                onClick={openBulkMoveDialog}
                 disabled={selectedIds.size === 0 || moveMutation.isPending || isBulkRunning}
                 type="button"
               >
@@ -410,7 +296,7 @@ export default function WishlistPage() {
                 <button
                   className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                   type="button"
-                  onClick={() => handleMove(item)}
+                  onClick={() => openSingleMoveDialog(item)}
                   disabled={moveMutation.isPending}
                 >
                   Move to collection
@@ -440,6 +326,16 @@ export default function WishlistPage() {
           onSuccess={(msg) => setToast({ type: "success", message: msg })}
         />
       )}
+
+      <MoveToCollectionDialog
+        open={moveDialogItems !== null}
+        onOpenChange={(open) => {
+          if (!open) setMoveDialogItems(null);
+        }}
+        items={moveDialogItems ?? []}
+        isPending={moveMutation.isPending || isBulkRunning}
+        onConfirm={handleConfirmMove}
+      />
     </div>
   );
 }

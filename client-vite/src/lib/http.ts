@@ -4,17 +4,7 @@ import { toProblemDetailsError } from "./problemDetails";
 // ------------------------------------
 // Base URL setup
 // ------------------------------------
-const envBase =
-  (import.meta.env.VITE_API_BASE as string | undefined) ??
-  (import.meta.env.VITE_API_BASE_URL as string | undefined);
-
-if (import.meta.env.DEV) {
-  if (!envBase) {
-    console.warn("[http] No VITE_API_BASE or VITE_API_BASE_URL set; defaulting to '/api'.");
-  } else if (!import.meta.env.VITE_API_BASE && import.meta.env.VITE_API_BASE_URL) {
-    console.warn("[http] VITE_API_BASE_URL is deprecated; please migrate to VITE_API_BASE.");
-  }
-}
+const envBase = import.meta.env.VITE_API_BASE as string | undefined;
 
 const rawBase = envBase ?? "/api";
 const baseURL = String(rawBase).replace(/\/+$/, "") + "/";

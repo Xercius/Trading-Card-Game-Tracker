@@ -86,30 +86,33 @@ The local web app opens directly as the seeded owner (`owner`, `DbSeeder.Default
 
 ### Minimal developer seed data
 
-- Ensure you are in the `api` directory, then run `dotnet run seed` to populate the SQLite database with three sample games and sets for UI testing. The command runs migrations first, skips if any cards already exist, and exits without starting the web server.
+- Ensure you are in the `api` directory, then run `dotnet run seed` to run EF Core migrations, ensure the default `owner` user (`Id = 1`) exists, and exit without starting the web server.
 
 ## API overview
 
 ### Cards
 
-- `GET /api/cards` – paged, filtered card search (supports `game`, `set`, `rarity`, `q` query parameters).
-- `GET /api/cards/search` – alias for the main search endpoint.
+- `GET /api/cards` – virtualized, filtered card search (`skip`, `take`, `includeTotal`, plus `game`, `set`, `rarity`, `q`, `type`, `arena`, `aspect`, `aspectMethod`, `trait`, `traitMethod`, `keyword`, `keywordMethod`).
+- `GET /api/cards/search` – paged card search (`page`, `pageSize`, `name`, `includePrintings`, plus the filter parameters above).
 - `GET /api/cards/{id}` – retrieve a single card by ID.
 - `GET /api/cards/{id}/printings` – returns the available printings for a card, ordered by set and collector number.
 - `GET /api/cards/{id}/sparkline?days=30` – returns aggregated value points for the card across its non-proxy printings.
-- `POST /api/cards/printing` – add a new card printing.
-- `POST /api/cards/{id}/printings/import` – import printings for a card.
-- `GET /api/cards/printings` – list all printings.
-- `GET /api/cards/facets` – all filter facets (games, sets, rarities) with counts.
+- `POST /api/cards/printing` – add a new card printing (Admin only).
+- `POST /api/cards/{id}/printings/import` – import printings for a card (Admin only).
+- `GET /api/cards/printings` – list printings with full game-specific filters.
+- `GET /api/cards/facets` – all filter facets (`games`, `sets`, `rarities`, `types`, `arenas`, `aspects`, `traits`, `keywords`, `treatments`, and SWCCG/Pokémon facets) with counts.
 - `GET /api/cards/facets/games` – distinct game names.
-- `GET /api/cards/facets/sets` – distinct set codes, optionally filtered by `game`.
+- `GET /api/cards/facets/sets` – distinct set names (falling back to codes), optionally filtered by `game`.
 - `GET /api/cards/facets/rarities` – distinct rarity values.
 
 ### Collection
 
 - `GET /api/collection` – list the owner's owned cards.
+- `GET /api/collection/{cardPrintingId}` – get owned/proxy/wanted quantities for a single printing.
+- `GET /api/collection/sets-summary` – completion summary grouped by set.
 - `POST /api/collection/items` – quick-add endpoint that increments the owner's quantity.
 - `POST /api/collection` – add a card to the collection.
+- `POST /api/collection/batch-set` – batch-set quantities for multiple printings.
 - `PUT /api/collection/{cardPrintingId}` – replace quantity for a collection entry.
 - `PATCH /api/collection/{cardPrintingId}` – partially update a collection entry.
 - `PATCH /api/collection/bulk` – bulk-update quantities for multiple entries.
@@ -140,6 +143,7 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 - `PATCH /api/deck/{deckId}/cards/{cardPrintingId}` – partially update a deck card.
 - `DELETE /api/deck/{deckId}/cards/{cardPrintingId}` – remove a card from the deck.
 - `GET /api/deck/{deckId}/availability` – summarise owned vs. required quantities.
+- `GET /api/deck/{deckId}/validation` – validate deck construction rules (e.g., Pokémon TCG).
 - `GET /api/decks/{deckId}/value/history?days=90` – daily deck values across owned printings with proxies excluded.
 
 ### Wishlist
@@ -147,9 +151,17 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 - `GET /api/wishlist` – list the owner's wishlist entries.
 - `POST /api/wishlist/items` – quick-add endpoint that increments the owner's desired quantity.
 - `POST /api/wishlist` – add a card to the wishlist.
-- `PUT /api/wishlist` – update a wishlist entry.
+- `PUT /api/wishlist` – bulk-set wishlist entries (`IEnumerable<BulkSetWishlistRequest>`).
 - `POST /api/wishlist/move-to-collection` – move a wishlist entry into the collection.
 - `DELETE /api/wishlist/{cardPrintingId}` – remove a card from the wishlist.
+
+### Import & Export
+
+- `GET /api/export/json` – export collection, wishlist, and decks as JSON.
+- `GET /api/export/collection.csv` – export collection as CSV.
+- `GET /api/export/wishlist.csv` – export wishlist as CSV.
+- `GET /api/export/decks.csv` – export decks as CSV.
+- `POST /api/import/json` – import user data from a JSON export.
 
 ### Prices & values
 
@@ -169,11 +181,23 @@ Printing-list responses include `cost`, `subtitle`, and `destiny` from the assoc
 
 ## Admin operations
 
-- `/api/admin/import/options` – returns the available importers, supported games, and known set codes.
-- `/api/admin/import/dry-run` – preview an import without persisting changes (JSON payload or `multipart/form-data`).
-- `/api/admin/import/apply` – commit an import. Mirrors the dry-run payloads.
-- `POST /api/admin/sync/star-wars-unlimited` – sync the SWU catalog incrementally; the first run imports the full catalog. Add `?forceFullSync=true` for full reconciliation.
-- `/api/admin/prices/ingest` – ingest per-printing price snapshots; upserts on `(cardPrintingId, capturedAt)`.
+- `GET / POST / DELETE /api/admin/sync/session` – check, create, or clear the HttpOnly `AdminSession` cookie.
+- `GET /api/admin/import/options` – returns the available importers, supported games, and known set codes.
+- `GET /api/admin/import/history` – returns recent remote import checkpoint history.
+- `POST /api/admin/import/dry-run` – preview an import without persisting changes (JSON payload or `multipart/form-data`).
+- `POST /api/admin/import/apply` – commit an import. Mirrors the dry-run payloads.
+- `POST /api/admin/sync/star-wars-unlimited` (plus `GET .../status` and `GET .../logs`) – sync the SWU catalog incrementally or with `?forceFullSync=true`.
+- `POST /api/admin/sync/star-wars-ccg` (plus `GET .../status` and `GET .../logs`) – sync the Star Wars CCG catalog.
+- `GET /api/admin/sync/pokemon/status`, `POST /api/admin/sync/pokemon/sets`, `POST /api/admin/sync/pokemon/cards`, `GET /api/admin/sync/pokemon/logs` – sync Pokémon TCG (TCGdex) sets/cards and inspect status/logs.
+- `POST /api/admin/prices/ingest` – ingest per-printing price snapshots; upserts on `(cardPrintingId, capturedAt)`.
+
+## Configuration
+
+Backend configuration sections in `appsettings*.json` / environment variables / user-secrets include:
+
+- `Cors` (`PolicyName`, `Origins`, `Headers`, `Methods`, `AllowCredentials`, `PreflightMaxAge`)
+- `ForwardedHeaders` (`ForwardedHeaders`, `ForwardLimit`, `KnownProxies`, `KnownNetworks`)
+- `Admin:ApiToken` / `Admin:SessionSigningKey` / `Admin:SessionCookieName` (see [ADMIN.md](ADMIN.md))
 
 See [ADMIN.md](ADMIN.md) for the full admin import guide including file formats and the example workflow.
 The SWU admin import and sync workflows update the shared `Card` and `CardPrinting` tables used by collections, decks, and wishlists. See the [SWU import guide](docs/SWU_IMPORT_GUIDE.md) for details.

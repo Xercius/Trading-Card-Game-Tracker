@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdminSyncLoginCard } from "./AdminSyncLoginCard";
 import {
   isAdminSyncUnauthorized,
   useAdminSyncLoginMutation,
@@ -209,55 +210,17 @@ export default function AdminPokemonSyncPanel() {
     isAdminSyncUnauthorized(runCardsSync.error)
   ) {
     return (
-      <section className="space-y-3 rounded border p-4">
-        <h2 className="text-lg font-semibold">Pokémon TCG sync</h2>
-        <p>Sign in with an administrator account to manage sync.</p>
-        <form
-          className="space-y-3"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const data = new FormData(form);
-            try {
-              await login.mutateAsync({
-                username: String(data.get("username") ?? ""),
-                password: String(data.get("password") ?? ""),
-              });
-              form.reset();
-              runSetsSync.reset();
-              runCardsSync.reset();
-              setFeedback(null);
-            } catch {
-              form.reset();
-            }
-          }}
-        >
-          <label className="block">
-            Username
-            <input
-              className="block rounded border p-2"
-              name="username"
-              autoComplete="username"
-              required
-              maxLength={200}
-            />
-          </label>
-          <label className="block">
-            Password
-            <input
-              className="block rounded border p-2"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              maxLength={1024}
-            />
-          </label>
-          <Button type="submit" disabled={login.isPending}>
-            {login.isPending ? "Signing in…" : "Sign in"}
-          </Button>
-        </form>
-      </section>
+      <AdminSyncLoginCard
+        title="Pokémon TCG sync"
+        isPending={login.isPending}
+        error={login.error}
+        onSubmit={async (credentials) => {
+          await login.mutateAsync(credentials);
+          runSetsSync.reset();
+          runCardsSync.reset();
+          setFeedback(null);
+        }}
+      />
     );
   }
 

@@ -1,11 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import type { QuickAddVariables, WishlistQuickAddResponse } from "./types";
 
 export function useUpsertWishlist() {
   return useMutation({
     mutationFn: async (variables: QuickAddVariables) => {
-      const response = await api.post<WishlistQuickAddResponse>("wishlist/items", variables);
+      const response = await http.post<WishlistQuickAddResponse>("wishlist/items", variables);
       return response.data;
     },
   });

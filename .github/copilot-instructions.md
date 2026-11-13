@@ -26,7 +26,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 
 ## Cross-layer rules
 - Changing a response DTO requires updating its TS type in `client-vite/src/` in the same change.
-- A new endpoint requires a function in `client-vite/src/features/api/` and a key in `lib/queryKeys.ts`.
+- A new endpoint requires a function in `client-vite/src/features/<area>/api.ts` (or `features/<area>/api/`) and a key in `lib/queryKeys.ts`.
 - Model changes require an EF migration in the same change. Never edit or delete applied migrations; schema changes are additive.
 - Do not break routes/response shapes the client uses; if unavoidable, change API and client together.
 
@@ -41,7 +41,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 ## Commands (mirror CI; locally, run the touched half)
 ```bash
 # backend (from repo root)
-dotnet restore ./api/api.sln          # NuGet audit runs here; vulnerabilities fail the restore
+dotnet restore ./api/api.sln          # CI also runs `dotnet list api.sln package --vulnerable --include-transitive`
 dotnet build ./api/api.sln -c Release -warnaserror
 dotnet format ./api/api.sln --verify-no-changes
 ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release

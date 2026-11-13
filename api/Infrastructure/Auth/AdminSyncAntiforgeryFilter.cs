@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace api.Infrastructure.Auth;
 
-internal sealed class AdminSyncAntiforgeryFilter(IAntiforgery antiforgery) : IAsyncAuthorizationFilter
+internal sealed class AdminSyncAntiforgeryFilter(
+    IAntiforgery antiforgery,
+    ProblemDetailsFactory problemDetailsFactory) : IAsyncAuthorizationFilter
 {
     /// <summary>Protects sync browser mutations while preserving authenticated server token clients.</summary>
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
@@ -31,11 +34,11 @@ internal sealed class AdminSyncAntiforgeryFilter(IAntiforgery antiforgery) : IAs
         }
         catch (AntiforgeryValidationException)
         {
-            context.Result = new BadRequestObjectResult(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Invalid request verification token."
-            });
+            var problem = problemDetailsFactory.CreateProblemDetails(
+                context.HttpContext,
+                StatusCodes.Status400BadRequest,
+                title: "Invalid request verification token.");
+            context.Result = new BadRequestObjectResult(problem);
         }
     }
 }

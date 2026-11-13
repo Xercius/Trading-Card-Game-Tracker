@@ -1,6 +1,6 @@
 namespace api.Features.Collections.Dtos;
 
-public sealed class CollectionBulkUpdateRequest
+public sealed record CollectionBulkUpdateRequest
 {
     public IReadOnlyList<CollectionBulkUpdateItem> Items { get; init; } = Array.Empty<CollectionBulkUpdateItem>();
 }

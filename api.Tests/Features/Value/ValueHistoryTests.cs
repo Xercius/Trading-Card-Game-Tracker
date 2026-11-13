@@ -155,7 +155,7 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, capturedAt = captureDate, price = 12.34m }
         };
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId).AsAdmin();
 
         var first = await client.PostAsJsonAsync("/api/admin/prices/ingest", payload);
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);

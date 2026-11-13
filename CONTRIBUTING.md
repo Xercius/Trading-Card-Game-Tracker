@@ -23,7 +23,7 @@ Thank you for your interest in contributing! This guide explains how to set up y
 
 | Tool | Version |
 | ------ | --------- |
-| .NET SDK | 9.0 (pinned in `global.json`) |
+| .NET SDK | 10.0 (pinned in `global.json`) |
 | Node.js | 20+ |
 | npm | Bundled with Node.js (CI uses `npm ci` with `client-vite/package-lock.json`) |
 | SQLite | Any recent version (bundled via EF Core) |
@@ -41,16 +41,7 @@ dotnet restore ./api/api.csproj
 cd client-vite && npm ci && cd ..
 ```
 
-### 2. Configure JWT secret (local only)
-
-```bash
-dotnet user-secrets set "Jwt:Key" "DevOnly_Minimum_32_Chars_Key_For_Local_Use_1234" \
-  --project ./api/api.csproj
-```
-
-The API falls back to a deterministic dev key when no secret is configured in `Development` or `Testing` mode.
-
-### 3. Seed test data
+### 2. Seed test data
 
 ```bash
 cd api
@@ -78,18 +69,18 @@ VITE_API_BASE=https://localhost:7226/api
 ## Project Structure
 
 ```text
-api/                     .NET 9 ASP.NET Core API
-  Authentication/        JWT token provider
-  Controllers/           Non-feature controllers (ImportExport)
-  Data/                  AppDbContext + EF Core migrations
-  Features/              Feature folders (Cards, Collections, Decks, …)
+api/                     .NET 10 ASP.NET Core API
+  Data/                  AppDbContext + EF Core seeding
+  Features/              Feature folders (Cards, Collections, Decks, ImportExport, …)
     <Feature>/
       <Feature>Controller.cs
       Dtos/
-      Mapping/           AutoMapper profiles
+      Mapping/
       Services/
       Validation/        FluentValidation validators
-  Importing/             Per-game card importers (13 total)
+  Importing/             Per-game card importers (SWU, SWCCG, Pokémon, plus unregistered Scryfall)
+  Infrastructure/        Startup, Auth (`AdminToken` / `AdminSession`), Middleware
+  Migrations/            EF Core migrations
   Models/                EF Core entity classes
   Shared/                Cross-cutting utilities
 api.Tests/               XUnit integration tests
@@ -193,8 +184,8 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 
 ## Adding a New Game Importer
 
-1. Create `api/Importing/<GameName>Importer.cs` implementing `ICardImporter`.
-2. Register the importer in `api/Program.cs` (DI registration block).
+1. Create `api/Importing/<GameName>Importer.cs` implementing `ISourceImporter`.
+2. Register the importer in `api/Infrastructure/Startup/ServiceCollectionExtensions.cs` (`AddAppServices`).
 3. Add dry-run support — the importer must handle `dryRun: true` without persisting data.
 4. Use checksums/upserts so the import is **idempotent** (safe to re-run).
 5. Document the expected file format in `ADMIN.md`.
@@ -204,26 +195,26 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 
 ## Submitting Changes
 
-1. **Fork and branch** from `dev`:
+1. **Fork and branch** from `master`:
 
    ```bash
-   git checkout dev
-   git pull origin dev
+   git checkout master
+   git pull origin master
    git checkout -b feature/<short-description>
    ```
 
 2. **Make your changes** following the coding standards above.
 
-3. **Run all checks locally** before pushing:
+3. **Run all checks locally** before pushing (mirrors `.github/workflows/ci.yml`):
 
    ```bash
    dotnet format ./api/api.sln --verify-no-changes
+   dotnet list api.sln package --vulnerable --include-transitive
    ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
-   cd client-vite && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run
+   cd client-vite && npm audit --audit-level=high && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run && npm run build && npm run build-storybook
+   ```
 
-    ```
-
-4. **Open a PR** against `dev` (not `master`). Use the PR template and fill out every section.
+4. **Open a PR** against `master`. Use the PR template and fill out every section.
 
 5. **Link any related issues** with `Closes #N` in the PR description.
 
@@ -233,13 +224,12 @@ Scripts in `api/scripts/` (PowerShell and Bash) wrap the above commands for conv
 
 | Branch | Purpose |
 | -------- | --------- |
-| `master` | Stable, production-ready code |
-| `dev` | Integration branch for features/fixes |
+| `master` | Main integration and release branch |
 | `feature/<name>` | New feature development |
 | `fix/<name>` | Bug fixes |
 | `chore/<name>` | Maintenance, dependency updates, tooling |
 
-PRs from feature/fix/chore branches → `dev` → eventually merged to `master` for releases.
+PRs from feature/fix/chore branches target `master`.
 
 ---
 

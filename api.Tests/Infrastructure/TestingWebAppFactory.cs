@@ -1,8 +1,10 @@
 using api.Data;
+using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace api.Tests.Infrastructure;
@@ -40,10 +42,12 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
             services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
         });
 
-        // Ensure database is created after all services are configured
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            // This runs after all services are registered
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Authentication:AdminApiToken"] = CustomWebApplicationFactory.AdminApiToken
+            });
         });
     }
 

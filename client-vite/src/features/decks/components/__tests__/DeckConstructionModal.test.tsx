@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { fireEvent, waitFor, screen } from "@testing-library/react";
 import { DeckConstructionModal } from "../DeckConstructionModal";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import type { DeckCardWithAvailability, DeckValidation } from "../../api";
 
 const mockDeckDetails = {
@@ -113,7 +113,7 @@ describe("DeckConstructionModal", () => {
     };
     failPokemonValidation = false;
 
-    vi.spyOn(api, "get").mockImplementation((url) => {
+    vi.spyOn(http, "get").mockImplementation((url) => {
       const u = String(url);
       if (u.includes("cards-with-availability")) {
         return Promise.resolve({ data: persistedDeckCards } as never);
@@ -253,7 +253,7 @@ describe("DeckConstructionModal", () => {
   it("does not trust cached Pokémon validation after a failed refetch", async () => {
     const client = createClient();
     deckDetails = { ...mockDeckDetails, game: "Pokemon TCG", format: "Standard" };
-    vi.spyOn(api, "post").mockResolvedValue({ data: {} } as never);
+    vi.spyOn(http, "post").mockResolvedValue({ data: {} } as never);
 
     await act(async () => {
       root.render(
@@ -280,7 +280,7 @@ describe("DeckConstructionModal", () => {
 
   it("shows a friendly message when deck metadata cannot be saved", async () => {
     const client = createClient();
-    vi.spyOn(api, "patch").mockRejectedValue(new Error("server detail"));
+    vi.spyOn(http, "patch").mockRejectedValue(new Error("server detail"));
 
     await act(async () => {
       root.render(
@@ -303,7 +303,7 @@ describe("DeckConstructionModal", () => {
 
   it("calls quantity-delta when adding a card from search results", async () => {
     const client = createClient();
-    const postSpy = vi.spyOn(api, "post").mockResolvedValue({ data: {} } as never);
+    const postSpy = vi.spyOn(http, "post").mockResolvedValue({ data: {} } as never);
 
     await act(async () => {
       root.render(
@@ -398,7 +398,7 @@ describe("DeckConstructionModal", () => {
   it("keeps an unowned card and its quantity after saving and refetching", async () => {
     persistedDeckCards = [];
     const client = createClient();
-    vi.spyOn(api, "post").mockImplementation(async () => {
+    vi.spyOn(http, "post").mockImplementation(async () => {
       const currentQuantity = persistedDeckCards[0]?.quantityInDeck ?? 0;
       persistedDeckCards = [
         {
@@ -446,7 +446,7 @@ describe("DeckConstructionModal", () => {
   it("rolls back a failed addition and shows a dismissible error notification", async () => {
     persistedDeckCards = [];
     const client = createClient();
-    vi.spyOn(api, "post").mockRejectedValue({
+    vi.spyOn(http, "post").mockRejectedValue({
       isAxiosError: true,
       response: { status: 500, data: { title: "A server error occurred." } },
     });
@@ -503,7 +503,7 @@ describe("DeckConstructionModal", () => {
       expect(screen.getByRole("checkbox", { name: "In-aspect only" })).toBeDisabled();
       expect(screen.getByRole("checkbox", { name: "In-aspect only" })).not.toBeChecked();
       const requests = vi
-        .mocked(api.get)
+        .mocked(http.get)
         .mock.calls.map(([url]) => String(url))
         .filter((url) => url.startsWith("cards/printings"));
       expect(requests.length).toBeGreaterThan(0);
@@ -518,8 +518,8 @@ describe("DeckConstructionModal", () => {
         aspects: [{ name: "Command", count: 1 }],
       },
     ];
-    const previousGet = vi.mocked(api.get).getMockImplementation()!;
-    vi.mocked(api.get).mockImplementation((url, config) => {
+    const previousGet = vi.mocked(http.get).getMockImplementation()!;
+    vi.mocked(http.get).mockImplementation((url, config) => {
       if (!String(url).startsWith("cards/printings")) return previousGet(url, config);
       const params = new URL(String(url), "http://localhost/").searchParams;
       const restricted = params.has("availableAspects");
@@ -565,7 +565,7 @@ describe("DeckConstructionModal", () => {
     expect(screen.getByRole("combobox", { name: "Select page" })).toHaveTextContent("Page 1 of 2");
     expect(screen.getAllByRole("button", { name: "+ Add" })).toHaveLength(20);
     const requests = vi
-      .mocked(api.get)
+      .mocked(http.get)
       .mock.calls.map(([url]) => new URL(String(url), "http://localhost/"))
       .filter(
         (url) =>

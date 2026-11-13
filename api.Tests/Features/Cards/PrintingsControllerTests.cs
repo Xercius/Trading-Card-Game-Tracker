@@ -16,7 +16,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_card_type_search_matches_facet_results()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var response = await client.GetAsync("/api/cards/printings?q=cReAtUrE&uniqueCards=true");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
@@ -35,7 +35,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_number_filters_to_exact_match()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?number=A1");
 
@@ -48,7 +48,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Upsert_with_mismatched_card_id_uses_existing_printing_game_for_treatment()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
         var request = new UpsertPrintingRequest(
             TestDataSeeder.GoblinGuidePrintingId,
             TestDataSeeder.ElsaCardId,
@@ -88,7 +88,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
         var hyperspace = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?style=Hyperspace");
         var showcase = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -107,7 +107,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_unknown_number_returns_empty_list()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?number=UNKNOWN");
 
@@ -118,7 +118,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_single_game_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic");
 
@@ -130,7 +130,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_multiple_games_csv()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic,Lorcana");
 
@@ -144,7 +144,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_csv_games_normalizes_whitespace()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var normalized = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic,Lorcana");
         var withWhitespace = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=%20Magic%20,%20Lorcana%20");
@@ -157,7 +157,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_csv_games_removes_duplicates()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var single = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic");
         var duplicates = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic,Magic,Magic");
@@ -170,7 +170,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_single_set_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=Alpha");
 
@@ -182,7 +182,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_unique_cards_returns_oldest_printing_for_each_card()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true");
 
@@ -247,7 +247,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
                 await db.SaveChangesAsync();
             }
 
-            using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+            using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
             var allGames = await client.GetFromJsonAsync<List<PrintingDto>>(
                 "/api/cards/printings?uniqueCards=true&q=Preference");
             var pokemonOnly = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -272,7 +272,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_unique_cards_set_filter_matches_later_printing_but_returns_oldest()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true&set=Beta");
         var noMatch = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?uniqueCards=true&set=Unknown");
@@ -288,7 +288,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_multiple_sets_csv()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=Alpha,Beta");
 
@@ -301,7 +301,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_single_rarity_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=Common");
 
@@ -313,7 +313,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_multiple_rarities_csv()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=Common,Uncommon");
 
@@ -325,7 +325,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_combined_csv_filters()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=Magic&rarity=Common,Uncommon");
 
@@ -341,7 +341,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_empty_csv_returns_all()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var allPrintings = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings");
         var emptyFilter = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=");
@@ -354,7 +354,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_case_insensitive_game_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=magic");
         var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?game=MAGIC");
@@ -373,7 +373,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_case_insensitive_set_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=alpha");
         var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?set=ALPHA");
@@ -392,7 +392,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_case_insensitive_rarity_filter()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var lowercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=common");
         var uppercase = await client.GetFromJsonAsync<List<PrintingDto>>("/api/cards/printings?rarity=COMMON");
@@ -411,7 +411,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_pages_return_all_printings_in_stable_order_without_duplicates()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
         var allPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?page=1&pageSize=500");
         Assert.NotNull(allPrintings);
@@ -437,7 +437,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_with_game_and_q_and_sort_name_and_unique_cards()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         var response = await client.GetAsync("/api/cards/printings?game=Magic&uniqueCards=true&sort=name&q=Lightning");
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
@@ -484,7 +484,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         try
         {
@@ -564,7 +564,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
 
         try
         {
@@ -625,7 +625,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
         try
         {
             var results = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -689,7 +689,7 @@ public class PrintingsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId).AsAdmin();
         try
         {
             // Greater than

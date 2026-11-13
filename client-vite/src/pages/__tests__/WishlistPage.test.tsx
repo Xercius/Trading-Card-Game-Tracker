@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { createRoot } from "react-dom/client";
@@ -158,7 +158,6 @@ describe("WishlistPage", () => {
         availabilityWithProxies: 2,
       },
     });
-    const promptMock = vi.spyOn(window, "prompt").mockReturnValue("2");
 
     const client = createClient();
     const collectionKey = collectionKeys.list({
@@ -192,6 +191,14 @@ describe("WishlistPage", () => {
     await act(async () => {
       button?.click();
     });
+
+    const dialog = await screen.findByRole("dialog");
+    const submitButton = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Move to collection")
+    );
+    await act(async () => {
+      submitButton?.click();
+    });
     await flush();
     await flush();
 
@@ -214,7 +221,6 @@ describe("WishlistPage", () => {
     await cleanup();
     getMock.mockRestore();
     postMock.mockRestore();
-    promptMock.mockRestore();
   });
 
   it("clamps quantities larger than wanted", async () => {
@@ -244,7 +250,6 @@ describe("WishlistPage", () => {
         availabilityWithProxies: 5,
       },
     });
-    const promptMock = vi.spyOn(window, "prompt").mockReturnValue("5");
 
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
@@ -263,6 +268,16 @@ describe("WishlistPage", () => {
     await act(async () => {
       button?.click();
     });
+
+    const dialog = await screen.findByRole("dialog");
+    const input = dialog.querySelector("input[type=number]") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "5" } });
+    const submitButton = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Move to collection")
+    );
+    await act(async () => {
+      submitButton?.click();
+    });
     await flush();
     await flush();
 
@@ -277,7 +292,6 @@ describe("WishlistPage", () => {
 
     await cleanup();
     postMock.mockRestore();
-    promptMock.mockRestore();
   });
 
   it("runs bulk moves and reports successes and failures", async () => {
@@ -326,8 +340,6 @@ describe("WishlistPage", () => {
       })
       .mockRejectedValueOnce(new Error("boom"));
 
-    const promptMock = vi.spyOn(window, "prompt").mockReturnValueOnce("1").mockReturnValueOnce("1");
-
     const client = createClient();
     const { container, cleanup } = await renderPage(client);
 
@@ -353,6 +365,16 @@ describe("WishlistPage", () => {
     await act(async () => {
       bulkButton?.click();
     });
+
+    const dialog = await screen.findByRole("dialog");
+    const inputs = Array.from(dialog.querySelectorAll<HTMLInputElement>("input[type=number]"));
+    inputs.forEach((input) => fireEvent.change(input, { target: { value: "1" } }));
+    const submitButton = Array.from(dialog.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Move to collection")
+    );
+    await act(async () => {
+      submitButton?.click();
+    });
     await flush();
     await flush();
 
@@ -363,6 +385,5 @@ describe("WishlistPage", () => {
 
     await cleanup();
     postMock.mockRestore();
-    promptMock.mockRestore();
   });
 });
