@@ -12,14 +12,7 @@ export const paths = {
   value: "value",
 } as const;
 
-if (import.meta.env.DEV) {
-  for (const [key, value] of Object.entries(paths)) {
-    if (typeof value === "string" && value.startsWith("/")) {
-      console.warn(`[paths] "${key}" starts with "/". Make it relative: "${value.slice(1)}"`);
-    }
-  }
-}
-
 export type AppPath = (typeof paths)[keyof typeof paths];
 
+/** Builds the relative route path for a specific deck builder page. */
 export const deckBuilderPath = (deckId: number | string) => `${paths.decks}/${deckId}`;

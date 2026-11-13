@@ -106,7 +106,8 @@ public sealed record SwccgCardRecord(
     [property: JsonPropertyName("counterpart")] string? Counterpart,
     [property: JsonPropertyName("legacy")] bool? Legacy,
     [property: JsonPropertyName("front")] SwccgFaceRecord? Front,
-    [property: JsonPropertyName("back")] SwccgFaceRecord? Back
+    [property: JsonPropertyName("back")] SwccgFaceRecord? Back,
+    [property: JsonPropertyName("number")] string? Number = null
 );
 
 /// <summary>

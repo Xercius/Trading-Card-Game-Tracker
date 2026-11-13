@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { postDeckQuantityDelta } from "../api";
 
 describe("deck API helpers", () => {
@@ -8,7 +8,9 @@ describe("deck API helpers", () => {
   });
 
   it("posts quantity deltas to the dedicated endpoint", async () => {
-    const spy = vi.spyOn(api, "post").mockResolvedValue({} as Awaited<ReturnType<typeof api.post>>);
+    const spy = vi
+      .spyOn(http, "post")
+      .mockResolvedValue({} as Awaited<ReturnType<typeof http.post>>);
 
     await postDeckQuantityDelta(7, true, { printingId: 42, qtyDelta: 3 });
 

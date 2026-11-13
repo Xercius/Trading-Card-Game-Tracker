@@ -63,7 +63,6 @@ internal sealed class SwuSharedIdentity
                 _ambiguousFallbackKeys.Add(fallbackKey.Value);
             _bySetNumberAndTreatment[fallbackKey.Value] = printing;
         }
-        if (fallbackKey is not null) _bySetNumberAndTreatment[fallbackKey.Value] = printing;
     }
 
     internal void ResolveRelationships(out IReadOnlyList<CardPrinting> changedPrintings)
@@ -116,9 +115,9 @@ internal sealed class SwuSharedIdentity
             return (null, legacy);
         }
 
-        CardPrinting? found = !string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid, out var byUid)
-            ? byUid
-            : sourceId is > 0 && _bySourceId.TryGetValue(sourceId.Value, out var byId) ? byId : null;
+        CardPrinting? found = !string.IsNullOrWhiteSpace(cardUid)
+            ? (_byUid.TryGetValue(cardUid, out var byUid) ? byUid : null)
+            : (sourceId is > 0 && _bySourceId.TryGetValue(sourceId.Value, out var byId) ? byId : null);
         return found is null || ReferenceEquals(found, printing)
             ? (null, false) : (found, false);
     }

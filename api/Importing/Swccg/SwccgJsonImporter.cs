@@ -199,7 +199,8 @@ public sealed class SwccgJsonImporter : ISourceImporter
             : record.Id.ToString();
 
         var set = catalog.GetOrAddSet(record.Set);
-        var number = ParseNumber(record.GempId) ?? record.Id.ToString();
+        var number = ParseNumber(record.GempId)
+            ?? (string.IsNullOrWhiteSpace(record.Number) ? null : record.Number.Trim());
 
         // 1. Resolve Printing
         var printing = identity.FindPrinting(cardUid, set, number);
@@ -269,8 +270,15 @@ public sealed class SwccgJsonImporter : ISourceImporter
 
         // 3. Printing details
         var isNewPrinting = printing is null;
-        var imageUrl = record.Front?.ImageUrl;
-        var backImageUrl = record.Back?.ImageUrl;
+        var allowedImageHosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "res.starwarsccg.org",
+            "www.starwarsccg.org",
+            "raw.githubusercontent.com"
+        };
+        var imageUrl = ImportHttpGuard.SanitizeAllowedImageUrl(record.Front?.ImageUrl, allowedImageHosts);
+        var backImageUrl = ImportHttpGuard.SanitizeAllowedImageUrl(record.Back?.ImageUrl, allowedImageHosts);
+        var isFoil = SwccgCatalog.IsFoilRarity(record.Rarity);
         var isHorizontal = face.Type?.Equals("Location", StringComparison.OrdinalIgnoreCase) == true
             || face.SubType?.Contains("Site", StringComparison.OrdinalIgnoreCase) == true
             || face.SubType?.Contains("System", StringComparison.OrdinalIgnoreCase) == true;
@@ -280,13 +288,13 @@ public sealed class SwccgJsonImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Number = number,
+                Number = number ?? string.Empty,
                 CardUid = cardUid,
                 ImageUrl = imageUrl,
                 BackImageUrl = backImageUrl,
                 ArtFrontHorizontal = isHorizontal,
                 ArtBackHorizontal = record.Back?.Type?.Equals("Location", StringComparison.OrdinalIgnoreCase),
-                IsFoil = record.Rarity?.Contains("Foil", StringComparison.OrdinalIgnoreCase) == true,
+                IsFoil = isFoil,
                 DetailsJson = card.ExtraCardDataJson,
                 LastSyncedAt = now
             };
@@ -300,6 +308,7 @@ public sealed class SwccgJsonImporter : ISourceImporter
             printing.BackImageUrl = backImageUrl;
             printing.ArtFrontHorizontal = isHorizontal;
             printing.ArtBackHorizontal = record.Back?.Type?.Equals("Location", StringComparison.OrdinalIgnoreCase);
+            printing.IsFoil = isFoil;
             printing.DetailsJson = card.ExtraCardDataJson;
             printing.LastSyncedAt = now;
 
@@ -315,8 +324,9 @@ public sealed class SwccgJsonImporter : ISourceImporter
     private static string? ParseNumber(string? gempId)
     {
         if (string.IsNullOrWhiteSpace(gempId)) return null;
-        var i = gempId.IndexOf('_');
-        return i >= 0 && i < gempId.Length - 1 ? gempId[(i + 1)..] : gempId;
+        var trimmed = gempId.Trim();
+        var i = trimmed.IndexOf('_');
+        return i > 0 && i < trimmed.Length - 1 ? trimmed[(i + 1)..] : null;
     }
 
     private static int? TryParseInt(string? val)

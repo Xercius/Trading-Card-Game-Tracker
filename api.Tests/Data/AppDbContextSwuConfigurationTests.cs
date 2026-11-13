@@ -42,7 +42,7 @@ public sealed class AppDbContextSwuConfigurationTests
                 "Set", "SetNorm", "Rarity", "RarityNorm", "ReleasedAt", "StrapiId"
             }.Contains(property.Name));
         var printingIndex = Assert.Single(cardPrinting.GetIndexes(),
-            index => index.GetDatabaseName() == "UX_CardPrintings");
+            index => index.GetDatabaseName() == "UX_CardPrintings_CardId_SetId_Number_TreatmentId");
         Assert.True(printingIndex.IsUnique);
         Assert.Equal(
             new[] { nameof(CardPrinting.CardId), nameof(CardPrinting.SetId), nameof(CardPrinting.Number), nameof(CardPrinting.TreatmentId) },
@@ -182,12 +182,12 @@ public sealed class AppDbContextSwuConfigurationTests
             command.CommandText = "PRAGMA index_list('CardPrintings')";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
-                if (reader.GetString(1) == "UX_CardPrintings")
+                if (reader.GetString(1) == "UX_CardPrintings_CardId_SetId_Number_TreatmentId")
                     printingIndexIsUnique = reader.GetInt64(2) == 1;
         }
         await using (var command = connection.CreateCommand())
         {
-            command.CommandText = "PRAGMA index_info('UX_CardPrintings')";
+            command.CommandText = "PRAGMA index_info('UX_CardPrintings_CardId_SetId_Number_TreatmentId')";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
                 printingIndexColumns.Add(reader.GetString(2));

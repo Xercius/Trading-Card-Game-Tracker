@@ -119,7 +119,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
             collectorNumber: "007",
             setCode: null,
             finishes: new List<string> { "foil" },
-            imageUrl: "https://img.example.com/unit-test.png",
+            imageUrl: "https://cards.scryfall.io/normal/unit-test.png",
             faces: null);
 
         await InvokeUpsertAsync(importer, initialCard, setCode: "uts", summary);
@@ -139,14 +139,14 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         Assert.Equal(createdCard.Id, createdPrinting.CardId);
         Assert.Equal("Rare", createdPrinting.RarityLookup!.Name);
         Assert.Equal("Foil", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
-        Assert.Equal("https://img.example.com/unit-test.png", createdPrinting.ImageUrl);
+        Assert.Equal("https://cards.scryfall.io/normal/unit-test.png", createdPrinting.ImageUrl);
 
         Assert.Equal(1, summary.CardsCreated);
         Assert.Equal(0, summary.CardsUpdated);
         Assert.Equal(1, summary.PrintingsCreated);
         Assert.Equal(0, summary.PrintingsUpdated);
 
-        var faceImage = CreateScryImages("https://img.example.com/unit-face.png");
+        var faceImage = CreateScryImages("https://cards.scryfall.io/normal/unit-face.png");
         var faces = CreateFaceList(CreateScryFace("Front", "Draw a card", faceImage));
         var updatedCard = CreateScryCard(
             id: "unit-1",
@@ -180,7 +180,7 @@ public class ImporterTests(CustomWebApplicationFactory factory) : IClassFixture<
         await db.Entry(createdPrinting).Reference(p => p.RarityLookup).LoadAsync();
         Assert.Equal("Mythic", createdPrinting.RarityLookup!.Name);
         Assert.Equal("Standard", (await db.Treatments.SingleAsync(t => t.Id == createdPrinting.TreatmentId)).Name);
-        Assert.Equal("https://img.example.com/unit-face.png", createdPrinting.ImageUrl);
+        Assert.Equal("https://cards.scryfall.io/normal/unit-face.png", createdPrinting.ImageUrl);
     }
 
     private static Task InvokeUpsertAsync(

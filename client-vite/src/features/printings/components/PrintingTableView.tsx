@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PrintingListItem } from "@/features/printings/api/printings";
 
 type Props = {
@@ -5,11 +7,86 @@ type Props = {
   onRowClick?: (p: PrintingListItem) => void;
 };
 
-export function PrintingTableView({ printings, onRowClick }: Props) {
+const VIRTUALIZATION_THRESHOLD = 50;
+const ESTIMATED_ROW_HEIGHT = 41;
+
+function PrintingTableRow({
+  printing,
+  onRowClick,
+}: {
+  printing: PrintingListItem;
+  onRowClick?: (p: PrintingListItem) => void;
+}) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <tr
+      className={
+        onRowClick
+          ? "border-t cursor-pointer hover:bg-muted/50 transition-colors focus:outline-none focus:bg-muted/70"
+          : "border-t"
+      }
+      onClick={() => onRowClick?.(printing)}
+      tabIndex={onRowClick ? 0 : undefined}
+      role={onRowClick ? "button" : undefined}
+      onKeyDown={
+        onRowClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onRowClick(printing);
+              }
+            }
+          : undefined
+      }
+    >
+      <td className="px-3 py-2">{printing.cardName}</td>
+      <td className="px-3 py-2">{printing.game}</td>
+      <td className="px-3 py-2">{printing.setName}</td>
+      <td className="px-3 py-2">{printing.setCode ?? "—"}</td>
+      <td className="px-3 py-2">{printing.number ?? "—"}</td>
+      <td className="px-3 py-2">{printing.rarity ?? "—"}</td>
+      <td className="px-3 py-2">{printing.cardTypes?.join(", ") || "—"}</td>
+      <td className="px-3 py-2">
+        {printing.aspects
+          ?.map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
+          .join(", ") || "—"}
+      </td>
+      <td className="px-3 py-2">{printing.releaseDate ?? "—"}</td>
+    </tr>
+  );
+}
+
+/**
+ * Displays card printings in a table, virtualizing rows automatically when more than 50 rows are rendered.
+ */
+export function PrintingTableView({ printings, onRowClick }: Props) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldVirtualize = printings.length > VIRTUALIZATION_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: shouldVirtualize ? printings.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 8,
+  });
+
+  const virtualItems = shouldVirtualize ? virtualizer.getVirtualItems() : [];
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+      : 0;
+
+  return (
+    <div
+      ref={scrollRef}
+      className={
+        shouldVirtualize
+          ? "max-h-[600px] overflow-auto rounded-md border"
+          : "overflow-x-auto rounded-md border"
+      }
+    >
       <table className="w-full text-sm">
-        <thead className="bg-muted text-muted-foreground">
+        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
           <tr>
             <th className="px-3 py-2 text-left font-medium">Name</th>
             <th className="px-3 py-2 text-left font-medium">Game</th>
@@ -23,43 +100,34 @@ export function PrintingTableView({ printings, onRowClick }: Props) {
           </tr>
         </thead>
         <tbody>
-          {printings.map((p) => (
-            <tr
-              key={p.printingId}
-              className={
-                onRowClick
-                  ? "border-t cursor-pointer hover:bg-muted/50 transition-colors focus:outline-none focus:bg-muted/70"
-                  : "border-t"
-              }
-              onClick={() => onRowClick?.(p)}
-              tabIndex={onRowClick ? 0 : undefined}
-              role={onRowClick ? "button" : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onRowClick(p);
-                      }
-                    }
-                  : undefined
-              }
-            >
-              <td className="px-3 py-2">{p.cardName}</td>
-              <td className="px-3 py-2">{p.game}</td>
-              <td className="px-3 py-2">{p.setName}</td>
-              <td className="px-3 py-2">{p.setCode ?? "—"}</td>
-              <td className="px-3 py-2">{p.number ?? "—"}</td>
-              <td className="px-3 py-2">{p.rarity ?? "—"}</td>
-              <td className="px-3 py-2">{p.cardTypes?.join(", ") || "—"}</td>
-              <td className="px-3 py-2">
-                {p.aspects
-                  ?.map(({ name, count }) => `${name}${count > 1 ? ` ×${count}` : ""}`)
-                  .join(", ") || "—"}
-              </td>
-              <td className="px-3 py-2">{p.releaseDate ?? "—"}</td>
-            </tr>
-          ))}
+          {shouldVirtualize ? (
+            <>
+              {paddingTop > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={9} style={{ height: paddingTop, padding: 0 }} />
+                </tr>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const printing = printings[virtualRow.index];
+                return (
+                  <PrintingTableRow
+                    key={printing.printingId}
+                    printing={printing}
+                    onRowClick={onRowClick}
+                  />
+                );
+              })}
+              {paddingBottom > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={9} style={{ height: paddingBottom, padding: 0 }} />
+                </tr>
+              )}
+            </>
+          ) : (
+            printings.map((p) => (
+              <PrintingTableRow key={p.printingId} printing={p} onRowClick={onRowClick} />
+            ))
+          )}
         </tbody>
       </table>
     </div>

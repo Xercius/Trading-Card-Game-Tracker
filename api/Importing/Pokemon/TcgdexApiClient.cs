@@ -30,7 +30,12 @@ public sealed class TcgdexApiClient : IPokemonApiClient
     public async Task<IReadOnlyList<TcgdexSetResume>> GetSetsAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("Fetching Pokemon sets list from TCGdex...");
-        var sets = await _http.GetFromJsonAsync<List<TcgdexSetResume>>("sets", JsonOptions, ct);
+        var bytes = await ImportHttpGuard.GetBytesWithLimitAsync(
+            _http,
+            new Uri(_http.BaseAddress!, "sets"),
+            ImportHttpGuard.DefaultMaxJsonBytes,
+            ct);
+        var sets = JsonSerializer.Deserialize<List<TcgdexSetResume>>(bytes, JsonOptions);
         return sets ?? (IReadOnlyList<TcgdexSetResume>)Array.Empty<TcgdexSetResume>();
     }
 
@@ -38,32 +43,43 @@ public sealed class TcgdexApiClient : IPokemonApiClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(setId);
         var url = $"sets/{Uri.EscapeDataString(setId.Trim().ToLowerInvariant())}";
-        using var resp = await _http.GetAsync(url, ct);
+        using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (resp.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
+        ImportHttpGuard.EnsureNotRedirect(resp);
         resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadFromJsonAsync<TcgdexSetDetail>(JsonOptions, ct);
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);
+        return JsonSerializer.Deserialize<TcgdexSetDetail>(bytes, JsonOptions);
     }
 
     public async Task<TcgdexCard?> GetCardAsync(string cardId, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cardId);
         var url = $"cards/{Uri.EscapeDataString(cardId.Trim())}";
-        using var resp = await _http.GetAsync(url, ct);
+        using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (resp.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
+        ImportHttpGuard.EnsureNotRedirect(resp);
         resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadFromJsonAsync<TcgdexCard>(JsonOptions, ct);
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);
+        return JsonSerializer.Deserialize<TcgdexCard>(bytes, JsonOptions);
     }
 
     public async Task<IReadOnlyList<TcgdexSerieResume>> GetSeriesAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("Fetching Pokemon series list from TCGdex...");
-        var series = await _http.GetFromJsonAsync<List<TcgdexSerieResume>>("series", JsonOptions, ct);
+        var bytes = await ImportHttpGuard.GetBytesWithLimitAsync(
+            _http,
+            new Uri(_http.BaseAddress!, "series"),
+            ImportHttpGuard.DefaultMaxJsonBytes,
+            ct);
+        var series = JsonSerializer.Deserialize<List<TcgdexSerieResume>>(bytes, JsonOptions);
         return series ?? (IReadOnlyList<TcgdexSerieResume>)Array.Empty<TcgdexSerieResume>();
     }
 }

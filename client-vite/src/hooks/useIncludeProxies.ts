@@ -11,33 +11,44 @@ function parseBoolean(value: string | null | undefined): boolean | null {
 
 function readStoredIncludeProxies(): boolean {
   if (typeof window === "undefined") return false;
-  const stored = window.localStorage.getItem(LS_INCLUDE_PROXIES_KEY);
-  return parseBoolean(stored) ?? false;
+  try {
+    return parseBoolean(window.localStorage.getItem(LS_INCLUDE_PROXIES_KEY)) ?? false;
+  } catch {
+    return false;
+  }
 }
 
+function writeStoredIncludeProxies(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, value ? "1" : "0");
+  } catch {
+    // Ignore storage quota / privacy mode errors
+  }
+}
+
+/**
+ * Persists the "include proxies" toggle in both the URL query string and localStorage.
+ */
 export function useIncludeProxies(): [boolean, (next: boolean) => void] {
   const [queryValue, setQueryValue] = useQueryState("includeProxies", "");
-  const [includeProxies, setIncludeProxies] = useState(() => {
-    const fromQuery = parseBoolean(queryValue);
-    if (fromQuery != null) return fromQuery;
-    return readStoredIncludeProxies();
-  });
+  const parsedQuery = parseBoolean(queryValue);
+  const [storedValue, setStoredValue] = useState<boolean>(() =>
+    parsedQuery !== null ? parsedQuery : readStoredIncludeProxies()
+  );
+
+  const includeProxies = parsedQuery ?? storedValue;
 
   useEffect(() => {
-    const parsed = parseBoolean(queryValue);
-    if (parsed == null) return;
-    setIncludeProxies(parsed);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, parsed ? "1" : "0");
+    if (parsedQuery !== null) {
+      writeStoredIncludeProxies(parsedQuery);
     }
-  }, [queryValue]);
+  }, [parsedQuery]);
 
   const update = useCallback(
     (next: boolean) => {
-      setIncludeProxies(next);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LS_INCLUDE_PROXIES_KEY, next ? "1" : "0");
-      }
+      setStoredValue(next);
+      writeStoredIncludeProxies(next);
       setQueryValue(next ? "1" : "");
     },
     [setQueryValue]

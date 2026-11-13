@@ -22,4 +22,3 @@ internal static class PredicateBuilder
             => node == source ? target : base.VisitParameter(node);
     }
 }
-

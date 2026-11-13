@@ -18,12 +18,11 @@ Location: `client-vite/src/features/cards/filters/useCardFilters.ts`
 This is the **single source of truth** for all filter state. It manages:
 
 - `q`: text search query (string)
-- `games`: selected games (string[])
-- `sets`: selected sets (string[])
-- `rarities`: selected rarities (string[])
-- `page`: current page number (number)
-- `pageSize`: items per page (number)
-- `sort`: sort field (string | undefined)
+- `games`, `sets`, `rarities`, `types`, `arenas`: multi-select filter arrays (`string[]`)
+- `aspects`, `aspectMethod`, `traits`, `traitMethod`, `keywords`, `keywordMethod`: SWU multi-select filters with `"or" | "and" | "exclude"` match method
+- SWCCG & Pokémon-specific filters: `side`, `personas`, `subTypes`, `destinies`, `deploys`, `forfeits`, `powers`, `abilities`, `lightSideIcons`, `darkSideIcons`, `hps`, `stages`
+- `page`, `pageSize`, `sort`: pagination and sort state
+- `clearAll()`: resets all active filters
 
 **Features:**
 
@@ -64,18 +63,7 @@ const { data, isLoading, isError, error } = usePrintings(filters);
 
 Location: `client-vite/src/features/printings/api/usePrintings.ts`
 
-Converts CardFilters to API query format:
-
-```tsx
-const query: PrintingQuery = {
-  q: filters.q || undefined,
-  game: filters.games.length > 0 ? filters.games : undefined,
-  set: filters.sets.length > 0 ? filters.sets : undefined,
-  rarity: filters.rarities.length > 0 ? filters.rarities : undefined,
-  page: filters.page,
-  pageSize: filters.pageSize,
-};
-```
+Converts `CardFilters` (and optional `availableAspects`) to `PrintingQuery` format, setting `uniqueCards: true`, capping `pageSize` at `500`, and forwarding all core, SWU, SWCCG, and Pokémon filter fields (`q`, `game`, `set`, `rarity`, `type`, `arena`, `aspect`, `aspectMethod`, `trait`, `traitMethod`, `keyword`, `keywordMethod`, `side`, `persona`, `subType`, `destiny`, `deploy`, `forfeit`, `power`, `ability`, `lightSideIcon`, `darkSideIcon`, `hp`, `stage`, `sort`, `page`, `pageSize`).
 
 ## Data Flow
 
@@ -96,24 +84,18 @@ User Action → Local State (immediate)
 ### Setting a single filter
 
 ```tsx
-setFilters((prev) => ({ ...prev, games: ["Magic"], page: 1 }));
+setFilters((prev) => ({ ...prev, games: ["Star Wars: Unlimited"], page: 1 }));
 ```
 
 ### Updating search text (debounced in component)
 
 ```tsx
 const [searchInput, setSearchInput] = useState(filters.q);
-const setSearch = useDebouncedCallback((q: string) => {
-  setFilters((prev) => ({ ...prev, q, page: 1 }));
-}, 250);
+const debouncedSearch = useDebounce(searchInput, 250);
 
-<input
-  value={searchInput}
-  onChange={(e) => {
-    setSearchInput(e.target.value);
-    setSearch(e.target.value);
-  }}
-/>;
+useEffect(() => {
+  setFilters((prev) => ({ ...prev, q: debouncedSearch, page: 1 }));
+}, [debouncedSearch, setFilters]);
 ```
 
 ### Clearing filters

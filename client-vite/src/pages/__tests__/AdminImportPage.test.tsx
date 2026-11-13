@@ -84,6 +84,9 @@ describe("AdminImportPage", () => {
       if (url === "admin/sync/star-wars-unlimited/status") {
         return Promise.resolve({ data: defaultSyncStatus });
       }
+      if (url === "admin/sync/session") {
+        return Promise.resolve({ data: { authenticated: true, csrfToken: "test-csrf" } });
+      }
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
@@ -151,6 +154,9 @@ describe("AdminImportPage", () => {
       if (url === "admin/sync/star-wars-unlimited/status") {
         return Promise.resolve({ data: defaultSyncStatus });
       }
+      if (url === "admin/sync/session") {
+        return Promise.resolve({ data: { authenticated: true, csrfToken: "test-csrf" } });
+      }
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });
 
@@ -206,6 +212,9 @@ describe("AdminImportPage", () => {
       }
       if (url === "admin/sync/star-wars-unlimited/status") {
         return Promise.resolve({ data: defaultSyncStatus });
+      }
+      if (url === "admin/sync/session") {
+        return Promise.resolve({ data: { authenticated: true, csrfToken: "test-csrf" } });
       }
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     });

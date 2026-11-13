@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { ProblemDetailsError } from "@/lib/problemDetails";
 import { fetchCollection, type CollectionQueryParams } from "../api";
 
@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe("collection api", () => {
   it("wraps validation errors in ProblemDetailsError", async () => {
-    vi.spyOn(api, "get").mockRejectedValue({
+    vi.spyOn(http, "get").mockRejectedValue({
       isAxiosError: true,
       toJSON: () => ({}),
       message: "Bad Request",

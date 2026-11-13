@@ -2,16 +2,19 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace api.Infrastructure.Auth;
 
-internal sealed class AdminSyncAntiforgeryFilter(IAntiforgery antiforgery) : IAsyncAuthorizationFilter
+internal sealed class AdminSyncAntiforgeryFilter(
+    IAntiforgery antiforgery,
+    ProblemDetailsFactory problemDetailsFactory) : IAsyncAuthorizationFilter
 {
-    /// <summary>Protects sync browser mutations while preserving authenticated server token clients.</summary>
+    /// <summary>Protects admin browser mutations while preserving authenticated server token clients.</summary>
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var request = context.HttpContext.Request;
-        if (!request.Path.StartsWithSegments(AdminSession.Path) ||
+        if (!request.Path.StartsWithSegments("/api/admin") ||
             HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) ||
             HttpMethods.IsOptions(request.Method) ||
             context.HttpContext.User.Identities.Any(identity =>
@@ -27,15 +30,20 @@ internal sealed class AdminSyncAntiforgeryFilter(IAntiforgery antiforgery) : IAs
             {
                 context.HttpContext.User = session.Principal!;
             }
+            else if (!request.Path.StartsWithSegments("/api/admin/sync/session"))
+            {
+                return;
+            }
+
             await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
         catch (AntiforgeryValidationException)
         {
-            context.Result = new BadRequestObjectResult(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Invalid request verification token."
-            });
+            var problem = problemDetailsFactory.CreateProblemDetails(
+                context.HttpContext,
+                StatusCodes.Status400BadRequest,
+                title: "Invalid request verification token.");
+            context.Result = new BadRequestObjectResult(problem);
         }
     }
 }

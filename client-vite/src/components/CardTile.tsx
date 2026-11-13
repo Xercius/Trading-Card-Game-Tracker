@@ -37,25 +37,30 @@ export default function CardTile({ card, onClick, className }: Props) {
       tabIndex={0}
       onClick={() => onClick?.(card)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick?.(card);
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.(card);
+        }
       }}
       aria-label={ariaLabel}
     >
-      <div className="w-full overflow-hidden rounded-2xl bg-muted">
-        {card.imageUrl ? (
+      {card.imageUrl ? (
+        <div className="w-full overflow-hidden rounded-2xl bg-muted">
           <img
             loading="lazy"
             decoding="async"
             src={resolveImageUrl(card.imageUrl)} // ← normalize image path here
             alt=""
-            className="block h-auto w-full object-contain"
+            className="block w-full h-auto object-contain"
           />
-        ) : (
-          <div className="aspect-[63/88] flex w-full items-center justify-center text-xs text-muted-foreground">
+        </div>
+      ) : (
+        <div className="aspect-[63/88] w-full overflow-hidden rounded-2xl bg-muted">
+          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
             No image
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

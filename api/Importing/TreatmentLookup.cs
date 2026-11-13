@@ -102,9 +102,9 @@ internal static class TreatmentLookup
             return;
         }
 
-        var game = card.Game ?? (card.GameId.HasValue
-            ? db.Games.Local.FirstOrDefault(candidate => candidate.Id == card.GameId.Value)
-                ?? db.Games.Find(card.GameId.Value)
+        var game = card.Game ?? (card.GameId > 0
+            ? db.Games.Local.FirstOrDefault(candidate => candidate.Id == card.GameId)
+                ?? db.Games.Find(card.GameId)
             : null);
         if (game is null)
             return;

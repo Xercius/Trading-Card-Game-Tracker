@@ -14,11 +14,13 @@ using WishlistItemDto = api.Features.Wishlists.Dtos.WishlistItemResponse;
 namespace api.Features.Wishlists;
 
 [ApiController]
+[Route("api/wishlists")]
 [Route("api/wishlist")]
 public class WishlistsController : ControllerBase
 {
     private const int DefaultPageNumber = 1;
     private const int DefaultPageSize = 50;
+    private const int MaxPageSize = 100;
     private const int UserId = DbSeeder.DefaultUserId;
 
     private readonly AppDbContext _db;
@@ -45,6 +47,7 @@ public class WishlistsController : ControllerBase
     {
         if (page <= 0) page = DefaultPageNumber;
         if (pageSize <= 0) pageSize = DefaultPageSize;
+        if (pageSize > MaxPageSize) pageSize = MaxPageSize;
 
         var ct = HttpContext.RequestAborted;
 
@@ -287,8 +290,12 @@ public class WishlistsController : ControllerBase
         [FromQuery] string? name,
         [FromQuery] int? cardPrintingId,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        int? userId = null)
     {
+        if (userId is { } requestedUserId && requestedUserId != UserId)
+            return this.CreateValidationProblem("userId", $"Wishlist access is only supported for user {UserId}.");
+
         var (pageResult, error) = await GetAllCore(game, set, rarity, name, cardPrintingId, page, pageSize);
         if (error is not null) return error;
         return Ok(pageResult);

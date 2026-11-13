@@ -16,4 +16,4 @@ applyTo: "api.Tests/**,client-vite/src/**/__tests__/**,client-vite/src/**/*.test
 ## Frontend (Vitest + React Testing Library)
 - Place tests in `__tests__/` next to the unit, named `<Name>.test.tsx` / `<hook>.test.ts`.
 - Query by role, then label, then text; use `getByTestId` only as a last resort.
-- Mock network at the API boundary with `vi.mock` of the `features/**/api` module or `@/lib/api`/`lib/http` (msw is not installed; ask before adding it). Wrap components in a test `QueryClientProvider` with `retry: false`; use `renderHook` with wrappers for hooks.
+- Mock network at the API boundary with `vi.mock` of the `features/**/api` module or `@/lib/http` (msw is not installed; ask before adding it). Wrap components in a test `QueryClientProvider` with `retry: false`; use `renderHook` with wrappers for hooks.

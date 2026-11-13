@@ -3,14 +3,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace api.Features.Health;
 
+/// <summary>
+/// Health check endpoint.
+/// </summary>
 [ApiController]
 [Route("api/health")]
-public sealed class HealthController : ControllerBase
+public sealed class HealthController(TimeProvider timeProvider) : ControllerBase
 {
+    /// <summary>Returns the current service health status and UTC timestamp.</summary>
     [HttpGet]
     [AllowAnonymous]
-    public ActionResult<object> Get()
+    public ActionResult<HealthResponse> Get()
     {
-        return Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow });
+        return Ok(new HealthResponse("healthy", timeProvider.GetUtcNow()));
     }
 }
+
+/// <summary>Response payload for <see cref="HealthController.Get"/>.</summary>
+public sealed record HealthResponse(string Status, DateTimeOffset Timestamp);

@@ -1,13 +1,7 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  keepPreviousData,
-  type QueryKey,
-} from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import http from "@/lib/http";
 import { toProblemDetailsError } from "@/lib/problemDetails";
-import { DEFAULT_PAGE_SIZE, STALE_TIME_MS, MIN_QTY, MAX_QTY } from "@/constants";
+import { DEFAULT_PAGE_SIZE, STALE_TIME_MS } from "@/constants";
 
 export type CollectionItem = {
   cardPrintingId: number;
@@ -66,7 +60,7 @@ export const collectionKeys = {
 export async function fetchCollection(params: CollectionQueryParams) {
   const { page, pageSize = DEFAULT_PAGE_SIZE, filters } = params;
   try {
-    const response = await api.get<Paged<CollectionItem>>("collection", {
+    const response = await http.get<Paged<CollectionItem>>("collection", {
       params: {
         page,
         pageSize,
@@ -97,152 +91,6 @@ export async function fetchAllCollection(params: CollectionQueryParams): Promise
   return items;
 }
 
-export function useCollectionQuery(params: CollectionQueryParams) {
-  return useQuery({
-    queryKey: collectionKeys.list(params),
-    queryFn: () => {
-      if (!params.userId) throw new Error("User not selected");
-      return fetchCollection(params);
-    },
-    enabled: !!params.userId,
-    staleTime: STALE_TIME_MS,
-    placeholderData: keepPreviousData,
-  });
-}
-
-type SetOwnedProxyVariables = {
-  printingId: number;
-  ownedQty: number;
-  proxyQty: number;
-};
-
-type MutationContext = {
-  previous?: Paged<CollectionItem>;
-};
-
-function clampQuantity(value: number) {
-  if (!Number.isFinite(value)) return MIN_QTY;
-  const intValue = Math.trunc(value);
-  return Math.min(MAX_QTY, Math.max(MIN_QTY, intValue));
-}
-
-export function useSetOwnedProxyMutation(queryKey: QueryKey) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (variables: SetOwnedProxyVariables) => {
-      try {
-        await api.put(`collection/${variables.printingId}`, {
-          ownedQty: variables.ownedQty,
-          proxyQty: variables.proxyQty,
-        });
-        return variables;
-      } catch (error) {
-        throw toProblemDetailsError(error);
-      }
-    },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Paged<CollectionItem>>(queryKey);
-      if (!previous) return {} satisfies MutationContext;
-
-      const nextItems = previous.items.map((item) => {
-        if (item.cardPrintingId !== variables.printingId) return item;
-        const ownedQty = clampQuantity(variables.ownedQty);
-        const proxyQty = clampQuantity(variables.proxyQty);
-        return {
-          ...item,
-          quantityOwned: ownedQty,
-          quantityProxyOwned: proxyQty,
-          availability: ownedQty,
-          availabilityWithProxies: ownedQty + proxyQty,
-        } satisfies CollectionItem;
-      });
-
-      queryClient.setQueryData(queryKey, {
-        ...previous,
-        items: nextItems,
-      });
-
-      return { previous } satisfies MutationContext;
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-}
-
-type BulkUpdateVariables = {
-  items: Array<{ printingId: number; ownedDelta: number; proxyDelta: number }>;
-};
-
-export function useBulkUpdateMutation(queryKey: QueryKey) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (variables: BulkUpdateVariables) => {
-      try {
-        await api.patch("collection/bulk", { items: variables.items });
-        return variables.items;
-      } catch (error) {
-        throw toProblemDetailsError(error);
-      }
-    },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Paged<CollectionItem>>(queryKey);
-      if (!previous) return {} satisfies MutationContext;
-
-      const deltaMap = new Map<number, { ownedDelta: number; proxyDelta: number }>();
-      for (const item of variables.items) {
-        const existing = deltaMap.get(item.printingId);
-        if (existing) {
-          existing.ownedDelta += item.ownedDelta;
-          existing.proxyDelta += item.proxyDelta;
-        } else {
-          deltaMap.set(item.printingId, {
-            ownedDelta: item.ownedDelta,
-            proxyDelta: item.proxyDelta,
-          });
-        }
-      }
-
-      const nextItems = previous.items.map((item) => {
-        const delta = deltaMap.get(item.cardPrintingId);
-        if (!delta) return item;
-
-        const ownedQty = clampQuantity(item.quantityOwned + delta.ownedDelta);
-        const proxyQty = clampQuantity(item.quantityProxyOwned + delta.proxyDelta);
-        return {
-          ...item,
-          quantityOwned: ownedQty,
-          quantityProxyOwned: proxyQty,
-          availability: ownedQty,
-          availabilityWithProxies: ownedQty + proxyQty,
-        } satisfies CollectionItem;
-      });
-
-      queryClient.setQueryData(queryKey, {
-        ...previous,
-        items: nextItems,
-      });
-
-      return { previous } satisfies MutationContext;
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-}
-
 export type UserCardQuantities = {
   cardPrintingId: number;
   quantityOwned: number;
@@ -252,7 +100,7 @@ export type UserCardQuantities = {
 
 export async function fetchPrintingQuantities(printingId: number): Promise<UserCardQuantities> {
   try {
-    const response = await api.get<UserCardQuantities>(`collection/${printingId}`);
+    const response = await http.get<UserCardQuantities>(`collection/${printingId}`);
     return response.data;
   } catch (error) {
     throw toProblemDetailsError(error);
@@ -280,7 +128,7 @@ export function useSetCardQuantitiesMutation() {
   return useMutation({
     mutationFn: async (variables: SetCardQuantitiesVariables) => {
       try {
-        await api.post("collection", {
+        await http.post("collection", {
           cardPrintingId: variables.printingId,
           quantityOwned: variables.quantityOwned ?? 0,
           quantityWanted: variables.quantityWanted ?? 0,
@@ -319,7 +167,7 @@ export function useBatchSetCollectionMutation() {
   return useMutation({
     mutationFn: async (items: BatchSetItem[]) => {
       try {
-        await api.post("collection/batch-set", { items });
+        await http.post("collection/batch-set", { items });
         return items;
       } catch (error) {
         throw toProblemDetailsError(error);
@@ -364,7 +212,7 @@ export async function fetchCollectionSetsSummary(
   game?: string
 ): Promise<CollectionSetSummaryResponse> {
   try {
-    const response = await api.get<CollectionSetSummaryResponse>("collection/sets-summary", {
+    const response = await http.get<CollectionSetSummaryResponse>("collection/sets-summary", {
       params: { game: game || undefined },
     });
     return response.data;

@@ -21,7 +21,7 @@ namespace api.Features.Cards.Dtos;
 /// 
 /// This query model is bound from query string parameters using [FromQuery] attribute.
 /// </remarks>
-public sealed class ListPrintingsQuery
+public sealed record ListPrintingsQuery
 {
     /// <summary>
     /// Optional filter by game name (e.g., "Magic", "Lorcana", "Star Wars Unlimited").

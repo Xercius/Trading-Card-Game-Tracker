@@ -4,8 +4,8 @@ const { getMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({
-  api: { get: getMock },
+vi.mock("@/lib/http", () => ({
+  default: { get: getMock },
 }));
 
 import { fetchCardsPage } from "../list";

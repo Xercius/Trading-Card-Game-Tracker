@@ -6,8 +6,8 @@ public sealed class Card
 {
     [Key]
     public int Id { get; set; }
-    public int? GameId { get; set; }
-    public Game? Game { get; set; }
+    public int GameId { get; set; }
+    public Game Game { get; set; } = null!;
     public required string Name { get; set; } // Name of card
     public string? Text { get; set; } // Optional rules text
     public string? TextStyled { get; set; }
@@ -38,7 +38,6 @@ public sealed class Card
     public string? Ferocity { get; set; }
     public int? Politics { get; set; }
     public string? Persona { get; set; }
-    [MaxLength(32)]
     public string? Stage { get; set; }
     public string? Lore { get; set; }
     public string? ExtraCardDataJson { get; set; }

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useId } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchPrintings, type PrintingListItem } from "@/features/printings/api/printings";
 import { useGame } from "@/state/useGame";
 import { resolveImageUrl } from "@/lib/http";
+import { useDebounce } from "@/hooks/useDebounce";
 
 type MoxfieldCardSearchProps = {
   placeholder?: string;
@@ -16,9 +18,7 @@ export default function MoxfieldCardSearch({
 }: MoxfieldCardSearchProps) {
   const { activeGame } = useGame();
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedTerm, setDebouncedTerm] = useState("");
-  const [results, setResults] = useState<PrintingListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const debouncedTerm = useDebounce(searchTerm.trim(), 250);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
@@ -26,52 +26,28 @@ export default function MoxfieldCardSearch({
   const listRef = useRef<HTMLUListElement>(null);
   const listboxId = useId();
 
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedTerm(searchTerm.trim());
-    }, 250);
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
+  const { data: searchData, isFetching: isLoading } = useQuery({
+    queryKey: ["printings-quick-search", activeGame ?? "all", debouncedTerm],
+    queryFn: () =>
+      fetchPrintings({
+        q: debouncedTerm,
+        game: activeGame ? [activeGame] : undefined,
+        pageSize: 15,
+      }),
+    enabled: debouncedTerm.length >= 2,
+    staleTime: 30_000,
+  });
 
-  // Execute query when debounced term changes
+  const results = debouncedTerm.length >= 2 ? (searchData?.items ?? []) : [];
+
   useEffect(() => {
-    if (!debouncedTerm || debouncedTerm.length < 2) {
-      setResults([]);
-      setIsLoading(false);
+    if (debouncedTerm.length >= 2 && searchData) {
+      setIsOpen(true);
+      setHighlightedIndex(0);
+    } else if (debouncedTerm.length < 2) {
       setIsOpen(false);
-      return;
     }
-
-    let isCancelled = false;
-    setIsLoading(true);
-
-    fetchPrintings({
-      q: debouncedTerm,
-      game: activeGame ? [activeGame] : undefined,
-      pageSize: 15,
-    })
-      .then((res) => {
-        if (!isCancelled) {
-          setResults(res.items);
-          setIsOpen(true);
-          setHighlightedIndex(0);
-        }
-      })
-      .catch((err) => {
-        if (!isCancelled) {
-          console.error("[MoxfieldCardSearch] search failed:", err);
-          setResults([]);
-        }
-      })
-      .finally(() => {
-        if (!isCancelled) setIsLoading(false);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [debouncedTerm, activeGame]);
+  }, [debouncedTerm, searchData]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -185,7 +161,6 @@ export default function MoxfieldCardSearch({
             type="button"
             onClick={() => {
               setSearchTerm("");
-              setResults([]);
               setIsOpen(false);
             }}
             className="absolute right-2 text-zinc-400 hover:text-white"
@@ -236,10 +211,11 @@ export default function MoxfieldCardSearch({
                         alt=""
                         className="h-8 w-6 shrink-0 rounded object-cover border border-white/10"
                         loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="h-8 w-6 shrink-0 rounded bg-zinc-800 border border-white/10 flex items-center justify-center text-[10px] text-zinc-400">
-                        SWU
+                        {item.game?.slice(0, 3).toUpperCase() || "TCG"}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">

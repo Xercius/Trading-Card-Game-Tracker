@@ -67,16 +67,9 @@ cp .env.example .env.local
 
 ### Environment variables reference
 
-- `VITE_API_BASE` (**preferred**) – API base URL. Can be absolute (`https://localhost:7226/api`) or relative (`/api`).
-- `VITE_API_BASE_URL` (**deprecated**) – legacy name still recognized for compatibility.
+- `VITE_API_BASE` (**preferred**) – API base URL. Can be absolute (`https://localhost:7226/api`) or relative (`/api`). Defaults to `/api`.
 - `VITE_DEV_SERVER_PROXY_TARGET` (optional) – Proxy target origin for the Vite proxy when `VITE_API_BASE` is relative. Defaults to `https://localhost:7226`.
-
-**Precedence:** When both `VITE_API_BASE` and the legacy `VITE_API_BASE_URL` are set, `VITE_API_BASE` (if non-empty) takes precedence. Prefer defining only `VITE_API_BASE` to avoid ambiguity.
-
-During development, the client logs warnings when:
-
-- neither `VITE_API_BASE` nor `VITE_API_BASE_URL` is defined (falls back to `/api`), or
-- only the deprecated `VITE_API_BASE_URL` is found.
+- `VITE_HTTP_ABS_OK` (optional) – Comma-separated allowlist of same-origin absolute request paths permitted without triggering dev baseURL warnings in `src/lib/http.ts`.
 
 ## Development
 
@@ -87,7 +80,19 @@ npm install
 npm run dev
 ```
 
-The app expects the API to be available at the configured base URL. Requests are issued through a shared Axios instance that automatically attaches a bearer token obtained when the user is selected.
+Available scripts:
+
+- `npm run dev` – start Vite dev server
+- `npm run lint:strict` – run ESLint with `--max-warnings=0`
+- `npm run typecheck` – run TypeScript (`tsc -b`)
+- `npm run format` / `npm run format:write` – check or fix Prettier formatting
+- `npm test` / `npm run test:coverage` – run Vitest unit/component tests
+- `npm run build` – typecheck and build production bundle
+- `npm run storybook` / `npm run build-storybook` – run or build Storybook
+
+Implemented routes (`src/routes/paths.ts`): `/cards`, `/collection`, `/collection/set/:setCode`, `/wishlist`, `/decks`, `/decks/:deckId`, `/value`, `/users`, `/admin/import`, `/admin/sync`, `/admin/swccg-sync`, and `/admin/pokemon-sync`.
+
+The app expects the API to be available at the configured base URL. Requests are issued through the shared Axios instance (`src/lib/http.ts`) in single-user mode, while admin sync endpoints use an HttpOnly `AdminSession` cookie and `X-Admin-CSRF` header.
 
 ### Verifying API connectivity
 

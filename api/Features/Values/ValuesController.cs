@@ -9,139 +9,98 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Values;
 
+/// <summary>Provides collection and deck valuation endpoints.</summary>
 [ApiController]
+[Route("api/values")]
 [Route("api/value")]
-public class ValuesController : ControllerBase
+public sealed class ValuesController(
+    AppDbContext db,
+    IMapper mapper,
+    TimeProvider timeProvider) : ControllerBase
 {
     private const int UserId = DbSeeder.DefaultUserId;
-    private readonly AppDbContext _db;
-    private readonly IMapper _mapper;
 
-    public ValuesController(AppDbContext db, IMapper mapper)
-    {
-        _db = db;
-        _mapper = mapper;
-    }
-
+    /// <summary>Records refreshed price snapshots for valid card printings in a game.</summary>
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromQuery] string? game, [FromBody] List<RefreshItemRequest>? items)
+    public async Task<IActionResult> Refresh(
+        [FromQuery] string? game,
+        [FromBody] List<RefreshItemRequest>? items,
+        CancellationToken ct = default)
     {
-        // ---- START existing refresh logic ----
-        if (string.IsNullOrWhiteSpace(game))
-        {
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["game"] = new[] { "The 'game' query parameter is required." }
-                },
-                detail: "The refresh request must specify a game.");
-        }
+        var validationError = ValidateRefreshRequest(game, items);
+        if (validationError is not null)
+            return validationError;
 
-        if (items is null)
-        {
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["items"] = new[] { "The request body must include an array of items." }
-                },
-                detail: "The refresh request body is missing.");
-        }
-
-        if (items.Count == 0)
-        {
-            return this.CreateValidationProblem(
-                new Dictionary<string, string[]>
-                {
-                    ["items"] = new[] { "At least one item must be provided." }
-                },
-                detail: "The refresh request must include at least one item.");
-        }
-
-        var normalizedGame = SqliteCaseNormalizer.Normalize(game);
-        var gameId = await _db.Games
+        var normalizedGame = SqliteCaseNormalizer.Normalize(game!);
+        var gameId = await db.Games
+            .AsNoTracking()
             .Where(candidate => candidate.NameNormalized == normalizedGame)
             .Select(candidate => (int?)candidate.Id)
-            .FirstOrDefaultAsync();
-        var cpIds = items.Select(i => i.CardPrintingId).ToHashSet();
-        var valid = await _db.CardPrintings.Include(cp => cp.Card)
-            .Where(cp => cpIds.Contains(cp.Id) && gameId.HasValue && cp.Card.GameId == gameId.Value)
-            .Select(cp => cp.Id)
-            .ToListAsync();
+            .FirstOrDefaultAsync(ct);
 
-        var validSet = valid.ToHashSet();
-        var now = DateTime.UtcNow;
+        var cpIds = items!.Select(i => i.CardPrintingId).ToHashSet();
+        var validSet = gameId.HasValue
+            ? (await db.CardPrintings
+                .AsNoTracking()
+                .Where(cp => cpIds.Contains(cp.Id) && cp.Card.GameId == gameId.Value)
+                .Select(cp => cp.Id)
+                .ToListAsync(ct)).ToHashSet()
+            : [];
 
-        foreach (var i in items.Where(x => validSet.Contains(x.CardPrintingId)))
+        var now = timeProvider.GetUtcNow();
+        foreach (var item in items!.Where(x => validSet.Contains(x.CardPrintingId)))
         {
-            _db.ValueHistories.Add(new ValueHistory
+            db.ValueHistories.Add(new ValueHistory
             {
                 ScopeType = ValueScopeType.CardPrinting,
-                ScopeId = i.CardPrintingId,
-                PriceCents = i.PriceCents,
+                ScopeId = item.CardPrintingId,
+                PriceCents = item.PriceCents,
                 AsOfUtc = now,
-                Source = string.IsNullOrWhiteSpace(i.Source) ? "manual" : i.Source!
+                Source = string.IsNullOrWhiteSpace(item.Source) ? "manual" : item.Source!
             });
         }
 
-        await _db.SaveChangesAsync();
-        var inserted = items.Count(x => validSet.Contains(x.CardPrintingId));
-        var ignored = items.Count - inserted;
-        _ = inserted;
-        _ = ignored;
-        // ---- END existing refresh logic ----
-
+        await db.SaveChangesAsync(ct);
         return NoContent();
     }
 
+    /// <summary>Gets historical value points for a card printing.</summary>
     [HttpGet("cardprinting/{id:int}")]
-    public async Task<ActionResult<SeriesResponse>> GetCardPrintingSeries(int id)
+    public async Task<ActionResult<SeriesResponse>> GetCardPrintingSeries(int id, CancellationToken ct = default)
     {
-        var exists = await _db.CardPrintings.AnyAsync(x => x.Id == id);
-        if (!exists)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"Card printing with id {id} was not found.");
-        }
+        if (!await db.CardPrintings.AsNoTracking().AnyAsync(x => x.Id == id, ct))
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Card printing with id {id} was not found.");
 
-        var histories = await _db.ValueHistories
+        var histories = await db.ValueHistories
+            .AsNoTracking()
             .Where(v => v.ScopeType == ValueScopeType.CardPrinting && v.ScopeId == id)
-            .OrderBy(v => v.AsOfUtc)
-            .ToListAsync();
+            .OrderBy(v => AppDbContext.SqliteJulianDay(v.AsOfUtc))
+            .ToListAsync(ct);
 
-        var points = _mapper.Map<List<SeriesPointResponse>>(histories);
-        return Ok(new SeriesResponse(id, points));
+        return Ok(new SeriesResponse(id, mapper.Map<List<SeriesPointResponse>>(histories)));
     }
 
-    /// <summary>
-    /// Computes the aggregate collection summary across owned printings, optionally scoped to a single game.
-    /// </summary>
-    /// <param name="game">Optional game name to filter owned printings by.</param>
+    /// <summary>Computes the aggregate collection summary across owned printings, optionally scoped to a single game.</summary>
     [HttpGet("collection/summary")]
-    public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary([FromQuery] string? game = null)
+    public async Task<ActionResult<CollectionSummaryResponse>> GetCollectionSummary(
+        [FromQuery] string? game = null,
+        CancellationToken ct = default)
     {
-        var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
+        var latest = await LatestPricesAsync(ValueScopeType.CardPrinting, ct);
 
-        var query = _db.UserCards
-            .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
+        var query = db.UserCards
+            .AsNoTracking()
             .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0);
 
         if (!string.IsNullOrWhiteSpace(game))
         {
             var normalizedGame = SqliteCaseNormalizer.Normalize(game);
-            query = query.Where(uc => uc.CardPrinting.Card.Game!.NameNormalized == normalizedGame);
+            query = query.Where(uc => uc.CardPrinting.Card.Game.NameNormalized == normalizedGame);
         }
 
         var data = await query
-            .Include(uc => uc.CardPrinting).ThenInclude(cp => cp.Card)
-            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
-            .Select(uc => new
-            {
-                Game = uc.CardPrinting.Card.Game!.Name,
-                PrintingId = uc.CardPrintingId,
-                Qty = uc.QuantityOwned
-            })
-            .ToListAsync();
+            .Select(uc => new { Game = uc.CardPrinting.Card.Game.Name, PrintingId = uc.CardPrintingId, Qty = uc.QuantityOwned })
+            .ToListAsync(ct);
 
         long total = 0;
         var perGame = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
@@ -151,45 +110,62 @@ public class ValuesController : ControllerBase
             if (!latest.TryGetValue(row.PrintingId, out var price)) continue;
             var add = price * row.Qty;
             total += add;
-            perGame[row.Game] = perGame.TryGetValue(row.Game, out var g) ? g + add : add;
+            perGame[row.Game] = perGame.TryGetValue(row.Game, out var existing) ? existing + add : add;
         }
 
-        var slices = perGame.Select(kv => new GameSliceResponse(kv.Key, kv.Value));
-        return Ok(new CollectionSummaryResponse(total, slices));
+        return Ok(new CollectionSummaryResponse(total, perGame.Select(kv => new GameSliceResponse(kv.Key, kv.Value))));
     }
 
+    /// <summary>Computes the total value of a deck from the latest printing prices.</summary>
     [HttpGet("deck/{deckId:int}")]
-    public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId)
+    public async Task<ActionResult<DeckSummaryResponse>> GetDeckValue(int deckId, CancellationToken ct = default)
     {
-        var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
-        if (deck is null)
-        {
-            return this.CreateProblem(
-                StatusCodes.Status404NotFound,
-                detail: $"Deck with id {deckId} was not found.");
-        }
+        if (!await db.Decks.AsNoTracking().AnyAsync(d => d.Id == deckId, ct))
+            return this.CreateProblem(StatusCodes.Status404NotFound, detail: $"Deck with id {deckId} was not found.");
 
-        var latest = await LatestPricesAsync(ValueScopeType.CardPrinting);
-
-        var rows = await _db.DeckCards
+        var latest = await LatestPricesAsync(ValueScopeType.CardPrinting, ct);
+        var rows = await db.DeckCards
+            .AsNoTracking()
             .Where(dc => dc.DeckId == deckId && dc.QuantityInDeck > 0)
             .Select(dc => new { dc.CardPrintingId, dc.QuantityInDeck })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         long total = 0;
         foreach (var r in rows)
+        {
             if (latest.TryGetValue(r.CardPrintingId, out var price))
                 total += price * r.QuantityInDeck;
+        }
 
         return Ok(new DeckSummaryResponse(deckId, total));
     }
 
-    private async Task<Dictionary<int, long>> LatestPricesAsync(ValueScopeType scope)
+    private IActionResult? ValidateRefreshRequest(string? game, List<RefreshItemRequest>? items)
     {
-        return await _db.ValueHistories
+        if (string.IsNullOrWhiteSpace(game))
+            return this.CreateValidationProblem(
+                new Dictionary<string, string[]>
+                {
+                    ["game"] = ["The 'game' query parameter is required."]
+                },
+                detail: "The refresh request must specify a game.");
+        if (items is null)
+            return this.CreateValidationProblem("items", "The request body must include an array of items.");
+        if (items.Count == 0)
+            return this.CreateValidationProblem("items", "At least one item must be provided.");
+        return null;
+    }
+
+    private async Task<Dictionary<int, long>> LatestPricesAsync(ValueScopeType scope, CancellationToken ct)
+    {
+        var rows = await db.ValueHistories
+            .AsNoTracking()
             .Where(v => v.ScopeType == scope)
+            .Select(v => new { v.ScopeId, v.AsOfUtc, v.PriceCents })
+            .ToListAsync(ct);
+
+        return rows
             .GroupBy(v => v.ScopeId)
-            .Select(g => g.OrderByDescending(v => v.AsOfUtc).First())
-            .ToDictionaryAsync(v => v.ScopeId, v => v.PriceCents);
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(v => v.AsOfUtc).First().PriceCents);
     }
 }

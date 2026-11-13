@@ -80,6 +80,7 @@ public class DecksController : ControllerBase
                     .ThenInclude(card => card.CardAspects)
                         .ThenInclude(ca => ca.Aspect)
             .AsNoTracking()
+            .AsSplitQuery()
             .ToListAsync(ct);
 
         return (deck, cards, null);
@@ -156,6 +157,7 @@ public class DecksController : ControllerBase
                         .ThenInclude(ca => ca.Aspect)
             .AsSplitQuery()
             .AsNoTracking()
+            .AsSplitQuery()
             .ToListAsync(ct);
 
         var cardsByDeck = deckCards.GroupBy(dc => dc.DeckId).ToDictionary(g => g.Key, g => g.ToList());
@@ -992,6 +994,7 @@ public class DecksController : ControllerBase
                     .ThenInclude(c => c.CardAspects)
                         .ThenInclude(ca => ca.Aspect)
             .AsNoTracking()
+            .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken);
 
         if (deckCard is null) return null;
@@ -1047,6 +1050,7 @@ public class DecksController : ControllerBase
         var ct = HttpContext.RequestAborted;
         var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
         var userCards = await _db.UserCards
+            .AsNoTracking()
             .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
@@ -1106,6 +1110,7 @@ public class DecksController : ControllerBase
         var ct = HttpContext.RequestAborted;
         var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
         var userCards = await _db.UserCards
+            .AsNoTracking()
             .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 

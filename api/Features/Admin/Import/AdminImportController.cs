@@ -7,6 +7,7 @@ using api.Infrastructure.Startup;
 using api.Models;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -15,6 +16,7 @@ namespace api.Features.Admin.Import;
 
 [ApiController]
 [Route("api/admin/import")]
+[Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
 public sealed class AdminImportController : ControllerBase
 {
     private const string SupportedImporterKey = "swu";
@@ -252,7 +254,7 @@ public sealed class AdminImportController : ControllerBase
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
                 {
-                    [field] = new[] { ex.Message }
+                    [field] = new[] { "Import failed. See server logs for details." }
                 },
                 title: "Import failed");
         }
@@ -375,7 +377,7 @@ public sealed class AdminImportController : ControllerBase
             return this.CreateValidationProblem(
                 new Dictionary<string, string[]>
                 {
-                    [field] = new[] { ex.Message }
+                    [field] = new[] { "Import failed. See server logs for details." }
                 },
                 title: "Import failed");
         }

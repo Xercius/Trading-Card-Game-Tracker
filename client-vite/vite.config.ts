@@ -4,7 +4,7 @@ import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiBase = env.VITE_API_BASE || env.VITE_API_BASE_URL || "";
+  const apiBase = env.VITE_API_BASE || "";
   const shouldProxy = !apiBase || apiBase.startsWith("/");
   const proxyTarget = env.VITE_DEV_SERVER_PROXY_TARGET || "https://localhost:7226";
 

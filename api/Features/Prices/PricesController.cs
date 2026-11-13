@@ -7,46 +7,39 @@ using System.Globalization;
 
 namespace api.Features.Prices;
 
+/// <summary>Provides price history and value timeline endpoints.</summary>
 [ApiController]
 [Route("api/prices")]
-public sealed class PricesController(AppDbContext db) : ControllerBase
+public sealed class PricesController(AppDbContext db, TimeProvider timeProvider) : ControllerBase
 {
     private const int DefaultHistoryDays = 30;
     private const int DefaultValueHistoryDays = 90;
     private const int UserId = DbSeeder.DefaultUserId;
-    private readonly AppDbContext _db = db;
 
+    /// <summary>Gets price history for a single card printing.</summary>
     [HttpGet("{printingId:int}/history")]
     public async Task<ActionResult<PriceHistoryResponse>> GetHistory(
         int printingId,
-        [FromQuery] int days = DefaultHistoryDays)
+        [FromQuery] int days = DefaultHistoryDays,
+        CancellationToken ct = default)
     {
         if (printingId <= 0)
-        {
             return this.CreateValidationProblem("printingId", "printingId must be positive.");
-        }
 
-        var exists = await _db.CardPrintings.AnyAsync(cp => cp.Id == printingId);
+        var exists = await db.CardPrintings.AsNoTracking().AnyAsync(cp => cp.Id == printingId, ct);
         if (!exists)
-        {
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Card printing not found.");
-        }
 
-        if (days <= 0) days = DefaultHistoryDays;
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var rangeStart = today.AddDays(-(days - 1));
-
-        var rawPoints = await _db.CardPriceHistories
+        var (rangeStart, _) = GetDateRange(days, DefaultHistoryDays);
+        var rawPoints = await db.CardPriceHistories
+            .AsNoTracking()
             .Where(v => v.CardPrintingId == printingId && v.CapturedAt >= rangeStart)
             .OrderBy(v => v.CapturedAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var grouped = rawPoints
             .GroupBy(v => v.CapturedAt)
-            .Select(g => g
-                .OrderByDescending(v => v.Id)
-                .First())
+            .Select(g => g.OrderByDescending(v => v.Id).First())
             .OrderBy(p => p.CapturedAt)
             .Select(p => new PricePointDto(
                 p.CapturedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -56,134 +49,102 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
         return Ok(new PriceHistoryResponse(grouped));
     }
 
+    /// <summary>Gets average daily price sparkline for a card across non-proxy printings.</summary>
     [HttpGet("/api/cards/{cardId:int}/sparkline")]
     public async Task<ActionResult<IReadOnlyList<DailyValuePointDto>>> GetCardSparkline(
         int cardId,
-        [FromQuery] int days = DefaultHistoryDays)
+        [FromQuery] int days = DefaultHistoryDays,
+        CancellationToken ct = default)
     {
         if (cardId <= 0)
-        {
             return this.CreateValidationProblem("cardId", "cardId must be positive.");
-        }
 
-        var cardExists = await _db.Cards.AnyAsync(c => c.Id == cardId);
-        if (!cardExists)
-        {
+        if (!await db.Cards.AsNoTracking().AnyAsync(c => c.Id == cardId, ct))
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Card not found.");
-        }
 
-        if (days <= 0) days = DefaultHistoryDays;
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var rangeStart = today.AddDays(-(days - 1));
-
-        var printingIds = await _db.CardPrintings
+        var (rangeStart, today) = GetDateRange(days, DefaultHistoryDays);
+        var printingIds = await db.CardPrintings
+            .AsNoTracking()
             .Where(cp => cp.CardId == cardId)
             .Where(cp => !EF.Functions.Like(cp.Treatment == null ? string.Empty : cp.Treatment.Name, "%proxy%"))
             .Select(cp => cp.Id)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         if (printingIds.Count == 0)
             return Ok(Array.Empty<DailyValuePointDto>());
 
-        var priceRows = await _db.CardPriceHistories
+        var priceRows = await db.CardPriceHistories
+            .AsNoTracking()
             .Where(p => printingIds.Contains(p.CardPrintingId) && p.CapturedAt >= rangeStart)
             .Select(p => new { p.CapturedAt, p.Price })
-            .ToListAsync();
+            .ToListAsync(ct);
 
-        var perDay = priceRows
-            .GroupBy(r => r.CapturedAt)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Average(x => x.Price));
-
-        var timeline = BuildTimeline(rangeStart, today, perDay);
-        return Ok(timeline);
+        var perDay = priceRows.GroupBy(r => r.CapturedAt).ToDictionary(g => g.Key, g => g.Average(x => x.Price));
+        return Ok(BuildTimeline(rangeStart, today, perDay));
     }
 
+    /// <summary>Gets the daily total value history of the user's non-proxy collection.</summary>
     [HttpGet("/api/collection/value/history")]
     public async Task<ActionResult<IReadOnlyList<DailyValuePointDto>>> GetCollectionValueHistory(
-        [FromQuery] int days = DefaultValueHistoryDays)
+        [FromQuery] int days = DefaultValueHistoryDays,
+        CancellationToken ct = default)
     {
-        if (days <= 0) days = DefaultValueHistoryDays;
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var rangeStart = today.AddDays(-(days - 1));
-
-        var ownedPrintings = await _db.UserCards
+        var (rangeStart, today) = GetDateRange(days, DefaultValueHistoryDays);
+        var quantityMap = await db.UserCards
+            .AsNoTracking()
             .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
-            .Where(uc => !EF.Functions.Like(uc.CardPrinting.Treatment == null
-                ? string.Empty
-                : uc.CardPrinting.Treatment.Name, "%proxy%"))
-            .Select(uc => new { uc.CardPrintingId, uc.QuantityOwned })
-            .ToListAsync();
+            .Where(uc => !EF.Functions.Like(uc.CardPrinting.Treatment == null ? string.Empty : uc.CardPrinting.Treatment.Name, "%proxy%"))
+            .ToDictionaryAsync(uc => uc.CardPrintingId, uc => uc.QuantityOwned, ct);
 
-        if (ownedPrintings.Count == 0)
-            return Ok(Array.Empty<DailyValuePointDto>());
-
-        var quantityMap = ownedPrintings.ToDictionary(x => x.CardPrintingId, x => x.QuantityOwned);
-        var printingIds = quantityMap.Keys.ToList();
-
-        var priceRows = await _db.CardPriceHistories
-            .Where(p => printingIds.Contains(p.CardPrintingId) && p.CapturedAt >= rangeStart)
-            .Select(p => new { p.CardPrintingId, p.CapturedAt, p.Price })
-            .ToListAsync();
-
-        var totals = new Dictionary<DateOnly, decimal>();
-        foreach (var row in priceRows)
-        {
-            if (!quantityMap.TryGetValue(row.CardPrintingId, out var qty) || qty <= 0)
-                continue;
-
-            var value = row.Price * qty;
-            if (totals.TryGetValue(row.CapturedAt, out var existing))
-                totals[row.CapturedAt] = existing + value;
-            else
-                totals[row.CapturedAt] = value;
-        }
-
-        var timeline = BuildTimeline(rangeStart, today, totals);
-        return Ok(timeline);
+        return Ok(await ComputeWeightedTimelineAsync(quantityMap, rangeStart, today, ct));
     }
 
+    /// <summary>Gets the daily total value history of a deck's non-proxy cards.</summary>
     [HttpGet("/api/decks/{deckId:int}/value/history")]
     public async Task<ActionResult<IReadOnlyList<DailyValuePointDto>>> GetDeckValueHistory(
         int deckId,
-        [FromQuery] int days = DefaultValueHistoryDays)
+        [FromQuery] int days = DefaultValueHistoryDays,
+        CancellationToken ct = default)
     {
         if (deckId <= 0)
-        {
             return this.CreateValidationProblem("deckId", "deckId must be positive.");
-        }
 
-        var deck = await _db.Decks.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deckId);
-        if (deck is null)
-        {
+        if (!await db.Decks.AsNoTracking().AnyAsync(d => d.Id == deckId, ct))
             return this.CreateProblem(StatusCodes.Status404NotFound, detail: "Deck not found.");
-        }
 
-        if (days <= 0) days = DefaultValueHistoryDays;
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var rangeStart = today.AddDays(-(days - 1));
-
-        var deckPrintings = await _db.DeckCards
+        var (rangeStart, today) = GetDateRange(days, DefaultValueHistoryDays);
+        var quantityMap = await db.DeckCards
+            .AsNoTracking()
             .Where(dc => dc.DeckId == deckId && dc.QuantityInDeck > 0)
             .Where(dc => dc.CardPrinting != null && !EF.Functions.Like(
                 dc.CardPrinting.Treatment == null ? string.Empty : dc.CardPrinting.Treatment.Name, "%proxy%"))
-            .Select(dc => new { dc.CardPrintingId, dc.QuantityInDeck })
-            .ToListAsync();
+            .ToDictionaryAsync(dc => dc.CardPrintingId, dc => dc.QuantityInDeck, ct);
 
-        if (deckPrintings.Count == 0)
-            return Ok(Array.Empty<DailyValuePointDto>());
+        return Ok(await ComputeWeightedTimelineAsync(quantityMap, rangeStart, today, ct));
+    }
 
-        var quantityMap = deckPrintings.ToDictionary(x => x.CardPrintingId, x => x.QuantityInDeck);
+    private (DateOnly RangeStart, DateOnly Today) GetDateRange(int days, int defaultDays)
+    {
+        if (days <= 0) days = defaultDays;
+        var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        return (today.AddDays(-(days - 1)), today);
+    }
+
+    private async Task<IReadOnlyList<DailyValuePointDto>> ComputeWeightedTimelineAsync(
+        IReadOnlyDictionary<int, int> quantityMap,
+        DateOnly rangeStart,
+        DateOnly today,
+        CancellationToken ct)
+    {
+        if (quantityMap.Count == 0)
+            return Array.Empty<DailyValuePointDto>();
+
         var printingIds = quantityMap.Keys.ToList();
-
-        var priceRows = await _db.CardPriceHistories
+        var priceRows = await db.CardPriceHistories
+            .AsNoTracking()
             .Where(p => printingIds.Contains(p.CardPrintingId) && p.CapturedAt >= rangeStart)
             .Select(p => new { p.CardPrintingId, p.CapturedAt, p.Price })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var totals = new Dictionary<DateOnly, decimal>();
         foreach (var row in priceRows)
@@ -191,15 +152,10 @@ public sealed class PricesController(AppDbContext db) : ControllerBase
             if (!quantityMap.TryGetValue(row.CardPrintingId, out var qty) || qty <= 0)
                 continue;
 
-            var value = row.Price * qty;
-            if (totals.TryGetValue(row.CapturedAt, out var existing))
-                totals[row.CapturedAt] = existing + value;
-            else
-                totals[row.CapturedAt] = value;
+            totals[row.CapturedAt] = totals.GetValueOrDefault(row.CapturedAt) + (row.Price * qty);
         }
 
-        var timeline = BuildTimeline(rangeStart, today, totals);
-        return Ok(timeline);
+        return BuildTimeline(rangeStart, today, totals);
     }
 
     private static IReadOnlyList<DailyValuePointDto> BuildTimeline(

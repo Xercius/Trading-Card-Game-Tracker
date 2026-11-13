@@ -31,14 +31,16 @@ internal sealed class SwccgSharedIdentity
         }
     }
 
-    internal CardPrinting? FindPrinting(string? cardUid, Set? set, string number)
+    internal CardPrinting? FindPrinting(string? cardUid, Set? set, string? number)
     {
         if (!string.IsNullOrWhiteSpace(cardUid) && _byUid.TryGetValue(cardUid.Trim(), out var byUid))
         {
             return byUid;
         }
 
-        if (set is not null && _bySetNumber.TryGetValue((set.Id, number.Trim()), out var bySetNum))
+        if (set is not null &&
+            !string.IsNullOrWhiteSpace(number) &&
+            _bySetNumber.TryGetValue((set.Id, number.Trim()), out var bySetNum))
         {
             return bySetNum;
         }

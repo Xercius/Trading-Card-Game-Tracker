@@ -5,23 +5,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api.Features.Users;
 
+/// <summary>
+/// Provides read-only access to application user profiles.
+/// </summary>
 [ApiController]
+[Route("api/users")]
 [Route("api/user")]
-public class UsersController : ControllerBase
+public sealed class UsersController(AppDbContext db) : ControllerBase
 {
-    private readonly AppDbContext _db;
-
-    public UsersController(AppDbContext db)
-    {
-        _db = db;
-    }
-
+    /// <summary>Gets a user profile by ID.</summary>
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetUser(int id, CancellationToken cancellationToken)
+    public async Task<ActionResult<UserResponse>> GetUser(int id, CancellationToken cancellationToken)
     {
-        var user = await _db.Users
+        var user = await db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+            .Where(u => u.Id == id)
+            .Select(u => new UserResponse(u.Id, u.Username, u.DisplayName, u.IsAdmin, u.CreatedUtc))
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (user is null)
         {
@@ -30,6 +30,14 @@ public class UsersController : ControllerBase
                 detail: $"User {id} was not found.");
         }
 
-        return Ok(new { user.Id, user.Username, user.DisplayName, user.IsAdmin, user.CreatedUtc });
+        return Ok(user);
     }
 }
+
+/// <summary>Public user profile DTO.</summary>
+public sealed record UserResponse(
+    int Id,
+    string Username,
+    string DisplayName,
+    bool IsAdmin,
+    DateTimeOffset CreatedUtc);

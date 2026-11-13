@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 import { fetchAllPrintings, type PrintingListItem } from "@/features/printings/api/printings";
 import { useBatchSetCollectionMutation, fetchAllCollection, type CollectionItem } from "./api";
 import { useUser } from "@/state/useUser";
@@ -56,7 +56,7 @@ export default function MassEntryModal({
   // Load sets for the active game when modal opens
   useEffect(() => {
     if (!open) return;
-    api
+    http
       .get("cards/facets", {
         params: { game: currentGame },
       })

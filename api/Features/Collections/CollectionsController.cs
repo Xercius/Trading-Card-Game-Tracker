@@ -60,6 +60,7 @@ public class CollectionsController : ControllerBase
     {
         if (page <= 0) page = DefaultPageNumber;
         if (pageSize <= 0) pageSize = DefaultPageSize;
+        if (pageSize > 100) pageSize = 100;
 
         var ct = HttpContext.RequestAborted;
 

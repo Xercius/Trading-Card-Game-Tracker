@@ -19,7 +19,7 @@ namespace api.Features.Cards.Dtos;
 /// - GET /api/cards - Card listing with virtualized pagination
 /// - Card search endpoints with large result sets
 /// </remarks>
-public sealed class CardListPageResponse
+public sealed record CardListPageResponse
 {
     /// <summary>
     /// Collection of card items for the current page/view.

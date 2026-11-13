@@ -1,12 +1,7 @@
-using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations;
-
 namespace api.Models;
 
-[Index(nameof(CardPrintingId), nameof(CapturedAt), IsUnique = true)]
 public class CardPriceHistory
 {
-    [Key]
     public int Id { get; set; }
 
     public int CardPrintingId { get; set; }

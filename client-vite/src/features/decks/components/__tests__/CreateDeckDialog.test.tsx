@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { fireEvent, waitFor, screen } from "@testing-library/react";
 import { CreateDeckDialog } from "../CreateDeckDialog";
-import { api } from "@/lib/api";
+import http from "@/lib/http";
 
 function createClient() {
   return new QueryClient({
@@ -33,7 +33,7 @@ describe("CreateDeckDialog", () => {
     const handleClose = vi.fn();
     const handleDeckCreated = vi.fn();
 
-    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+    const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 123,
         userId: 1,
@@ -94,7 +94,7 @@ describe("CreateDeckDialog", () => {
     const handleClose = vi.fn();
     const handleDeckCreated = vi.fn();
 
-    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+    const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 456,
         userId: 1,
