@@ -51,4 +51,25 @@ describe("EvolvesFromFilter", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear Evolves From filter" }));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
+
+  it("supports keyboard navigation with ArrowDown, Enter, and Escape", async () => {
+    vi.spyOn(cardsListApi, "fetchPokemonNames").mockResolvedValue(["Pikachu", "Pikachu V"]);
+    const onChange = vi.fn();
+
+    renderWithQuery(<EvolvesFromFilter onChange={onChange} />);
+    const input = screen.getByRole("combobox", { name: "Evolves From" });
+    fireEvent.change(input, { target: { value: "Pika" } });
+
+    await screen.findByRole("option", { name: "Pikachu V" });
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onChange).toHaveBeenCalledWith("Pikachu V");
+
+    fireEvent.change(input, { target: { value: "Pika" } });
+    await screen.findByRole("option", { name: "Pikachu" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
 });

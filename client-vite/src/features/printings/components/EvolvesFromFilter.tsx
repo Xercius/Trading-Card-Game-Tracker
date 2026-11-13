@@ -10,6 +10,54 @@ export type EvolvesFromFilterProps = {
   className?: string;
 };
 
+type SuggestionsListProps = {
+  listboxId: string;
+  results: string[];
+  highlightedIndex: number;
+  isFetching: boolean;
+  onHighlight: (index: number) => void;
+  onSelect: (name: string) => void;
+};
+
+function PokemonNameSuggestionsList({
+  listboxId,
+  results,
+  highlightedIndex,
+  isFetching,
+  onHighlight,
+  onSelect,
+}: SuggestionsListProps) {
+  return (
+    <ul
+      id={listboxId}
+      role="listbox"
+      className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-white/20 bg-[#1a1a1d] py-1 text-xs text-zinc-100 shadow-2xl"
+    >
+      {results.length === 0 ? (
+        <li className="px-3 py-2 text-zinc-400">
+          {isFetching ? "Searching Pokémon…" : "No matching Pokémon found"}
+        </li>
+      ) : (
+        results.map((name, index) => (
+          <li
+            key={name}
+            id={`${listboxId}-option-${index}`}
+            role="option"
+            aria-selected={index === highlightedIndex}
+            onMouseEnter={() => onHighlight(index)}
+            onClick={() => onSelect(name)}
+            className={`cursor-pointer px-3 py-1.5 transition-colors ${
+              index === highlightedIndex ? "bg-white/15 text-white" : "hover:bg-white/10"
+            }`}
+          >
+            {name}
+          </li>
+        ))
+      )}
+    </ul>
+  );
+}
+
 /**
  * Smart-search combobox for filtering Pokémon cards by evolutionary lineage.
  */
@@ -24,8 +72,7 @@ export function EvolvesFromFilter({ value, onChange, className = "" }: EvolvesFr
   const listboxId = useId();
 
   const displayText = isEditing ? draft : (value ?? "");
-  const trimmedTerm = draft.trim();
-  const debouncedTerm = useDebounce(trimmedTerm, 250);
+  const debouncedTerm = useDebounce(draft.trim(), 250);
 
   const { data: names = [], isFetching } = useQuery({
     queryKey: queryKeys.pokemonNames(debouncedTerm),
@@ -88,6 +135,10 @@ export function EvolvesFromFilter({ value, onChange, className = "" }: EvolvesFr
     }
   };
 
+  const showSuggestions = isOpen && isEditing && debouncedTerm.length >= 2;
+  const activeDescendant =
+    isOpen && highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined;
+
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
       <label htmlFor={inputId} className="mb-1 block text-xs font-semibold text-muted-foreground">
@@ -100,10 +151,9 @@ export function EvolvesFromFilter({ value, onChange, className = "" }: EvolvesFr
           value={displayText}
           placeholder="Search Pokémon… (e.g. Pika)"
           onChange={(e) => {
-            const next = e.target.value;
             setIsEditing(true);
-            setDraft(next);
-            setIsOpen(next.trim().length >= 2);
+            setDraft(e.target.value);
+            setIsOpen(e.target.value.trim().length >= 2);
             setHighlightedIndex(0);
           }}
           onFocus={() => {
@@ -114,9 +164,7 @@ export function EvolvesFromFilter({ value, onChange, className = "" }: EvolvesFr
           role="combobox"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
-          aria-activedescendant={
-            isOpen && highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined
-          }
+          aria-activedescendant={activeDescendant}
           aria-haspopup="listbox"
           aria-autocomplete="list"
         />
@@ -131,35 +179,15 @@ export function EvolvesFromFilter({ value, onChange, className = "" }: EvolvesFr
           </button>
         )}
       </div>
-
-      {isOpen && isEditing && debouncedTerm.length >= 2 && (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-white/20 bg-[#1a1a1d] py-1 text-xs text-zinc-100 shadow-2xl"
-        >
-          {results.length === 0 ? (
-            <li className="px-3 py-2 text-zinc-400">
-              {isFetching ? "Searching Pokémon…" : "No matching Pokémon found"}
-            </li>
-          ) : (
-            results.map((name, index) => (
-              <li
-                key={name}
-                id={`${listboxId}-option-${index}`}
-                role="option"
-                aria-selected={index === highlightedIndex}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onClick={() => selectName(name)}
-                className={`cursor-pointer px-3 py-1.5 transition-colors ${
-                  index === highlightedIndex ? "bg-white/15 text-white" : "hover:bg-white/10"
-                }`}
-              >
-                {name}
-              </li>
-            ))
-          )}
-        </ul>
+      {showSuggestions && (
+        <PokemonNameSuggestionsList
+          listboxId={listboxId}
+          results={results}
+          highlightedIndex={highlightedIndex}
+          isFetching={isFetching}
+          onHighlight={setHighlightedIndex}
+          onSelect={selectName}
+        />
       )}
     </div>
   );

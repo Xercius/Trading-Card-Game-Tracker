@@ -62,7 +62,10 @@ public sealed class PokemonFilterService
 
             ["Tera"] = p =>
                 EF.Functions.Like(p.Card.Name, "%Tera%") ||
-                (p.Card.Text != null && EF.Functions.Like(p.Card.Text, "%Tera%")),
+                (p.Card.Text != null &&
+                 (EF.Functions.Like(p.Card.Text, "%Tera Pokémon%") ||
+                  EF.Functions.Like(p.Card.Text, "%[Tera]%") ||
+                  EF.Functions.Like(p.Card.Text, "%Tera %"))),
 
             ["Ancient"] = p =>
                 EF.Functions.Like(p.Card.Name, "%Ancient%") ||
