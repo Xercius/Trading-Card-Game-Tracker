@@ -10,11 +10,11 @@ internal sealed class AdminSyncAntiforgeryFilter(
     IAntiforgery antiforgery,
     ProblemDetailsFactory problemDetailsFactory) : IAsyncAuthorizationFilter
 {
-    /// <summary>Protects sync browser mutations while preserving authenticated server token clients.</summary>
+    /// <summary>Protects admin browser mutations while preserving authenticated server token clients.</summary>
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var request = context.HttpContext.Request;
-        if (!request.Path.StartsWithSegments(AdminSession.Path) ||
+        if (!request.Path.StartsWithSegments("/api/admin") ||
             HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) ||
             HttpMethods.IsOptions(request.Method) ||
             context.HttpContext.User.Identities.Any(identity =>
@@ -30,6 +30,11 @@ internal sealed class AdminSyncAntiforgeryFilter(
             {
                 context.HttpContext.User = session.Principal!;
             }
+            else if (!request.Path.StartsWithSegments("/api/admin/sync/session"))
+            {
+                return;
+            }
+
             await antiforgery.ValidateRequestAsync(context.HttpContext);
         }
         catch (AntiforgeryValidationException)

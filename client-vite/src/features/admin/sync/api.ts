@@ -39,11 +39,17 @@ export const adminSyncKeys = {
 
 type AdminSession = { authenticated: boolean; csrfToken: string };
 const sessionRoute = "admin/sync/session";
-const credentials = { withCredentials: true };
+export const adminSessionConfig = { withCredentials: true };
+const credentials = adminSessionConfig;
+
+/** Fetches an antiforgery token for cookie-authenticated admin mutations. */
+export async function adminCsrfConfig() {
+  const { data } = await http.get<AdminSession>(sessionRoute, adminSessionConfig);
+  return { ...adminSessionConfig, headers: { "X-Admin-CSRF": data.csrfToken } };
+}
 
 async function csrfConfig() {
-  const { data } = await http.get<AdminSession>(sessionRoute, credentials);
-  return { ...credentials, headers: { "X-Admin-CSRF": data.csrfToken } };
+  return adminCsrfConfig();
 }
 
 /** Signs into the sync-only browser session without storing API credentials. */
@@ -53,7 +59,10 @@ export function useAdminSyncLoginMutation() {
     mutationFn: async (login: { username: string; password: string }) => {
       await http.post(sessionRoute, login, await csrfConfig());
     },
-    onSuccess: () => queryClient.resetQueries({ queryKey: adminSyncKeys.all }),
+    onSuccess: async () => {
+      await queryClient.resetQueries({ queryKey: adminSyncKeys.all });
+      await queryClient.resetQueries({ queryKey: ["admin", "import"] });
+    },
   });
 }
 
@@ -64,7 +73,10 @@ export function useAdminSyncLogoutMutation() {
     mutationFn: async () => {
       await http.delete(sessionRoute, await csrfConfig());
     },
-    onSuccess: () => queryClient.resetQueries({ queryKey: adminSyncKeys.all }),
+    onSuccess: async () => {
+      await queryClient.resetQueries({ queryKey: adminSyncKeys.all });
+      await queryClient.resetQueries({ queryKey: ["admin", "import"] });
+    },
   });
 }
 

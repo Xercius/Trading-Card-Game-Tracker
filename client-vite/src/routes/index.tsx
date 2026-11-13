@@ -64,27 +64,15 @@ const router = createBrowserRouter([
       },
       {
         path: paths.adminSync,
-        element: withBoundary(
-          <RequireAdmin>
-            <AdminSyncPanel />
-          </RequireAdmin>
-        ),
+        element: withBoundary(<AdminSyncPanel />),
       },
       {
         path: paths.adminSwccgSync,
-        element: withBoundary(
-          <RequireAdmin>
-            <AdminSwccgSyncPanel />
-          </RequireAdmin>
-        ),
+        element: withBoundary(<AdminSwccgSyncPanel />),
       },
       {
         path: paths.adminPokemonSync,
-        element: withBoundary(
-          <RequireAdmin>
-            <AdminPokemonSyncPanel />
-          </RequireAdmin>
-        ),
+        element: withBoundary(<AdminPokemonSyncPanel />),
       },
       { path: "*", element: withBoundary(<NotFoundPage />) },
     ],

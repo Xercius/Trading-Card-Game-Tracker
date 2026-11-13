@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import http from "@/lib/http";
 import { REQUEST_TIMEOUT_MS } from "@/constants";
+import { adminCsrfConfig, adminSessionConfig } from "@/features/admin/sync/api";
 import type {
   DryRunParams,
   ImportApplyResponse,
@@ -27,14 +28,19 @@ export function useImportOptions() {
   return useQuery<ImportOptionsResponse>({
     queryKey: ["admin", "import", "options"],
     queryFn: async () => {
-      const response = await http.get<ImportOptionsResponse>("admin/import/options");
+      const response = await http.get<ImportOptionsResponse>(
+        "admin/import/options",
+        adminSessionConfig
+      );
       return response.data;
     },
     staleTime: 5 * 60_000,
+    retry: false,
   });
 }
 
 async function postDryRun(params: DryRunParams) {
+  const csrf = await adminCsrfConfig();
   if (params.mode === "remote") {
     const response = await http.post<ImportPreviewResponse>(
       "admin/import/dry-run",
@@ -42,7 +48,7 @@ async function postDryRun(params: DryRunParams) {
         source: params.source,
         set: params.set,
       },
-      { timeout: REQUEST_TIMEOUT_MS }
+      { ...csrf, timeout: REQUEST_TIMEOUT_MS }
     );
     return response.data;
   }
@@ -51,7 +57,8 @@ async function postDryRun(params: DryRunParams) {
   form.append("source", params.source);
   form.append("file", params.file);
   const response = await http.post<ImportPreviewResponse>("admin/import/dry-run", form, {
-    headers: { "Content-Type": "multipart/form-data" },
+    ...csrf,
+    headers: { ...csrf.headers, "Content-Type": "multipart/form-data" },
     timeout: REQUEST_TIMEOUT_MS,
   });
   return response.data;
@@ -73,6 +80,7 @@ export function useDryRun(params: DryRunParams | null) {
 }
 
 async function postApply(params: DryRunParams) {
+  const csrf = await adminCsrfConfig();
   if (params.mode === "remote") {
     const response = await http.post<ImportApplyResponse>(
       "admin/import/apply",
@@ -80,7 +88,7 @@ async function postApply(params: DryRunParams) {
         source: params.source,
         set: params.set,
       },
-      { timeout: REQUEST_TIMEOUT_MS }
+      { ...csrf, timeout: REQUEST_TIMEOUT_MS }
     );
     return response.data;
   }
@@ -89,7 +97,8 @@ async function postApply(params: DryRunParams) {
   form.append("source", params.source);
   form.append("file", params.file);
   const response = await http.post<ImportApplyResponse>("admin/import/apply", form, {
-    headers: { "Content-Type": "multipart/form-data" },
+    ...csrf,
+    headers: { ...csrf.headers, "Content-Type": "multipart/form-data" },
     timeout: REQUEST_TIMEOUT_MS,
   });
   return response.data;

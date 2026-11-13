@@ -227,6 +227,11 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
                         Holo = true,
                         FirstEdition = true
                     },
+                    VariantsDetailed =
+                    [
+                        new() { Type = "holo" },
+                        new() { Type = "holo", Subtype = "1st-edition" }
+                    ],
                     Attacks =
                     [
                         new() { Cost = ["Fire", "Fire", "Fire", "Fire"], Name = "Fire Spin", Damage = "100", Effect = "Discard 2 Energy cards." }

@@ -1019,23 +1019,8 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
         }
 
         var variants = cardDetail.Variants;
-        if (variants == null)
-        {
-            list.Add(("Standard", false, null));
-            return list;
-        }
-
-        if (variants.Normal) list.Add(("Standard", false, null));
-        if (variants.Reverse) list.Add(("Reverse Holo", true, null));
-        if (variants.Holo) list.Add(("Holo", true, null));
-        if (variants.FirstEdition) list.Add(("1st Edition", variants.Holo, null));
-        if (variants.WPromo) list.Add(("W Promo", variants.Holo, null));
-
-        if (list.Count == 0)
-        {
-            list.Add(("Standard", false, null));
-        }
-
+        var defaultIsFoil = variants is not null && !variants.Normal && (variants.Holo || variants.Reverse);
+        list.Add(("Standard", defaultIsFoil, null));
         return list;
     }
 

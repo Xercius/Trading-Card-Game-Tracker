@@ -48,6 +48,7 @@ public sealed class TcgdexApiClient : IPokemonApiClient
         {
             return null;
         }
+        ImportHttpGuard.EnsureNotRedirect(resp);
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);
@@ -63,6 +64,7 @@ public sealed class TcgdexApiClient : IPokemonApiClient
         {
             return null;
         }
+        ImportHttpGuard.EnsureNotRedirect(resp);
         resp.EnsureSuccessStatusCode();
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
         var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);

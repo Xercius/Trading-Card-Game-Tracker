@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/select";
 import { IMPORT_MAX_ROWS_PREVIEW, UPLOAD_MAX_SIZE_MB } from "@/constants";
 import { useApply, useDryRun, useImportOptions } from "@/features/admin/import/hooks";
+import { AdminSyncLoginCard } from "@/features/admin/sync/AdminSyncLoginCard";
 import AdminSyncPanel from "@/features/admin/sync/AdminSyncPanel";
+import { isAdminSyncUnauthorized, useAdminSyncLoginMutation } from "@/features/admin/sync/api";
 import type {
   DryRunParams,
   ImportPreviewResponse,
@@ -38,7 +40,8 @@ export default function AdminImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const { data: options, isLoading, isError } = useImportOptions();
+  const { data: options, isLoading, isError, error: optionsError } = useImportOptions();
+  const login = useAdminSyncLoginMutation();
   const sources = (options?.sources ?? EMPTY_SOURCES).filter(
     (source) => source.importerKey.toLowerCase() === "swu"
   );
@@ -88,6 +91,23 @@ export default function AdminImportPage() {
     setPreview(null);
     setDryRunParams(null);
   }, [mode]);
+
+  if (
+    isAdminSyncUnauthorized(optionsError) ||
+    isAdminSyncUnauthorized(dryRun.error) ||
+    isAdminSyncUnauthorized(apply.error)
+  ) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <AdminSyncLoginCard
+          title="Admin Import"
+          isPending={login.isPending}
+          error={login.error}
+          onSubmit={(credentials) => login.mutateAsync(credentials)}
+        />
+      </div>
+    );
+  }
 
   const maxFileSize = UPLOAD_MAX_SIZE_MB * 1024 * 1024;
 

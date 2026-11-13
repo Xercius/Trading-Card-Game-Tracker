@@ -70,6 +70,21 @@ describe("GameProvider and useGame", () => {
     expect(screen.getByTestId("active-game")).toHaveTextContent("Magic: The Gathering");
   });
 
+  it("migrates legacy selected_game key to active_game once", () => {
+    localStorage.setItem("selected_game", "Lorcana");
+    vi.spyOn(cardsApi, "fetchCardGames").mockResolvedValue(["Star Wars Unlimited", "Lorcana"]);
+
+    renderWithClient(
+      <GameProvider>
+        <TestConsumer />
+      </GameProvider>
+    );
+
+    expect(screen.getByTestId("active-game")).toHaveTextContent("Lorcana");
+    expect(localStorage.getItem(STORAGE_KEY_ACTIVE_GAME)).toBe("Lorcana");
+    expect(localStorage.getItem("selected_game")).toBeNull();
+  });
+
   it("updates activeGame and persists to localStorage on setActiveGame", () => {
     vi.spyOn(cardsApi, "fetchCardGames").mockResolvedValue(["Star Wars Unlimited", "Lorcana"]);
 

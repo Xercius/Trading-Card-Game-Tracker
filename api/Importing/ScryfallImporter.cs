@@ -190,6 +190,10 @@ public sealed class ScryfallImporter : ISourceImporter
         }
         else
         {
+            if (relativeOrAbsolute.StartsWith("//", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Rejected network-path Scryfall pagination URL.");
+            }
             var candidate = new Uri(_http.BaseAddress!, relativeOrAbsolute);
             if (!ImportHttpGuard.TryValidateAllowedHttpsUri(candidate.AbsoluteUri, AllowedApiHosts, out var validated) ||
                 validated is null)

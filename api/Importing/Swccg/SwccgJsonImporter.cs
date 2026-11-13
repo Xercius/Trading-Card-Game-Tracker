@@ -199,7 +199,8 @@ public sealed class SwccgJsonImporter : ISourceImporter
             : record.Id.ToString();
 
         var set = catalog.GetOrAddSet(record.Set);
-        var number = ParseNumber(record.GempId) ?? string.Empty;
+        var number = ParseNumber(record.GempId)
+            ?? (string.IsNullOrWhiteSpace(record.Number) ? null : record.Number.Trim());
 
         // 1. Resolve Printing
         var printing = identity.FindPrinting(cardUid, set, number);
@@ -287,7 +288,7 @@ public sealed class SwccgJsonImporter : ISourceImporter
             printing = new CardPrinting
             {
                 Card = card,
-                Number = number,
+                Number = number ?? string.Empty,
                 CardUid = cardUid,
                 ImageUrl = imageUrl,
                 BackImageUrl = backImageUrl,

@@ -18,11 +18,10 @@ internal sealed class ApiExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var sanitizedPath = (httpContext.Request.Path.Value ?? string.Empty)
-            .Replace("\r", string.Empty)
-            .Replace("\n", string.Empty);
+        var sanitizedMethod = SanitizeForLog(httpContext.Request.Method);
+        var sanitizedPath = SanitizeForLog(httpContext.Request.Path.Value);
 
-        logger.LogError(UnhandledExceptionEventId, exception, "Unhandled exception processing {Method} {Path}", httpContext.Request.Method, sanitizedPath);
+        logger.LogError(UnhandledExceptionEventId, exception, "Unhandled exception processing {Method} {Path}", sanitizedMethod, sanitizedPath);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         var problemDetails = new ProblemDetails
@@ -40,4 +39,9 @@ internal sealed class ApiExceptionHandler(
             ProblemDetails = problemDetails
         });
     }
+
+    private static string SanitizeForLog(string? value)
+        => string.IsNullOrEmpty(value)
+            ? string.Empty
+            : string.Concat(value.Where(c => !char.IsControl(c)));
 }

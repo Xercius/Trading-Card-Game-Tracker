@@ -180,6 +180,7 @@ internal sealed class SWUApiClient : ISWUApiClient
                 continue;
             }
 
+            ImportHttpGuard.EnsureNotRedirect(response);
             response.EnsureSuccessStatusCode();
             await using var stream = await response.Content.ReadAsStreamAsync(ct);
             var bytes = await ImportHttpGuard.ReadStreamWithLimitAsync(stream, ImportHttpGuard.DefaultMaxJsonBytes, ct);

@@ -206,6 +206,8 @@ internal static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlite(configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db"));
         services.AddHttpClient();
+        services.ConfigureHttpClientDefaults(builder =>
+            builder.ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler));
         services.AddSingleton(TimeProvider.System);
 
         // Typed HTTP client for the Star Wars: Unlimited API.
@@ -213,21 +215,21 @@ internal static class ServiceCollectionExtensions
         {
             client.BaseAddress = new Uri("https://admin.starwarsunlimited.com/api/");
             client.Timeout = TimeSpan.FromMinutes(5);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler);
 
         // Typed HTTP client for Star Wars CCG catalog from swccg-card-json.
         services.AddHttpClient<ISwccgApiClient, SwccgApiClient>(client =>
         {
             client.BaseAddress = new Uri("https://raw.githubusercontent.com/swccgpc/swccg-card-json/main/");
             client.Timeout = TimeSpan.FromMinutes(5);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler);
 
         // Typed HTTP client for Pokémon TCG from TCGdex.
         services.AddHttpClient<IPokemonApiClient, TcgdexApiClient>(client =>
         {
             client.BaseAddress = new Uri("https://api.tcgdex.net/v2/en/");
             client.Timeout = TimeSpan.FromMinutes(5);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler);
 
         services.AddScoped<PokemonTcgdexImporter>();
         services.AddScoped<PokemonDeckValidationService>();

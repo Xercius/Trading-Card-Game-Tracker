@@ -146,13 +146,14 @@ export function useMoveToCollectionMutation(
         queryClient.setQueryData(key, { ...value, items: nextItems });
       }
 
-      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["value", "summary"] });
+      queryClient.invalidateQueries({
+        queryKey: collectionKeys.all,
         predicate: (query) =>
           query.queryKey.length === 2 &&
           typeof query.queryKey[1] === "object" &&
           query.queryKey[1] !== null,
       });
+      queryClient.invalidateQueries({ queryKey: ["value", "summary"] });
       queryClient.invalidateQueries({ queryKey: ["collection", "sets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["collection", "set-detail"] });
       onRemovedFromSelection?.(snapshot.printingId);

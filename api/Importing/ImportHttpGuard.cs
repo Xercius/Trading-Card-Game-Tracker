@@ -10,6 +10,20 @@ internal static class ImportHttpGuard
     internal const long DefaultMaxJsonBytes = 32 * 1024 * 1024;
     internal const long DefaultMaxHtmlBytes = 4 * 1024 * 1024;
 
+    /// <summary>Creates a primary handler that disables automatic HTTP redirects to prevent SSRF allowlist bypasses.</summary>
+    internal static HttpClientHandler CreateNoRedirectHandler()
+        => new() { AllowAutoRedirect = false };
+
+    /// <summary>Throws if the HTTP response is a redirect (3xx), preventing unvalidated host redirection.</summary>
+    internal static void EnsureNotRedirect(HttpResponseMessage response)
+    {
+        if ((int)response.StatusCode is >= 300 and < 400)
+        {
+            throw new InvalidOperationException(
+                $"HTTP redirect ({(int)response.StatusCode}) is not permitted for importer requests.");
+        }
+    }
+
     /// <summary>Validates that a URL is absolute HTTPS and targets one of the allow-listed hosts.</summary>
     internal static bool TryValidateAllowedHttpsUri(
         string? rawUrl,
@@ -49,6 +63,7 @@ internal static class ImportHttpGuard
         CancellationToken ct)
     {
         using var response = await http.GetAsync(requestUri, HttpCompletionOption.ResponseHeadersRead, ct);
+        EnsureNotRedirect(response);
         response.EnsureSuccessStatusCode();
 
         if (response.Content.Headers.ContentLength is { } contentLength && contentLength > maxBytes)

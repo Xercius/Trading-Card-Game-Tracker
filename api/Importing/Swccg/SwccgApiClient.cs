@@ -64,6 +64,7 @@ public sealed class SwccgApiClient : ISwccgApiClient
     private async Task<byte[]> ReadBoundedAsync(string relativePath, CancellationToken ct)
     {
         using var response = await _http.GetAsync(relativePath, HttpCompletionOption.ResponseHeadersRead, ct);
+        ImportHttpGuard.EnsureNotRedirect(response);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is { } len && len > ImportHttpGuard.DefaultMaxJsonBytes)
         {

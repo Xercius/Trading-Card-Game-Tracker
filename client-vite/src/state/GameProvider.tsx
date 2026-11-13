@@ -9,6 +9,8 @@ import {
   STORAGE_KEY_ACTIVE_GAME,
 } from "./GameContext";
 
+const LEGACY_SELECTED_GAME_KEY = "selected_game";
+
 function getInitialGame(defaultProp?: string): string {
   if (defaultProp && defaultProp.trim()) {
     return defaultProp.trim();
@@ -18,6 +20,14 @@ function getInitialGame(defaultProp?: string): string {
       const stored = window.localStorage.getItem(STORAGE_KEY_ACTIVE_GAME);
       if (stored && stored.trim()) {
         return stored.trim();
+      }
+
+      const legacy = window.localStorage.getItem(LEGACY_SELECTED_GAME_KEY);
+      if (legacy && legacy.trim()) {
+        const migrated = legacy.trim();
+        window.localStorage.setItem(STORAGE_KEY_ACTIVE_GAME, migrated);
+        window.localStorage.removeItem(LEGACY_SELECTED_GAME_KEY);
+        return migrated;
       }
     }
   } catch {
