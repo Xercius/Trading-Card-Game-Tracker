@@ -146,8 +146,8 @@ export function useMoveToCollectionMutation(
         queryClient.setQueryData(key, { ...value, items: nextItems });
       }
 
-      queryClient.invalidateQueries({
-        queryKey: collectionKeys.all,
+      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["value", "summary"] });
         predicate: (query) =>
           query.queryKey.length === 2 &&
           typeof query.queryKey[1] === "object" &&
