@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "use-debounce": ["src/lib/use-debounce"]
+      "@/*": ["./src/*"],
+      "use-debounce": ["./src/lib/use-debounce"]
     }
   },
   "files": [],

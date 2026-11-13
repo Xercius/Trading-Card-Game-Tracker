@@ -25,10 +25,9 @@
     "noUncheckedSideEffectImports": true,
 
     "ignoreDeprecations": "5.0",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "use-debounce": ["src/lib/use-debounce"]
+      "@/*": ["./src/*"],
+      "use-debounce": ["./src/lib/use-debounce"]
     }
   },
   "include": ["src"]
