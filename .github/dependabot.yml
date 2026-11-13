@@ -1,11 +1,13 @@
 version: 2
+# Version updates run monthly to limit PR noise. Security updates are NOT governed
+# by this schedule: keep "Dependabot security updates" enabled in
+# Settings > Code security so advisories get PRs immediately.
 updates:
   # Maintain frontend npm dependencies
   - package-ecosystem: npm
     directory: /client-vite
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: America/Los_Angeles
     open-pull-requests-limit: 3
@@ -45,8 +47,7 @@ updates:
   - package-ecosystem: nuget
     directory: /api
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: America/Los_Angeles
     open-pull-requests-limit: 3
@@ -79,8 +80,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: America/Los_Angeles
     open-pull-requests-limit: 1

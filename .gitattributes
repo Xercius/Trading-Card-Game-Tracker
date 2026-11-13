@@ -31,3 +31,8 @@
 *.webp binary
 *.ico binary
 *.pdf binary
+
+# Auto-generated & lockfiles (collapse in PR diffs & skip in automated code reviews)
+api/Migrations/*.Designer.cs linguist-generated=true
+api/Migrations/AppDbContextModelSnapshot.cs linguist-generated=true
+**/package-lock.json linguist-generated=true

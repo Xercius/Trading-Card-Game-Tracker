@@ -47,8 +47,9 @@ From the repository root:
 
 ```bash
 
-pnpm install --filter client-vite...
-pnpm --filter client-vite dev
+cd client-vite
+npm ci
+npm run dev
 
 ```
 
