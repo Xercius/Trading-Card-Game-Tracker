@@ -190,7 +190,13 @@ public sealed class ScryfallImporter : ISourceImporter
         }
         else
         {
-            uri = new Uri(_http.BaseAddress!, relativeOrAbsolute);
+            var candidate = new Uri(_http.BaseAddress!, relativeOrAbsolute);
+            if (!ImportHttpGuard.TryValidateAllowedHttpsUri(candidate.AbsoluteUri, AllowedApiHosts, out var validated) ||
+                validated is null)
+            {
+                throw new InvalidOperationException("Rejected Scryfall pagination URL outside allow-listed host.");
+            }
+            uri = validated;
         }
 
         var bytes = await ImportHttpGuard.GetBytesWithLimitAsync(_http, uri, ImportHttpGuard.DefaultMaxJsonBytes, ct);
