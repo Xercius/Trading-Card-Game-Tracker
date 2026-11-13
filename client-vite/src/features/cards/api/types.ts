@@ -10,6 +10,7 @@ export type CardPrintingDetail = CardPrintingImages & {
   id: number;
   set: string;
   setCode?: string | null;
+  setLogoUrl?: string | null;
   number: string;
   rarity: string;
   style: string;
@@ -77,6 +78,7 @@ export type PrintingSummary = CardPrintingImages & {
   printingId: number;
   setName: string;
   setCode?: string | null;
+  setLogoUrl?: string | null;
   number: string;
   rarity: string;
   style?: string;

@@ -20,6 +20,9 @@ public sealed class Set
     [MaxLength(64)]
     public string? Era { get; set; }
 
+    [MaxLength(1024)]
+    public string? LogoUrl { get; set; }
+
     public DateOnly? ReleasedAt { get; set; }
     public DateTimeOffset LastSyncedAt { get; set; }
 

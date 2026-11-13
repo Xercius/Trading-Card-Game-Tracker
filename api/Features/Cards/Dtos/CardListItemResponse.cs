@@ -105,5 +105,10 @@ public sealed class CardListItemResponse
         /// Release date of the normalized set when available.
         /// </summary>
         public DateOnly? ReleaseDate { get; set; }
+
+        /// <summary>
+        /// Optional URL to the set's logo image.
+        /// </summary>
+        public string? SetLogoUrl { get; set; }
     }
 }

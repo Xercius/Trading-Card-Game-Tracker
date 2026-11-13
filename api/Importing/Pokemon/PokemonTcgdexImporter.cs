@@ -72,9 +72,12 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 var code = resume.Id.Trim();
                 existingSets.TryGetValue(code, out var existing);
 
-                // Fetch detail if set does not exist or lacks Era/ReleaseDate
+                // Fetch detail if set does not exist or lacks Era/ReleaseDate/LogoUrl
                 TcgdexSetDetail? detail = null;
-                if (existing == null || string.IsNullOrWhiteSpace(existing.Era) || existing.ReleasedAt == null)
+                if (existing == null ||
+                    string.IsNullOrWhiteSpace(existing.Era) ||
+                    existing.ReleasedAt == null ||
+                    (string.IsNullOrWhiteSpace(existing.LogoUrl) && string.IsNullOrWhiteSpace(resume.Logo)))
                 {
                     detail = await _api.GetSetAsync(code, ct);
                 }
@@ -94,6 +97,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             var code = resume.Id.Trim();
             var name = !string.IsNullOrWhiteSpace(detail?.Name) ? detail.Name.Trim() : resume.Name.Trim();
             var era = detail?.Serie?.Name?.Trim() ?? "Other";
+            var logoUrl = PokemonCatalog.NormalizeSetLogoUrl(detail?.Logo ?? resume.Logo);
             DateOnly? releasedAt = null;
             var dateStr = detail?.ReleaseDate;
             if (!string.IsNullOrWhiteSpace(dateStr) && DateOnly.TryParse(dateStr, out var d))
@@ -106,6 +110,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                 existing.Name = name;
                 if (!string.IsNullOrWhiteSpace(era)) existing.Era = era;
                 if (releasedAt.HasValue) existing.ReleasedAt = releasedAt;
+                if (!string.IsNullOrWhiteSpace(logoUrl)) existing.LogoUrl = logoUrl;
                 existing.LastSyncedAt = _timeProvider.GetUtcNow();
             }
             else
@@ -116,6 +121,7 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
                     Code = code,
                     Name = name,
                     Era = era,
+                    LogoUrl = logoUrl,
                     ReleasedAt = releasedAt,
                     LastSyncedAt = _timeProvider.GetUtcNow()
                 };
@@ -228,9 +234,15 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
 
                 _logger.LogInformation("Fetching cards for set '{SetCode}' ({SetName})...", dbSet.Code, dbSet.Name);
                 var setDetail = await _api.GetSetAsync(trimmedCode, ct);
+                var normalizedLogoUrl = PokemonCatalog.NormalizeSetLogoUrl(setDetail?.Logo);
+                if (!string.IsNullOrWhiteSpace(normalizedLogoUrl))
+                {
+                    dbSet.LogoUrl = normalizedLogoUrl;
+                }
                 if (setDetail?.Cards == null || setDetail.Cards.Count == 0)
                 {
                     summary.Messages.Add($"Set '{trimmedCode}' has no cards in TCGdex.");
+                    await _db.SaveChangesAsync(ct);
                     continue;
                 }
 

@@ -43,7 +43,9 @@ public sealed class CardsMappingProfile : Profile
                 s.ArtFrontHorizontal == true ? "horizontal" : s.ArtFrontHorizontal == false ? "vertical" : null))
             .ForCtorParam(nameof(CardPrintingResponse.BackImageOrientation), o => o.MapFrom(s =>
                 s.ArtBackHorizontal == true ? "horizontal" : s.ArtBackHorizontal == false ? "vertical" : null))
-            .ForCtorParam(nameof(CardPrintingResponse.Artist), o => o.MapFrom(s => s.Artist));
+            .ForCtorParam(nameof(CardPrintingResponse.Artist), o => o.MapFrom(s => s.Artist))
+            .ForCtorParam(nameof(CardPrintingResponse.SetLogoUrl), o => o.MapFrom(s =>
+                s.CatalogSet == null ? null : s.CatalogSet.LogoUrl));
         CreateMap<CardPrinting, CardListItemResponse.PrimaryPrintingResponse>()
             .ForMember(d => d.Set, o => o.MapFrom(s =>
                 s.CatalogSet == null ? string.Empty : s.CatalogSet.Name ?? s.CatalogSet.Code))
@@ -53,7 +55,9 @@ public sealed class CardsMappingProfile : Profile
             .ForMember(d => d.Style, o => o.MapFrom(s =>
                 s.Treatment == null ? "Standard" : s.Treatment.Name))
             .ForMember(d => d.ReleaseDate, o => o.MapFrom(s =>
-                s.CatalogSet == null ? null : s.CatalogSet.ReleasedAt));
+                s.CatalogSet == null ? null : s.CatalogSet.ReleasedAt))
+            .ForMember(d => d.SetLogoUrl, o => o.MapFrom(s =>
+                s.CatalogSet == null ? null : s.CatalogSet.LogoUrl));
 
         // Card list item mapping: transforms Card entity to a lightweight response for list views
         // Maps card ID to CardId property and counts associated printings

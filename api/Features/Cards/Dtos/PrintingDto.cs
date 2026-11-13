@@ -46,6 +46,7 @@ public sealed record PrintingDto(
     public string? Subtitle { get; init; }
     public string? Destiny { get; init; }
     public DateOnly? ReleaseDate { get; init; }
+    public string? SetLogoUrl { get; init; }
     public string? BackImageUrl { get; init; }
     public string? ImageOrientation { get; init; }
     public string? BackImageOrientation { get; init; }

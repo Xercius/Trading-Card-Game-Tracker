@@ -14,6 +14,7 @@ export type CardSummary = {
   aspects?: { name: string; count: number }[];
   setName?: string | null;
   setCode?: string | null;
+  setLogoUrl?: string | null;
   number?: string | null;
   rarity?: string | null;
   releaseDate?: string | null;

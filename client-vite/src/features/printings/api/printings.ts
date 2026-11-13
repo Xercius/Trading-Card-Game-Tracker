@@ -7,6 +7,7 @@ export type PrintingListItem = {
   game: string;
   setName: string;
   setCode?: string | null;
+  setLogoUrl?: string | null;
   number?: string | null;
   rarity?: string | null;
   imageUrl?: string | null;
