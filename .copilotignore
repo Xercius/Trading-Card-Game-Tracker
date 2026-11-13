@@ -1,0 +1,59 @@
+# AI context exclusions (ADVISORY).
+# No AI tool reads this file natively (GitHub Copilot content exclusion lives in
+# repo/org settings). It is enforced by the rules in AGENTS.md and
+# .github/copilot-instructions.md, which tell agents never to read, index, or
+# review these paths. It does NOT affect version control; see .gitignore.
+
+# ---- Build outputs & caches ----
+**/bin/
+**/obj/
+**/dist/
+**/dist-ssr/
+**/storybook-static/
+**/coverage/
+**/.vite/
+**/.vitest/
+**/.vitest-cache/
+**/.turbo/
+**/.eslintcache
+.vs/
+
+# ---- Dependencies, vendor & legacy directories ----
+**/node_modules/
+# Legacy untracked client (superseded by client-vite/)
+client/
+
+# ---- Test results & logs ----
+**/TestResults/
+*.trx
+*.coverage
+*.log
+logs/
+
+# ---- Lockfiles (never review or index) ----
+package-lock.json
+**/package-lock.json
+pnpm-lock.yaml
+**/pnpm-lock.yaml
+yarn.lock
+
+# ---- Auto-generated EF Core Designer & Snapshot files ----
+api/Migrations/*.Designer.cs
+api/Migrations/AppDbContextModelSnapshot.cs
+
+# ---- Raw data dumps, SQLite DBs & static media assets ----
+Imports/
+docs/*.txt
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+api/wwwroot/images/
+client-vite/public/images/
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.ico
+*.docx
+*.pdf
