@@ -2,9 +2,23 @@ name: CI
 
 on:
   pull_request:
-    branches: [ master, dev ]
+    branches: [ master ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.copilotignore'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'LICENSE'
   push:
     branches: [ master ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.copilotignore'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'LICENSE'
 
 permissions:
   contents: read
@@ -46,7 +60,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: dotnet-tests
-          path: api/TestResults/**/*.trx
+          # Path is repo-root relative; the test project lives at ./api.Tests (outside ./api)
+          path: api.Tests/TestResults/**/*.trx
 
   frontend:
     name: frontend
