@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AdminSyncLoginCard } from "./AdminSyncLoginCard";
 import {
-  isAdminSyncUnauthorized,
-  useAdminSyncLoginMutation,
-  useAdminSyncLogoutMutation,
   useRunStarWarsCcgSyncMutation,
   useStarWarsCcgSyncStatusQuery,
   type SwccgSyncOptions,
@@ -23,8 +19,6 @@ function formatDateTime(value: string | null) {
 export default function AdminSwccgSyncPanel() {
   const statusQuery = useStarWarsCcgSyncStatusQuery();
   const runSync = useRunStarWarsCcgSyncMutation();
-  const login = useAdminSyncLoginMutation();
-  const logout = useAdminSyncLogoutMutation();
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
   const [dryRun, setDryRun] = useState(false);
 
@@ -53,25 +47,10 @@ export default function AdminSwccgSyncPanel() {
     } catch {
       setFeedback({
         tone: "error",
-        message: "Failed to run SWCCG sync. Sign in again if your administrator session expired.",
+        message: "Failed to run SWCCG sync.",
       });
     }
   };
-
-  if (isAdminSyncUnauthorized(statusQuery.error) || isAdminSyncUnauthorized(runSync.error)) {
-    return (
-      <AdminSyncLoginCard
-        title="Star Wars CCG sync"
-        isPending={login.isPending}
-        error={login.error}
-        onSubmit={async (credentials) => {
-          await login.mutateAsync(credentials);
-          runSync.reset();
-          setFeedback(null);
-        }}
-      />
-    );
-  }
 
   if (statusQuery.isLoading) {
     return (
@@ -185,15 +164,6 @@ export default function AdminSwccgSyncPanel() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => logout.mutate()}
-          disabled={logout.isPending || isRunning}
-        >
-          Sign out
-        </Button>
-        {logout.isError && <p role="alert">Sign-out failed. Try again.</p>}
         <Button
           type="button"
           onClick={() => handleRunSync()}

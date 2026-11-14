@@ -4,7 +4,6 @@ export const paths = {
   collectionSetDetail: "collection/set/:setCode",
   wishlist: "wishlist",
   decks: "decks",
-  adminImport: "admin/import",
   adminSync: "admin/sync",
   adminSwccgSync: "admin/swccg-sync",
   adminPokemonSync: "admin/pokemon-sync",

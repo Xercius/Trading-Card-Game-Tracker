@@ -7,8 +7,6 @@ import { ProblemDetailsError } from "@/lib/problemDetails";
 import AdminSyncPanel from "../AdminSyncPanel";
 
 const statusRoute = "admin/sync/star-wars-unlimited/status";
-const sessionRoute = "admin/sync/session";
-const csrfConfig = { withCredentials: true, headers: { "X-Admin-CSRF": "request-token" } };
 const idle = {
   source: "swu",
   status: "Idle",
@@ -21,7 +19,6 @@ const idle = {
 };
 const success = { status: "Succeeded", invalid: 0, setCount: 2, created: 3, updated: 4 };
 let currentStatus: typeof idle;
-let authorized: boolean;
 let client: QueryClient;
 
 function renderPanel() {
@@ -37,12 +34,9 @@ function renderPanel() {
 
 beforeEach(() => {
   currentStatus = { ...idle };
-  authorized = true;
   vi.spyOn(http, "get").mockImplementation(async (url: string) => {
-    if (url === sessionRoute)
-      return { data: { authenticated: authorized, csrfToken: "request-token" } };
-    if (url === statusRoute && authorized) return { data: currentStatus };
-    throw new ProblemDetailsError("Unauthorized", { status: 401 });
+    if (url === statusRoute) return { data: currentStatus };
+    throw new Error(`Unexpected GET ${url}`);
   });
 });
 
@@ -53,45 +47,28 @@ afterEach(() => {
 });
 
 describe("AdminSyncPanel", () => {
-  it("uses the admin cookie session without bearer tokens or storing credentials", async () => {
+  it("runs sync directly without login, bearer tokens, or session credentials", async () => {
     vi.mocked(http.get).mockRestore();
     const originalAdapter = http.defaults.adapter;
     const requests: {
       url?: string;
       authorization: unknown;
       csrf: unknown;
-      data: unknown;
       withCredentials?: boolean;
     }[] = [];
-    const storage = vi.spyOn(Storage.prototype, "setItem");
-    let signedIn = false;
     http.defaults.adapter = async (config) => {
       requests.push({
         url: config.url,
         authorization: config.headers.get("Authorization"),
         csrf: config.headers.get("X-Admin-CSRF"),
-        data: config.data,
         withCredentials: config.withCredentials,
       });
-      let data;
-      if (config.url === sessionRoute) {
-        if (config.method === "post") signedIn = true;
-        data = { authenticated: signedIn, csrfToken: "request-token" };
-      } else if (config.method === "post") {
-        data = success;
-      } else if (signedIn) {
-        data = idle;
-      } else {
-        throw new ProblemDetailsError("Unauthorized", { status: 401 });
-      }
+      const data = config.method === "post" ? success : idle;
       return { data, status: 200, statusText: "OK", headers: {}, config };
     };
 
     try {
       renderPanel();
-      await userEvent.type(await screen.findByRole("textbox", { name: "Username" }), "admin");
-      await userEvent.type(screen.getByLabelText("Password"), "password");
-      await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
       await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
       expect(await screen.findByText(/Sync completed —/)).toBeVisible();
       await userEvent.click(screen.getByRole("button", { name: "Full reconciliation" }));
@@ -100,14 +77,10 @@ describe("AdminSyncPanel", () => {
       );
 
       expect(requests.every((request) => !request.authorization)).toBe(true);
-      expect(requests.every((request) => request.withCredentials)).toBe(true);
-      const mutations = requests.filter((request) => request.csrf);
-      expect(mutations).toHaveLength(3);
-      expect(mutations.every((request) => request.csrf === "request-token")).toBe(true);
-      expect(mutations[0].data).toBe(JSON.stringify({ username: "admin", password: "password" }));
-      expect(mutations.slice(1).every((request) => !request.data)).toBe(true);
-      expect(storage).not.toHaveBeenCalled();
-      expect(screen.queryByLabelText(/token/i)).not.toBeInTheDocument();
+      expect(requests.every((request) => !request.csrf)).toBe(true);
+      expect(requests.every((request) => !request.withCredentials)).toBe(true);
+      expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     } finally {
       http.defaults.adapter = originalAdapter;
     }
@@ -123,60 +96,25 @@ describe("AdminSyncPanel", () => {
     expect(screen.queryByText("Latest set")).not.toBeInTheDocument();
     expect(screen.queryByText("Tracked sets")).not.toBeInTheDocument();
     expect(screen.queryByText(/SHD/)).not.toBeInTheDocument();
-    expect(http.get).toHaveBeenCalledWith(statusRoute, { withCredentials: true });
+    expect(http.get).toHaveBeenCalledWith(statusRoute);
   });
 
-  it("signs in with credentials and reloads authorized status", async () => {
-    authorized = false;
-    const post = vi.spyOn(http, "post").mockImplementation(async () => {
-      authorized = true;
-      return { data: null };
-    });
-    renderPanel();
-    await userEvent.type(await screen.findByRole("textbox", { name: "Username" }), "admin");
-    await userEvent.type(screen.getByLabelText("Password"), "password");
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("button", { name: "Run sync" })).toBeEnabled();
-    expect(post).toHaveBeenCalledWith(
-      sessionRoute,
-      { username: "admin", password: "password" },
-      csrfConfig
-    );
-    expect(screen.queryByLabelText(/token/i)).not.toBeInTheDocument();
-  });
-
-  it("shows safe sign-in feedback and clears the password after failure", async () => {
-    authorized = false;
-    vi.spyOn(http, "post").mockRejectedValue(new Error("private server detail"));
-    renderPanel();
-    await userEvent.type(await screen.findByRole("textbox", { name: "Username" }), "admin");
-    await userEvent.type(screen.getByLabelText("Password"), "wrong");
-    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sign-in failed.");
-    expect(screen.getByLabelText("Password")).toHaveValue("");
-    expect(screen.queryByText("private server detail")).not.toBeInTheDocument();
-  });
-
-  it("runs sync with cookie credentials and CSRF protection", async () => {
+  it("runs sync directly", async () => {
     const post = vi.spyOn(http, "post").mockResolvedValue({ data: success });
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
     expect(
       await screen.findByText("Sync completed — 2 sets, 3 created, 4 updated, 0 invalid.")
     ).toBeVisible();
-    expect(post).toHaveBeenCalledWith("admin/sync/star-wars-unlimited", null, csrfConfig);
+    expect(post).toHaveBeenCalledWith("admin/sync/star-wars-unlimited", null);
   });
 
-  it("requests full reconciliation explicitly with CSRF protection", async () => {
+  it("requests full reconciliation explicitly", async () => {
     const post = vi.spyOn(http, "post").mockResolvedValue({ data: success });
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: "Full reconciliation" }));
     await waitFor(() =>
-      expect(post).toHaveBeenCalledWith(
-        "admin/sync/star-wars-unlimited?forceFullSync=true",
-        null,
-        csrfConfig
-      )
+      expect(post).toHaveBeenCalledWith("admin/sync/star-wars-unlimited?forceFullSync=true", null)
     );
   });
 
@@ -241,13 +179,6 @@ describe("AdminSyncPanel", () => {
     expect(screen.queryByText("private backend error")).not.toBeInTheDocument();
   });
 
-  it("shows login again when a mutation session expires", async () => {
-    vi.spyOn(http, "post").mockRejectedValue(new ProblemDetailsError("expired", { status: 401 }));
-    renderPanel();
-    await userEvent.click(await screen.findByRole("button", { name: "Run sync" }));
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeEnabled();
-  });
-
   it("disables mutation controls while a sync is running", async () => {
     currentStatus.status = "Running";
     renderPanel();
@@ -256,16 +187,5 @@ describe("AdminSyncPanel", () => {
     );
     expect(screen.getByRole("button", { name: "Run sync" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Full reconciliation" })).toBeDisabled();
-  });
-
-  it("signs out with CSRF protection and removes cached status", async () => {
-    const remove = vi.spyOn(http, "delete").mockImplementation(async () => {
-      authorized = false;
-      return { data: null };
-    });
-    renderPanel();
-    await userEvent.click(await screen.findByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeVisible();
-    expect(remove).toHaveBeenCalledWith(sessionRoute, csrfConfig);
   });
 });

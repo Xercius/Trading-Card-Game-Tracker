@@ -7,7 +7,6 @@ import AdminPokemonSyncPanel from "../AdminPokemonSyncPanel";
 import type { AdminPokemonSyncStatusResponse } from "../api";
 
 const statusRoute = "admin/sync/pokemon/status";
-const sessionRoute = "admin/sync/session";
 
 const sampleStatus: AdminPokemonSyncStatusResponse = {
   isRunning: false,
@@ -64,9 +63,6 @@ function renderPanel() {
 
 beforeEach(() => {
   vi.spyOn(http, "get").mockImplementation(async (url: string) => {
-    if (url === sessionRoute) {
-      return { data: { authenticated: true, csrfToken: "csrf-token-123" } } as never;
-    }
     if (url === statusRoute) {
       return { data: sampleStatus } as never;
     }
@@ -180,12 +176,6 @@ describe("AdminPokemonSyncPanel", () => {
 
     await user.click(screen.getByText("Sync Sets"));
 
-    expect(postSpy).toHaveBeenCalledWith(
-      "admin/sync/pokemon/sets",
-      null,
-      expect.objectContaining({
-        headers: { "X-Admin-CSRF": "csrf-token-123" },
-      })
-    );
+    expect(postSpy).toHaveBeenCalledWith("admin/sync/pokemon/sets", null);
   });
 });

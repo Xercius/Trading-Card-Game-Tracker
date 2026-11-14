@@ -809,7 +809,7 @@ public class CardsController : ControllerBase
     /// Creates a new printing if no match is found. Set and Number are required when Id is null.
     /// </remarks>
     [HttpPost("printing")]
-    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
+    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken", Roles = "Admin")]
     public async Task<IActionResult> UpsertPrinting([FromBody] UpsertPrintingRequest dto)
         => await UpsertPrintingCore(dto);
 
@@ -827,7 +827,7 @@ public class CardsController : ControllerBase
     /// Otherwise, creates a new printing. Items without Set or Number are skipped.
     /// </remarks>
     [HttpPost("{cardId:int}/printings/import")]
-    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
+    [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = "AdminToken", Roles = "Admin")]
     public async Task<IActionResult> BulkImportPrintings(int cardId, [FromBody] IEnumerable<UpsertPrintingRequest> items)
         => await BulkImportPrintingsCore(cardId, items);
 

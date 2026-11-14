@@ -9,7 +9,10 @@ const envBase = import.meta.env.VITE_API_BASE as string | undefined;
 const rawBase = envBase ?? "/api";
 const baseURL = String(rawBase).replace(/\/+$/, "") + "/";
 
-const http = axios.create({ baseURL });
+const http = axios.create({
+  baseURL,
+  headers: { "X-Requested-With": "XMLHttpRequest" },
+});
 
 const basePath: string | null = (() => {
   try {

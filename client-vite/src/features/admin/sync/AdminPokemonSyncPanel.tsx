@@ -2,11 +2,7 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AdminSyncLoginCard } from "./AdminSyncLoginCard";
 import {
-  isAdminSyncUnauthorized,
-  useAdminSyncLoginMutation,
-  useAdminSyncLogoutMutation,
   usePokemonSyncStatusQuery,
   useRunPokemonCardsSyncMutation,
   useRunPokemonSetsSyncMutation,
@@ -26,8 +22,6 @@ export default function AdminPokemonSyncPanel() {
   const statusQuery = usePokemonSyncStatusQuery();
   const runSetsSync = useRunPokemonSetsSyncMutation();
   const runCardsSync = useRunPokemonCardsSyncMutation();
-  const login = useAdminSyncLoginMutation();
-  const logout = useAdminSyncLogoutMutation();
 
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
   const [dryRun, setDryRun] = useState(false);
@@ -204,26 +198,6 @@ export default function AdminPokemonSyncPanel() {
     }
   };
 
-  if (
-    isAdminSyncUnauthorized(statusQuery.error) ||
-    isAdminSyncUnauthorized(runSetsSync.error) ||
-    isAdminSyncUnauthorized(runCardsSync.error)
-  ) {
-    return (
-      <AdminSyncLoginCard
-        title="Pokémon TCG sync"
-        isPending={login.isPending}
-        error={login.error}
-        onSubmit={async (credentials) => {
-          await login.mutateAsync(credentials);
-          runSetsSync.reset();
-          runCardsSync.reset();
-          setFeedback(null);
-        }}
-      />
-    );
-  }
-
   const selectedCount = selectedSetCodes.size;
   const totalSets = sets.length;
   const syncedSetsCount = sets.filter((s) => s.isSynced).length;
@@ -242,14 +216,6 @@ export default function AdminPokemonSyncPanel() {
           <Badge variant={isRunning ? "default" : "outline"} className="text-sm">
             {isRunning ? "Sync in progress…" : "Idle"}
           </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => logout.mutate()}
-            disabled={logout.isPending || isRunning}
-          >
-            Sign out
-          </Button>
         </div>
       </div>
 
@@ -271,7 +237,7 @@ export default function AdminPokemonSyncPanel() {
         </div>
       </div>
 
-      {statusQuery.isError && !isAdminSyncUnauthorized(statusQuery.error) && (
+      {statusQuery.isError && (
         <div
           role="status"
           className="rounded border border-red-600 bg-red-50 p-3 text-sm text-red-950 dark:bg-red-950/30 dark:text-red-200"

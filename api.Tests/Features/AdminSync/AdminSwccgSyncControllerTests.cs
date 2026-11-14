@@ -37,18 +37,19 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
         });
 
         var client = customizedFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
         return (client, customizedFactory.Services);
     }
 
     [Fact]
-    public async Task GetStarWarsCcgStatus_WhenUnauthenticated_ReturnsUnauthorized()
+    public async Task GetStarWarsCcgStatus_WhenUnauthenticated_ReturnsOk()
     {
         await factory.ResetDatabaseAsync();
         var (client, _) = CreateClientWithSwccgImporter(factory);
 
         var response = await client.GetAsync("/api/admin/sync/star-wars-ccg/status");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

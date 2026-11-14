@@ -82,7 +82,7 @@ curl -k https://localhost:7226/api/health
 
 ### Single-owner local access
 
-The local web app opens directly as the seeded owner (`owner`, `DbSeeder.DefaultUserId`); no regular site login or owner password is required. Collection, deck, wishlist, and value views always use this owner. SWU Sync has a separate administrator sign-in and authorization flow.
+The local web app opens directly as the seeded owner (`owner`, `DbSeeder.DefaultUserId`); no regular site login or owner password is required. Collection, deck, wishlist, value views, and the Importers sync tools are immediately available without signing in.
 
 ### Minimal developer seed data
 

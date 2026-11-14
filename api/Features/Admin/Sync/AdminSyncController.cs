@@ -7,7 +7,6 @@ using api.Importing;
 using api.Importing.Pokemon;
 using api.Models;
 using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Features.Admin.Sync;
 
 [ApiController]
-[Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
 [Route("api/admin/sync")]
 public sealed class AdminSyncController(
     ImporterRegistry registry,

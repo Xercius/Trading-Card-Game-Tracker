@@ -1,5 +1,5 @@
 using api.Infrastructure.Startup;
-using api.Tests.Features.AdminImport;
+using api.Tests.Fixtures;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;

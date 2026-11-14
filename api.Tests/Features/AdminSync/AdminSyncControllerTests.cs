@@ -1,11 +1,9 @@
 using api.Data;
-using api.Features.Admin.Sync;
 using api.Features.Admin.Sync.Dtos;
 using api.Importing;
 using api.Models;
 using api.Tests.Fixtures;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,81 +20,79 @@ namespace api.Tests.Features.AdminSync;
 public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory)
     : IClassFixture<CustomWebApplicationFactory>
 {
-    public static IEnumerable<object[]> AuthenticationCases =>
-        from authentication in new[] { "anonymous", "non-admin", "invalid-token", "session", "script" }
-        from endpoint in new[] { "status", "logs", "", "?forceFullSync=true" }
-        select new object[] { authentication, endpoint };
-
     [Theory]
-    [MemberData(nameof(AuthenticationCases))]
-    public async Task SyncEndpoints_RequireVerifiedAdministrator(string authentication, string endpoint)
+    [InlineData("status")]
+    [InlineData("logs")]
+    [InlineData("")]
+    [InlineData("?forceFullSync=true")]
+    public async Task SyncEndpoints_AllowUnauthenticatedAccess(string endpoint)
     {
         await factory.ResetDatabaseAsync();
-        var (client, services, _) = CreateClientWithSyncImporter(factory);
-        using var browser = client;
-        browser.BaseAddress = new Uri("https://localhost");
-
-        if (authentication is "session" or "non-admin")
-        {
-            using (var scope = services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var user = new User { Username = "sync-login", DisplayName = "Sync", IsAdmin = authentication == "session" };
-                user.PasswordHash = new PasswordHasher<User>().HashPassword(user, "test-password");
-                db.Users.Add(user);
-                await db.SaveChangesAsync();
-            }
-
-            const string sessionPath = "/api/admin/sync/session";
-            var session = await browser.GetFromJsonAsync<AdminSessionResponse>(sessionPath);
-            browser.DefaultRequestHeaders.Add("X-Admin-CSRF", session!.CsrfToken);
-            var login = await browser.PostAsJsonAsync(sessionPath,
-                new { username = "sync-login", password = "test-password" });
-            Assert.Equal(authentication == "session" ? HttpStatusCode.NoContent : HttpStatusCode.Unauthorized,
-                login.StatusCode);
-            session = await browser.GetFromJsonAsync<AdminSessionResponse>(sessionPath);
-            browser.DefaultRequestHeaders.Remove("X-Admin-CSRF");
-            browser.DefaultRequestHeaders.Add("X-Admin-CSRF", session!.CsrfToken);
-        }
-
-        if (authentication == "script")
-        {
-            browser.AsAdmin();
-        }
-        else if (authentication is "session" or "invalid-token")
-        {
-            browser.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "unrelated-client-token");
-        }
+        var (client, _, _) = CreateClientWithSyncImporter(factory);
 
         var path = "/api/admin/sync/star-wars-unlimited";
         var response = endpoint is "status" or "logs"
-            ? await browser.GetAsync($"{path}/{endpoint}")
-            : await browser.PostAsync($"{path}{endpoint}", null);
+            ? await client.GetAsync($"{path}/{endpoint}")
+            : await client.PostAsync($"{path}{endpoint}", null);
 
-        var authorized = authentication is "session" or "script";
-        Assert.Equal(authorized ? HttpStatusCode.OK : HttpStatusCode.Unauthorized, response.StatusCode);
-        if (authorized && endpoint is not ("status" or "logs"))
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        if (endpoint is not ("status" or "logs"))
         {
             var result = await response.Content.ReadFromJsonAsync<AdminSyncStatusResponse>();
             Assert.Equal("Succeeded", result!.Status);
             Assert.Single(SyncTestImporter.RequestedSetCodes);
         }
-        else
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://evil.example")]
+    public async Task SyncPost_WithoutRequestedWithOrAllowedOrigin_ReturnsForbidden(string? origin)
+    {
+        await factory.ResetDatabaseAsync();
+        var (_, _, customizedFactory) = CreateClientWithSyncImporter(factory);
+        using var client = customizedFactory.CreateClient();
+        if (origin is not null)
         {
-            Assert.Empty(SyncTestImporter.RequestedSetCodes);
+            client.DefaultRequestHeaders.Add("Origin", origin);
         }
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
-    public async Task GetStarWarsUnlimitedStatus_WhenUnauthenticated_ReturnsUnauthorized()
+    public async Task SyncPost_WithAllowedCorsOrigin_ReturnsOk()
+    {
+        await factory.ResetDatabaseAsync();
+        SyncTestImporter.Reset();
+        using var customized = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Cors:Origins:0", "https://trusted.example");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll(typeof(ISourceImporter));
+                services.AddScoped<ISourceImporter, SyncTestImporter>();
+            });
+        });
+        using var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("Origin", "https://trusted.example");
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetStarWarsUnlimitedStatus_WhenUnauthenticated_ReturnsOk()
     {
         await factory.ResetDatabaseAsync();
         var (client, _, _) = CreateClientWithSyncImporter(factory);
 
         var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/status");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -184,7 +180,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
-    public async Task RunStarWarsUnlimited_WhenUnauthenticated_ReturnsUnauthorized()
+    public async Task RunStarWarsUnlimited_WhenUnauthenticated_ReturnsOk()
     {
         await factory.ResetDatabaseAsync();
         var (client, services, _) = CreateClientWithSyncImporter(factory);
@@ -192,7 +188,7 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
 
         var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", content: null);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -406,14 +402,14 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
-    public async Task GetStarWarsUnlimitedLogs_WhenUnauthenticated_ReturnsUnauthorized()
+    public async Task GetStarWarsUnlimitedLogs_WhenUnauthenticated_ReturnsOk()
     {
         await factory.ResetDatabaseAsync();
         var (client, _, _) = CreateClientWithSyncImporter(factory);
 
         var response = await client.GetAsync("/api/admin/sync/star-wars-unlimited/logs");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -811,7 +807,9 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             });
         });
 
-        return (customized.CreateClient(), customized.Services, customized);
+        var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+        return (client, customized.Services, customized);
     }
 
     private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSwuApiClient(
@@ -830,7 +828,9 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             });
         });
 
-        return (customized.CreateClient(), customized.Services, customized);
+        var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+        return (client, customized.Services, customized);
     }
 
     private static async Task SeedSwuSetAsync(IServiceProvider services, params string[] codes)
