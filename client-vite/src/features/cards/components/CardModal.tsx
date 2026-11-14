@@ -638,9 +638,7 @@ export default function CardModal({
                     setCode={selectedPrinting?.setCode || printingDetail?.set}
                     setName={selectedPrinting?.setName || printingDetail?.set}
                     isSwu={details?.game === "Star Wars Unlimited"}
-                    isMtg={
-                      details?.game === "Magic The Gathering" || details?.game === "Magic"
-                    }
+                    isMtg={isMtg}
                   />
                 </div>
                 <span className="font-semibold text-sm shrink-0 text-foreground">
@@ -1165,7 +1163,7 @@ export default function CardModal({
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {frontTypeHeader || "Card Text"}
                         </h3>
-                        {details?.game === "Magic The Gathering" || details?.game === "Magic" ? (
+                        {isMtg ? (
                           <MtgCardText text={rulesTextSource} />
                         ) : (
                           renderStyledCardText(rulesTextSource, "No card text available.")

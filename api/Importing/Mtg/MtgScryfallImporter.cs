@@ -130,26 +130,8 @@ public sealed class MtgScryfallImporter : ISourceImporter
                 .Where(s => s.GameId == catalog.Game.Id)
                 .ToDictionaryAsync(s => s.Code.Trim(), StringComparer.OrdinalIgnoreCase, ct);
 
-            var existingCards = await _db.Cards
-                .Include(c => c.CardAspects)
-                .Include(c => c.CardTypes)
-                .Include(c => c.CardSubTypes)
-                .Include(c => c.CardKeywords)
-                .Include(c => c.Printings).ThenInclude(p => p.Treatment)
-                .Where(c => c.GameId == catalog.Game.Id)
-                .AsSplitQuery()
-                .ToListAsync(ct);
-
-            var cardsByUid = existingCards
-                .Where(c => !string.IsNullOrWhiteSpace(c.CardUid))
-                .GroupBy(c => c.CardUid!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-            var printingsByUid = existingCards
-                .SelectMany(c => c.Printings)
-                .Where(p => !string.IsNullOrWhiteSpace(p.CardUid))
-                .GroupBy(p => p.CardUid!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var cardsByUid = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
+            var printingsByUid = new Dictionary<string, CardPrinting>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var rawCode in setCodes.Distinct(StringComparer.OrdinalIgnoreCase))
             {
@@ -214,6 +196,8 @@ public sealed class MtgScryfallImporter : ISourceImporter
             var scryfallCards = await _api.GetSetCardsAsync(dbSet.Code, ct);
             syncLog.CardsReturned = scryfallCards.Count;
 
+            await LoadExistingForSetAsync(scryfallCards, catalog.Game.Id, cardsByUid, printingsByUid, ct);
+
             var upserted = 0;
             foreach (var sc in scryfallCards)
             {
@@ -247,6 +231,7 @@ public sealed class MtgScryfallImporter : ISourceImporter
             summary.Messages.Add($"Failed to sync set '{dbSet.Code}': {ex.Message}");
             if (!dryRun)
             {
+                DiscardPendingChangesExcept(syncLog, cardsByUid, printingsByUid);
                 syncLog.Status = "Failed";
                 syncLog.CompletedAt = _timeProvider.GetUtcNow();
                 syncLog.ErrorMessage = ex.Message;
@@ -415,12 +400,14 @@ public sealed class MtgScryfallImporter : ISourceImporter
             else
             {
                 var changed = printing.Card != card
+                    || printing.CatalogSet != dbSet
                     || printing.Number != number
                     || printing.RarityLookup != rarity
                     || printing.Treatment != treatment
                     || printing.IsFoil != isFoil
                     || printing.ImageUrl != frontImage
                     || printing.BackImageUrl != backImage
+                    || printing.Artist != sc.Artist?.Trim()
                     || printing.DetailsJson != detailsJson;
 
                 if (changed)
@@ -462,6 +449,73 @@ public sealed class MtgScryfallImporter : ISourceImporter
         else
         {
             entry.LastSyncedAt = syncedAt;
+        }
+    }
+
+    private async Task LoadExistingForSetAsync(
+        IReadOnlyList<ScryfallCard> scryfallCards,
+        int gameId,
+        Dictionary<string, Card> cardsByUid,
+        Dictionary<string, CardPrinting> printingsByUid,
+        CancellationToken ct)
+    {
+        var missingCardUids = scryfallCards
+            .Select(MtgCatalog.ComputeCanonicalCardUid)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(uid => !cardsByUid.ContainsKey(uid))
+            .ToList();
+
+        foreach (var chunk in missingCardUids.Chunk(400))
+        {
+            var chunkSet = chunk.ToList();
+            var loadedCards = await _db.Cards
+                .Include(c => c.CardAspects)
+                .Include(c => c.CardTypes)
+                .Include(c => c.CardSubTypes)
+                .Include(c => c.CardKeywords)
+                .Include(c => c.Printings).ThenInclude(p => p.Treatment)
+                .Where(c => c.GameId == gameId && c.CardUid != null && chunkSet.Contains(c.CardUid))
+                .AsSplitQuery()
+                .ToListAsync(ct);
+
+            foreach (var card in loadedCards)
+            {
+                if (!string.IsNullOrWhiteSpace(card.CardUid))
+                {
+                    cardsByUid.TryAdd(card.CardUid.Trim(), card);
+                }
+
+                foreach (var printing in card.Printings)
+                {
+                    if (!string.IsNullOrWhiteSpace(printing.CardUid))
+                    {
+                        printingsByUid.TryAdd(printing.CardUid.Trim(), printing);
+                    }
+                }
+            }
+        }
+    }
+
+    private void DiscardPendingChangesExcept(
+        SyncLog syncLog,
+        Dictionary<string, Card> cardsByUid,
+        Dictionary<string, CardPrinting> printingsByUid)
+    {
+        foreach (var entry in _db.ChangeTracker.Entries()
+            .Where(e => e.Entity != syncLog && e.State != EntityState.Unchanged)
+            .ToList())
+        {
+            entry.State = entry.State == EntityState.Added ? EntityState.Detached : EntityState.Unchanged;
+        }
+
+        foreach (var key in cardsByUid.Where(kvp => kvp.Value.Id == 0).Select(kvp => kvp.Key).ToList())
+        {
+            cardsByUid.Remove(key);
+        }
+
+        foreach (var key in printingsByUid.Where(kvp => kvp.Value.Id == 0).Select(kvp => kvp.Key).ToList())
+        {
+            printingsByUid.Remove(key);
         }
     }
 }

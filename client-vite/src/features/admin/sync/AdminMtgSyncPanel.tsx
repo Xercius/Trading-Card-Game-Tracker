@@ -44,12 +44,13 @@ function MtgEraAccordionGroup({
   const unsyncedSets = group.sets.filter((s) => !s.isSynced);
   const syncedCount = group.sets.length - unsyncedSets.length;
   const allSynced = unsyncedSets.length === 0;
-  const allUnsyncedSelected =
-    unsyncedSets.length > 0 && unsyncedSets.every((s) => selectedSetCodes.has(s.code));
+  const targetSets = allSynced ? group.sets : unsyncedSets;
+  const allTargetSelected =
+    targetSets.length > 0 && targetSets.every((s) => selectedSetCodes.has(s.code));
   const someSelected =
-    unsyncedSets.length > 0 &&
-    unsyncedSets.some((s) => selectedSetCodes.has(s.code)) &&
-    !allUnsyncedSelected;
+    targetSets.length > 0 &&
+    targetSets.some((s) => selectedSetCodes.has(s.code)) &&
+    !allTargetSelected;
 
   return (
     <div className="rounded-lg border bg-card/60 overflow-hidden">
@@ -58,13 +59,15 @@ function MtgEraAccordionGroup({
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-gray-300 cursor-pointer disabled:opacity-60"
-            checked={allSynced || allUnsyncedSelected}
+            checked={allTargetSelected}
             ref={(el) => {
               if (el) el.indeterminate = someSelected;
             }}
-            disabled={allSynced || isRunning}
+            disabled={isRunning}
             onChange={() => onToggleEraSelection(group.sets)}
-            aria-label={`Select unsynced sets in ${group.era}`}
+            aria-label={
+              allSynced ? `Select all sets in ${group.era}` : `Select unsynced sets in ${group.era}`
+            }
           />
           <button
             type="button"
@@ -104,8 +107,8 @@ function MtgEraAccordionGroup({
                   <td className="p-2">
                     <input
                       type="checkbox"
-                      checked={set.isSynced || selectedSetCodes.has(set.code)}
-                      disabled={set.isSynced || isRunning}
+                      checked={selectedSetCodes.has(set.code)}
+                      disabled={isRunning}
                       onChange={() => onToggleSetSelection(set.code)}
                       aria-label={`Select ${set.name}`}
                     />
@@ -197,11 +200,12 @@ export default function AdminMtgSyncPanel() {
 
   const toggleEraSelection = (eraSets: AdminMtgSetEntry[]) => {
     const unsynced = eraSets.filter((s) => !s.isSynced);
-    if (unsynced.length === 0) return;
-    const allSelected = unsynced.every((s) => selectedSetCodes.has(s.code));
+    const targets = unsynced.length > 0 ? unsynced : eraSets;
+    if (targets.length === 0) return;
+    const allSelected = targets.every((s) => selectedSetCodes.has(s.code));
     setSelectedSetCodes((prev) => {
       const next = new Set(prev);
-      for (const s of unsynced) {
+      for (const s of targets) {
         if (allSelected) next.delete(s.code);
         else next.add(s.code);
       }

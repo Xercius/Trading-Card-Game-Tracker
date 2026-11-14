@@ -93,6 +93,13 @@ public sealed class ScryfallApiClient : IMtgApiClient
                 ?? throw new InvalidOperationException("Empty card search response from Scryfall.");
 
             cards.AddRange(page.Data);
+            if (page.HasMore && pageCount >= MaxPages)
+            {
+                _logger.LogWarning(
+                    "Reached maximum page limit ({MaxPages}) while fetching Scryfall cards for set {SetCode}; results may be truncated.",
+                    MaxPages,
+                    normalizedCode);
+            }
             nextUrl = page.HasMore ? page.NextPage : null;
         }
 
@@ -207,7 +214,7 @@ public sealed class ScryfallApiClient : IMtgApiClient
         }
     }
 
-    private static TimeSpan ComputeBackoffDelay(HttpResponseMessage response, int attempt)
+    private TimeSpan ComputeBackoffDelay(HttpResponseMessage response, int attempt)
     {
         if (response.Headers.RetryAfter?.Delta is { } delta && delta > TimeSpan.Zero)
         {
@@ -216,7 +223,7 @@ public sealed class ScryfallApiClient : IMtgApiClient
 
         if (response.Headers.RetryAfter?.Date is { } date)
         {
-            var wait = date - DateTimeOffset.UtcNow;
+            var wait = date - _timeProvider.GetUtcNow();
             if (wait > TimeSpan.Zero)
             {
                 return wait <= TimeSpan.FromSeconds(30) ? wait : TimeSpan.FromSeconds(30);

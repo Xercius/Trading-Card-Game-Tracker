@@ -264,11 +264,18 @@ public class MtgScryfallImporterTests(CustomWebApplicationFactory factory) : ICl
 
         var statusResp = await client.GetFromJsonAsync<AdminMtgSyncStatusResponse>("/api/admin/sync/mtg/status");
         Assert.NotNull(statusResp);
-        Assert.Single(statusResp.Sets);
-        Assert.Equal("FDN", statusResp.Sets[0].Code);
+        var fdn = Assert.Single(statusResp.Sets, s => s.Code == "FDN");
+        Assert.False(fdn.IsSynced);
+        Assert.Equal(0, fdn.CardCountInDb);
 
         var badCardsResp = await client.PostAsJsonAsync("/api/admin/sync/mtg/cards", new AdminMtgCardsSyncRequest([]));
         Assert.Equal(HttpStatusCode.BadRequest, badCardsResp.StatusCode);
+
+        var cardsResp = await client.PostAsJsonAsync("/api/admin/sync/mtg/cards", new AdminMtgCardsSyncRequest(["FDN"]));
+        Assert.Equal(HttpStatusCode.OK, cardsResp.StatusCode);
+
+        var logsResp = await client.GetAsync("/api/admin/sync/mtg/logs");
+        Assert.Equal(HttpStatusCode.OK, logsResp.StatusCode);
     }
 
     private sealed class FakeMtgApiClient(
