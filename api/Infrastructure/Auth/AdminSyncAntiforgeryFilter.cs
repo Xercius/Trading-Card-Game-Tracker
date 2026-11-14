@@ -14,7 +14,13 @@ internal sealed class AdminSyncAntiforgeryFilter(
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var request = context.HttpContext.Request;
+        var isUnprotectedImporterEndpoint =
+            request.Path.StartsWithSegments("/api/admin/import") ||
+            (request.Path.StartsWithSegments("/api/admin/sync") &&
+             !request.Path.StartsWithSegments("/api/admin/sync/session"));
+
         if (!request.Path.StartsWithSegments("/api/admin") ||
+            isUnprotectedImporterEndpoint ||
             HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) ||
             HttpMethods.IsOptions(request.Method) ||
             context.HttpContext.User.Identities.Any(identity =>

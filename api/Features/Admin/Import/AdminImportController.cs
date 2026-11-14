@@ -7,7 +7,6 @@ using api.Infrastructure.Startup;
 using api.Models;
 using api.Shared.Importing;
 using api.Shared.Telemetry;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -16,7 +15,6 @@ namespace api.Features.Admin.Import;
 
 [ApiController]
 [Route("api/admin/import")]
-[Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
 public sealed class AdminImportController : ControllerBase
 {
     private const string SupportedImporterKey = "swu";

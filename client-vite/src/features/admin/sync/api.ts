@@ -37,59 +37,6 @@ export const adminSyncKeys = {
   pokemonStatus: () => [...adminSyncKeys.all, "pokemon", "status"] as const,
 };
 
-type AdminSession = { authenticated: boolean; csrfToken: string };
-const sessionRoute = "admin/sync/session";
-export const adminSessionConfig = { withCredentials: true };
-const credentials = adminSessionConfig;
-
-/** Fetches an antiforgery token for cookie-authenticated admin mutations. */
-export async function adminCsrfConfig() {
-  const { data } = await http.get<AdminSession>(sessionRoute, adminSessionConfig);
-  return { ...adminSessionConfig, headers: { "X-Admin-CSRF": data.csrfToken } };
-}
-
-async function csrfConfig() {
-  return adminCsrfConfig();
-}
-
-/** Signs into the sync-only browser session without storing API credentials. */
-export function useAdminSyncLoginMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (login: { username: string; password: string }) => {
-      await http.post(sessionRoute, login, await csrfConfig());
-    },
-    onSuccess: async () => {
-      await queryClient.resetQueries({ queryKey: adminSyncKeys.all });
-      await queryClient.resetQueries({ queryKey: ["admin", "import"] });
-    },
-  });
-}
-
-/** Clears the sync-only browser session and its cached status. */
-export function useAdminSyncLogoutMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      await http.delete(sessionRoute, await csrfConfig());
-    },
-    onSuccess: async () => {
-      await queryClient.resetQueries({ queryKey: adminSyncKeys.all });
-      await queryClient.resetQueries({ queryKey: ["admin", "import"] });
-    },
-  });
-}
-
-/** Identifies an expired session or an account without administrator access. */
-export function isAdminSyncUnauthorized(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    (error.status === 401 || error.status === 403)
-  );
-}
-
 /**
  * Loads the current Star Wars Unlimited sync status for the admin tools page.
  */
@@ -99,8 +46,7 @@ export function useStarWarsUnlimitedSyncStatusQuery() {
     queryFn: async () => {
       try {
         const response = await http.get<AdminSyncStatusDetails>(
-          "admin/sync/star-wars-unlimited/status",
-          credentials
+          "admin/sync/star-wars-unlimited/status"
         );
         return response.data;
       } catch (error) {
@@ -124,8 +70,7 @@ export function useRunStarWarsUnlimitedSyncMutation() {
           forceFullSync
             ? "admin/sync/star-wars-unlimited?forceFullSync=true"
             : "admin/sync/star-wars-unlimited",
-          null,
-          await csrfConfig()
+          null
         );
         return response.data;
       } catch (error) {
@@ -151,10 +96,7 @@ export function useStarWarsCcgSyncStatusQuery() {
     queryKey: adminSyncKeys.starWarsCcgStatus(),
     queryFn: async () => {
       try {
-        const response = await http.get<AdminSyncStatusDetails>(
-          "admin/sync/star-wars-ccg/status",
-          credentials
-        );
+        const response = await http.get<AdminSyncStatusDetails>("admin/sync/star-wars-ccg/status");
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);
@@ -175,8 +117,7 @@ export function useRunStarWarsCcgSyncMutation() {
       try {
         const response = await http.post<AdminSyncStatusResponse>(
           "admin/sync/star-wars-ccg",
-          options ?? {},
-          await csrfConfig()
+          options ?? {}
         );
         return response.data;
       } catch (error) {
@@ -235,8 +176,7 @@ export function usePokemonSyncStatusQuery() {
     queryFn: async () => {
       try {
         const response = await http.get<AdminPokemonSyncStatusResponse>(
-          "admin/sync/pokemon/status",
-          credentials
+          "admin/sync/pokemon/status"
         );
         return response.data;
       } catch (error) {
@@ -256,11 +196,7 @@ export function useRunPokemonSetsSyncMutation() {
   return useMutation<ImportSummaryDto, Error, void>({
     mutationFn: async () => {
       try {
-        const response = await http.post<ImportSummaryDto>(
-          "admin/sync/pokemon/sets",
-          null,
-          await csrfConfig()
-        );
+        const response = await http.post<ImportSummaryDto>("admin/sync/pokemon/sets", null);
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);
@@ -281,11 +217,7 @@ export function useRunPokemonCardsSyncMutation() {
   return useMutation<ImportSummaryDto, Error, AdminPokemonCardsSyncRequest>({
     mutationFn: async (payload) => {
       try {
-        const response = await http.post<ImportSummaryDto>(
-          "admin/sync/pokemon/cards",
-          payload,
-          await csrfConfig()
-        );
+        const response = await http.post<ImportSummaryDto>("admin/sync/pokemon/cards", payload);
         return response.data;
       } catch (error) {
         throw toProblemDetailsError(error);

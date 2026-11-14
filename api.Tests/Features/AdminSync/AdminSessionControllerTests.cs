@@ -100,24 +100,6 @@ public sealed class AdminSessionControllerTests
     }
 
     [Fact]
-    public async Task Session_ValidAdministrator_CanReadSyncStatusButCannotMutateWithoutCsrf()
-    {
-        using var factory = new TestingWebAppFactory();
-        await factory.ResetStateAsync();
-        await SeedUserAsync(factory);
-        using var client = CreateClient(factory);
-        await SetCsrfAsync(client);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync(SessionPath,
-            new { username = "session-admin", password = "test-password" })).StatusCode);
-
-        var status = await client.GetAsync("/api/admin/sync/star-wars-unlimited/status");
-        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
-        client.DefaultRequestHeaders.Remove("X-Admin-CSRF");
-        var mutation = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
-        Assert.Equal(HttpStatusCode.BadRequest, mutation.StatusCode);
-    }
-
-    [Fact]
     public async Task Session_AfterTwentyMinutes_ExpiresWithoutRenewal()
     {
         using var factory = new TestingWebAppFactory();

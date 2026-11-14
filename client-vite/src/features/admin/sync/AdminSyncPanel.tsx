@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AdminSyncLoginCard } from "./AdminSyncLoginCard";
-import {
-  isAdminSyncUnauthorized,
-  useAdminSyncLoginMutation,
-  useAdminSyncLogoutMutation,
-  useRunStarWarsUnlimitedSyncMutation,
-  useStarWarsUnlimitedSyncStatusQuery,
-} from "./api";
+import { useRunStarWarsUnlimitedSyncMutation, useStarWarsUnlimitedSyncStatusQuery } from "./api";
 
 type SyncFeedback = {
   tone: "success" | "error";
@@ -22,8 +15,6 @@ function formatDateTime(value: string | null) {
 export default function AdminSyncPanel() {
   const statusQuery = useStarWarsUnlimitedSyncStatusQuery();
   const runSync = useRunStarWarsUnlimitedSyncMutation();
-  const login = useAdminSyncLoginMutation();
-  const logout = useAdminSyncLogoutMutation();
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
 
   const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
@@ -49,26 +40,10 @@ export default function AdminSyncPanel() {
     } catch {
       setFeedback({
         tone: "error",
-        message:
-          "Failed to run sync. The last successful global checkpoint is unchanged. Sign in again if your session expired.",
+        message: "Failed to run sync. The last successful global checkpoint is unchanged.",
       });
     }
   };
-
-  if (isAdminSyncUnauthorized(statusQuery.error) || isAdminSyncUnauthorized(runSync.error)) {
-    return (
-      <AdminSyncLoginCard
-        title="Star Wars Unlimited sync"
-        isPending={login.isPending}
-        error={login.error}
-        onSubmit={async (credentials) => {
-          await login.mutateAsync(credentials);
-          runSync.reset();
-          setFeedback(null);
-        }}
-      />
-    );
-  }
 
   if (statusQuery.isLoading) {
     return (
@@ -167,15 +142,6 @@ export default function AdminSyncPanel() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => logout.mutate()}
-          disabled={logout.isPending || isRunning}
-        >
-          Sign out
-        </Button>
-        {logout.isError && <p role="alert">Sign-out failed. Try again.</p>}
         <Button
           type="button"
           onClick={() => handleRunSync()}

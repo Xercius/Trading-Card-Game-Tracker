@@ -22,11 +22,10 @@ const NAV_LINKS: NavLinkItem[] = [
   { to: paths.users, label: "Users", requiresAdmin: true },
 ];
 
-const ADMIN_LINKS: NavLinkItem[] = [
+const IMPORTER_LINKS: NavLinkItem[] = [
   { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.adminSwccgSync, label: "SWCCG Sync" },
   { to: paths.adminPokemonSync, label: "Pokémon Sync" },
-  { to: paths.adminImport, label: "Admin · Import" },
 ];
 
 type GameOption = {
@@ -133,11 +132,11 @@ export default function Header() {
   const q = searchParams.get("q") ?? "";
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [importersOpen, setImportersOpen] = useState(false);
   const [brandImgError, setBrandImgError] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
-  const adminDropdownRef = useRef<HTMLDivElement>(null);
-  const adminTriggerRef = useRef<HTMLButtonElement>(null);
+  const importersDropdownRef = useRef<HTMLDivElement>(null);
+  const importersTriggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
   const [search, setSearch] = useState(q);
 
@@ -188,24 +187,27 @@ export default function Header() {
 
   useEffect(() => {
     setMobileOpen(false);
-    setAdminOpen(false);
+    setImportersOpen(false);
   }, [location.pathname]);
 
-  // Close Admin dropdown when clicking outside or pressing Escape
+  // Close Importers dropdown when clicking outside or pressing Escape
   useEffect(() => {
-    if (!adminOpen) return;
+    if (!importersOpen) return;
 
     function handleClickOutside(event: MouseEvent) {
-      if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
-        setAdminOpen(false);
+      if (
+        importersDropdownRef.current &&
+        !importersDropdownRef.current.contains(event.target as Node)
+      ) {
+        setImportersOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        setAdminOpen(false);
-        adminTriggerRef.current?.focus();
+        setImportersOpen(false);
+        importersTriggerRef.current?.focus();
       }
     }
 
@@ -215,7 +217,7 @@ export default function Header() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [adminOpen]);
+  }, [importersOpen]);
 
   function onMobileMenuKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") setMobileOpen(false);
@@ -226,8 +228,8 @@ export default function Header() {
     return NAV_LINKS.filter((link) => (link.requiresAdmin ? currentUser?.isAdmin : true));
   }, [userId, users]);
 
-  const isAdminActive = useMemo(() => {
-    return ADMIN_LINKS.some((link) => {
+  const isImportersActive = useMemo(() => {
+    return IMPORTER_LINKS.some((link) => {
       const target = link.to.startsWith("/") ? link.to : `/${link.to}`;
       return location.pathname === target || location.pathname.startsWith(`${target}/`);
     });
@@ -265,27 +267,27 @@ export default function Header() {
               </NavLink>
             ))}
 
-            {/* Admin Dropdown */}
-            <div className="relative" ref={adminDropdownRef}>
+            {/* Importers Dropdown */}
+            <div className="relative" ref={importersDropdownRef}>
               <button
-                ref={adminTriggerRef}
+                ref={importersTriggerRef}
                 type="button"
-                aria-expanded={adminOpen}
+                aria-expanded={importersOpen}
                 aria-haspopup="menu"
-                aria-controls="admin-dropdown-menu"
-                onClick={() => setAdminOpen((open) => !open)}
+                aria-controls="importers-dropdown-menu"
+                onClick={() => setImportersOpen((open) => !open)}
                 className={`inline-flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isAdminActive || adminOpen
+                  isImportersActive || importersOpen
                     ? "bg-foreground text-background"
                     : "text-foreground/70 hover:bg-foreground/10"
                 }`}
               >
-                <span>Admin</span>
+                <span>Importers</span>
                 <svg
                   viewBox="0 0 20 20"
                   fill="currentColor"
                   aria-hidden="true"
-                  className={`h-4 w-4 transition-transform duration-150 ${adminOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 transition-transform duration-150 ${importersOpen ? "rotate-180" : ""}`}
                 >
                   <path
                     fillRule="evenodd"
@@ -295,14 +297,14 @@ export default function Header() {
                 </svg>
               </button>
 
-              {adminOpen && (
+              {importersOpen && (
                 <div
-                  id="admin-dropdown-menu"
+                  id="importers-dropdown-menu"
                   role="menu"
                   aria-orientation="vertical"
                   className="absolute left-0 mt-2 w-48 rounded-lg border border-white/20 bg-[#242424] p-1 shadow-xl z-50 focus:outline-none"
                 >
-                  {ADMIN_LINKS.map((link) => (
+                  {IMPORTER_LINKS.map((link) => (
                     <NavLink
                       key={link.to}
                       to={link.to}
@@ -314,7 +316,7 @@ export default function Header() {
                             : "text-foreground hover:bg-white/10 hover:text-white"
                         }`
                       }
-                      onClick={() => setAdminOpen(false)}
+                      onClick={() => setImportersOpen(false)}
                     >
                       {link.label}
                     </NavLink>
@@ -449,10 +451,10 @@ export default function Header() {
 
               <div className="pt-3 border-t mt-3">
                 <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Admin
+                  Importers
                 </div>
                 <ul className="mt-1 space-y-1">
-                  {ADMIN_LINKS.map((link) => (
+                  {IMPORTER_LINKS.map((link) => (
                     <li key={link.to}>
                       <NavLink to={link.to} className={linkCls}>
                         {link.label}

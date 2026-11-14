@@ -56,11 +56,7 @@ const router = createBrowserRouter([
       },
       {
         path: paths.adminImport,
-        element: withBoundary(
-          <RequireAdmin allowOwner>
-            <AdminImportPage />
-          </RequireAdmin>
-        ),
+        element: withBoundary(<AdminImportPage />),
       },
       {
         path: paths.adminSync,

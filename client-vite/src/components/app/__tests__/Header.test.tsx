@@ -91,19 +91,25 @@ describe("Header", () => {
     expect(buttons[3]).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("renders the search bar to the right of the Admin dropdown in the top row", async () => {
+  it("renders the search bar to the right of the Importers dropdown in the top row", async () => {
     renderHeader();
 
-    const adminTrigger = screen.getByRole("button", { name: /^Admin/i });
+    const importersTrigger = screen.getByRole("button", { name: /^Importers/i });
     const searchInput = screen.getByPlaceholderText("Search cards, decks...");
 
-    expect(adminTrigger).toBeInTheDocument();
+    expect(importersTrigger).toBeInTheDocument();
     expect(searchInput).toBeInTheDocument();
 
-    // In DOM order, search bar follows the Admin dropdown
+    // In DOM order, search bar follows the Importers dropdown
     expect(
-      adminTrigger.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING
+      importersTrigger.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+
+    fireEvent.click(importersTrigger);
+    expect(screen.getByRole("menuitem", { name: "SWU Sync" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "SWCCG Sync" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Pokémon Sync" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Admin · Import" })).not.toBeInTheDocument();
   });
 
   it("keeps the mobile drawer open when debounced search updates the URL", async () => {
