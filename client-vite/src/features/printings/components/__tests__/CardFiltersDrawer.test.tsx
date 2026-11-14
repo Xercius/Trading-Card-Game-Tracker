@@ -506,4 +506,59 @@ describe("CardFiltersDrawer", () => {
       expect(updater(filters)).toMatchObject({ [key]: [">2", "6"], page: 1 });
     }
   });
+
+  it("renders Magic The Gathering filters without SWU-only filters and maps Colors to aspects", () => {
+    const setFilters = vi.fn();
+    const mtgFacets: PrintingFacets = {
+      games: ["Magic The Gathering"],
+      sets: ["Foundations"],
+      rarities: ["Common", "Rare"],
+      types: ["Creature", "Instant"],
+      subTypes: ["Elf", "Druid"],
+      arenas: [],
+      aspects: ["White", "Blue", "Black", "Red", "Green", "Colorless"],
+      traits: [],
+      keywords: ["Flying", "Trample"],
+    };
+
+    render(
+      <CardFiltersDrawer
+        open={true}
+        onOpenChange={vi.fn()}
+        filters={defaultFilters}
+        setFilters={setFilters}
+        availableFacets={mtgFacets}
+        isFacetsLoading={false}
+        isFacetsError={false}
+        onRetryFacets={vi.fn()}
+        onClearFilters={vi.fn()}
+        hasActiveFilters={false}
+        game="Magic The Gathering"
+      />
+    );
+
+    expect(screen.getByText("Magic The Gathering")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Colors" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sub-Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rarity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keywords" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: "Aspects" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Arena" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Traits" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Colors" }));
+    expect(screen.queryByRole("button", { name: "Vigilance" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Green" }));
+
+    const updater = setFilters.mock.calls[0]?.[0];
+    expect(typeof updater).toBe("function");
+    expect(updater(defaultFilters)).toMatchObject({
+      aspects: ["Green"],
+      aspectMethod: "or",
+      page: 1,
+    });
+  });
 });

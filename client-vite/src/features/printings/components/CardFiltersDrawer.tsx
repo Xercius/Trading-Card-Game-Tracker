@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "./MultiSelect";
 import { AspectFilter } from "./AspectFilter";
+import { MtgColorFilter } from "./MtgColorFilter";
 import { PokemonTypeFilter } from "./PokemonTypeFilter";
 import { EvolvesFromFilter } from "./EvolvesFromFilter";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,7 @@ export function CardFiltersDrawer({
   );
   const isSwccg = game === "Star Wars CCG";
   const isPokemon = game === "Pokemon TCG";
+  const isMtg = game === "Magic The Gathering";
   const activeSide = filters.side
     ? filters.side.toLowerCase() === "light"
       ? "Light"
@@ -206,7 +208,7 @@ export function CardFiltersDrawer({
               Filters
             </h2>
             <span className="text-xs text-muted-foreground uppercase tracking-wider">
-              {isSwccg ? "Star Wars CCG" : "Star Wars Unlimited"}
+              {game || "Star Wars Unlimited"}
             </span>
           </div>
           <Button
@@ -580,6 +582,83 @@ export function CardFiltersDrawer({
                 values={filters.rarities ?? []}
                 options={availableFacets.rarities}
                 onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
+              />
+            </>
+          ) : isMtg ? (
+            <>
+              {/* Magic: The Gathering Filters */}
+              <MtgColorFilter
+                className="w-full justify-between"
+                values={filters.aspects ?? []}
+                method={filters.aspectMethod ?? "or"}
+                availableColors={availableFacets.aspects ?? []}
+                onChange={(values, method) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    aspects: values,
+                    aspectMethod: method,
+                    page: 1,
+                  }))
+                }
+              />
+
+              <MultiSelect
+                label="Card Type"
+                className="w-full justify-between"
+                values={filters.types ?? []}
+                options={availableFacets.types ?? []}
+                placeholder="Search card types…"
+                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Sub-Type"
+                className="w-full justify-between"
+                values={filters.subTypes ?? []}
+                options={availableFacets.subTypes ?? []}
+                placeholder="Search sub-types…"
+                onChange={(values) => setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Set"
+                className="w-full justify-between"
+                values={filters.sets ?? []}
+                options={availableFacets.sets}
+                placeholder="Search sets…"
+                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Rarity"
+                className="w-full justify-between"
+                values={filters.rarities ?? []}
+                options={availableFacets.rarities}
+                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
+              />
+
+              <MultiSelect
+                label="Keywords"
+                className="w-full justify-between"
+                values={filters.keywords ?? []}
+                options={availableFacets.keywords ?? []}
+                placeholder="Search keywords…"
+                method={filters.keywordMethod ?? "or"}
+                onMethodChange={(method) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    keywordMethod: method,
+                    page: 1,
+                  }))
+                }
+                onChange={(values) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    keywords: values,
+                    ...(values.length === 0 ? { keywordMethod: "or" as const } : {}),
+                    page: 1,
+                  }))
+                }
               />
             </>
           ) : (

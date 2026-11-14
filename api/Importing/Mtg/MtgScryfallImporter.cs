@@ -315,7 +315,7 @@ public sealed class MtgScryfallImporter : ISourceImporter
     private static void SyncCardMetadataJoins(Card card, ScryfallCard sc, MtgCatalog catalog)
     {
         var desiredAspectIds = catalog.ResolveAspects(sc).Select(a => a.Id).ToHashSet();
-        var currentAspectIds = card.CardAspects.Select(ca => ca.AspectId).ToHashSet();
+        var currentAspectIds = card.CardAspects.Select(ca => ca.Aspect?.Id ?? ca.AspectId).ToHashSet();
         if (!desiredAspectIds.SetEquals(currentAspectIds))
         {
             card.CardAspects.Clear();
@@ -333,7 +333,7 @@ public sealed class MtgScryfallImporter : ISourceImporter
             card.CardTypes.Clear();
             foreach (var tp in desiredTypes)
             {
-                card.CardTypes.Add(new CardCardType { Card = card, CardType = tp, SourceRole = "Primary" });
+                card.CardTypes.Add(new CardCardType { Card = card, CardType = tp, SourceRole = "Type" });
             }
         }
 
