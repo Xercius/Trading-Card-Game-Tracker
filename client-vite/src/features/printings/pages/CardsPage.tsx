@@ -68,6 +68,7 @@ export default function CardsPage() {
   const { filters, setFilters } = useCardFilters();
   const isSwccg = activeGame === "Star Wars CCG";
   const isPokemon = activeGame === "Pokemon TCG";
+  const isMtg = activeGame === "Magic The Gathering";
   const effectiveAspectMethod = isSwccg || isPokemon ? "or" : filters.aspectMethod;
 
   const previousGameRef = React.useRef(activeGame);
@@ -129,18 +130,20 @@ export default function CardsPage() {
       ...filters,
       games: [activeGame],
       stages: isPokemon ? filters.stages : [],
-      arenas: isSwccg ? [] : filters.arenas,
+      arenas: isSwccg || isMtg ? [] : filters.arenas,
       aspects: isSwccg
         ? []
-        : isPokemon
+        : isPokemon || isMtg
           ? [...new Map(filters.aspects.map((aspect) => [aspect.toLowerCase(), aspect])).values()]
           : filters.aspects,
       aspectMethod: effectiveAspectMethod,
+      traits: isMtg ? [] : filters.traits,
+      traitMethod: isMtg ? "or" : filters.traitMethod,
       keywords: isSwccg ? [] : filters.keywords,
       keywordMethod: isSwccg ? "or" : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,
       personas: isSwccg ? filters.personas : [],
-      subTypes: isSwccg ? filters.subTypes : [],
+      subTypes: isSwccg || isMtg ? filters.subTypes : [],
       destinies: isSwccg ? filters.destinies : [],
       deploys: isSwccg ? filters.deploys : [],
       forfeits: isSwccg ? filters.forfeits : [],
@@ -154,7 +157,7 @@ export default function CardsPage() {
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, isPokemon, effectiveAspectMethod, effectivePageSize]
+    [filters, activeGame, isSwccg, isPokemon, isMtg, effectiveAspectMethod, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -326,7 +329,9 @@ export default function CardsPage() {
     if (counts["no-aspect"]) {
       result.push({ display: "No Aspect", value: "no-aspect" });
     }
-    const knownAspects = ["Vigilance", "Command", "Aggression", "Cunning", "Heroism", "Villainy"];
+    const knownAspects = isMtg
+      ? ["White", "Blue", "Black", "Red", "Green", "Colorless"]
+      : ["Vigilance", "Command", "Aggression", "Cunning", "Heroism", "Villainy"];
     for (const name of knownAspects) {
       const count = counts[name.toLowerCase()];
       if (count === 1) result.push({ display: name, value: name });
@@ -339,7 +344,7 @@ export default function CardsPage() {
       else if (count > 1) result.push({ display: `${capital} ×${count}`, value: key });
     }
     return result;
-  }, [filters.aspects]);
+  }, [filters.aspects, isMtg]);
 
   const activeFilters = React.useMemo(() => {
     if (isSwccg) {
@@ -480,6 +485,15 @@ export default function CardsPage() {
         label: "Type",
         items: (filters.types ?? []).map((v) => ({ display: v, value: v })),
       },
+      ...(isMtg
+        ? [
+            {
+              key: "subTypes" as const,
+              label: "Sub-Type",
+              items: (filters.subTypes ?? []).map((v) => ({ display: v, value: v })),
+            },
+          ]
+        : []),
       ...(isPokemon
         ? [
             {
@@ -515,8 +529,13 @@ export default function CardsPage() {
       },
       {
         key: "aspects" as const,
-        label:
-          effectiveAspectMethod === "exclude"
+        label: isMtg
+          ? effectiveAspectMethod === "exclude"
+            ? "Exclude Color"
+            : effectiveAspectMethod === "and"
+              ? "Color (AND)"
+              : "Color"
+          : effectiveAspectMethod === "exclude"
             ? "Exclude Aspect"
             : effectiveAspectMethod === "and"
               ? "Aspect (AND)"
@@ -547,6 +566,7 @@ export default function CardsPage() {
   }, [
     isSwccg,
     isPokemon,
+    isMtg,
     filters.side,
     filters.types,
     filters.hps,

@@ -4,6 +4,7 @@ using api.Data;
 using api.Features.Admin.Sync.Dtos;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Importing.Mtg;
 using api.Importing.Pokemon;
 using api.Models;
 using FluentValidation;
@@ -22,7 +23,9 @@ public sealed class AdminSyncController(
     TimeProvider timeProvider,
     ILogger<AdminSyncController> logger,
     PokemonTcgdexImporter pokemonImporter,
-    IValidator<AdminSwccgSyncRequest> swccgSyncValidator) : ControllerBase
+    MtgScryfallImporter mtgImporter,
+    IValidator<AdminSwccgSyncRequest> swccgSyncValidator,
+    IValidator<AdminMtgCardsSyncRequest> mtgCardsSyncValidator) : ControllerBase
 {
     private const string SwuImporterKey = "swu";
     private const string CatalogHistoryKey = "swu-catalog";
@@ -36,6 +39,9 @@ public sealed class AdminSyncController(
 
     private const string PokemonImporterKey = "pokemon";
     private const string PokemonSyncRouteKey = "pokemon";
+
+    private const string MtgImporterKey = "mtg";
+    private const string MtgSyncRouteKey = "mtg";
 
     [HttpGet("star-wars-unlimited/logs")]
     public Task<ActionResult<AdminSyncLogsResponse>> GetStarWarsUnlimitedLogs(
@@ -504,6 +510,147 @@ public sealed class AdminSyncController(
             l => l.CatalogScope != null && l.CatalogScope.StartsWith("Pokemon:"),
             limit,
             usePokemonSetFallback: true,
+            ct);
+
+    [HttpGet("mtg/status")]
+    public async Task<ActionResult<AdminMtgSyncStatusResponse>> GetMtgStatus(CancellationToken ct)
+    {
+        var isRunning = executionTracker.TryGetStartedAt(MtgSyncRouteKey, out var runningSince);
+
+        var lastSetsSyncAt = (await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "mtg-sets" && h.SetCode == "")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .ToListAsync(ct))
+            .OrderByDescending(h => h)
+            .FirstOrDefault();
+
+        var lastCardsSyncAt = (await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "mtg-cards")
+            .Select(h => (DateTimeOffset?)h.LastSyncedAt)
+            .ToListAsync(ct))
+            .OrderByDescending(h => h)
+            .FirstOrDefault();
+
+        var lastOutcome = (await db.SyncLogs.AsNoTracking()
+            .Where(l => l.CatalogScope != null && l.CatalogScope.StartsWith("Mtg:") && l.CompletedAt != null)
+            .Select(l => new { l.StartedAt, l.Status })
+            .ToListAsync(ct))
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefault()?.Status;
+
+        var cardCountsBySetId = await db.CardPrintings.AsNoTracking()
+            .Where(cp => cp.SetId != null && cp.CatalogSet != null &&
+                (cp.CatalogSet.Game.NameNormalized == "magic the gathering" || cp.CatalogSet.Game.NameNormalized == "magic"))
+            .GroupBy(cp => cp.SetId!.Value)
+            .Select(g => new { SetId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.SetId, g => g.Count, ct);
+
+        var sets = await db.Sets.AsNoTracking()
+            .Where(s => s.Game.NameNormalized == "magic the gathering" || s.Game.NameNormalized == "magic")
+            .Select(s => new { s.Id, s.Code, Name = s.Name ?? s.Code, s.Era, s.ReleasedAt })
+            .ToListAsync(ct);
+
+        var syncedSetHistories = await db.ImportSyncHistories.AsNoTracking()
+            .Where(h => h.ImporterKey == "mtg-cards")
+            .ToDictionaryAsync(h => h.SetCode.Trim(), h => h.LastSyncedAt, StringComparer.OrdinalIgnoreCase, ct);
+
+        var setEntries = sets
+            .Select(s =>
+            {
+                var hasHistory = syncedSetHistories.TryGetValue(s.Code.Trim(), out var syncedAt);
+                cardCountsBySetId.TryGetValue(s.Id, out var countInDb);
+                var isSynced = hasHistory || countInDb > 0;
+                return new AdminMtgSetEntry(
+                    s.Id,
+                    s.Code,
+                    s.Name,
+                    s.Era,
+                    s.ReleasedAt?.ToString("yyyy-MM-dd"),
+                    countInDb,
+                    isSynced,
+                    hasHistory ? syncedAt : null);
+            })
+            .OrderByDescending(s => s.ReleaseDate ?? "0000")
+            .ThenBy(s => s.Name)
+            .ToList();
+
+        return Ok(new AdminMtgSyncStatusResponse(
+            IsRunning: isRunning,
+            RunningSince: isRunning ? runningSince : null,
+            LastSetsSyncAt: lastSetsSyncAt,
+            LastCardsSyncAt: lastCardsSyncAt,
+            LastOutcome: lastOutcome,
+            Sets: setEntries));
+    }
+
+    [HttpPost("mtg/sets")]
+    public async Task<IActionResult> SyncMtgSets(CancellationToken ct)
+    {
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(MtgSyncRouteKey, startedAt))
+        {
+            return this.CreateProblem(StatusCodes.Status409Conflict, detail: "An MTG sync is already running.");
+        }
+
+        try
+        {
+            var summary = await mtgImporter.SyncSetsAsync(ct);
+            return Ok(summary);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(new EventId(3201, "MtgSyncSetsFailed"), ex, "Failed to sync MTG sets.");
+            return this.CreateProblem(StatusCodes.Status500InternalServerError, detail: "Sync failed. See server logs for details.");
+        }
+        finally
+        {
+            executionTracker.Complete(MtgSyncRouteKey);
+        }
+    }
+
+    [HttpPost("mtg/cards")]
+    public async Task<IActionResult> SyncMtgCards([FromBody] AdminMtgCardsSyncRequest request, CancellationToken ct)
+    {
+        var validation = await mtgCardsSyncValidator.ValidateAsync(request ?? new AdminMtgCardsSyncRequest(null), ct);
+        if (!validation.IsValid)
+        {
+            var errors = validation.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+            return this.CreateValidationProblem(errors);
+        }
+
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(MtgSyncRouteKey, startedAt))
+        {
+            return this.CreateProblem(StatusCodes.Status409Conflict, detail: "An MTG sync is already running.");
+        }
+
+        try
+        {
+            var summary = await mtgImporter.SyncCardsAsync(request!.SetCodes!, request.ForceFullSync, request.DryRun, ct);
+            return Ok(summary);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(new EventId(3202, "MtgSyncCardsFailed"), ex, "Failed to sync MTG cards.");
+            return this.CreateProblem(StatusCodes.Status500InternalServerError, detail: "Sync failed. See server logs for details.");
+        }
+        finally
+        {
+            executionTracker.Complete(MtgSyncRouteKey);
+        }
+    }
+
+    [HttpGet("mtg/logs")]
+    public Task<ActionResult<AdminSyncLogsResponse>> GetMtgLogs(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
+        => GetSyncLogsAsync(
+            MtgImporterKey,
+            l => l.CatalogScope != null && l.CatalogScope.StartsWith("Mtg:"),
+            limit,
+            usePokemonSetFallback: false,
             ct);
 
     private async Task<ActionResult<AdminSyncLogsResponse>> GetSyncLogsAsync(

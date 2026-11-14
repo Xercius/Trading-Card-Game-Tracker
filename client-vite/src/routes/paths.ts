@@ -7,6 +7,7 @@ export const paths = {
   adminSync: "admin/sync",
   adminSwccgSync: "admin/swccg-sync",
   adminPokemonSync: "admin/pokemon-sync",
+  adminMtgSync: "admin/mtg-sync",
   users: "users",
   value: "value",
 } as const;

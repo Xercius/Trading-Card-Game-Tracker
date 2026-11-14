@@ -35,6 +35,7 @@ export const adminSyncKeys = {
   starWarsUnlimitedStatus: () => [...adminSyncKeys.all, "star-wars-unlimited", "status"] as const,
   starWarsCcgStatus: () => [...adminSyncKeys.all, "star-wars-ccg", "status"] as const,
   pokemonStatus: () => [...adminSyncKeys.all, "pokemon", "status"] as const,
+  mtgStatus: () => [...adminSyncKeys.all, "mtg", "status"] as const,
 };
 
 /**
@@ -225,6 +226,92 @@ export function useRunPokemonCardsSyncMutation() {
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: adminSyncKeys.pokemonStatus() });
+    },
+  });
+}
+
+export type AdminMtgSetEntry = {
+  id: number;
+  code: string;
+  name: string;
+  era: string | null;
+  releaseDate: string | null;
+  cardCountInDb: number;
+  isSynced: boolean;
+  lastSyncedAt: string | null;
+};
+
+export type AdminMtgSyncStatusResponse = {
+  isRunning: boolean;
+  runningSince: string | null;
+  lastSetsSyncAt: string | null;
+  lastCardsSyncAt: string | null;
+  lastOutcome: string | null;
+  sets: AdminMtgSetEntry[];
+};
+
+export type AdminMtgCardsSyncRequest = {
+  setCodes: string[];
+  forceFullSync?: boolean;
+  dryRun?: boolean;
+};
+
+/**
+ * Loads the current Magic: The Gathering sync status and set list for the admin tools page.
+ */
+export function useMtgSyncStatusQuery() {
+  return useQuery<AdminMtgSyncStatusResponse>({
+    queryKey: adminSyncKeys.mtgStatus(),
+    queryFn: async () => {
+      try {
+        const response = await http.get<AdminMtgSyncStatusResponse>("admin/sync/mtg/status");
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    retry: false,
+  });
+}
+
+/**
+ * Syncs all non-digital Magic: The Gathering sets from Scryfall.
+ */
+export function useRunMtgSetsSyncMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ImportSummaryDto, Error, void>({
+    mutationFn: async () => {
+      try {
+        const response = await http.post<ImportSummaryDto>("admin/sync/mtg/sets", null);
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.mtgStatus() });
+    },
+  });
+}
+
+/**
+ * Syncs Magic: The Gathering cards for the specified set codes from Scryfall.
+ */
+export function useRunMtgCardsSyncMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ImportSummaryDto, Error, AdminMtgCardsSyncRequest>({
+    mutationFn: async (payload) => {
+      try {
+        const response = await http.post<ImportSummaryDto>("admin/sync/mtg/cards", payload);
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.mtgStatus() });
     },
   });
 }
