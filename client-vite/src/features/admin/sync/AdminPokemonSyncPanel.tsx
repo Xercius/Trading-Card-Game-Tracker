@@ -237,7 +237,7 @@ export default function AdminPokemonSyncPanel() {
         </div>
       </div>
 
-      {statusQuery.isError && !isAdminSyncUnauthorized(statusQuery.error) && (
+      {statusQuery.isError && (
         <div
           role="status"
           className="rounded border border-red-600 bg-red-50 p-3 text-sm text-red-950 dark:bg-red-950/30 dark:text-red-200"

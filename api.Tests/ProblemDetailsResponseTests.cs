@@ -1,12 +1,10 @@
 using api.Common.Errors;
-using api.Shared.Importing;
 using api.Tests.Infrastructure;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using Xunit;
 
 namespace api.Tests;
@@ -124,56 +122,6 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem.Status.Should().Be(StatusCodes.Status404NotFound);
         problem.Detail.Should().Be("Card 999999 was not found.");
         problem.Instance.Should().Be("/api/cards/999999");
-        problem.Extensions.Should().ContainKey("traceId");
-    }
-
-    [Fact]
-    public async Task AdminImportDryRun_InvalidJson_ReturnsBadRequestProblemDetails()
-    {
-        await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
-
-        using var content = new StringContent("{\"source\":", Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("/api/admin/import/dry-run", content);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-
-        problem.Should().NotBeNull();
-        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
-        problem.Title.Should().Be("Invalid request.");
-        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
-        problem.Instance.Should().Be("/api/admin/import/dry-run");
-        problem.Errors.Should().ContainKey("request")
-            .WhoseValue.Should().Contain("The request body could not be parsed as JSON.");
-        problem.Extensions.Should().ContainKey("traceId");
-    }
-
-    [Fact]
-    public async Task AdminImportDryRun_InvalidLimit_ReturnsBadRequestProblemDetails()
-    {
-        await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
-
-        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("/api/admin/import/dry-run?limit=invalid", content);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
-
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-
-        problem.Should().NotBeNull();
-        problem!.Type.Should().Be(ProblemTypes.BadRequest.Type);
-        problem.Title.Should().Be("Invalid limit");
-        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
-        problem.Detail.Should().Be(ProblemTypes.BadRequest.DefaultDetail);
-        problem.Instance.Should().Be("/api/admin/import/dry-run");
-        problem.Errors.Should().ContainKey("limit")
-            .WhoseValue.Should().Contain($"limit must be between {ImportingOptions.MinPreviewLimit} and {ImportingOptions.MaxPreviewLimit}");
         problem.Extensions.Should().ContainKey("traceId");
     }
 

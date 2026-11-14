@@ -37,6 +37,7 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
         });
 
         var client = customizedFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
         return (client, customizedFactory.Services);
     }
 

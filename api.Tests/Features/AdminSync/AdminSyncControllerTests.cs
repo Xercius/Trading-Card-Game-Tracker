@@ -44,6 +44,46 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://evil.example")]
+    public async Task SyncPost_WithoutRequestedWithOrAllowedOrigin_ReturnsForbidden(string? origin)
+    {
+        await factory.ResetDatabaseAsync();
+        var (_, _, customizedFactory) = CreateClientWithSyncImporter(factory);
+        using var client = customizedFactory.CreateClient();
+        if (origin is not null)
+        {
+            client.DefaultRequestHeaders.Add("Origin", origin);
+        }
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SyncPost_WithAllowedCorsOrigin_ReturnsOk()
+    {
+        await factory.ResetDatabaseAsync();
+        SyncTestImporter.Reset();
+        using var customized = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Cors:Origins:0", "https://trusted.example");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll(typeof(ISourceImporter));
+                services.AddScoped<ISourceImporter, SyncTestImporter>();
+            });
+        });
+        using var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("Origin", "https://trusted.example");
+
+        var response = await client.PostAsync("/api/admin/sync/star-wars-unlimited", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Fact]
     public async Task GetStarWarsUnlimitedStatus_WhenUnauthenticated_ReturnsOk()
     {
@@ -767,7 +807,9 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             });
         });
 
-        return (customized.CreateClient(), customized.Services, customized);
+        var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+        return (client, customized.Services, customized);
     }
 
     private static (HttpClient Client, IServiceProvider Services, WebApplicationFactory<Program> Factory) CreateClientWithSwuApiClient(
@@ -786,7 +828,9 @@ public sealed class AdminSyncControllerTests(CustomWebApplicationFactory factory
             });
         });
 
-        return (customized.CreateClient(), customized.Services, customized);
+        var client = customized.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+        return (client, customized.Services, customized);
     }
 
     private static async Task SeedSwuSetAsync(IServiceProvider services, params string[] codes)

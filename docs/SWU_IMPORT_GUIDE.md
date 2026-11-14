@@ -132,13 +132,7 @@ sqlite3 -readonly /tmp/your-disposable-directory/swu-live.db \
   'PRAGMA database_list; SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId;'
 ```
 
-For browser sync, provision an administrator using the [admin authentication
-instructions](../ADMIN.md#sync-authentication) before starting the server, in the
-same subshell with the override still exported. Alternatively, provide
-`Authentication__AdminApiToken` only through the server environment for trusted
-script clients. Never commit admin tokens or passwords to settings files or
-browser configuration. Verify the disposable connection first, then dry-run
-before applying imports or using **Run sync**.
+For browser sync, open the **Importers** dropdown in the web app (no sign-in is required). For trusted script clients, you can optionally supply `Authentication__AdminApiToken` through the server environment, and verify the disposable connection first before running **Run sync**.
 
 To restore normal operation, stop the test API with Ctrl+C and let the subshell
 exit. Its exported override then disappears automatically; restart the API from

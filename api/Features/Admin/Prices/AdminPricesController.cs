@@ -11,7 +11,7 @@ namespace api.Features.Admin.Prices;
 /// </summary>
 [ApiController]
 [Route("api/admin/prices")]
-[Authorize(AuthenticationSchemes = "AdminToken,AdminSession", Roles = "Admin")]
+[Authorize(AuthenticationSchemes = "AdminToken", Roles = "Admin")]
 public sealed class AdminPricesController(AdminPricesService service) : ControllerBase
 {
     /// <summary>Ingests a batch of card price snapshots.</summary>
