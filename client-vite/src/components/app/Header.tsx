@@ -26,6 +26,7 @@ const IMPORTER_LINKS: NavLinkItem[] = [
   { to: paths.adminSync, label: "SWU Sync" },
   { to: paths.adminSwccgSync, label: "SWCCG Sync" },
   { to: paths.adminPokemonSync, label: "Pokémon Sync" },
+  { to: paths.adminMtgSync, label: "MTG Sync" },
 ];
 
 type GameOption = {
@@ -58,7 +59,7 @@ const GAME_OPTIONS: GameOption[] = [
     id: "mtg",
     name: "Magic The Gathering",
     logo: "/images/games/mtg_logo.svg",
-    selectable: false,
+    selectable: true,
   },
   {
     id: "pokemon",

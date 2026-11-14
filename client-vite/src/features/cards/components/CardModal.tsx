@@ -10,6 +10,7 @@ import {
   PokemonEnergyIcon,
   PokemonCardText,
 } from "@/features/printings/components/PokemonEnergyIcon";
+import { MtgCardText, MtgManaCost } from "@/features/printings/components/MtgSymbolIcon";
 
 type CardModalProps = {
   cardId: number;
@@ -79,11 +80,13 @@ function SetLogo({
   setCode,
   setName,
   isSwu,
+  isMtg,
 }: {
   setLogoUrl?: string | null;
   setCode?: string | null;
   setName?: string | null;
   isSwu?: boolean;
+  isMtg?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const logoUrl = getSetLogoUrl(setLogoUrl, setCode, setName, isSwu);
@@ -91,6 +94,28 @@ function SetLogo({
   useEffect(() => {
     setFailed(false);
   }, [logoUrl]);
+
+  if (isMtg) {
+    return (
+      <span className="inline-flex items-center gap-1.5 min-w-0">
+        {logoUrl && !failed && (
+          <img
+            src={logoUrl}
+            alt=""
+            aria-hidden="true"
+            className="h-5 w-5 shrink-0 object-contain dark:invert"
+            onError={() => setFailed(true)}
+          />
+        )}
+        <span
+          className="font-semibold text-sm truncate max-w-[145px]"
+          title={setName || setCode || undefined}
+        >
+          {setName || setCode || "—"}
+        </span>
+      </span>
+    );
+  }
 
   if (!logoUrl || failed) {
     return (
@@ -345,6 +370,22 @@ export default function CardModal({
   const details = detailsQuery.data;
   const isSwccg = details?.game === "Star Wars CCG";
   const isPokemon = details?.game === "Pokemon TCG";
+  const isMtg = details?.game === "Magic The Gathering" || details?.game === "Magic";
+
+  const mtgExtra = useMemo(() => {
+    if (!isMtg || !details?.extraCardDataJson) return null;
+    try {
+      return JSON.parse(details.extraCardDataJson) as {
+        manaCost?: string;
+        typeLine?: string;
+        power?: string;
+        toughness?: string;
+        loyalty?: string;
+      };
+    } catch {
+      return null;
+    }
+  }, [isMtg, details?.extraCardDataJson]);
 
   const pokemonExtra = useMemo(() => {
     if (!isPokemon || !details?.extraCardDataJson) return null;
@@ -597,6 +638,9 @@ export default function CardModal({
                     setCode={selectedPrinting?.setCode || printingDetail?.set}
                     setName={selectedPrinting?.setName || printingDetail?.set}
                     isSwu={details?.game === "Star Wars Unlimited"}
+                    isMtg={
+                      details?.game === "Magic The Gathering" || details?.game === "Magic"
+                    }
                   />
                 </div>
                 <span className="font-semibold text-sm shrink-0 text-foreground">
@@ -1031,6 +1075,7 @@ export default function CardModal({
                           </h2>
 
                           {/* Aspect Logos right next to the card title */}
+                          {isMtg && <MtgManaCost manaCost={mtgExtra?.manaCost} />}
                           {details.aspects && details.aspects.length > 0 && (
                             <div
                               className="flex items-center gap-1.5 shrink-0"
@@ -1120,7 +1165,11 @@ export default function CardModal({
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {frontTypeHeader || "Card Text"}
                         </h3>
-                        {renderStyledCardText(rulesTextSource, "No card text available.")}
+                        {details?.game === "Magic The Gathering" || details?.game === "Magic" ? (
+                          <MtgCardText text={rulesTextSource} />
+                        ) : (
+                          renderStyledCardText(rulesTextSource, "No card text available.")
+                        )}
                       </div>
 
                       {/* Epic Action (Cards.EpicActionStyled) */}

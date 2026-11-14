@@ -16,6 +16,7 @@ const DeckBuilderPage = lazy(() => import("@/pages/DeckBuilderPage"));
 const AdminSyncPanel = lazy(() => import("@/features/admin/sync/AdminSyncPanel"));
 const AdminSwccgSyncPanel = lazy(() => import("@/features/admin/sync/AdminSwccgSyncPanel"));
 const AdminPokemonSyncPanel = lazy(() => import("@/features/admin/sync/AdminPokemonSyncPanel"));
+const AdminMtgSyncPanel = lazy(() => import("@/features/admin/sync/AdminMtgSyncPanel"));
 const UsersPage = lazy(() => import("@/pages/UsersPage"));
 const ValueHubPage = lazy(() => import("@/pages/ValueHubPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -64,6 +65,10 @@ const router = createBrowserRouter([
       {
         path: paths.adminPokemonSync,
         element: withBoundary(<AdminPokemonSyncPanel />),
+      },
+      {
+        path: paths.adminMtgSync,
+        element: withBoundary(<AdminMtgSyncPanel />),
       },
       { path: "*", element: withBoundary(<NotFoundPage />) },
     ],

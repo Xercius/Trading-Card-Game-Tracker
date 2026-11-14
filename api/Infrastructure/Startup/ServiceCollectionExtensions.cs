@@ -3,6 +3,7 @@ using api.Data;
 using api.Features.Decks.Services;
 using api.Features.Admin.Sync.Services;
 using api.Importing;
+using api.Importing.Mtg;
 using api.Importing.Pokemon;
 using api.Importing.Swccg;
 using api.Infrastructure.Auth;
@@ -202,11 +203,22 @@ internal static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromMinutes(5);
         }).ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler);
 
+        // Typed HTTP client for Magic: The Gathering from Scryfall.
+        services.AddHttpClient<IMtgApiClient, ScryfallApiClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.scryfall.com/");
+            client.Timeout = TimeSpan.FromMinutes(5);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TCGTracker/1.0");
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        }).ConfigurePrimaryHttpMessageHandler(ImportHttpGuard.CreateNoRedirectHandler);
+
         services.AddScoped<PokemonTcgdexImporter>();
+        services.AddScoped<MtgScryfallImporter>();
         services.AddScoped<PokemonDeckValidationService>();
         services.AddScoped<api.Features.Cards.Services.PokemonFilterService>();
         services.AddScoped<api.Features.Cards.Services.PokemonEvolutionService>();
         services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<PokemonTcgdexImporter>());
+        services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<MtgScryfallImporter>());
 
         services.AddScoped<ISourceImporter>(sp =>
             new SwuDbImporter(
