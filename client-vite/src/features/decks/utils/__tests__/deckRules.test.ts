@@ -398,4 +398,38 @@ describe("deckRules - Magic: The Gathering", () => {
     expect(isWithinColorIdentity(["B", "G"], ["B", "R", "G"])).toBe(true);
     expect(isWithinColorIdentity(["W", "B"], ["B", "R", "G"])).toBe(false);
   });
+
+  it("respects hasUnlimitedCopies and maxAllowedCopies overrides", () => {
+    const valid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Swamp", quantityInDeck: 30, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Relentless Rats",
+          quantityInDeck: 21,
+          hasUnlimitedCopies: true,
+        },
+        { printingId: 3, cardName: "Nazgûl", quantityInDeck: 9, maxAllowedCopies: 9 },
+      ],
+      "Constructed"
+    );
+    expect(valid.isValid).toBe(true);
+    expect(valid.copyViolations).toHaveLength(0);
+
+    const invalid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Swamp", quantityInDeck: 30, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Relentless Rats",
+          quantityInDeck: 20,
+          hasUnlimitedCopies: true,
+        },
+        { printingId: 3, cardName: "Nazgûl", quantityInDeck: 10, maxAllowedCopies: 9 },
+      ],
+      "Constructed"
+    );
+    expect(invalid.isValid).toBe(false);
+    expect(invalid.copyViolations).toEqual([{ cardName: "Nazgûl", count: 10, max: 9 }]);
+  });
 });

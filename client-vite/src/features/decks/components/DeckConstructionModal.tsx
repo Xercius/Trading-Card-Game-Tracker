@@ -177,7 +177,11 @@ export function DeckConstructionModal({
       : isPokemon
         ? Boolean(currentPokemonValidation?.isValid)
         : isMtg
-          ? Boolean(currentServerMtgValidation ? currentServerMtgValidation.isValid : mtgValidation?.isValid)
+          ? Boolean(
+              currentServerMtgValidation
+                ? currentServerMtgValidation.isValid
+                : mtgValidation?.isValid
+            )
           : true;
 
   // Search and filter state for card pool
@@ -425,8 +429,16 @@ export function DeckConstructionModal({
     });
   };
 
-  const handleRemoveCard = (card: DeckCardWithAvailability) => {
+  const handleRemoveCard = (card: DeckCardWithAvailability, isSideboard = false) => {
     setQuantityError(null);
+    if (isSideboard) {
+      if (!deckId) return;
+      patchCardMutation.mutate({
+        printingId: card.printingId,
+        updates: { quantitySideboard: 0 },
+      });
+      return;
+    }
     quantityMutation.mutate({
       printingId: card.printingId,
       qtyDelta: -card.quantityInDeck,
@@ -887,15 +899,14 @@ export function DeckConstructionModal({
                         : "text-amber-400"
                     }
                   >
-                    • Main Deck: {mtgValidation.mainDeckCount} / {isMtgCommander ? "100 min" : "60 min"}
+                    • Main Deck: {mtgValidation.mainDeckCount} /{" "}
+                    {isMtgCommander ? "100 min" : "60 min"}
                   </span>
                   {isMtgCommander ? (
                     <>
                       <span
                         className={
-                          mtgValidation.commanderCount === 1
-                            ? "text-emerald-400"
-                            : "text-amber-400"
+                          mtgValidation.commanderCount === 1 ? "text-emerald-400" : "text-amber-400"
                         }
                       >
                         • Commander: {mtgValidation.commanderCount} / 1
@@ -924,8 +935,8 @@ export function DeckConstructionModal({
                   )}
                   <span
                     className={
-                      (currentServerMtgValidation?.violations.length ?? mtgValidation.issues.length) ===
-                      0
+                      (currentServerMtgValidation?.violations.length ??
+                        mtgValidation.issues.length) === 0
                         ? "text-emerald-400"
                         : "text-amber-400"
                     }
@@ -1287,7 +1298,8 @@ export function DeckConstructionModal({
                 Object.entries(groupedDeckCards).map(([groupName, cards]) => {
                   const isSideboardGroup = groupName === "Sideboard";
                   const groupCount = cards.reduce(
-                    (sum, c) => sum + (isSideboardGroup ? (c.quantitySideboard ?? 0) : c.quantityInDeck),
+                    (sum, c) =>
+                      sum + (isSideboardGroup ? (c.quantitySideboard ?? 0) : c.quantityInDeck),
                     0
                   );
                   return (
@@ -1452,10 +1464,12 @@ export function DeckConstructionModal({
 
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveCard(card)}
-                                  aria-label={`Remove ${card.cardName} from deck`}
+                                  onClick={() => handleRemoveCard(card, isSideboardGroup)}
+                                  aria-label={`Remove ${card.cardName} from ${isSideboardGroup ? "sideboard" : "deck"}`}
                                   className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
-                                  title="Remove from deck"
+                                  title={
+                                    isSideboardGroup ? "Remove from sideboard" : "Remove from deck"
+                                  }
                                 >
                                   ×
                                 </button>

@@ -14,6 +14,8 @@ export type DeckCardItem = {
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
   isBasicLand?: boolean;
+  hasUnlimitedCopies?: boolean;
+  maxAllowedCopies?: number | null;
 };
 
 export const SWU_ASPECT_IMAGES: Record<string, string> = {
@@ -378,20 +380,28 @@ export function validateMtgDeck(
       );
     }
 
-    const countsByName: Record<string, { count: number; isBasic: boolean }> = {};
+    const countsByName: Record<
+      string,
+      { count: number; isUnlimited: boolean; maxOverride: number | null }
+    > = {};
     for (const c of active) {
       if (c.quantityInDeck <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {
         count: (existing?.count ?? 0) + c.quantityInDeck,
-        isBasic: Boolean(existing?.isBasic || c.isBasicLand),
+        isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
+        maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
       };
     }
 
     for (const [name, info] of Object.entries(countsByName)) {
-      if (!info.isBasic && info.count > 1) {
-        copyViolations.push({ cardName: name, count: info.count, max: 1 });
-        issues.push(`"${name}" exceeds the limit of 1 copy (${info.count} present).`);
+      if (info.isUnlimited) continue;
+      const limit = info.maxOverride ?? 1;
+      if (info.count > limit) {
+        copyViolations.push({ cardName: name, count: info.count, max: limit });
+        issues.push(
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+        );
       }
     }
 
@@ -420,21 +430,29 @@ export function validateMtgDeck(
       );
     }
 
-    const countsByName: Record<string, { count: number; isBasic: boolean }> = {};
+    const countsByName: Record<
+      string,
+      { count: number; isUnlimited: boolean; maxOverride: number | null }
+    > = {};
     for (const c of active) {
       const total = c.quantityInDeck + (c.quantitySideboard ?? 0);
       if (total <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {
         count: (existing?.count ?? 0) + total,
-        isBasic: Boolean(existing?.isBasic || c.isBasicLand),
+        isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
+        maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
       };
     }
 
     for (const [name, info] of Object.entries(countsByName)) {
-      if (!info.isBasic && info.count > 4) {
-        copyViolations.push({ cardName: name, count: info.count, max: 4 });
-        issues.push(`"${name}" exceeds the limit of 4 copies (${info.count} present).`);
+      if (info.isUnlimited) continue;
+      const limit = info.maxOverride ?? 4;
+      if (info.count > limit) {
+        copyViolations.push({ cardName: name, count: info.count, max: limit });
+        issues.push(
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+        );
       }
     }
   }

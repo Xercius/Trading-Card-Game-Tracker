@@ -1075,6 +1075,9 @@ public class DecksController : ControllerBase
             .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
             .ToList();
         var isMtg = string.Equals(deck.Game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase);
+        var (hasUnlimitedCopies, maxAllowedCopies) = isMtg
+            ? MtgCardMetadataHelper.GetCopyLimitOverride(card)
+            : (false, (int?)null);
 
         return new DeckCardWithAvailabilityResponse(
             deckCard.CardPrintingId,
@@ -1095,7 +1098,9 @@ public class DecksController : ControllerBase
             deckCard.IsCommander,
             isMtg ? MtgCardMetadataHelper.GetColorIdentity(card) : null,
             isMtg && MtgCardMetadataHelper.CanBeCommander(card),
-            isMtg && MtgCardMetadataHelper.IsBasicLand(card));
+            isMtg && MtgCardMetadataHelper.IsBasicLand(card),
+            hasUnlimitedCopies,
+            maxAllowedCopies);
     }
 
     private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
@@ -1138,6 +1143,10 @@ public class DecksController : ControllerBase
                 .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
                 .ToList();
 
+            var (hasUnlimitedCopies, maxAllowedCopies) = isMtg
+                ? MtgCardMetadataHelper.GetCopyLimitOverride(card)
+                : (false, (int?)null);
+
             result.Add(new DeckCardWithAvailabilityResponse(
                 dc.CardPrintingId,
                 card.Name,
@@ -1157,7 +1166,9 @@ public class DecksController : ControllerBase
                 dc.IsCommander,
                 isMtg ? MtgCardMetadataHelper.GetColorIdentity(card) : null,
                 isMtg && MtgCardMetadataHelper.CanBeCommander(card),
-                isMtg && MtgCardMetadataHelper.IsBasicLand(card)
+                isMtg && MtgCardMetadataHelper.IsBasicLand(card),
+                hasUnlimitedCopies,
+                maxAllowedCopies
             ));
         }
 

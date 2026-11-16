@@ -159,13 +159,13 @@ public static partial class MtgCardMetadataHelper
     }
 
     /// <summary>
-    /// Returns the maximum allowed copies for <paramref name="card"/>, or <c>null</c> if unlimited.
+    /// Returns any per-card copy limit override from Basic Land status or rules text.
     /// </summary>
-    public static int? GetMaxAllowedCopies(Card? card, int defaultLimit)
+    public static (bool HasUnlimitedCopies, int? MaxAllowedCopies) GetCopyLimitOverride(Card? card)
     {
         if (IsBasicLand(card))
         {
-            return null;
+            return (true, null);
         }
 
         var rulesText = GetCombinedRulesText(card);
@@ -173,7 +173,7 @@ public static partial class MtgCardMetadataHelper
         {
             if (rulesText.Contains("a deck can have any number of cards named", StringComparison.OrdinalIgnoreCase))
             {
-                return null;
+                return (true, null);
             }
 
             var match = UpToCopiesRegex().Match(rulesText);
@@ -182,16 +182,29 @@ public static partial class MtgCardMetadataHelper
                 var token = match.Groups[1].Value;
                 if (int.TryParse(token, out var numericLimit) && numericLimit > 0)
                 {
-                    return numericLimit;
+                    return (false, numericLimit);
                 }
                 if (NumberWords.TryGetValue(token, out var wordLimit))
                 {
-                    return wordLimit;
+                    return (false, wordLimit);
                 }
             }
         }
 
-        return defaultLimit;
+        return (false, null);
+    }
+
+    /// <summary>
+    /// Returns the maximum allowed copies for <paramref name="card"/>, or <c>null</c> if unlimited.
+    /// </summary>
+    public static int? GetMaxAllowedCopies(Card? card, int defaultLimit)
+    {
+        var (hasUnlimited, customLimit) = GetCopyLimitOverride(card);
+        if (hasUnlimited)
+        {
+            return null;
+        }
+        return customLimit ?? defaultLimit;
     }
 
     private static string? GetFrontFaceTypeLine(Card card)

@@ -21,4 +21,6 @@ public sealed record DeckCardWithAvailabilityResponse(
     bool IsCommander = false,
     IReadOnlyList<string>? ColorIdentity = null,
     bool CanBeCommander = false,
-    bool IsBasicLand = false);
+    bool IsBasicLand = false,
+    bool HasUnlimitedCopies = false,
+    int? MaxAllowedCopies = null);

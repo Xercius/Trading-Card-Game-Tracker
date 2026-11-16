@@ -76,6 +76,8 @@ export type DeckCardWithAvailability = {
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
   isBasicLand?: boolean;
+  hasUnlimitedCopies?: boolean;
+  maxAllowedCopies?: number | null;
 };
 
 export type DeckValidation = {
@@ -196,6 +198,7 @@ export function useUpdateDeckMutation() {
     onSuccess: (_, { deckId }) => {
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
+      queryClient.invalidateQueries({ queryKey: deckBuilderKeys.mtgValidation(deckId) });
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
     },
   });
