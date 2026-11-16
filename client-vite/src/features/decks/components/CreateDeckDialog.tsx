@@ -209,7 +209,9 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
                   role="button"
                   tabIndex={0}
                   onClick={() => setFormat("Constructed")}
-                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setFormat("Constructed")}
+                  onKeyDown={(e) =>
+                    (e.key === "Enter" || e.key === " ") && setFormat("Constructed")
+                  }
                   className={`p-3.5 rounded-lg border text-left cursor-pointer transition-all ${
                     format === "Constructed"
                       ? "border-sky-500 bg-sky-950/40 text-white ring-1 ring-sky-500"

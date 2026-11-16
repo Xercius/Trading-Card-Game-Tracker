@@ -3,7 +3,8 @@ import { Fragment } from "react";
 const MTG_SYMBOL_TOKEN_REGEX = /(\{[^}]+\})/g;
 
 function normalizeScryfallSymbolCode(rawToken: string): string {
-  const inner = rawToken.startsWith("{") && rawToken.endsWith("}") ? rawToken.slice(1, -1) : rawToken;
+  const inner =
+    rawToken.startsWith("{") && rawToken.endsWith("}") ? rawToken.slice(1, -1) : rawToken;
   return inner.trim().replace(/\//g, "").toUpperCase();
 }
 
@@ -104,7 +105,11 @@ export function MtgCardText({ text }: { text: string | null | undefined }) {
               if (part.startsWith("{") && part.endsWith("}")) {
                 return (
                   <Fragment key={`sym-${lineIdx}-${partIdx}`}>
-                    <MtgSymbolIcon symbol={part} size={15} className="inline-block mx-0.5 align-text-bottom" />
+                    <MtgSymbolIcon
+                      symbol={part}
+                      size={15}
+                      className="inline-block mx-0.5 align-text-bottom"
+                    />
                   </Fragment>
                 );
               }

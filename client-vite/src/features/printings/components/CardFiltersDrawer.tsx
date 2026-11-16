@@ -617,7 +617,9 @@ export function CardFiltersDrawer({
                 values={filters.subTypes ?? []}
                 options={availableFacets.subTypes ?? []}
                 placeholder="Search sub-types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))}
+                onChange={(values) =>
+                  setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))
+                }
               />
 
               <MultiSelect
