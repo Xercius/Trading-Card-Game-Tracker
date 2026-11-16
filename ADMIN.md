@@ -2,6 +2,21 @@
 
 The admin import tools expose a unified workflow across both remote sources and file uploads.
 
+## Agent & Contributor Instructions
+
+Coding agents (including ChatGPT Codex and GitHub Copilot) should read [AGENTS.md](AGENTS.md) and [.github/copilot-instructions.md](.github/copilot-instructions.md) first, plus all applicable scoped instruction files in `.github/instructions/`:
+
+- [admin.instructions.md](.github/instructions/admin.instructions.md) — `api/Features/Admin/Sync/**`, `api/Infrastructure/Auth/Admin*.cs`
+- [api.instructions.md](.github/instructions/api.instructions.md) — `api/Features|Controllers|Infrastructure|Common|Shared/**`
+- [client.instructions.md](.github/instructions/client.instructions.md) — `client-vite/src/**`
+- [database.instructions.md](.github/instructions/database.instructions.md) — `api/Data|Migrations|Models/**`
+- [importers.instructions.md](.github/instructions/importers.instructions.md) — `api/Importing/**`
+- [mtg-importer.instructions.md](.github/instructions/mtg-importer.instructions.md) — `api/Importing/Mtg/**`
+- [pokemon-importer.instructions.md](.github/instructions/pokemon-importer.instructions.md) — `api/Importing/Pokemon/**`
+- [swccg-importer.instructions.md](.github/instructions/swccg-importer.instructions.md) — `api/Importing/Swccg/**`
+- [swu-importer.instructions.md](.github/instructions/swu-importer.instructions.md) — `api/Importing/Swu/**`
+- [testing.instructions.md](.github/instructions/testing.instructions.md) — `api.Tests/**`, `client-vite/src/**/__tests__/**`
+
 ## API endpoints
 
 ### Sync authentication
