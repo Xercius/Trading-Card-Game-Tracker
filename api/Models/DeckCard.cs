@@ -20,5 +20,11 @@ namespace api.Models
 
         // Flag indicating if this card is deployed at game start (e.g. SWCCG starting cards)
         public bool IsStarting { get; set; } = false;
+
+        // Quantity of this printing in the deck's sideboard (e.g. MTG Constructed)
+        public int QuantitySideboard { get; set; } = 0;
+
+        // Flag indicating if this card is the designated Commander (MTG Commander)
+        public bool IsCommander { get; set; } = false;
     }
 }

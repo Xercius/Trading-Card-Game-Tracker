@@ -19,6 +19,7 @@ function getDeckValidationStatus(deck: DeckListItem): { isLegal: boolean; label:
   const isTwinSuns = deck.format?.toLowerCase() === "twin suns";
   const isSwu = (deck.game || "").toLowerCase().includes("unlimited");
   const isSwccg = (deck.game || "").toLowerCase().includes("ccg");
+  const isMtg = (deck.game || "").toLowerCase().includes("magic");
 
   if (isSwu) {
     const requiredLeaders = isTwinSuns ? 2 : 1;
@@ -40,6 +41,15 @@ function getDeckValidationStatus(deck: DeckListItem): { isLegal: boolean; label:
     const hasSide = Boolean(deck.side);
     const hasEnoughCards = deck.cardCount >= 60;
     if (hasSide && hasEnoughCards) {
+      return { isLegal: true, label: "✓ Legal" };
+    }
+    return { isLegal: false, label: "⚠️ Incomplete" };
+  }
+
+  if (isMtg) {
+    const isCommander = deck.format?.toLowerCase() === "commander";
+    const minCards = isCommander ? 100 : 60;
+    if (deck.cardCount >= minCards) {
       return { isLegal: true, label: "✓ Legal" };
     }
     return { isLegal: false, label: "⚠️ Incomplete" };

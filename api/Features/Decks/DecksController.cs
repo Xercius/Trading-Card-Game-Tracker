@@ -24,6 +24,7 @@ public class DecksController : ControllerBase
     private readonly IMapper _mapper;
     private readonly ILogger<DecksController> _logger;
     private readonly PokemonDeckValidationService _pokemonDeckValidationService;
+    private readonly MtgDeckValidationService _mtgDeckValidationService;
     private const int UserId = DbSeeder.DefaultUserId;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
@@ -31,13 +32,22 @@ public class DecksController : ControllerBase
         AppDbContext db,
         IMapper mapper,
         ILogger<DecksController> logger,
-        PokemonDeckValidationService pokemonDeckValidationService)
+        PokemonDeckValidationService pokemonDeckValidationService,
+        MtgDeckValidationService mtgDeckValidationService)
     {
         _db = db;
         _mapper = mapper;
         _logger = logger;
         _pokemonDeckValidationService = pokemonDeckValidationService;
+        _mtgDeckValidationService = mtgDeckValidationService;
     }
+
+    private static string ResolveDefaultFormat(string? game) =>
+        string.Equals(game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase)
+            ? "Premier"
+            : string.Equals(game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase)
+                ? "Constructed"
+                : "Standard";
 
     // -----------------------------
     // Helpers
@@ -246,7 +256,7 @@ public class DecksController : ControllerBase
                     .Sum(dc => dc.QuantityInDeck)
                 : cardCount;
 
-            var format = d.Format ?? (string.Equals(d.Game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) ? "Premier" : "Standard");
+            var format = d.Format ?? ResolveDefaultFormat(d.Game);
 
             return d with
             {
@@ -353,7 +363,7 @@ public class DecksController : ControllerBase
         deck.UserId = UserId;
         deck.Game = game;
         deck.Name = name;
-        deck.Format = dto.Format?.Trim() ?? (string.Equals(game, "Star Wars Unlimited", StringComparison.OrdinalIgnoreCase) ? "Premier" : "Standard");
+        deck.Format = dto.Format?.Trim() ?? ResolveDefaultFormat(game);
         deck.Side = dto.Side?.Trim();
 
         _db.Decks.Add(deck);
@@ -406,6 +416,30 @@ public class DecksController : ControllerBase
             .ToListAsync(HttpContext.RequestAborted);
 
         return Ok(_pokemonDeckValidationService.Validate(deck.Format, cards));
+    }
+
+    private async Task<IActionResult> GetMtgDeckValidationCore(int deckId)
+    {
+        var (deck, error) = await GetDeckForCaller(deckId);
+        if (error is not null) return error;
+        if (!string.Equals(deck!.Game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase))
+        {
+            return this.CreateProblem(
+                StatusCodes.Status400BadRequest,
+                detail: "Magic: The Gathering deck validation is only available for Magic The Gathering decks.");
+        }
+
+        var cards = await _db.DeckCards
+            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantitySideboard > 0))
+            .Include(card => card.CardPrinting!)
+                .ThenInclude(printing => printing.Card)
+                    .ThenInclude(card => card.CardTypes)
+                        .ThenInclude(type => type.CardType)
+            .AsSplitQuery()
+            .AsNoTracking()
+            .ToListAsync(HttpContext.RequestAborted);
+
+        return Ok(_mtgDeckValidationService.Validate(deck.Format, cards));
     }
 
     private async Task<IActionResult> UpdateDeckCore(int deckId, UpdateDeckRequest dto)
@@ -748,7 +782,7 @@ public class DecksController : ControllerBase
         }
 
         var remove = map.Values
-            .Where(dc => dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+            .Where(dc => dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
             .ToList();
         if (remove.Count > 0)
         {
@@ -888,7 +922,7 @@ public class DecksController : ControllerBase
         dc.QuantityAcquire = NN(dto.QuantityAcquire);
         dc.QuantityProxy = NN(dto.QuantityProxy);
 
-        if (dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+        if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
             _db.DeckCards.Remove(dc);
 
         await _db.SaveChangesAsync();
@@ -939,6 +973,7 @@ public class DecksController : ControllerBase
         }
 
         if (TryI32(updates, "quantityInDeck", "QuantityInDeck", out var v1)) dc.QuantityInDeck = NN(v1);
+        if (TryI32(updates, "quantitySideboard", "QuantitySideboard", out var v5)) dc.QuantitySideboard = NN(v5);
         if (TryI32(updates, "quantityIdea", "QuantityIdea", out var v2)) dc.QuantityIdea = NN(v2);
         if (TryI32(updates, "quantityAcquire", "QuantityAcquire", out var v3)) dc.QuantityAcquire = NN(v3);
         if (TryI32(updates, "quantityProxy", "QuantityProxy", out var v4)) dc.QuantityProxy = NN(v4);
@@ -949,8 +984,26 @@ public class DecksController : ControllerBase
                 dc.IsStarting = pStart.GetBoolean();
             }
         }
+        if (updates.TryGetProperty("isCommander", out var pCmdr) || updates.TryGetProperty("IsCommander", out pCmdr))
+        {
+            if (pCmdr.ValueKind == JsonValueKind.True || pCmdr.ValueKind == JsonValueKind.False)
+            {
+                var setCommander = pCmdr.GetBoolean();
+                if (setCommander)
+                {
+                    var otherCommanders = await _db.DeckCards
+                        .Where(x => x.DeckId == deckId && x.CardPrintingId != cardPrintingId && x.IsCommander)
+                        .ToListAsync();
+                    foreach (var other in otherCommanders)
+                    {
+                        other.IsCommander = false;
+                    }
+                }
+                dc.IsCommander = setCommander;
+            }
+        }
 
-        if (dc.QuantityInDeck == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
+        if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0 && dc.QuantityIdea == 0 && dc.QuantityAcquire == 0 && dc.QuantityProxy == 0)
             _db.DeckCards.Remove(dc);
 
         await _db.SaveChangesAsync();
@@ -1009,7 +1062,7 @@ public class DecksController : ControllerBase
 
         var owned = userCard?.QuantityOwned ?? 0;
         var proxy = userCard?.QuantityProxyOwned ?? 0;
-        var assigned = deckCard.QuantityInDeck;
+        var assigned = deckCard.QuantityInDeck + deckCard.QuantitySideboard;
         var (availability, availabilityWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
         if (!includeProxies)
         {
@@ -1021,12 +1074,16 @@ public class DecksController : ControllerBase
         var aspects = card.CardAspects?
             .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
             .ToList();
+        var isMtg = string.Equals(deck.Game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase);
+        var (hasUnlimitedCopies, maxAllowedCopies) = isMtg
+            ? MtgCardMetadataHelper.GetCopyLimitOverride(card)
+            : (false, (int?)null);
 
         return new DeckCardWithAvailabilityResponse(
             deckCard.CardPrintingId,
             card.Name,
             printing.ImageUrl,
-            assigned,
+            deckCard.QuantityInDeck,
             availability,
             availabilityWithProxy,
             cardType,
@@ -1036,7 +1093,14 @@ public class DecksController : ControllerBase
             card.Cost,
             aspects,
             card.Side,
-            printing.CatalogSet?.Name ?? printing.CatalogSet?.Code);
+            printing.CatalogSet?.Name ?? printing.CatalogSet?.Code,
+            deckCard.QuantitySideboard,
+            deckCard.IsCommander,
+            isMtg ? MtgCardMetadataHelper.GetColorIdentity(card) : null,
+            isMtg && MtgCardMetadataHelper.CanBeCommander(card),
+            isMtg && MtgCardMetadataHelper.IsBasicLand(card),
+            hasUnlimitedCopies,
+            maxAllowedCopies);
     }
 
     private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
@@ -1054,18 +1118,19 @@ public class DecksController : ControllerBase
             .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
+        var isMtg = string.Equals(deck.Game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase);
         var result = new List<DeckCardWithAvailabilityResponse>(cards.Count);
         foreach (var dc in cards)
         {
             var printing = dc.CardPrinting;
             var card = printing?.Card;
             if (printing is null || card is null) continue;
-            if (dc.QuantityInDeck == 0) continue;
+            if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0) continue;
 
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;
             var proxy = uc?.QuantityProxyOwned ?? 0;
-            var assigned = dc.QuantityInDeck;
+            var assigned = dc.QuantityInDeck + dc.QuantitySideboard;
             var (available, availableWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
             if (!includeProxies)
             {
@@ -1078,11 +1143,15 @@ public class DecksController : ControllerBase
                 .Select(ca => new api.Features.Cards.Dtos.CardAspectResponse(ca.Aspect.Name, ca.Count))
                 .ToList();
 
+            var (hasUnlimitedCopies, maxAllowedCopies) = isMtg
+                ? MtgCardMetadataHelper.GetCopyLimitOverride(card)
+                : (false, (int?)null);
+
             result.Add(new DeckCardWithAvailabilityResponse(
                 dc.CardPrintingId,
                 card.Name,
                 printing.ImageUrl,
-                assigned,
+                dc.QuantityInDeck,
                 available,
                 availableWithProxy,
                 cardType,
@@ -1092,7 +1161,14 @@ public class DecksController : ControllerBase
                 card.Cost,
                 aspects,
                 card.Side,
-                printing.CatalogSet?.Name ?? printing.CatalogSet?.Code
+                printing.CatalogSet?.Name ?? printing.CatalogSet?.Code,
+                dc.QuantitySideboard,
+                dc.IsCommander,
+                isMtg ? MtgCardMetadataHelper.GetColorIdentity(card) : null,
+                isMtg && MtgCardMetadataHelper.CanBeCommander(card),
+                isMtg && MtgCardMetadataHelper.IsBasicLand(card),
+                hasUnlimitedCopies,
+                maxAllowedCopies
             ));
         }
 
@@ -1120,7 +1196,7 @@ public class DecksController : ControllerBase
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;
             var proxy = uc?.QuantityProxyOwned ?? 0;
-            var assigned = dc.QuantityInDeck;
+            var assigned = dc.QuantityInDeck + dc.QuantitySideboard;
             var (available, availableWithProxy) = CardAvailabilityHelper.Calculate(owned, proxy, assigned);
             if (!includeProxies)
             {
@@ -1187,6 +1263,11 @@ public class DecksController : ControllerBase
     [HttpGet("/api/decks/{deckId:int}/validation")] // alias
     public async Task<IActionResult> GetPokemonDeckValidation(int deckId) =>
         await GetPokemonDeckValidationCore(deckId);
+
+    [HttpGet("/api/deck/{deckId:int}/mtg-validation")]
+    [HttpGet("/api/decks/{deckId:int}/mtg-validation")]
+    public async Task<IActionResult> GetMtgDeckValidation(int deckId) =>
+        await GetMtgDeckValidationCore(deckId);
 
     // PATCH /api/deck/{deckId}
     // PATCH /api/deck/{deckId}

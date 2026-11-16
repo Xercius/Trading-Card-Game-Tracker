@@ -9,6 +9,13 @@ export type DeckCardItem = {
   cost?: number | null;
   aspects?: Array<{ name: string; count: number }> | null;
   isStarting?: boolean;
+  quantitySideboard?: number;
+  isCommander?: boolean;
+  colorIdentity?: string[] | null;
+  canBeCommander?: boolean;
+  isBasicLand?: boolean;
+  hasUnlimitedCopies?: boolean;
+  maxAllowedCopies?: number | null;
 };
 
 export const SWU_ASPECT_IMAGES: Record<string, string> = {
@@ -309,5 +316,155 @@ export function validateSwccgDeck(
     sideViolations,
     virtualViolations,
     shieldViolations,
+  };
+}
+
+export type MtgValidationResult = {
+  isValid: boolean;
+  issues: string[];
+  mainDeckCount: number;
+  sideboardCount: number;
+  commanderCount: number;
+  commanderColorIdentity: string[];
+  colorIdentityViolations: string[];
+  copyViolations: Array<{ cardName: string; count: number; max: number }>;
+};
+
+/**
+ * Checks whether a card's MTG color identity is a subset of the Commander's color identity.
+ */
+export function isWithinColorIdentity(
+  cardIdentity: string[] | null | undefined,
+  commanderIdentity: string[] | null | undefined
+): boolean {
+  if (!cardIdentity || cardIdentity.length === 0) return true;
+  const allowed = new Set((commanderIdentity ?? []).map((c) => c.trim().toUpperCase()));
+  return cardIdentity.every((c) => allowed.has(c.trim().toUpperCase()));
+}
+
+/**
+ * Validates a Magic: The Gathering deck against Constructed or Commander rules.
+ */
+export function validateMtgDeck(
+  deckCards: DeckCardItem[],
+  format: string = "Constructed"
+): MtgValidationResult {
+  const isCommander = format.trim().toLowerCase() === "commander";
+  const active = deckCards.filter((c) => c.quantityInDeck > 0 || (c.quantitySideboard ?? 0) > 0);
+  const mainDeckCount = active.reduce((sum, c) => sum + c.quantityInDeck, 0);
+  const sideboardCount = active.reduce((sum, c) => sum + (c.quantitySideboard ?? 0), 0);
+  const commanders = active.filter((c) => c.isCommander && c.quantityInDeck > 0);
+  const commanderCount = commanders.reduce((sum, c) => sum + c.quantityInDeck, 0);
+  const commanderColorIdentity = commanderCount === 1 ? (commanders[0].colorIdentity ?? []) : [];
+
+  const issues: string[] = [];
+  const colorIdentityViolations: string[] = [];
+  const copyViolations: Array<{ cardName: string; count: number; max: number }> = [];
+
+  if (isCommander) {
+    if (commanderCount !== 1) {
+      issues.push(
+        `Commander decks must have exactly 1 designated Commander (currently ${commanderCount}).`
+      );
+    } else if (commanders[0].canBeCommander === false) {
+      issues.push(`"${commanders[0].cardName}" is not eligible to be a Commander.`);
+    }
+
+    if (sideboardCount > 0) {
+      issues.push(`Commander decks cannot have a sideboard (currently ${sideboardCount} cards).`);
+    }
+
+    if (mainDeckCount < 100) {
+      issues.push(
+        `Commander decks must contain at least 100 cards including the Commander (currently ${mainDeckCount}).`
+      );
+    }
+
+    const countsByName: Record<
+      string,
+      { count: number; isUnlimited: boolean; maxOverride: number | null }
+    > = {};
+    for (const c of active) {
+      if (c.quantityInDeck <= 0) continue;
+      const existing = countsByName[c.cardName];
+      countsByName[c.cardName] = {
+        count: (existing?.count ?? 0) + c.quantityInDeck,
+        isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
+        maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
+      };
+    }
+
+    for (const [name, info] of Object.entries(countsByName)) {
+      if (info.isUnlimited) continue;
+      const limit = info.maxOverride ?? 1;
+      if (info.count > limit) {
+        copyViolations.push({ cardName: name, count: info.count, max: limit });
+        issues.push(
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+        );
+      }
+    }
+
+    if (commanderCount === 1) {
+      const allowedLabel =
+        commanderColorIdentity.length === 0 ? "Colorless" : commanderColorIdentity.join("/");
+      for (const c of active) {
+        if (c.quantityInDeck <= 0 || c.isCommander) continue;
+        if (!isWithinColorIdentity(c.colorIdentity, commanderColorIdentity)) {
+          colorIdentityViolations.push(c.cardName);
+          issues.push(
+            `"${c.cardName}" (${(c.colorIdentity ?? []).join("/")}) is outside the Commander's color identity (${allowedLabel}).`
+          );
+        }
+      }
+    }
+  } else {
+    if (mainDeckCount < 60) {
+      issues.push(
+        `Constructed decks must contain at least 60 cards in the main deck (currently ${mainDeckCount}).`
+      );
+    }
+    if (sideboardCount > 15) {
+      issues.push(
+        `Constructed sideboards may contain at most 15 cards (currently ${sideboardCount}).`
+      );
+    }
+
+    const countsByName: Record<
+      string,
+      { count: number; isUnlimited: boolean; maxOverride: number | null }
+    > = {};
+    for (const c of active) {
+      const total = c.quantityInDeck + (c.quantitySideboard ?? 0);
+      if (total <= 0) continue;
+      const existing = countsByName[c.cardName];
+      countsByName[c.cardName] = {
+        count: (existing?.count ?? 0) + total,
+        isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
+        maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
+      };
+    }
+
+    for (const [name, info] of Object.entries(countsByName)) {
+      if (info.isUnlimited) continue;
+      const limit = info.maxOverride ?? 4;
+      if (info.count > limit) {
+        copyViolations.push({ cardName: name, count: info.count, max: limit });
+        issues.push(
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+        );
+      }
+    }
+  }
+
+  return {
+    isValid: issues.length === 0,
+    issues,
+    mainDeckCount,
+    sideboardCount,
+    commanderCount,
+    commanderColorIdentity,
+    colorIdentityViolations,
+    copyViolations,
   };
 }

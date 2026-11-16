@@ -15,8 +15,10 @@ export type CreateDeckDialogProps = {
 export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: CreateDeckDialogProps) {
   const isSwu = game.toLowerCase().includes("unlimited");
   const isSwccg = game.toLowerCase().includes("ccg");
+  const isMtg = game.toLowerCase().includes("magic");
 
-  const [format, setFormat] = React.useState<string>(() => (isSwu ? "Premier" : "Standard"));
+  const defaultFormat = isSwu ? "Premier" : isMtg ? "Constructed" : "Standard";
+  const [format, setFormat] = React.useState<string>(() => defaultFormat);
   const [side, setSide] = React.useState<string>(() => (isSwccg ? "Light" : ""));
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -27,13 +29,13 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
   // Reset defaults when opening or game changes
   React.useEffect(() => {
     if (isOpen) {
-      setFormat(isSwu ? "Premier" : "Standard");
+      setFormat(isSwu ? "Premier" : isMtg ? "Constructed" : "Standard");
       setSide(isSwccg ? "Light" : "");
       setName("");
       setDescription("");
       setErrorMsg(null);
     }
-  }, [isOpen, isSwu, isSwccg]);
+  }, [isOpen, isSwu, isSwccg, isMtg]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,6 +200,54 @@ export function CreateDeckDialog({ isOpen, onClose, game, onDeckCreated }: Creat
                   </div>
                   <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
                     60 cards minimum (shields excluded). Virtual sets are not allowed.
+                  </p>
+                </div>
+              </div>
+            ) : isMtg ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setFormat("Constructed")}
+                  onKeyDown={(e) =>
+                    (e.key === "Enter" || e.key === " ") && setFormat("Constructed")
+                  }
+                  className={`p-3.5 rounded-lg border text-left cursor-pointer transition-all ${
+                    format === "Constructed"
+                      ? "border-sky-500 bg-sky-950/40 text-white ring-1 ring-sky-500"
+                      : "border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:border-zinc-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">Constructed</span>
+                    <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">
+                      60+ Cards
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                    60+ card minimum, up to 15-card sideboard. Max 4 copies per card.
+                  </p>
+                </div>
+
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setFormat("Commander")}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setFormat("Commander")}
+                  className={`p-3.5 rounded-lg border text-left cursor-pointer transition-all ${
+                    format === "Commander"
+                      ? "border-sky-500 bg-sky-950/40 text-white ring-1 ring-sky-500"
+                      : "border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:border-zinc-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">Commander</span>
+                    <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">
+                      Singleton
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                    1 Commander, 100+ card minimum, color identity restricted. Max 1 copy per card.
                   </p>
                 </div>
               </div>

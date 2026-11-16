@@ -16,6 +16,7 @@ import {
   useDeckDetails,
   useDeckCardsWithAvailability,
   usePokemonDeckValidation,
+  useMtgDeckValidation,
   useDeckQuantityMutation,
   usePatchDeckCardMutation,
   useUpdateDeckMutation,
@@ -27,6 +28,8 @@ import {
   calculateAspectPenalty,
   validateSwuDeck,
   validateSwccgDeck,
+  validateMtgDeck,
+  isWithinColorIdentity,
   isDefensiveShield,
   isVirtualCard,
 } from "../utils/deckRules";
@@ -70,6 +73,7 @@ export function DeckConstructionModal({
   const isSwu = currentGame.toLowerCase().includes("unlimited");
   const isSwccg = currentGame.toLowerCase().includes("ccg");
   const isPokemon = currentGame.toLowerCase().includes("pokemon");
+  const isMtg = currentGame.toLowerCase().includes("magic");
 
   const [includeProxies, setIncludeProxies] = React.useState(true);
   const { data: deckCardsRaw = [] } = useDeckCardsWithAvailability(deckId, includeProxies);
@@ -83,6 +87,10 @@ export function DeckConstructionModal({
     isLoading: isPokemonValidationLoading,
   } = usePokemonDeckValidation(isPokemon ? deckId : null);
   const currentPokemonValidation = isPokemonValidationError ? undefined : pokemonValidation;
+  const { data: serverMtgValidation, isError: isMtgValidationError } = useMtgDeckValidation(
+    isMtg ? deckId : null
+  );
+  const currentServerMtgValidation = isMtgValidationError ? undefined : serverMtgValidation;
 
   const updateDeckMutation = useUpdateDeckMutation();
   const quantityMutation = useDeckQuantityMutation(deckId, includeProxies);
@@ -128,7 +136,8 @@ export function DeckConstructionModal({
   }, [deckCards]);
 
   // Current deck format
-  const currentFormat = deck?.format || (isSwu ? "Premier" : "Standard");
+  const currentFormat = deck?.format || (isSwu ? "Premier" : isMtg ? "Constructed" : "Standard");
+  const isMtgCommander = isMtg && currentFormat.toLowerCase() === "commander";
   const currentSide = deck?.side || (isSwccg ? "Light" : null);
   const requiredLeaders = currentFormat === "Twin Suns" ? 2 : 1;
   const hasLeadersAndBase =
@@ -156,13 +165,24 @@ export function DeckConstructionModal({
     return validateSwccgDeck(deckCards, currentFormat, currentSide);
   }, [deckCards, currentFormat, currentSide, isSwccg]);
 
+  const mtgValidation = React.useMemo(() => {
+    if (!isMtg) return null;
+    return validateMtgDeck(deckCards, currentFormat);
+  }, [deckCards, currentFormat, isMtg]);
+
   const isDeckLegal = isSwu
     ? Boolean(swuValidation?.isValid)
     : isSwccg
       ? Boolean(swccgValidation?.isValid)
       : isPokemon
         ? Boolean(currentPokemonValidation?.isValid)
-        : true;
+        : isMtg
+          ? Boolean(
+              currentServerMtgValidation
+                ? currentServerMtgValidation.isValid
+                : mtgValidation?.isValid
+            )
+          : true;
 
   // Search and filter state for card pool
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -258,6 +278,29 @@ export function DeckConstructionModal({
       return groups;
     }
 
+    if (isMtg) {
+      const groups: Record<string, DeckCardWithAvailability[]> = {};
+      if (isMtgCommander) {
+        const commanders = deckCards.filter((c) => c.quantityInDeck > 0 && c.isCommander);
+        if (commanders.length > 0) groups["★ Commander"] = commanders;
+      }
+
+      const mainCards = deckCards.filter(
+        (c) => c.quantityInDeck > 0 && !(isMtgCommander && c.isCommander)
+      );
+      for (const card of mainCards) {
+        const type = card.cardType || "Other";
+        if (!groups[type]) groups[type] = [];
+        groups[type].push(card);
+      }
+
+      const sideboardCards = deckCards.filter((c) => (c.quantitySideboard ?? 0) > 0);
+      if (sideboardCards.length > 0) {
+        groups["Sideboard"] = sideboardCards;
+      }
+      return groups;
+    }
+
     // SWU: Leaders, Base, then other categories
     const leaders = deckCards.filter(
       (c) => c.quantityInDeck > 0 && c.cardType?.toLowerCase() === "leader"
@@ -282,7 +325,7 @@ export function DeckConstructionModal({
       groups[type].push(card);
     }
     return groups;
-  }, [deckCards, isSwccg]);
+  }, [deckCards, isSwccg, isMtg, isMtgCommander]);
 
   const handleUpdateName = (nextName: string) => {
     if (!deckId || !nextName.trim()) return;
@@ -386,8 +429,16 @@ export function DeckConstructionModal({
     });
   };
 
-  const handleRemoveCard = (card: DeckCardWithAvailability) => {
+  const handleRemoveCard = (card: DeckCardWithAvailability, isSideboard = false) => {
     setQuantityError(null);
+    if (isSideboard) {
+      if (!deckId) return;
+      patchCardMutation.mutate({
+        printingId: card.printingId,
+        updates: { quantitySideboard: 0 },
+      });
+      return;
+    }
     quantityMutation.mutate({
       printingId: card.printingId,
       qtyDelta: -card.quantityInDeck,
@@ -401,6 +452,24 @@ export function DeckConstructionModal({
     patchCardMutation.mutate({
       printingId: card.printingId,
       updates: { isStarting: !card.isStarting },
+    });
+  };
+
+  const handleToggleCommander = (card: DeckCardWithAvailability) => {
+    if (!deckId) return;
+    patchCardMutation.mutate({
+      printingId: card.printingId,
+      updates: { isCommander: !card.isCommander },
+    });
+  };
+
+  const handleAdjustSideboard = (card: DeckCardWithAvailability, delta: number) => {
+    if (!deckId) return;
+    setQuantityError(null);
+    const nextSideboard = Math.max(0, (card.quantitySideboard ?? 0) + delta);
+    patchCardMutation.mutate({
+      printingId: card.printingId,
+      updates: { quantitySideboard: nextSideboard },
     });
   };
 
@@ -562,6 +631,11 @@ export function DeckConstructionModal({
                       <option value="Standard">Standard (All Sets)</option>
                       <option value="Decipher Only">Decipher Only (No Virtual)</option>
                     </>
+                  ) : isMtg ? (
+                    <>
+                      <option value="Constructed">Constructed (60+ cards, 15 SB)</option>
+                      <option value="Commander">Commander (100+ cards, Singleton)</option>
+                    </>
                   ) : null}
                 </select>
 
@@ -666,6 +740,22 @@ export function DeckConstructionModal({
                   {objectiveInDeck.cardName}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* MTG Commander Header Badge: Color Identity */}
+          {isMtgCommander && mtgValidation && (
+            <div className="flex flex-col items-center shrink-0 bg-zinc-900/60 border border-zinc-800 px-3 py-2 rounded-lg">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                Color Identity
+              </span>
+              <span className="text-xs font-semibold text-zinc-200">
+                {mtgValidation.commanderCount !== 1
+                  ? "Select Commander"
+                  : mtgValidation.commanderColorIdentity.length === 0
+                    ? "Colorless"
+                    : mtgValidation.commanderColorIdentity.join(" / ")}
+              </span>
             </div>
           )}
 
@@ -798,6 +888,72 @@ export function DeckConstructionModal({
                   <span className="text-zinc-400">
                     • Defensive Shields: {swccgValidation.defensiveShieldCount} (max 1 per shield)
                   </span>
+                </>
+              )}
+              {isMtg && mtgValidation && (
+                <>
+                  <span
+                    className={
+                      mtgValidation.mainDeckCount >= (isMtgCommander ? 100 : 60)
+                        ? "text-emerald-400"
+                        : "text-amber-400"
+                    }
+                  >
+                    • Main Deck: {mtgValidation.mainDeckCount} /{" "}
+                    {isMtgCommander ? "100 min" : "60 min"}
+                  </span>
+                  {isMtgCommander ? (
+                    <>
+                      <span
+                        className={
+                          mtgValidation.commanderCount === 1 ? "text-emerald-400" : "text-amber-400"
+                        }
+                      >
+                        • Commander: {mtgValidation.commanderCount} / 1
+                      </span>
+                      <span
+                        className={
+                          mtgValidation.colorIdentityViolations.length === 0
+                            ? "text-emerald-400"
+                            : "text-red-400"
+                        }
+                      >
+                        • Color Identity:{" "}
+                        {mtgValidation.colorIdentityViolations.length === 0
+                          ? "Valid"
+                          : `${mtgValidation.colorIdentityViolations.length} violations`}
+                      </span>
+                    </>
+                  ) : (
+                    <span
+                      className={
+                        mtgValidation.sideboardCount <= 15 ? "text-emerald-400" : "text-red-400"
+                      }
+                    >
+                      • Sideboard: {mtgValidation.sideboardCount} / 15 max
+                    </span>
+                  )}
+                  <span
+                    className={
+                      (currentServerMtgValidation?.violations.length ??
+                        mtgValidation.issues.length) === 0
+                        ? "text-emerald-400"
+                        : "text-amber-400"
+                    }
+                  >
+                    • Max Copies:{" "}
+                    {mtgValidation.copyViolations.length === 0
+                      ? `Valid (max ${isMtgCommander ? 1 : 4})`
+                      : `${mtgValidation.copyViolations.length} violations`}
+                  </span>
+                  {currentServerMtgValidation &&
+                    currentServerMtgValidation.violations.length > 0 && (
+                      <ul className="basis-full mt-1 space-y-0.5 text-amber-300">
+                        {currentServerMtgValidation.violations.map((v) => (
+                          <li key={v}>• {v}</li>
+                        ))}
+                      </ul>
+                    )}
                 </>
               )}
               {isPokemon && (
@@ -1140,12 +1296,19 @@ export function DeckConstructionModal({
                 </div>
               ) : (
                 Object.entries(groupedDeckCards).map(([groupName, cards]) => {
-                  const groupCount = cards.reduce((sum, c) => sum + c.quantityInDeck, 0);
+                  const isSideboardGroup = groupName === "Sideboard";
+                  const groupCount = cards.reduce(
+                    (sum, c) =>
+                      sum + (isSideboardGroup ? (c.quantitySideboard ?? 0) : c.quantityInDeck),
+                    0
+                  );
                   return (
                     <div key={groupName} className="space-y-1 pt-2 first:pt-0">
                       <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1 uppercase tracking-wider">
                         <span>{groupName}</span>
-                        <span className="text-zinc-500">{groupCount}</span>
+                        <span className="text-zinc-500">
+                          {isSideboardGroup ? `${groupCount} / 15` : groupCount}
+                        </span>
                       </div>
                       <div className="space-y-1">
                         {cards.map((card) => {
@@ -1153,6 +1316,18 @@ export function DeckConstructionModal({
                             ? calculateAspectPenalty(card.aspects, deckAspects, card.cost)
                             : null;
                           const isShield = isSwccg && isDefensiveShield(card);
+                          const isOutOfIdentity =
+                            isMtgCommander &&
+                            !isSideboardGroup &&
+                            !card.isCommander &&
+                            mtgValidation?.commanderCount === 1 &&
+                            !isWithinColorIdentity(
+                              card.colorIdentity,
+                              mtgValidation.commanderColorIdentity
+                            );
+                          const displayQty = isSideboardGroup
+                            ? (card.quantitySideboard ?? 0)
+                            : card.quantityInDeck;
 
                           return (
                             <div
@@ -1178,6 +1353,11 @@ export function DeckConstructionModal({
                                     {isSwu && penalty && penalty.penaltyCost > 0 && (
                                       <span className="text-amber-400">
                                         Cost: {penalty.effectiveCost} (+{penalty.penaltyCost})
+                                      </span>
+                                    )}
+                                    {isOutOfIdentity && (
+                                      <span className="text-red-400 font-semibold">
+                                        Out of Identity
                                       </span>
                                     )}
                                     <span>
@@ -1211,10 +1391,48 @@ export function DeckConstructionModal({
                                   </button>
                                 )}
 
+                                {/* MTG Commander Toggle Button */}
+                                {isMtgCommander &&
+                                  !isSideboardGroup &&
+                                  (card.canBeCommander || card.isCommander) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleCommander(card)}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                                        card.isCommander
+                                          ? "border-amber-400/60 bg-amber-500/20 text-amber-300"
+                                          : "border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                                      }`}
+                                      title={
+                                        card.isCommander
+                                          ? "Designated Commander"
+                                          : "Set as Commander"
+                                      }
+                                    >
+                                      {card.isCommander ? "★ Cmdr" : "☆ Cmdr"}
+                                    </button>
+                                  )}
+
+                                {/* MTG Constructed Sideboard Quick-Add */}
+                                {isMtg && !isMtgCommander && !isSideboardGroup && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdjustSideboard(card, 1)}
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-sky-300 hover:border-zinc-700 transition-all"
+                                    title="Add 1 copy to Sideboard"
+                                  >
+                                    +SB
+                                  </button>
+                                )}
+
                                 <div className="flex items-center bg-zinc-800 rounded border border-zinc-700">
                                   <button
                                     type="button"
-                                    onClick={() => handleAdjustQuantity(card, -1)}
+                                    onClick={() =>
+                                      isSideboardGroup
+                                        ? handleAdjustSideboard(card, -1)
+                                        : handleAdjustQuantity(card, -1)
+                                    }
                                     aria-label={`Decrease ${card.cardName} quantity`}
                                     className="w-5 h-5 flex items-center justify-center text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white"
                                     title="Decrement"
@@ -1222,12 +1440,16 @@ export function DeckConstructionModal({
                                     −
                                   </button>
                                   <span className="w-5 text-center text-xs font-bold text-sky-400">
-                                    {card.quantityInDeck}
+                                    {displayQty}
                                   </span>
                                   <button
                                     type="button"
                                     disabled={isShield && card.quantityInDeck >= 1}
-                                    onClick={() => handleAdjustQuantity(card, 1)}
+                                    onClick={() =>
+                                      isSideboardGroup
+                                        ? handleAdjustSideboard(card, 1)
+                                        : handleAdjustQuantity(card, 1)
+                                    }
                                     aria-label={`Increase ${card.cardName} quantity`}
                                     className="w-5 h-5 flex items-center justify-center text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
                                     title={
@@ -1242,10 +1464,12 @@ export function DeckConstructionModal({
 
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveCard(card)}
-                                  aria-label={`Remove ${card.cardName} from deck`}
+                                  onClick={() => handleRemoveCard(card, isSideboardGroup)}
+                                  aria-label={`Remove ${card.cardName} from ${isSideboardGroup ? "sideboard" : "deck"}`}
                                   className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
-                                  title="Remove from deck"
+                                  title={
+                                    isSideboardGroup ? "Remove from sideboard" : "Remove from deck"
+                                  }
                                 >
                                   ×
                                 </button>

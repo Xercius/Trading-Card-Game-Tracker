@@ -70,7 +70,8 @@ public sealed record ScryfallCard(
     string? Artist,
     string? ReleasedAt,
     ScryfallImageUris? ImageUris,
-    IReadOnlyList<ScryfallCardFace>? CardFaces
+    IReadOnlyList<ScryfallCardFace>? CardFaces,
+    IReadOnlyDictionary<string, string>? Legalities = null
 );
 
 /// <summary>

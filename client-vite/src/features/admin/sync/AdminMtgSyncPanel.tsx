@@ -287,7 +287,10 @@ export default function AdminMtgSyncPanel() {
       </div>
 
       {statusQuery.isError && (
-        <div role="status" className="rounded border border-red-600 bg-red-50 p-3 text-sm text-red-950">
+        <div
+          role="status"
+          className="rounded border border-red-600 bg-red-50 p-3 text-sm text-red-950"
+        >
           Failed to load MTG sync status: {statusQuery.error.message}
         </div>
       )}

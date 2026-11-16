@@ -5,6 +5,8 @@ import {
   isCardInAspect,
   validateSwuDeck,
   validateSwccgDeck,
+  validateMtgDeck,
+  isWithinColorIdentity,
   isDefensiveShield,
   isVirtualCard,
 } from "../deckRules";
@@ -278,5 +280,156 @@ describe("deckRules - Star Wars CCG", () => {
     expect(isVirtualCard({ setName: "Virtual Set 2" })).toBe(true);
     expect(isVirtualCard({ setName: "Demo Deck" })).toBe(true);
     expect(isVirtualCard({ setName: "Premiere" })).toBe(false);
+  });
+});
+
+describe("deckRules - Magic: The Gathering", () => {
+  it("validates Constructed 60+ main deck, <=15 sideboard, and 4-copy limit across both", () => {
+    const valid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Mountain", quantityInDeck: 56, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Lightning Bolt",
+          quantityInDeck: 4,
+          quantitySideboard: 0,
+        },
+        {
+          printingId: 3,
+          cardName: "Abrade",
+          quantityInDeck: 0,
+          quantitySideboard: 4,
+        },
+        {
+          printingId: 4,
+          cardName: "Island",
+          quantityInDeck: 0,
+          quantitySideboard: 11,
+          isBasicLand: true,
+        },
+      ],
+      "Constructed"
+    );
+    expect(valid.isValid).toBe(true);
+
+    const invalid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Mountain", quantityInDeck: 55, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Lightning Bolt",
+          quantityInDeck: 3,
+          quantitySideboard: 2,
+        },
+        {
+          printingId: 3,
+          cardName: "Island",
+          quantityInDeck: 0,
+          quantitySideboard: 14,
+          isBasicLand: true,
+        },
+      ],
+      "Constructed"
+    );
+    expect(invalid.isValid).toBe(false);
+    expect(invalid.copyViolations).toHaveLength(1);
+    expect(invalid.issues.some((i) => i.includes("at least 60 cards"))).toBe(true);
+    expect(invalid.issues.some((i) => i.includes("at most 15 cards"))).toBe(true);
+  });
+
+  it("validates Commander 100+ cards, 1 commander, singleton, and color identity", () => {
+    const valid = validateMtgDeck(
+      [
+        {
+          printingId: 1,
+          cardName: "Prossh, Skyraider of Kher",
+          quantityInDeck: 1,
+          isCommander: true,
+          canBeCommander: true,
+          colorIdentity: ["B", "R", "G"],
+        },
+        {
+          printingId: 2,
+          cardName: "Sol Ring",
+          quantityInDeck: 1,
+          colorIdentity: [],
+        },
+        {
+          printingId: 3,
+          cardName: "Forest",
+          quantityInDeck: 98,
+          isBasicLand: true,
+          colorIdentity: ["G"],
+        },
+      ],
+      "Commander"
+    );
+    expect(valid.isValid).toBe(true);
+
+    const invalid = validateMtgDeck(
+      [
+        {
+          printingId: 1,
+          cardName: "Prossh, Skyraider of Kher",
+          quantityInDeck: 1,
+          isCommander: true,
+          canBeCommander: true,
+          colorIdentity: ["B", "R", "G"],
+        },
+        {
+          printingId: 2,
+          cardName: "Counterspell",
+          quantityInDeck: 2,
+          colorIdentity: ["U"],
+        },
+        {
+          printingId: 3,
+          cardName: "Forest",
+          quantityInDeck: 95,
+          isBasicLand: true,
+          colorIdentity: ["G"],
+        },
+      ],
+      "Commander"
+    );
+    expect(invalid.isValid).toBe(false);
+    expect(invalid.colorIdentityViolations).toContain("Counterspell");
+    expect(invalid.copyViolations).toHaveLength(1);
+    expect(isWithinColorIdentity(["B", "G"], ["B", "R", "G"])).toBe(true);
+    expect(isWithinColorIdentity(["W", "B"], ["B", "R", "G"])).toBe(false);
+  });
+
+  it("respects hasUnlimitedCopies and maxAllowedCopies overrides", () => {
+    const valid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Swamp", quantityInDeck: 30, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Relentless Rats",
+          quantityInDeck: 21,
+          hasUnlimitedCopies: true,
+        },
+        { printingId: 3, cardName: "Nazgûl", quantityInDeck: 9, maxAllowedCopies: 9 },
+      ],
+      "Constructed"
+    );
+    expect(valid.isValid).toBe(true);
+    expect(valid.copyViolations).toHaveLength(0);
+
+    const invalid = validateMtgDeck(
+      [
+        { printingId: 1, cardName: "Swamp", quantityInDeck: 30, isBasicLand: true },
+        {
+          printingId: 2,
+          cardName: "Relentless Rats",
+          quantityInDeck: 20,
+          hasUnlimitedCopies: true,
+        },
+        { printingId: 3, cardName: "Nazgûl", quantityInDeck: 10, maxAllowedCopies: 9 },
+      ],
+      "Constructed"
+    );
+    expect(invalid.isValid).toBe(false);
+    expect(invalid.copyViolations).toEqual([{ cardName: "Nazgûl", count: 10, max: 9 }]);
   });
 });
