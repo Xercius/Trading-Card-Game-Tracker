@@ -546,6 +546,9 @@ namespace api.Migrations
                     b.Property<int>("DeckId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsCommander")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsStarting")
                         .HasColumnType("INTEGER");
 
@@ -559,6 +562,9 @@ namespace api.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("QuantityProxy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuantitySideboard")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

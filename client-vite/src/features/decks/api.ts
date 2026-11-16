@@ -71,6 +71,11 @@ export type DeckCardWithAvailability = {
   aspects?: Array<{ name: string; count: number }> | null;
   side?: string | null;
   setName?: string | null;
+  quantitySideboard?: number;
+  isCommander?: boolean;
+  colorIdentity?: string[] | null;
+  canBeCommander?: boolean;
+  isBasicLand?: boolean;
 };
 
 export type DeckValidation = {
@@ -78,6 +83,16 @@ export type DeckValidation = {
   isValid: boolean;
   cardCount: number;
   basicPokemonCount: number;
+  violations: string[];
+};
+
+export type MtgDeckValidation = {
+  format: string;
+  isValid: boolean;
+  mainDeckCount: number;
+  sideboardCount: number;
+  commanderCount: number;
+  commanderColorIdentity: string[];
   violations: string[];
 };
 
@@ -91,6 +106,7 @@ export const deckBuilderKeys = {
   cards: (deckId: number | null, includeProxies: boolean) =>
     ["deck-builder", "cards", deckId, { includeProxies }] as const,
   validation: (deckId: number | null) => ["deck-builder", "validation", deckId] as const,
+  mtgValidation: (deckId: number | null) => ["deck-builder", "mtg-validation", deckId] as const,
   valueHistory: (deckId: number | null, days: number) =>
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
@@ -188,7 +204,12 @@ export function useUpdateDeckMutation() {
 export async function patchDeckCard(
   deckId: number,
   printingId: number,
-  updates: { isStarting?: boolean; quantityInDeck?: number }
+  updates: {
+    isStarting?: boolean;
+    quantityInDeck?: number;
+    quantitySideboard?: number;
+    isCommander?: boolean;
+  }
 ): Promise<void> {
   try {
     await http.patch(`decks/${deckId}/cards/${printingId}`, updates);
@@ -207,7 +228,12 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
       updates,
     }: {
       printingId: number;
-      updates: { isStarting?: boolean; quantityInDeck?: number };
+      updates: {
+        isStarting?: boolean;
+        quantityInDeck?: number;
+        quantitySideboard?: number;
+        isCommander?: boolean;
+      };
     }) => {
       if (deckId == null) throw new Error("Deck not selected");
       await patchDeckCard(deckId, printingId, updates);
@@ -218,9 +244,12 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
       const previous = queryClient.getQueryData<DeckCardWithAvailability[]>(queryKey);
       if (!previous) return { previous };
 
-      const next = previous.map((row) =>
-        row.printingId === printingId ? { ...row, ...updates } : row
-      );
+      const next = previous.map((row) => {
+        if (row.printingId === printingId) {
+          return { ...row, ...updates };
+        }
+        return updates.isCommander ? { ...row, isCommander: false } : row;
+      });
       queryClient.setQueryData(queryKey, next);
       return { previous };
     },
@@ -233,8 +262,10 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
       if (deckId != null) {
         queryClient.invalidateQueries({ queryKey });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.mtgValidation(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.mtgValidation(deckId) });
       }
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
     },
@@ -304,6 +335,33 @@ export function usePokemonDeckValidation(deckId: number | null) {
     queryFn: () => {
       if (deckId == null) throw new Error("Deck not selected");
       return fetchPokemonDeckValidation(deckId);
+    },
+    enabled: deckId != null,
+    staleTime: 0,
+  });
+}
+
+/**
+ * Fetches Magic: The Gathering deck violations from the server domain service.
+ */
+export async function fetchMtgDeckValidation(deckId: number): Promise<MtgDeckValidation> {
+  try {
+    const response = await http.get<MtgDeckValidation>(`decks/${deckId}/mtg-validation`);
+    return response.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Keeps the deck builder's MTG validation state synchronized with server-side rules.
+ */
+export function useMtgDeckValidation(deckId: number | null) {
+  return useQuery({
+    queryKey: deckBuilderKeys.mtgValidation(deckId),
+    queryFn: () => {
+      if (deckId == null) throw new Error("Deck not selected");
+      return fetchMtgDeckValidation(deckId);
     },
     enabled: deckId != null,
     staleTime: 0,
@@ -400,7 +458,10 @@ function applyQuantityDelta(
   });
 
   if (found) {
-    return updated.filter((row) => row.printingId !== printingId || row.quantityInDeck > 0);
+    return updated.filter(
+      (row) =>
+        row.printingId !== printingId || row.quantityInDeck > 0 || (row.quantitySideboard ?? 0) > 0
+    );
   }
 
   if (qtyDelta > 0) {
@@ -465,6 +526,7 @@ export function useDeckQuantityMutation(deckId: number | null, includeProxies: b
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.cardsRoot(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.deck(deckId) });
         queryClient.invalidateQueries({ queryKey: deckBuilderKeys.validation(deckId) });
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.mtgValidation(deckId) });
       }
       queryClient.invalidateQueries({ queryKey: deckBuilderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: collectionKeys.all });

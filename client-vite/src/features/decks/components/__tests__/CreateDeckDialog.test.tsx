@@ -182,4 +182,55 @@ describe("CreateDeckDialog", () => {
 
     expect(document.body.textContent).toContain("Deck name is required.");
   });
+
+  it("renders MTG Constructed and Commander formats and submits Commander deck", async () => {
+    const postSpy = vi.spyOn(http, "post").mockResolvedValueOnce({
+      data: { id: 789, game: "Magic The Gathering", name: "Jund Dragons", format: "Commander" },
+    } as never);
+
+    const handleDeckCreated = vi.fn();
+    const client = createClient();
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <CreateDeckDialog
+            isOpen={true}
+            onClose={vi.fn()}
+            game="Magic The Gathering"
+            onDeckCreated={handleDeckCreated}
+          />
+        </QueryClientProvider>
+      );
+    });
+
+    expect(document.body.textContent).toContain("Constructed");
+    expect(document.body.textContent).toContain("Commander");
+
+    const nameInput = document.body.querySelector("input#deck-name-input") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: "Jund Dragons" } });
+    });
+
+    const commanderBtn = screen.getByRole("button", { name: /Commander/i });
+    await act(async () => {
+      fireEvent.click(commanderBtn);
+    });
+
+    const submitBtn = screen.getByRole("button", { name: "Create & Build Deck" });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    await waitFor(() => {
+      expect(postSpy).toHaveBeenCalledWith("decks", {
+        game: "Magic The Gathering",
+        name: "Jund Dragons",
+        description: undefined,
+        format: "Commander",
+        side: undefined,
+      });
+      expect(handleDeckCreated).toHaveBeenCalledWith(789);
+    });
+  });
 });

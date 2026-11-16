@@ -363,7 +363,8 @@ public sealed class MtgCatalog
             backTypeLine = backFace?.TypeLine,
             backPower = backFace?.Power,
             backToughness = backFace?.Toughness,
-            backLoyalty = backFace?.Loyalty
+            backLoyalty = backFace?.Loyalty,
+            commanderLegality = card.Legalities != null && card.Legalities.TryGetValue("commander", out var leg) ? leg : null
         };
 
         return JsonSerializer.Serialize(payload, CompactJsonOptions);
