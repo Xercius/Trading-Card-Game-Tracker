@@ -4,7 +4,7 @@ Read `.github/copilot-instructions.md` first, then the scoped file matching the 
 
 - `api/Features|Controllers|Infrastructure|Common|Shared/**` → `.github/instructions/api.instructions.md`
 
-- `api/Importing/**` → `.github/instructions/importers.instructions.md` plus any matching `.github/instructions/{swu,swccg,pokemon}-importer.instructions.md`; use each file's `applyTo` patterns to determine whether it matches
+- `api/Importing/**` → `.github/instructions/importers.instructions.md` plus any matching `.github/instructions/{swu,swccg,pokemon,mtg}-importer.instructions.md`; use each file's `applyTo` patterns to determine whether it matches
 - `api/Features/Admin/Sync/**`, `api/Infrastructure/Auth/Admin*.cs` → `.github/instructions/admin.instructions.md`
 - `api/Data|Migrations|Models/**` → `.github/instructions/database.instructions.md`
 - `client-vite/src/**` → `.github/instructions/client.instructions.md`
