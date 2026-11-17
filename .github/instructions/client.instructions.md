@@ -10,7 +10,7 @@ applyTo: "client-vite/src/**/*.{ts,tsx}"
 - `UserContext` is for auth/current user only.
 - Forms: controlled components with explicit validation; the server (FluentValidation) is authoritative and its `ProblemDetails.errors` are surfaced per field. Do not add a form or schema library without asking.
 - API responses are typed with explicit interfaces mirroring the DTOs; no `any`.
-- UI primitives come from `components/ui/` (local shadcn-style components, not an npm package); Tailwind classes for styling. Mutation feedback uses the existing per-page toast pattern.
+- UI primitives come from `components/ui/` (local shadcn-style components, not an npm package); Tailwind classes for styling.
 - Use `@tanstack/react-virtual` for lists over 50 items. Card images: `loading="lazy"`, `decoding="async"`, and explicit `width`/`height` (or a fixed aspect-ratio box) to avoid layout shift.
 - Memoization: the React Compiler is not enabled. Add `useMemo`/`useCallback`/`memo` only for a measured problem or a referential-stability requirement (e.g. a dependency of another hook), not by default.
 - Security: never use `dangerouslySetInnerHTML`; render rich card text by mapping allowed tags to React elements (see `features/cards/components/CardModal.tsx`). Never store auth/admin tokens in `localStorage`/`sessionStorage` (admin auth uses the HttpOnly session cookie + antiforgery token). `localStorage` is only for non-sensitive UI preferences, wrapped in `try/catch`. `import.meta.env.VITE_*` values are public.
