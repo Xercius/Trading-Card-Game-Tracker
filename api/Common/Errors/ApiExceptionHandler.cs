@@ -40,8 +40,17 @@ internal sealed class ApiExceptionHandler(
         });
     }
 
-    private static string SanitizeForLog(string? value)
-        => string.IsNullOrEmpty(value)
-            ? string.Empty
-            : string.Concat(value.Where(c => !char.IsControl(c)));
+    internal static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var withoutNewlines = value
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", string.Empty, StringComparison.Ordinal);
+
+        return string.Concat(withoutNewlines.Where(c => !char.IsControl(c)));
+    }
 }
