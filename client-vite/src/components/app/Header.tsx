@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "@/state/useGame";
 import { resolveImageUrl } from "@/lib/http";
 import { paths } from "@/routes/paths";
+import { WhatsNewFlyout } from "@/features/changelog/components/WhatsNewFlyout";
 
 type NavLinkItem = {
   to: string;
@@ -228,7 +229,7 @@ export default function Header() {
   }, [location.pathname]);
 
   return (
-    <header className="w-full border-b bg-background/60 backdrop-blur">
+    <header className="relative z-40 w-full border-b bg-background/60 backdrop-blur">
       <div className="w-full px-4 sm:px-6 pt-3.5 pb-3.5">
         {/* Top row: brand, nav links, admin dropdown, search bar, owner */}
         <div className="flex items-center gap-3">
@@ -346,6 +347,7 @@ export default function Header() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
+            <WhatsNewFlyout />
             <button
               ref={menuBtnRef}
               type="button"

@@ -33,6 +33,9 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       strictPort: true,
+      fs: {
+        allow: [".", ".."],
+      },
       ...(sharedProxy ? { proxy: sharedProxy } : {}),
     },
     preview: sharedProxy ? { proxy: sharedProxy } : undefined,

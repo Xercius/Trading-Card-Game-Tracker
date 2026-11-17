@@ -3,6 +3,7 @@ export const MIN_QTY = 0;
 export const MAX_QTY = 2_147_483_647;
 export const STALE_TIME_MS = 30_000;
 export const LS_INCLUDE_PROXIES_KEY = "tcg-tracker:includeProxies";
+export const LS_CHANGELOG_LAST_VIEWED_KEY = "tcg-tracker:changelogLastViewed";
 export const IMPORT_MAX_ROWS_PREVIEW = 250;
 export const UPLOAD_MAX_SIZE_MB = 10;
 export const REQUEST_TIMEOUT_MS = 120_000;
