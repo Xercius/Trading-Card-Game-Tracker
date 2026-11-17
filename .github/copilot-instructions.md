@@ -13,7 +13,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 - Collections, decks and wishlists reference shared `CardPrinting` IDs, never `SwuCardPrinting`. Preserve these IDs.
 - API keeps the `Style` field (maps to `Treatment.Name`); persistence uses nullable `TreatmentId`.
 - Sets are unique on `(GameId, Code)`.
-- `UserCard.IsProxy = true` is excluded from all value calculations.
+- Proxy quantities are excluded from all value calculations.
 
 ## Security
 - Forwarded headers: trust them only from the configured `ForwardedHeaders:KnownProxies`/`KnownNetworks` config entries within `ForwardLimit`; client IP = rightmost untrusted `X-Forwarded-For`. In code, populate `ForwardedHeadersOptions.KnownIPNetworks` (`System.Net.IPNetwork`); `ForwardedHeadersOptions.KnownNetworks` is obsolete in .NET 10 (ASPDEPR005) and fails the warnings-as-errors build.
