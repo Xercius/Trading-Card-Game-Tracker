@@ -150,7 +150,9 @@ function sanitizeList(values: string[]): string[] {
 function sanitizeFilters(input: CardFilters): CardFilters {
   const rawMethod = (input.aspectMethod || "or").toLowerCase();
   const validMethod: AspectMethod =
-    rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
+    rawMethod === "and" || rawMethod === "exclude" || rawMethod === "subset" || rawMethod === "exact"
+      ? rawMethod
+      : "or";
 
   const rawTraitMethod = (input.traitMethod || "or").toLowerCase();
   const validTraitMethod: TraitMethod =

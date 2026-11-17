@@ -258,4 +258,35 @@ describe("useCardFilters", () => {
 
     latest = undefined;
   });
+
+  it("preserves subset and exact aspectMethod values when updating filters", async () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/cards?game=Magic+The+Gathering"]}>
+          <FiltersProbe />
+        </MemoryRouter>
+      );
+    });
+
+    await act(async () => {
+      latest?.setFilters((prev) => ({ ...prev, aspects: ["White"], aspectMethod: "subset" }));
+    });
+    expect(latest?.filters.aspectMethod).toBe("subset");
+    expect(latest?.search).toContain("aspectMethod=subset");
+
+    await act(async () => {
+      latest?.setFilters((prev) => ({ ...prev, aspects: ["White"], aspectMethod: "exact" }));
+    });
+    expect(latest?.filters.aspectMethod).toBe("exact");
+    expect(latest?.search).toContain("aspectMethod=exact");
+
+    await act(async () => {
+      root.unmount();
+    });
+
+    latest = undefined;
+  });
 });
