@@ -12,7 +12,7 @@ Read `.github/copilot-instructions.md` first, then the scoped file matching the 
 
 If an edited path matches no pattern above, follow only `.github/copilot-instructions.md` among the instruction files.
 
-Precedence: scoped file > root file > CONTRIBUTING.md/README. If a path matches more than one scoped file, read all of them; on conflict, the more specific pattern wins (admin > api; testing > client; game-specific importer > importers). CI (`.github/workflows/ci.yml`) is the source of truth for gate commands; if they differ, follow CI and report the difference.
+If a path matches more than one scoped file, read all of them; on conflict, the more specific pattern wins (admin > api; testing > client; game-specific importer > importers).
 
 ## Context & Token Guardrails
 - **Code Reviews**: Scope code reviews to the requested diff: staged changes (`git diff --staged` / `git diff --cached`) by default, or the commit range / PR the user names. Never scan the full workspace or read unmodified files unless verifying a direct caller/callee contract changed in the diff.
