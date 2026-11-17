@@ -49,6 +49,13 @@ describe("cssEscapeId", () => {
     expect(result).toBe("item\\:123");
   });
 
+  it("escapes backslashes and colons using fallback when CSS.escape is not available", () => {
+    const css = getCssGlobal();
+    if (css && "escape" in css) delete css.escape;
+    const result = cssEscapeId("item\\:123");
+    expect(result).toBe("item\\\\\\:123");
+  });
+
   it("escapes leading digits using fallback when CSS.escape is not available", () => {
     // Remove CSS.escape to test fallback
     const css = getCssGlobal();

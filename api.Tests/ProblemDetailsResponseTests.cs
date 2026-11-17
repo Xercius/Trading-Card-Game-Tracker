@@ -146,4 +146,16 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem.Instance.Should().Be("/api/user/99999");
     }
 
+    [Fact]
+    public void ApiExceptionHandler_SanitizeForLog_StripsNewlinesAndControlCharacters()
+    {
+        var raw = "/api/cards\r\nForged-Entry: true\0\t";
+
+        var sanitized = ApiExceptionHandler.SanitizeForLog(raw);
+
+        sanitized.Should().Be("/api/cardsForged-Entry: true");
+        ApiExceptionHandler.SanitizeForLog(null).Should().BeEmpty();
+        ApiExceptionHandler.SanitizeForLog(string.Empty).Should().BeEmpty();
+    }
+
 }

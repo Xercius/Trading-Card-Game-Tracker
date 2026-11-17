@@ -9,12 +9,14 @@ export function cssEscapeId(id: string): string {
   }
 
   // Fallback: escape special characters manually
+  // Escape backslashes and colons first
+  let escaped = id.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
+
   // Escape leading digits with \3X (hex code)
-  if (/^\d/.test(id)) {
-    const firstChar = id.charCodeAt(0).toString(16);
-    id = `\\3${firstChar.slice(-1)} ${id.slice(1)}`;
+  if (/^\d/.test(escaped)) {
+    const firstChar = escaped.charCodeAt(0).toString(16);
+    escaped = `\\3${firstChar.slice(-1)} ${escaped.slice(1)}`;
   }
 
-  // Escape colons
-  return id.replace(/:/g, "\\:");
+  return escaped;
 }

@@ -176,12 +176,9 @@ function StatBadge({
 
 function hasMeaningfulContent(content: string | null | undefined): boolean {
   if (!content || !content.trim()) return false;
-  const stripped = content
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .trim();
-  const hasImages = /<img\b[^>]*>/i.test(content);
-  return stripped.length > 0 || hasImages;
+  const doc = new DOMParser().parseFromString(content, "text/html");
+  const text = (doc.body.textContent ?? "").replace(/\u00a0/g, " ").trim();
+  return text.length > 0 || doc.body.querySelector("img") !== null;
 }
 
 function domNodeToReact(node: ChildNode, key: string): ReactNode {
