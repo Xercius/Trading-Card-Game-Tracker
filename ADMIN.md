@@ -79,7 +79,15 @@ Existing non-browser bearer clients do not need antiforgery tokens.
 - `POST /api/admin/sync/star-wars-unlimited`, `GET /api/admin/sync/star-wars-unlimited/status`, `GET /api/admin/sync/star-wars-unlimited/logs` — runs SWU full/incremental sync and retrieves sync status/logs.
 - `POST /api/admin/sync/star-wars-ccg`, `GET /api/admin/sync/star-wars-ccg/status`, `GET /api/admin/sync/star-wars-ccg/logs` — runs Star Wars CCG sync and retrieves sync status/logs.
 - `GET /api/admin/sync/pokemon/status`, `POST /api/admin/sync/pokemon/sets`, `POST /api/admin/sync/pokemon/cards`, `GET /api/admin/sync/pokemon/logs` — runs Pokémon TCG (TCGdex) set/card syncs and retrieves status/logs.
+- `GET /api/admin/sync/mtg/status`, `POST /api/admin/sync/mtg/sets`, `POST /api/admin/sync/mtg/cards`, `GET /api/admin/sync/mtg/logs` — runs Magic: The Gathering (Scryfall) set/card syncs and retrieves status/logs.
 - `POST /api/admin/prices/ingest` — ingests daily price snapshots. Each array item should include `cardPrintingId`, `capturedAt` (`YYYY-MM-DD`), and a decimal `price`. The endpoint upserts on `(cardPrintingId, capturedAt)` and ignores invalid printings.
+
+### Two-step "Sync Sets First" workflow (Pokémon & MTG)
+
+Importers that use the two-step set-then-card workflow (Pokémon TCG and Magic: The Gathering, plus any future games using this pattern) follow these rules in the Admin Sync UI:
+1. **Sync Sets** fetches and upserts set metadata first.
+2. Already-synced sets (`isSynced: true`) remain **checked and locked** in the UI and cannot be unchecked. Era/category checkboxes only toggle unsynced sets.
+3. **Sync Cards (`X new, Y synced`)** sends both any newly selected unsynced sets and all already-synced sets so new sets are imported and previously synced sets are checked for new cards or updates.
 
 All dry-run/apply requests honor the importer-specific options (set codes, limit, etc.). Errors are returned as `ProblemDetails` with a `400` status.
 

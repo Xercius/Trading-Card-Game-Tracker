@@ -1,8 +1,22 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useGame } from "@/state/useGame";
-import { useCollectionSetsSummaryQuery } from "../api";
+import { useCollectionSetsSummaryQuery, type CollectionSetSummaryDto } from "../api";
 import { paths } from "@/routes/paths";
+
+function compareSetsNewestFirst(a: CollectionSetSummaryDto, b: CollectionSetSummaryDto): number {
+  const dateA = a.releasedAt ?? (a.releaseYear != null ? `${a.releaseYear}-01-01` : null);
+  const dateB = b.releasedAt ?? (b.releaseYear != null ? `${b.releaseYear}-01-01` : null);
+  if (dateA && dateB) {
+    const cmp = dateB.localeCompare(dateA);
+    if (cmp !== 0) return cmp;
+  } else if (dateA) {
+    return -1;
+  } else if (dateB) {
+    return 1;
+  }
+  return a.setName.localeCompare(b.setName);
+}
 
 export const CollectionSetsTable: React.FC = () => {
   const { activeGame } = useGame();
@@ -23,11 +37,15 @@ export const CollectionSetsTable: React.FC = () => {
     }));
   };
 
+  const visibleSets = useMemo(() => {
+    if (!summary?.sets) return [];
+    return summary.sets.filter((s) => s.totalCards > 0).sort(compareSetsNewestFirst);
+  }, [summary?.sets]);
+
   const toggleAll = (expand: boolean) => {
-    if (!summary?.sets) return;
     const next: Record<string, boolean> = {};
     if (expand) {
-      summary.sets.forEach((s) => {
+      visibleSets.forEach((s) => {
         next[s.setCode] = true;
       });
     }
@@ -35,13 +53,12 @@ export const CollectionSetsTable: React.FC = () => {
   };
 
   const filteredSets = useMemo(() => {
-    if (!summary?.sets) return [];
-    if (!filterQuery.trim()) return summary.sets;
+    if (!filterQuery.trim()) return visibleSets;
     const q = filterQuery.toLowerCase();
-    return summary.sets.filter(
+    return visibleSets.filter(
       (s) => s.setName.toLowerCase().includes(q) || s.setCode.toLowerCase().includes(q)
     );
-  }, [summary?.sets, filterQuery]);
+  }, [visibleSets, filterQuery]);
 
   if (isLoading) {
     return (
@@ -63,7 +80,7 @@ export const CollectionSetsTable: React.FC = () => {
     );
   }
 
-  if (!summary || summary.sets.length === 0) {
+  if (!summary || visibleSets.length === 0) {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-8 text-center text-zinc-400">
         No sets found for {activeGame || "the selected game"}.
@@ -71,7 +88,7 @@ export const CollectionSetsTable: React.FC = () => {
     );
   }
 
-  const allExpanded = summary.sets.length > 0 && summary.sets.every((s) => expandedSets[s.setCode]);
+  const allExpanded = visibleSets.length > 0 && visibleSets.every((s) => expandedSets[s.setCode]);
 
   return (
     <div className="space-y-4">

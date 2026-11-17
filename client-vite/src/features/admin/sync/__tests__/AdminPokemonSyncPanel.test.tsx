@@ -143,9 +143,9 @@ describe("AdminPokemonSyncPanel", () => {
 
     expect(await screen.findByText("Emerging Powers")).toBeInTheDocument();
 
-    // Initially 0 selected, button disabled
-    const syncCardsBtn = screen.getByRole("button", { name: /Sync Cards \(0 selected\)/i });
-    expect(syncCardsBtn).toBeDisabled();
+    // Initially 0 new, 1 synced — button enabled so synced sets can be re-checked
+    const syncCardsBtn = screen.getByRole("button", { name: /Sync Cards \(0 new, 1 synced\)/i });
+    expect(syncCardsBtn).toBeEnabled();
 
     // Find the checkbox for Emerging Powers (bw02) row
     const bw02Row = screen.getByText("Emerging Powers").closest("tr")!;
@@ -156,9 +156,45 @@ describe("AdminPokemonSyncPanel", () => {
     // Check bw02
     await user.click(setCheckbox);
 
-    // Button should now show 1 selected and be enabled
+    // Button should now show 1 new, 1 synced and be enabled
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Sync Cards \(1 selected\)/i })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: /Sync Cards \(1 new, 1 synced\)/i })
+      ).toBeEnabled();
+    });
+  });
+
+  it("sends already-synced sets and newly selected sets on Sync Cards", async () => {
+    const postSpy = vi.spyOn(http, "post").mockResolvedValue({
+      data: {
+        cardsCreated: 5,
+        cardsUpdated: 1,
+        printingsCreated: 5,
+        printingsUpdated: 1,
+        errors: 0,
+        messages: ["Synced bw01 and bw02."],
+      },
+    } as never);
+
+    const user = userEvent.setup();
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Black & White")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Black & White"));
+    const bw02Row = (await screen.findByText("Emerging Powers")).closest("tr")!;
+    await user.click(within(bw02Row).getByRole("checkbox"));
+
+    await user.click(screen.getByRole("button", { name: /Sync Cards \(1 new, 1 synced\)/i }));
+
+    await waitFor(() => {
+      expect(postSpy).toHaveBeenCalledWith("admin/sync/pokemon/cards", {
+        setCodes: ["bw01", "bw02"],
+        forceFullSync: false,
+        dryRun: false,
+      });
     });
   });
 
