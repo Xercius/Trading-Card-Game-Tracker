@@ -51,7 +51,7 @@ cd client-vite && npm ci && npm audit --audit-level=high && npm run lint:strict 
 PowerShell: replace the env prefix with `$env:ASPNETCORE_ENVIRONMENT='Testing'; dotnet test ./api/api.sln -c Release`.
 During iteration, run targeted tests (`dotnet test ./api/api.sln -c Release --filter "FullyQualifiedName~<Class>"` or `cd client-vite && npx vitest run <file>`). Before a PR, run the full check suite for the touched stack (or both when a DTO or route changes).
 Run API: `dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"`.
-Run client: `cd client-vite && npm run dev`; needs `client-vite/.env.local` with `VITE_API_BASE=https://localhost:7226/api`.
+Run client: `cd client-vite && npm run dev`.
 
 ## Branches and PRs
 - Branch from and target `master` (there is no `dev` branch).
