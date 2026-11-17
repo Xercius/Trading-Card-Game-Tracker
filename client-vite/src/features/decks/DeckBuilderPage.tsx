@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import CardTile, { type CardSummary } from "@/components/CardTile";
 import VirtualizedCardGrid from "@/components/VirtualizedCardGrid";
 import { Button } from "@/components/ui/button";
-import FiltersRail from "@/features/cards/filters/FiltersRail";
+import { CardFiltersDrawer } from "@/features/printings/components/CardFiltersDrawer";
+import { usePrintingFacets } from "@/features/printings/api/usePrintingFacets";
 import PillsBar from "@/features/cards/filters/PillsBar";
 import { useCardFilters } from "@/features/cards/filters/useCardFilters";
-import { fetchCardsPage } from "@/features/cards/api";
+import { fetchPrintings } from "@/features/printings/api/printings";
+import { buildPrintingQuery } from "@/features/printings/api/usePrintings";
 import StickyDeckSidebar from "./StickyDeckSidebar";
 import {
   useDeckCardsWithAvailability,
@@ -29,7 +31,7 @@ import {
 const PAGE_SIZE = pageSizeForDevice(60, 96);
 const EMPTY_DECK_VALUE_POINTS: { d: string; v: number | null }[] = [];
 
-const normalizePrintingId = (printingId: CardSummary["primaryPrintingId"]): number | null => {
+const normalizePrintingId = (printingId: CardSummary["id"] | null): number | null => {
   if (printingId == null) return null;
   const value = typeof printingId === "number" ? printingId : Number(printingId);
   return Number.isFinite(value) ? value : null;
@@ -47,44 +49,42 @@ type Props = {
 export default function DeckBuilderPage({ deckId }: Props) {
   const { activeGame } = useGame();
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
-  const { filters, toQueryKey } = useCardFilters();
-  const [isMobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const { filters, setFilters, clearAll } = useCardFilters();
+  const [isFiltersOpen, setFiltersOpen] = useState(false);
 
-  const filterKey = toQueryKey();
-  const cardsQueryKey = useMemo(
-    () => ["cards", { game: activeGame, filters: filterKey }],
-    [activeGame, filterKey]
-  );
-
+  const deckDetailsQuery = useDeckDetails(deckId);
+  const currentGame = deckDetailsQuery.data?.game || activeGame;
+  const printingQuery = buildPrintingQuery({
+    ...filters,
+    games: [currentGame],
+    pageSize: PAGE_SIZE,
+    sort: filters.sort || "name",
+  });
   const cardsQuery = useInfiniteQuery({
-    queryKey: cardsQueryKey,
-    initialPageParam: 0,
-    queryFn: async ({ pageParam }) =>
-      fetchCardsPage({
-        q: filters.q,
-        games: [activeGame],
-        sets: filters.sets,
-        rarities: filters.rarities,
-        types: filters.types,
-        arenas: filters.arenas,
-        aspects: filters.aspects,
-        traits: filters.traits,
-        traitMethod: filters.traitMethod,
-        keywords: filters.keywords,
-        keywordMethod: filters.keywordMethod,
-        skip: pageParam as number,
-        take: PAGE_SIZE,
-      }),
-    getNextPageParam: (lastPage) => lastPage.nextSkip ?? null,
+    queryKey: ["cards", "deck-builder", printingQuery],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => fetchPrintings({ ...printingQuery, page: pageParam }),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.items.length > 0 && pages.length * PAGE_SIZE < lastPage.total
+        ? pages.length + 1
+        : undefined,
     staleTime: 60_000,
   });
 
-  const items = useMemo(
-    () => cardsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+  const items = useMemo<CardSummary[]>(
+    () =>
+      cardsQuery.data?.pages.flatMap((page) =>
+        page.items.map((printing) => ({
+          ...printing,
+          id: printing.cardId,
+          name: printing.cardName,
+          primaryPrintingId: normalizePrintingId(printing.printingId),
+          cardType: printing.cardTypes?.[0],
+        }))
+      ) ?? [],
     [cardsQuery.data]
   );
 
-  const deckDetailsQuery = useDeckDetails(deckId);
   const deckCardsQuery = useDeckCardsWithAvailability(deckId, includeProxies);
   const deckQuantityMutation = useDeckQuantityMutation(deckId, includeProxies);
   const deckValueHistoryQuery = useDeckValueHistory(deckId);
@@ -144,30 +144,52 @@ export default function DeckBuilderPage({ deckId }: Props) {
     [deckQuantityMutation]
   );
 
-  useEffect(() => {
-    if (!isMobileFiltersOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileFiltersOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isMobileFiltersOpen]);
-
   const deckName = deckDetailsQuery.data?.name ?? "Deck";
   const sidebarRows = deckCardsQuery.data ?? [];
+  const {
+    data: availableFacets,
+    isLoading: isFacetsLoading,
+    isError: isFacetsError,
+    refetch: refetchFacets,
+  } = usePrintingFacets({ ...filters, games: [currentGame] });
+  const hasActiveFilters = Boolean(
+    filters.sets.length ||
+    filters.rarities.length ||
+    filters.types.length ||
+    filters.arenas.length ||
+    filters.aspects.length ||
+    filters.traits.length ||
+    filters.keywords.length ||
+    filters.colorIdentities?.length ||
+    filters.costs?.length ||
+    filters.powers?.length ||
+    filters.toughnesses?.length ||
+    filters.loyalties?.length ||
+    filters.upgradePowers?.length ||
+    filters.upgradeHps?.length ||
+    filters.hps?.length ||
+    filters.stages?.length ||
+    filters.specialTypes?.length ||
+    filters.evolvesFrom ||
+    filters.side ||
+    filters.subTypes?.length ||
+    filters.personas?.length ||
+    filters.destinies?.length ||
+    filters.deploys?.length ||
+    filters.forfeits?.length ||
+    filters.abilities?.length ||
+    filters.lightSideIcons?.length ||
+    filters.darkSideIcons?.length
+  );
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-background">
-      <aside className="hidden w-72 shrink-0 border-r bg-background lg:block">
-        <FiltersRail />
-      </aside>
-
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-2 border-b px-3 py-2 lg:hidden">
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setMobileFiltersOpen(true)}
+            onClick={() => setFiltersOpen(true)}
             aria-label="Open filters"
           >
             Filters
@@ -227,19 +249,30 @@ export default function DeckBuilderPage({ deckId }: Props) {
         formatCurrency={formatCurrency}
       />
 
-      {isMobileFiltersOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="flex-1 bg-black/40"
-            aria-label="Close filters overlay"
-            onClick={() => setMobileFiltersOpen(false)}
-          />
-          <div className="h-full w-80 max-w-full bg-background shadow-xl">
-            <FiltersRail onClose={() => setMobileFiltersOpen(false)} />
-          </div>
-        </div>
-      )}
+      <CardFiltersDrawer
+        open={isFiltersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        setFilters={setFilters}
+        availableFacets={
+          availableFacets ?? {
+            games: [currentGame],
+            sets: [],
+            rarities: [],
+            types: [],
+            arenas: [],
+            aspects: [],
+            traits: [],
+            keywords: [],
+          }
+        }
+        isFacetsLoading={isFacetsLoading}
+        isFacetsError={isFacetsError}
+        onRetryFacets={refetchFacets}
+        onClearFilters={clearAll}
+        hasActiveFilters={hasActiveFilters}
+        game={currentGame}
+      />
     </div>
   );
 }

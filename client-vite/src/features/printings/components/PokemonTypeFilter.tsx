@@ -58,12 +58,9 @@ export function PokemonTypeFilter({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = React.useState(false);
   const selectedTypes = new Set(values.map((value) => value.trim().toLowerCase()));
-  const hasNoType = selectedTypes.has("no-type") || selectedTypes.has("no-aspect");
-  const selectedNames = [
-    ...(hasNoType ? ["No Type"] : []),
-    ...ORDERED_TYPES.filter((type) => selectedTypes.has(type.toLowerCase())),
-  ];
-  const summary = selectedNames.length > 0 ? `Types (${selectedNames.join(", ")})` : "Types";
+  const selectedNames = ORDERED_TYPES.filter((type) => selectedTypes.has(type.toLowerCase()));
+  const summary =
+    selectedNames.length > 0 ? `Energy Type (${selectedNames.join(", ")})` : "Energy Type";
 
   const toggleType = (typeName: string) => {
     const typeKey = typeName.toLowerCase();
@@ -72,14 +69,6 @@ export function PokemonTypeFilter({
       selectedTypes.has(typeKey)
         ? currentValues.filter((value) => value.toLowerCase() !== typeKey)
         : [...currentValues, typeName]
-    );
-  };
-
-  const toggleNoType = () => {
-    onChange(
-      uniqueValues(values)
-        .filter((value) => value.toLowerCase() !== "no-type" && value.toLowerCase() !== "no-aspect")
-        .concat(hasNoType ? [] : ["no-aspect"])
     );
   };
 
@@ -119,14 +108,14 @@ export function PokemonTypeFilter({
       {open && (
         <div
           role="dialog"
-          aria-label="Filter by Pokémon Type"
+          aria-label="Filter by Energy Type"
           className={`absolute left-0 z-50 mt-2 rounded-lg border border-white/20 bg-[#242424] p-3 shadow-xl ${
             className?.includes("w-full") ? "w-full" : "w-80"
           }`}
         >
           <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
             <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Types
+              Energy Types
             </div>
             {ORDERED_TYPES.map((typeName) => {
               const isSelected = selectedTypes.has(typeName.toLowerCase());
@@ -158,21 +147,6 @@ export function PokemonTypeFilter({
                 </button>
               );
             })}
-            <button
-              type="button"
-              aria-pressed={hasNoType}
-              onClick={toggleNoType}
-              className={`flex w-full items-center justify-between rounded border-t border-white/10 px-1.5 py-2 text-left transition-colors ${
-                hasNoType
-                  ? "bg-white/10 font-medium text-white"
-                  : "text-foreground/80 hover:bg-white/5"
-              }`}
-            >
-              <span className="text-sm">Colorless / No Type</span>
-              <span aria-hidden="true" className="w-4 text-center text-xs">
-                {hasNoType ? "✓" : ""}
-              </span>
-            </button>
           </div>
 
           <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">

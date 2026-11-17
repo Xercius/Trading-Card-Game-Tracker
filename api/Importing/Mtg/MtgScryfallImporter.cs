@@ -249,8 +249,12 @@ public sealed class MtgScryfallImporter : ISourceImporter
         var uid = MtgCatalog.ComputeCanonicalCardUid(sc);
         var rulesText = MtgCatalog.BuildRulesText(sc);
         var extraJson = MtgCatalog.BuildExtraCardDataJson(sc);
+        var frontFace = sc.CardFaces?.ElementAtOrDefault(0);
         var backFace = sc.CardFaces?.ElementAtOrDefault(1);
         int? cmc = sc.Cmc.HasValue ? (int)Math.Round(sc.Cmc.Value, MidpointRounding.AwayFromZero) : null;
+        var power = MtgCatalog.ParseNullableInt(sc.Power ?? frontFace?.Power);
+        var toughness = MtgCatalog.ParseNullableInt(sc.Toughness ?? frontFace?.Toughness);
+        var loyalty = MtgCatalog.ParseNullableInt(sc.Loyalty ?? frontFace?.Loyalty);
         var now = _timeProvider.GetUtcNow();
 
         if (!cardsByUid.TryGetValue(uid, out var card))
@@ -261,6 +265,9 @@ public sealed class MtgScryfallImporter : ISourceImporter
                 CardUid = uid,
                 Name = sc.Name.Trim(),
                 Cost = cmc,
+                Power = power,
+                Toughness = toughness,
+                Loyalty = loyalty,
                 Text = rulesText,
                 BackTitle = backFace?.Name?.Trim(),
                 BackText = backFace?.OracleText?.Trim(),
@@ -275,6 +282,9 @@ public sealed class MtgScryfallImporter : ISourceImporter
         {
             var changed = card.Name != sc.Name.Trim()
                 || card.Cost != cmc
+                || card.Power != power
+                || card.Toughness != toughness
+                || card.Loyalty != loyalty
                 || card.Text != rulesText
                 || card.BackTitle != backFace?.Name?.Trim()
                 || card.BackText != backFace?.OracleText?.Trim()
@@ -284,6 +294,9 @@ public sealed class MtgScryfallImporter : ISourceImporter
             {
                 card.Name = sc.Name.Trim();
                 card.Cost = cmc;
+                card.Power = power;
+                card.Toughness = toughness;
+                card.Loyalty = loyalty;
                 card.Text = rulesText;
                 card.BackTitle = backFace?.Name?.Trim();
                 card.BackText = backFace?.OracleText?.Trim();
@@ -307,6 +320,18 @@ public sealed class MtgScryfallImporter : ISourceImporter
             foreach (var aspect in catalog.ResolveAspects(sc))
             {
                 card.CardAspects.Add(new CardAspect { Card = card, Aspect = aspect });
+            }
+        }
+
+        var desiredIdentityAspects = catalog.ResolveColorIdentities(sc).ToList();
+        var desiredIdentityIds = desiredIdentityAspects.Select(a => a.Id).ToHashSet();
+        var currentIdentityIds = card.CardColorIdentities.Select(ci => ci.Aspect?.Id ?? ci.AspectId).ToHashSet();
+        if (!desiredIdentityIds.SetEquals(currentIdentityIds))
+        {
+            card.CardColorIdentities.Clear();
+            foreach (var aspect in desiredIdentityAspects)
+            {
+                card.CardColorIdentities.Add(new CardColorIdentity { Card = card, Aspect = aspect });
             }
         }
 
@@ -470,6 +495,7 @@ public sealed class MtgScryfallImporter : ISourceImporter
             var chunkSet = chunk.ToList();
             var loadedCards = await _db.Cards
                 .Include(c => c.CardAspects)
+                .Include(c => c.CardColorIdentities)
                 .Include(c => c.CardTypes)
                 .Include(c => c.CardSubTypes)
                 .Include(c => c.CardKeywords)

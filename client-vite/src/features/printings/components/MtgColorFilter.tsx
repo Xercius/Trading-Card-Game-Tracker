@@ -2,6 +2,61 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import type { AspectMethod } from "@/features/cards/filters/useCardFilters";
 import { MtgSymbolIcon } from "./MtgSymbolIcon";
+import { MTG_COLORS } from "./mtgColors";
+
+const METHODS: { value: AspectMethod; label: string }[] = [
+  { value: "or", label: "OR" },
+  { value: "subset", label: "AND" },
+  { value: "exact", label: "EXACT" },
+];
+
+export function MtgColorCheckboxes({
+  idPrefix,
+  values,
+  availableColors,
+  onToggle,
+}: {
+  idPrefix: string;
+  values: string[];
+  availableColors?: string[];
+  onToggle: (colorName: string) => void;
+}) {
+  const selectedSet = new Set(values.map((v) => v.trim().toLowerCase()));
+
+  return (
+    <div className="space-y-1">
+      {MTG_COLORS.map((color) => {
+        const isSelected = selectedSet.has(color.name.toLowerCase());
+        const isAvailable =
+          !availableColors ||
+          availableColors.length === 0 ||
+          availableColors.some((c) => c.trim().toLowerCase() === color.name.toLowerCase());
+        const id = `${idPrefix}-${color.name.toLowerCase()}`;
+
+        return (
+          <label
+            key={color.name}
+            htmlFor={id}
+            className={`flex w-full cursor-pointer items-center gap-2.5 rounded px-1.5 py-1 text-left text-sm transition-colors ${
+              isSelected ? "bg-white/10 font-medium text-white" : "text-foreground/80 hover:bg-white/5"
+            } ${!isAvailable && !isSelected ? "opacity-50" : ""}`}
+          >
+            <input
+              id={id}
+              type="checkbox"
+              aria-label={color.name}
+              checked={isSelected}
+              onChange={() => onToggle(color.name)}
+              className="h-4 w-4 rounded border border-white/30 bg-transparent accent-primary"
+            />
+            <MtgSymbolIcon symbol={color.symbol} size={16} />
+            <span>{color.name}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 
 export type MtgColorFilterProps = {
   values: string[];
@@ -11,38 +66,9 @@ export type MtgColorFilterProps = {
   className?: string;
 };
 
-const MTG_COLORS = [
-  { name: "White", symbol: "{W}" },
-  { name: "Blue", symbol: "{U}" },
-  { name: "Black", symbol: "{B}" },
-  { name: "Red", symbol: "{R}" },
-  { name: "Green", symbol: "{G}" },
-  { name: "Colorless", symbol: "{C}" },
-] as const;
-
-const METHODS: { value: AspectMethod; label: string }[] = [
-  { value: "or", label: "OR" },
-  { value: "and", label: "AND" },
-  { value: "exclude", label: "Exclude" },
-];
-
-function ChevronDownIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={`h-4 w-4 ${className}`}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-    >
-      <path d="M6 8l4 4 4-4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 /**
  * Filter Magic: The Gathering cards by color (White, Blue, Black, Red, Green, Colorless),
- * supporting OR, AND, and Exclude filter methods while backing onto the shared `aspects` parameter.
+ * supporting OR, AND (subset), and EXACT operators.
  */
 export function MtgColorFilter({
   values,
@@ -64,7 +90,7 @@ export function MtgColorFilter({
       (c) => c.name
     );
     if (selectedNames.length === 0) return "Colors";
-    const prefix = method === "exclude" ? "Exclude: " : method === "and" ? "AND: " : "";
+    const prefix = method === "exact" ? "EXACT: " : method === "subset" ? "AND: " : "";
     return `Colors (${prefix}${selectedNames.join(", ")})`;
   }, [method, selectedSet]);
 
@@ -105,9 +131,9 @@ export function MtgColorFilter({
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className="truncate text-left text-sm font-medium">{summary}</span>
-        <ChevronDownIcon
-          className={`ml-2 shrink-0 transition-transform ${open ? "-rotate-180" : ""}`}
-        />
+        <span aria-hidden="true" className={`ml-2 text-xs transition-transform ${open ? "rotate-180" : ""}`}>
+          ▾
+        </span>
       </Button>
 
       {open && (
@@ -145,36 +171,12 @@ export function MtgColorFilter({
             </div>
           </div>
 
-          <div className="space-y-1">
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Colors
-            </div>
-            {MTG_COLORS.map((color) => {
-              const isSelected = selectedSet.has(color.name.toLowerCase());
-              const isAvailable =
-                !availableColors ||
-                availableColors.length === 0 ||
-                availableColors.some((c) => c.trim().toLowerCase() === color.name.toLowerCase());
-
-              return (
-                <button
-                  key={color.name}
-                  type="button"
-                  aria-label={color.name}
-                  aria-pressed={isSelected}
-                  onClick={() => toggleColor(color.name)}
-                  className={`flex w-full items-center gap-2.5 rounded px-1.5 py-1 text-left text-sm transition-colors ${
-                    isSelected
-                      ? "bg-white/10 font-medium text-white"
-                      : "text-foreground/80 hover:bg-white/5"
-                  } ${!isAvailable && !isSelected ? "opacity-50" : ""}`}
-                >
-                  <MtgSymbolIcon symbol={color.symbol} size={16} />
-                  <span>{color.name}</span>
-                </button>
-              );
-            })}
-          </div>
+          <MtgColorCheckboxes
+            idPrefix="mtg-color"
+            values={values}
+            availableColors={availableColors}
+            onToggle={toggleColor}
+          />
 
           {values.length > 0 && (
             <div className="border-t border-white/10 pt-2">

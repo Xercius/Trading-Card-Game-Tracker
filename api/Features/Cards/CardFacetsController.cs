@@ -64,6 +64,12 @@ public sealed class CardFacetsController : ControllerBase
     /// <param name="stage">Optional comma-separated list of Pokémon stages to filter by.</param>
     /// <param name="specialType">Optional comma-separated list of special Pokémon types to filter by.</param>
     /// <param name="evolvesFrom">Optional Pokémon name to filter by its full evolutionary lineage.</param>
+    /// <param name="cost">Optional cost or mana value numeric filter expression.</param>
+    /// <param name="toughness">Optional toughness numeric filter expression.</param>
+    /// <param name="loyalty">Optional loyalty numeric filter expression.</param>
+    /// <param name="upgradePower">Optional SWU upgrade power numeric filter expression.</param>
+    /// <param name="upgradeHp">Optional SWU upgrade HP numeric filter expression.</param>
+    /// <param name="colorIdentity">Optional comma-separated list of MTG color identity values.</param>
     /// <param name="q">Optional search term to filter cards or printings by.</param>
     /// <param name="printingSearch">Whether to also match printing number and set alongside card name and type.</param>
     /// <param name="ct">Cancellation token to stop the operation if needed.</param>
@@ -99,6 +105,12 @@ public sealed class CardFacetsController : ControllerBase
         [FromQuery] string? stage = null,
         [FromQuery] string? specialType = null,
         [FromQuery] string? evolvesFrom = null,
+        [FromQuery] string? cost = null,
+        [FromQuery] string? toughness = null,
+        [FromQuery] string? loyalty = null,
+        [FromQuery] string? upgradePower = null,
+        [FromQuery] string? upgradeHp = null,
+        [FromQuery] string? colorIdentity = null,
         [FromQuery] string? q = null,
         [FromQuery] bool printingSearch = false,
         CancellationToken ct = default)
@@ -125,6 +137,12 @@ public sealed class CardFacetsController : ControllerBase
         var hps = CsvUtils.Parse(hp);
         var stages = CsvUtils.Parse(stage);
         var specialTypes = CsvUtils.Parse(specialType);
+        var costs = CsvUtils.Parse(cost);
+        var toughnesses = CsvUtils.Parse(toughness);
+        var loyalties = CsvUtils.Parse(loyalty);
+        var upgradePowers = CsvUtils.Parse(upgradePower);
+        var upgradeHps = CsvUtils.Parse(upgradeHp);
+        var colorIdentities = CsvUtils.Parse(colorIdentity);
         var evolvesFromCardIds = !string.IsNullOrWhiteSpace(evolvesFrom)
             ? await _pokemonEvolutionService.ResolveLineageCardIdsAsync(evolvesFrom, ct)
             : null;
@@ -200,6 +218,18 @@ public sealed class CardFacetsController : ControllerBase
             }
             if (excludedFilter != "power" && powers.Count > 0)
                 query = query.ApplyNumericFilter(powers, p => p.Card.Power);
+            if (excludedFilter != "cost" && costs.Count > 0)
+                query = query.ApplyNumericFilter(costs, p => p.Card.Cost);
+            if (excludedFilter != "toughness" && toughnesses.Count > 0)
+                query = query.ApplyNumericFilter(toughnesses, p => p.Card.Toughness);
+            if (excludedFilter != "loyalty" && loyalties.Count > 0)
+                query = query.ApplyNumericFilter(loyalties, p => p.Card.Loyalty);
+            if (excludedFilter != "upgradePower" && upgradePowers.Count > 0)
+                query = query.ApplyNumericFilter(upgradePowers, p => p.Card.UpgradePower);
+            if (excludedFilter != "upgradeHp" && upgradeHps.Count > 0)
+                query = query.ApplyNumericFilter(upgradeHps, p => p.Card.UpgradeHp);
+            if (excludedFilter != "colorIdentity" && colorIdentities.Count > 0)
+                query = query.ApplyColorIdentityFilter(colorIdentities);
             if (excludedFilter != "ability" && abilities.Count > 0)
                 query = query.ApplyNumericFilter(abilities, p => p.Card.Ability);
             if (excludedFilter != "lightSideIcon" && lightSideIcons.Count > 0)

@@ -131,7 +131,15 @@ describe("DeckConstructionModal", () => {
         } as never);
       }
       if (u.includes("facets")) {
-        return Promise.resolve({ data: { games: [], sets: [], rarities: [], types: [] } } as never);
+        return Promise.resolve({
+          data: {
+            games: [],
+            sets: [],
+            rarities: [],
+            types: [],
+            subTypes: [{ value: "Elf", count: 1 }],
+          },
+        } as never);
       }
       return Promise.resolve({ data: {} } as never);
     });
@@ -218,6 +226,37 @@ describe("DeckConstructionModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     await waitFor(() => {
       expect(screen.queryByText("Stage: Stage 1")).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears MTG power and subtype filters from the card pool", async () => {
+    const client = createClient();
+    deckDetails = { ...mockDeckDetails, game: "Magic The Gathering", format: "Constructed" };
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <DeckConstructionModal
+            deckId={1}
+            isOpen={true}
+            onClose={vi.fn()}
+            game="Magic The Gathering"
+          />
+        </QueryClientProvider>
+      );
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
+    const power = screen.getByRole("textbox", { name: "Power" });
+    fireEvent.change(power, { target: { value: ">2" } });
+    fireEvent.keyDown(power, { key: "Enter" });
+    expect(await screen.findByText("Power: >2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Subtype" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Elf" }));
+    expect(await screen.findByText("Subtype: Elf")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Power: >2")).not.toBeInTheDocument();
+      expect(screen.queryByText("Subtype: Elf")).not.toBeInTheDocument();
+      expect(power).toHaveValue("");
     });
   });
 

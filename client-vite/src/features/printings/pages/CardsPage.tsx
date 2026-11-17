@@ -33,6 +33,12 @@ type FilterArrayKey =
   | "lightSideIcons"
   | "darkSideIcons"
   | "hps"
+  | "costs"
+  | "toughnesses"
+  | "loyalties"
+  | "upgradePowers"
+  | "upgradeHps"
+  | "colorIdentities"
   | "stages"
   | "specialTypes";
 const EMPTY_PRINTINGS: PrintingListItem[] = [];
@@ -125,39 +131,46 @@ export default function CardsPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
   const effectivePageSize = Math.min(viewMode === "table" ? 200 : filters.pageSize || 20, 500);
 
+  const isSwu = !isSwccg && !isPokemon && !isMtg;
   const scopedFilters = React.useMemo<CardFilters>(
     () => ({
       ...filters,
       games: [activeGame],
       stages: isPokemon ? filters.stages : [],
-      arenas: isSwccg || isMtg ? [] : filters.arenas,
+      arenas: isSwu ? filters.arenas : [],
       aspects: isSwccg
         ? []
         : isPokemon || isMtg
           ? [...new Map(filters.aspects.map((aspect) => [aspect.toLowerCase(), aspect])).values()]
           : filters.aspects,
       aspectMethod: effectiveAspectMethod,
-      traits: isMtg ? [] : filters.traits,
-      traitMethod: isMtg ? "or" : filters.traitMethod,
-      keywords: isSwccg ? [] : filters.keywords,
-      keywordMethod: isSwccg ? "or" : filters.keywordMethod,
+      colorIdentities: isMtg ? filters.colorIdentities : [],
+      traits: isSwccg || isSwu ? filters.traits : [],
+      traitMethod: isSwccg || isSwu ? filters.traitMethod : "or",
+      keywords: isSwccg || isPokemon ? [] : filters.keywords,
+      keywordMethod: isSwccg || isPokemon ? "or" : filters.keywordMethod,
       side: isSwccg ? filters.side : undefined,
       personas: isSwccg ? filters.personas : [],
       subTypes: isSwccg || isMtg ? filters.subTypes : [],
       destinies: isSwccg ? filters.destinies : [],
       deploys: isSwccg ? filters.deploys : [],
       forfeits: isSwccg ? filters.forfeits : [],
-      powers: isSwccg ? filters.powers : [],
+      powers: isSwccg || isMtg || isSwu ? filters.powers : [],
+      costs: isMtg || isSwu ? filters.costs : [],
+      toughnesses: isMtg ? filters.toughnesses : [],
+      loyalties: isMtg ? filters.loyalties : [],
+      upgradePowers: isSwu ? filters.upgradePowers : [],
+      upgradeHps: isSwu ? filters.upgradeHps : [],
       abilities: isSwccg ? filters.abilities : [],
       lightSideIcons: isSwccg ? filters.lightSideIcons : [],
       darkSideIcons: isSwccg ? filters.darkSideIcons : [],
-      hps: isPokemon ? filters.hps : [],
+      hps: isPokemon || isSwu ? filters.hps : [],
       specialTypes: isPokemon ? filters.specialTypes : [],
       evolvesFrom: isPokemon ? filters.evolvesFrom : undefined,
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, isPokemon, isMtg, effectiveAspectMethod, effectivePageSize]
+    [filters, activeGame, isSwccg, isPokemon, isMtg, isSwu, effectiveAspectMethod, effectivePageSize]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);
@@ -275,6 +288,12 @@ export default function CardsPage() {
       deploys: [],
       forfeits: [],
       powers: [],
+      costs: [],
+      toughnesses: [],
+      loyalties: [],
+      upgradePowers: [],
+      upgradeHps: [],
+      colorIdentities: [],
       abilities: [],
       lightSideIcons: [],
       darkSideIcons: [],
@@ -492,6 +511,60 @@ export default function CardsPage() {
               label: "Sub-Type",
               items: (filters.subTypes ?? []).map((v) => ({ display: v, value: v })),
             },
+            {
+              key: "colorIdentities" as const,
+              label: "Color Identity",
+              items: (filters.colorIdentities ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "costs" as const,
+              label: "Mana Value",
+              items: (filters.costs ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "powers" as const,
+              label: "Power",
+              items: (filters.powers ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "toughnesses" as const,
+              label: "Toughness",
+              items: (filters.toughnesses ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "loyalties" as const,
+              label: "Loyalty",
+              items: (filters.loyalties ?? []).map((v) => ({ display: v, value: v })),
+            },
+          ]
+        : []),
+      ...(isSwu
+        ? [
+            {
+              key: "costs" as const,
+              label: "Cost",
+              items: (filters.costs ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "powers" as const,
+              label: "Power",
+              items: (filters.powers ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "hps" as const,
+              label: "HP",
+              items: (filters.hps ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "upgradePowers" as const,
+              label: "Upgrade Power",
+              items: (filters.upgradePowers ?? []).map((v) => ({ display: v, value: v })),
+            },
+            {
+              key: "upgradeHps" as const,
+              label: "Upgrade HP",
+              items: (filters.upgradeHps ?? []).map((v) => ({ display: v, value: v })),
+            },
           ]
         : []),
       ...(isPokemon
@@ -530,16 +603,18 @@ export default function CardsPage() {
       {
         key: "aspects" as const,
         label: isMtg
-          ? effectiveAspectMethod === "exclude"
-            ? "Exclude Color"
-            : effectiveAspectMethod === "and"
+          ? effectiveAspectMethod === "exact"
+            ? "Color (EXACT)"
+            : effectiveAspectMethod === "subset" || effectiveAspectMethod === "and"
               ? "Color (AND)"
               : "Color"
-          : effectiveAspectMethod === "exclude"
-            ? "Exclude Aspect"
-            : effectiveAspectMethod === "and"
-              ? "Aspect (AND)"
-              : "Aspect",
+          : isPokemon
+            ? "Energy Type"
+            : effectiveAspectMethod === "exclude"
+              ? "Exclude Aspect"
+              : effectiveAspectMethod === "and"
+                ? "Aspect (AND)"
+                : "Aspect",
         items: groupedAspects,
       },
       {
@@ -567,6 +642,7 @@ export default function CardsPage() {
     isSwccg,
     isPokemon,
     isMtg,
+    isSwu,
     filters.side,
     filters.types,
     filters.hps,
@@ -574,6 +650,12 @@ export default function CardsPage() {
     filters.specialTypes,
     filters.evolvesFrom,
     filters.subTypes,
+    filters.colorIdentities,
+    filters.costs,
+    filters.toughnesses,
+    filters.loyalties,
+    filters.upgradePowers,
+    filters.upgradeHps,
     filters.personas,
     filters.sets,
     filters.rarities,

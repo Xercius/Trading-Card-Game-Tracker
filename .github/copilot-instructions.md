@@ -8,6 +8,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 
 ## Scope
 - Shared models/services stay game-aware (use `GameId`); never hardcode game specific assumptions into shared code.
+- Card filters are game-scoped (`CardFiltersDrawer` sections per game) and use `CardPrintings` for `Sets` facets so sets with 0 synced cards are never listed; follow `.github/skills/card-filters/SKILL.md` when adding filters or onboarding a new game.
 
 ## Domain invariants
 - Collections, decks and wishlists reference shared `CardPrinting` IDs, never `SwuCardPrinting`. Preserve these IDs.

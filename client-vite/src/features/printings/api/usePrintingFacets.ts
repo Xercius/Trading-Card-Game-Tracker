@@ -39,6 +39,7 @@ export function usePrintingFacets(filters: CardFilters) {
     ...(filters.aspectMethod && filters.aspectMethod !== "or"
       ? { aspectMethod: filters.aspectMethod }
       : {}),
+    ...(filters.colorIdentities?.length ? { colorIdentities: filters.colorIdentities } : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
     ...(filters.traitMethod && filters.traitMethod !== "or"
       ? { traitMethod: filters.traitMethod }
@@ -51,6 +52,11 @@ export function usePrintingFacets(filters: CardFilters) {
     ...(filters.deploys?.length ? { deploys: filters.deploys } : {}),
     ...(filters.forfeits?.length ? { forfeits: filters.forfeits } : {}),
     ...(filters.powers?.length ? { powers: filters.powers } : {}),
+    ...(filters.costs?.length ? { costs: filters.costs } : {}),
+    ...(filters.toughnesses?.length ? { toughnesses: filters.toughnesses } : {}),
+    ...(filters.loyalties?.length ? { loyalties: filters.loyalties } : {}),
+    ...(filters.upgradePowers?.length ? { upgradePowers: filters.upgradePowers } : {}),
+    ...(filters.upgradeHps?.length ? { upgradeHps: filters.upgradeHps } : {}),
     ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
     ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
     ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),

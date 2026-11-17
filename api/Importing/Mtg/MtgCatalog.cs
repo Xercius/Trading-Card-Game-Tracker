@@ -218,6 +218,21 @@ public sealed class MtgCatalog
             ? card.Colors
             : card.CardFaces?.SelectMany(f => f.Colors ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
+        return ResolveColorAspects(colorCodes);
+    }
+
+    /// <summary>Resolves MTG Color Identity codes (falling back to Colorless when empty) to Aspect entities.</summary>
+    public IEnumerable<Aspect> ResolveColorIdentities(ScryfallCard card)
+        => ResolveColorAspects(card.ColorIdentity);
+
+    /// <summary>Parses a Scryfall numeric stat string (e.g. "3", "0") into an integer, returning null for non-numeric values like "*" or "X".</summary>
+    public static int? ParseNullableInt(string? raw)
+        => int.TryParse(raw?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+
+    private IEnumerable<Aspect> ResolveColorAspects(IReadOnlyCollection<string>? colorCodes)
+    {
         if (colorCodes is null || colorCodes.Count == 0)
         {
             if (_aspectsByName.TryGetValue("Colorless", out var colorless))

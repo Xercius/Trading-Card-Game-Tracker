@@ -64,9 +64,15 @@ public sealed record ListPrintingsQuery
     public string? Aspect { get; init; }
 
     /// <summary>
-    /// Method for aspect filtering: "or" (default), "and", or "exclude".
+    /// Method for aspect filtering: "or" (default), "and", "exclude", "subset", or "exact".
     /// </summary>
     public string? AspectMethod { get; init; }
+
+    /// <summary>
+    /// Optional filter by card color identity (e.g., "White", "Blue", "Colorless").
+    /// Excludes cards whose color identity contains any color not in the selected set.
+    /// </summary>
+    public string? ColorIdentity { get; init; }
 
     /// <summary>
     /// Optional comma-separated aspect budget for deck building. Repeated names supply multiple symbols.
@@ -129,6 +135,31 @@ public sealed record ListPrintingsQuery
     /// Optional filter by card power value.
     /// </summary>
     public string? Power { get; init; }
+
+    /// <summary>
+    /// Optional filter by card cost or mana value (supports numeric operators like >2, 3).
+    /// </summary>
+    public string? Cost { get; init; }
+
+    /// <summary>
+    /// Optional filter by card toughness (supports numeric operators like >3, 4).
+    /// </summary>
+    public string? Toughness { get; init; }
+
+    /// <summary>
+    /// Optional filter by planeswalker loyalty (supports numeric operators like >3, 4).
+    /// </summary>
+    public string? Loyalty { get; init; }
+
+    /// <summary>
+    /// Optional filter by SWU upgrade power bonus (supports numeric operators like >1, 2).
+    /// </summary>
+    public string? UpgradePower { get; init; }
+
+    /// <summary>
+    /// Optional filter by SWU upgrade HP bonus (supports numeric operators like >1, 2).
+    /// </summary>
+    public string? UpgradeHp { get; init; }
 
     /// <summary>
     /// Optional filter by card force ability value.

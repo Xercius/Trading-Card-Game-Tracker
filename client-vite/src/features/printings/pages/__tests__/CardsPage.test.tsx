@@ -244,16 +244,16 @@ describe("CardsPage filter wiring", () => {
     expect(filtersButton).toHaveAttribute("aria-expanded", "false");
 
     // Before opening the menu, individual facet buttons are not rendered
-    expect(screen.queryByRole("button", { name: "Card Type" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Type" })).not.toBeInTheDocument();
 
     // Click Filters to expand menu
     fireEvent.click(filtersButton);
     expect(filtersButton).toHaveAttribute("aria-expanded", "true");
 
-    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arena" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aspects" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Traits" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trait" })).toBeInTheDocument();
   });
 
   it("uses default values when no URL parameters are present", () => {
