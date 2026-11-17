@@ -9,6 +9,7 @@ public sealed class ImporterRegistryTests(CustomWebApplicationFactory factory) :
 {
     private static readonly string[] ExpectedKeys =
     [
+        "mtg",
         "pokemon",
         "swu",
         "swccg",

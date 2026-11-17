@@ -158,9 +158,7 @@ describe("AdminPokemonSyncPanel", () => {
 
     // Button should now show 1 new, 1 synced and be enabled
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Sync Cards \(1 new, 1 synced\)/i })
-      ).toBeEnabled();
+      expect(screen.getByRole("button", { name: /Sync Cards \(1 new, 1 synced\)/i })).toBeEnabled();
     });
   });
 

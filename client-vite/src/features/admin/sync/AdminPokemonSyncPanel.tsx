@@ -154,10 +154,7 @@ export default function AdminPokemonSyncPanel() {
     }
   };
 
-  const syncedSetCodes = useMemo(
-    () => sets.filter((s) => s.isSynced).map((s) => s.code),
-    [sets]
-  );
+  const syncedSetCodes = useMemo(() => sets.filter((s) => s.isSynced).map((s) => s.code), [sets]);
   const syncedSetsCount = syncedSetCodes.length;
   const codesToSync = useMemo(
     () => Array.from(new Set([...syncedSetCodes, ...selectedSetCodes])),
