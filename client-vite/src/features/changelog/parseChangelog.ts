@@ -25,6 +25,12 @@ export function parseChangelog(
   for (const rawLine of markdown.split(/\r?\n/)) {
     const line = rawLine.trim();
 
+    if (/^##\s+\[?Unreleased\]?/i.test(line)) {
+      currentRelease = null;
+      currentCategory = null;
+      continue;
+    }
+
     const releaseMatch = RELEASE_HEADING_RE.exec(line);
     if (releaseMatch) {
       if (releases.length >= maxReleases) {

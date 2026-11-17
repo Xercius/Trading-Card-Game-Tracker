@@ -17,7 +17,8 @@
     "test:watch": "vitest --watch",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "changelog:sync": "node ../scripts/update-changelog.mjs --sync-tags"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",

@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - 'CHANGELOG.md'
 
 permissions:
   contents: write
@@ -21,13 +23,45 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: refs/heads/master
 
-      - name: Bump version and push tag
-        id: tag
+      - name: Calculate next version tag (dry run)
+        id: tag_calc
         uses: mathieudutour/github-tag-action@v7
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
+          release_branches: master
+          dry_run: true
+
+      - name: Setup Node.js
+        if: steps.tag_calc.outputs.new_tag != ''
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Update CHANGELOG.md and commit
+        if: steps.tag_calc.outputs.new_tag != ''
+        env:
+          NEW_TAG: ${{ steps.tag_calc.outputs.new_tag }}
+          PREV_TAG: ${{ steps.tag_calc.outputs.previous_tag }}
+        run: |
+          node scripts/update-changelog.mjs --version "$NEW_TAG" --from "$PREV_TAG"
+          if ! git diff --quiet CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "chore(release): update CHANGELOG.md for ${NEW_TAG} [skip ci]"
+            git push origin HEAD:master
+          fi
+
+      - name: Bump version and push tag
+        if: steps.tag_calc.outputs.new_tag != ''
+        id: tag
+        uses: mathieudutour/github-tag-action@v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ steps.tag_calc.outputs.new_tag }}
           release_branches: master
 
       - name: Create GitHub Release
