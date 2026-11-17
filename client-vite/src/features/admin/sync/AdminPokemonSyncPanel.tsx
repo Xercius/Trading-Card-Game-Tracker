@@ -154,9 +154,16 @@ export default function AdminPokemonSyncPanel() {
     }
   };
 
+  const syncedSetCodes = useMemo(() => sets.filter((s) => s.isSynced).map((s) => s.code), [sets]);
+  const syncedSetsCount = syncedSetCodes.length;
+  const codesToSync = useMemo(
+    () => Array.from(new Set([...syncedSetCodes, ...selectedSetCodes])),
+    [syncedSetCodes, selectedSetCodes]
+  );
+
   const handleRunCardsSync = async () => {
     setFeedback(null);
-    const codesToSync = Array.from(selectedSetCodes);
+    const newlySelectedCodes = Array.from(selectedSetCodes);
     if (codesToSync.length === 0) {
       setFeedback({
         tone: "error",
@@ -184,7 +191,7 @@ export default function AdminPokemonSyncPanel() {
       // Clear selection of newly synced sets
       setSelectedSetCodes((prev) => {
         const next = new Set(prev);
-        for (const code of codesToSync) {
+        for (const code of newlySelectedCodes) {
           next.delete(code);
         }
         return next;
@@ -200,7 +207,6 @@ export default function AdminPokemonSyncPanel() {
 
   const selectedCount = selectedSetCodes.size;
   const totalSets = sets.length;
-  const syncedSetsCount = sets.filter((s) => s.isSynced).length;
 
   return (
     <section className="space-y-6 rounded border p-6 bg-card text-card-foreground">
@@ -272,10 +278,12 @@ export default function AdminPokemonSyncPanel() {
 
         <Button
           onClick={handleRunCardsSync}
-          disabled={isRunning || selectedCount === 0}
+          disabled={isRunning || codesToSync.length === 0}
           className="font-semibold"
         >
-          {runCardsSync.isPending ? "Syncing Cards…" : `Sync Cards (${selectedCount} selected)`}
+          {runCardsSync.isPending
+            ? "Syncing Cards…"
+            : `Sync Cards (${selectedCount} new, ${syncedSetsCount} synced)`}
         </Button>
 
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none">

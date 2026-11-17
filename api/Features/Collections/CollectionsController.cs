@@ -577,7 +577,8 @@ public class CollectionsController : ControllerBase
 
         var sets = await setsQuery
             .Include(s => s.Game)
-            .OrderBy(s => s.ReleasedAt)
+            .OrderBy(s => s.ReleasedAt == null)
+            .ThenByDescending(s => s.ReleasedAt)
             .ThenBy(s => s.Name)
             .ToListAsync(ct);
 
@@ -618,18 +619,6 @@ public class CollectionsController : ControllerBase
             var setPrintings = printings.Where(p => p.SetId == set.Id).ToList();
             if (setPrintings.Count == 0)
             {
-                setSummaries.Add(new CollectionSetSummaryDto(
-                    set.Id,
-                    set.Code,
-                    set.Name ?? set.Code,
-                    set.ReleasedAt?.Year,
-                    set.ReleasedAt,
-                    isVirtualSet,
-                    0,
-                    0,
-                    0,
-                    []
-                ));
                 continue;
             }
 

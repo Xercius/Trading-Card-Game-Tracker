@@ -44,13 +44,12 @@ function MtgEraAccordionGroup({
   const unsyncedSets = group.sets.filter((s) => !s.isSynced);
   const syncedCount = group.sets.length - unsyncedSets.length;
   const allSynced = unsyncedSets.length === 0;
-  const targetSets = allSynced ? group.sets : unsyncedSets;
-  const allTargetSelected =
-    targetSets.length > 0 && targetSets.every((s) => selectedSetCodes.has(s.code));
+  const allUnsyncedSelected =
+    unsyncedSets.length > 0 && unsyncedSets.every((s) => selectedSetCodes.has(s.code));
   const someSelected =
-    targetSets.length > 0 &&
-    targetSets.some((s) => selectedSetCodes.has(s.code)) &&
-    !allTargetSelected;
+    unsyncedSets.length > 0 &&
+    unsyncedSets.some((s) => selectedSetCodes.has(s.code)) &&
+    !allUnsyncedSelected;
 
   return (
     <div className="rounded-lg border bg-card/60 overflow-hidden">
@@ -59,14 +58,21 @@ function MtgEraAccordionGroup({
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-gray-300 cursor-pointer disabled:opacity-60"
-            checked={allTargetSelected}
+            checked={allSynced || allUnsyncedSelected}
             ref={(el) => {
               if (el) el.indeterminate = someSelected;
             }}
-            disabled={isRunning}
+            disabled={allSynced || isRunning}
             onChange={() => onToggleEraSelection(group.sets)}
+            title={
+              allSynced
+                ? "All sets in this era are already synced"
+                : "Select or deselect all unsynced sets in this era"
+            }
             aria-label={
-              allSynced ? `Select all sets in ${group.era}` : `Select unsynced sets in ${group.era}`
+              allSynced
+                ? `All sets in ${group.era} are synced`
+                : `Select unsynced sets in ${group.era}`
             }
           />
           <button
@@ -105,13 +111,25 @@ function MtgEraAccordionGroup({
               {group.sets.map((set) => (
                 <tr key={set.code} className={set.isSynced ? "bg-muted/15" : "hover:bg-muted/40"}>
                   <td className="p-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedSetCodes.has(set.code)}
-                      disabled={isRunning}
-                      onChange={() => onToggleSetSelection(set.code)}
-                      aria-label={`Select ${set.name}`}
-                    />
+                    {set.isSynced ? (
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        disabled={true}
+                        className="h-4 w-4 rounded border-gray-300 opacity-60 cursor-not-allowed"
+                        title="Synced sets cannot be unchecked"
+                        aria-label={`Select ${set.name}`}
+                      />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={selectedSetCodes.has(set.code)}
+                        disabled={isRunning}
+                        onChange={() => onToggleSetSelection(set.code)}
+                        className="h-4 w-4 rounded border-gray-300 cursor-pointer"
+                        aria-label={`Select ${set.name}`}
+                      />
+                    )}
                   </td>
                   <td className="p-2 whitespace-nowrap">{set.releaseDate ?? "—"}</td>
                   <td className="p-2 font-mono text-xs">{set.code}</td>
@@ -187,9 +205,16 @@ export default function AdminMtgSyncPanel() {
   }, [groupedEras, filterText]);
 
   const isSearching = filterText.trim().length > 0;
-  const syncedSetsCount = sets.filter((s) => s.isSynced).length;
+  const syncedSetCodes = useMemo(() => sets.filter((s) => s.isSynced).map((s) => s.code), [sets]);
+  const syncedSetsCount = syncedSetCodes.length;
+  const codesToSync = useMemo(
+    () => Array.from(new Set([...syncedSetCodes, ...selectedSetCodes])),
+    [syncedSetCodes, selectedSetCodes]
+  );
 
   const toggleSetSelection = (code: string) => {
+    const target = sets.find((s) => s.code === code);
+    if (target?.isSynced) return;
     setSelectedSetCodes((prev) => {
       const next = new Set(prev);
       if (next.has(code)) next.delete(code);
@@ -200,12 +225,11 @@ export default function AdminMtgSyncPanel() {
 
   const toggleEraSelection = (eraSets: AdminMtgSetEntry[]) => {
     const unsynced = eraSets.filter((s) => !s.isSynced);
-    const targets = unsynced.length > 0 ? unsynced : eraSets;
-    if (targets.length === 0) return;
-    const allSelected = targets.every((s) => selectedSetCodes.has(s.code));
+    if (unsynced.length === 0) return;
+    const allSelected = unsynced.every((s) => selectedSetCodes.has(s.code));
     setSelectedSetCodes((prev) => {
       const next = new Set(prev);
-      for (const s of targets) {
+      for (const s of unsynced) {
         if (allSelected) next.delete(s.code);
         else next.add(s.code);
       }
@@ -228,15 +252,14 @@ export default function AdminMtgSyncPanel() {
 
   const handleRunCardsSync = async () => {
     setFeedback(null);
-    const codes = Array.from(selectedSetCodes);
-    if (codes.length === 0) {
+    if (codesToSync.length === 0) {
       setFeedback({ tone: "error", message: "Please select at least one set to sync cards." });
       return;
     }
 
     try {
       const result = await runCardsSync.mutateAsync({
-        setCodes: codes,
+        setCodes: codesToSync,
         forceFullSync,
         dryRun,
       });
@@ -312,10 +335,10 @@ export default function AdminMtgSyncPanel() {
         <Button onClick={handleRunSetsSync} disabled={isRunning} variant="outline">
           {runSetsSync.isPending ? "Syncing Sets…" : "Sync Sets"}
         </Button>
-        <Button onClick={handleRunCardsSync} disabled={isRunning || selectedSetCodes.size === 0}>
+        <Button onClick={handleRunCardsSync} disabled={isRunning || codesToSync.length === 0}>
           {runCardsSync.isPending
             ? "Syncing Cards…"
-            : `Sync Cards (${selectedSetCodes.size} selected)`}
+            : `Sync Cards (${selectedSetCodes.size} new, ${syncedSetsCount} synced)`}
         </Button>
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input
