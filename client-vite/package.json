@@ -56,5 +56,8 @@
     "vite": "^7.3.8",
     "vitest": "^5.1.0",
     "@vitest/coverage-v8": "^5.1.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   }
 }
