@@ -156,6 +156,9 @@ namespace api.Migrations
                     b.Property<string>("Lore")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Loyalty")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("Maneuver")
                         .HasColumnType("INTEGER");
 
@@ -206,6 +209,9 @@ namespace api.Migrations
                     b.Property<string>("TextStyled")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Toughness")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Uniqueness")
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
@@ -218,8 +224,26 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Cost")
+                        .HasDatabaseName("IX_Cards_Cost");
+
+                    b.HasIndex("Loyalty")
+                        .HasDatabaseName("IX_Cards_Loyalty");
+
                     b.HasIndex("NameNormalized")
                         .HasDatabaseName("IX_Cards_NameNormalized");
+
+                    b.HasIndex("Power")
+                        .HasDatabaseName("IX_Cards_Power");
+
+                    b.HasIndex("Toughness")
+                        .HasDatabaseName("IX_Cards_Toughness");
+
+                    b.HasIndex("UpgradeHp")
+                        .HasDatabaseName("IX_Cards_UpgradeHp");
+
+                    b.HasIndex("UpgradePower")
+                        .HasDatabaseName("IX_Cards_UpgradePower");
 
                     b.HasIndex("GameId", "Name")
                         .HasDatabaseName("IX_Cards_GameId_Name");
@@ -289,6 +313,22 @@ namespace api.Migrations
                         {
                             t.HasCheckConstraint("CK_CardCardTypes_SourceRole", "\"SourceRole\" IN ('Type', 'Type2')");
                         });
+                });
+
+            modelBuilder.Entity("api.Models.CardColorIdentity", b =>
+                {
+                    b.Property<int>("CardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AspectId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("CardId", "AspectId");
+
+                    b.HasIndex("AspectId")
+                        .HasDatabaseName("IX_CardColorIdentities_AspectId");
+
+                    b.ToTable("CardColorIdentities", (string)null);
                 });
 
             modelBuilder.Entity("api.Models.CardKeyword", b =>
@@ -1003,6 +1043,25 @@ namespace api.Migrations
                     b.Navigation("CardType");
                 });
 
+            modelBuilder.Entity("api.Models.CardColorIdentity", b =>
+                {
+                    b.HasOne("api.Models.Aspect", "Aspect")
+                        .WithMany()
+                        .HasForeignKey("AspectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Card", "Card")
+                        .WithMany("CardColorIdentities")
+                        .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Aspect");
+
+                    b.Navigation("Card");
+                });
+
             modelBuilder.Entity("api.Models.CardKeyword", b =>
                 {
                     b.HasOne("api.Models.Card", "Card")
@@ -1259,6 +1318,8 @@ namespace api.Migrations
                     b.Navigation("CardArenas");
 
                     b.Navigation("CardAspects");
+
+                    b.Navigation("CardColorIdentities");
 
                     b.Navigation("CardKeywords");
 

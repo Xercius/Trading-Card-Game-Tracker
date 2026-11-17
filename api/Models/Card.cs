@@ -21,6 +21,8 @@ public sealed class Card
     public string? Subtitle { get; set; }
     public int? Cost { get; set; }
     public int? Power { get; set; }
+    public int? Toughness { get; set; }
+    public int? Loyalty { get; set; }
     public int? Hp { get; set; }
     public int? UpgradeHp { get; set; }
     public int? UpgradePower { get; set; }
@@ -56,4 +58,5 @@ public sealed class Card
     public ICollection<CardKeyword> CardKeywords { get; set; } = new List<CardKeyword>();
     public ICollection<CardArena> CardArenas { get; set; } = new List<CardArena>();
     public ICollection<CardAspect> CardAspects { get; set; } = new List<CardAspect>();
+    public ICollection<CardColorIdentity> CardColorIdentities { get; set; } = new List<CardColorIdentity>();
 }

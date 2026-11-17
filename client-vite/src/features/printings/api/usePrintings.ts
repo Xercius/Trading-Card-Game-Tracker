@@ -4,9 +4,9 @@ import { cardsQueryKeys } from "@/features/cards/queryKeys";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 
 /**
- * Queries paginated card printings, applying any deck aspect budget before pagination.
+ * Builds the shared printing query so card browsers apply the same filters.
  */
-export function usePrintings(filters: CardFilters, availableAspects?: string[]) {
+export function buildPrintingQuery(filters: CardFilters, availableAspects?: string[]) {
   const pageSize = Math.min(filters.pageSize, 500);
   const query: Omit<PrintingQuery, "page"> = {
     q: filters.q || undefined,
@@ -19,6 +19,7 @@ export function usePrintings(filters: CardFilters, availableAspects?: string[]) 
     ...(filters.aspectMethod && filters.aspectMethod !== "or"
       ? { aspectMethod: filters.aspectMethod }
       : {}),
+    ...(filters.colorIdentities?.length ? { colorIdentities: filters.colorIdentities } : {}),
     ...(filters.traits?.length ? { traits: filters.traits } : {}),
     ...(filters.traitMethod && filters.traitMethod !== "or"
       ? { traitMethod: filters.traitMethod }
@@ -31,6 +32,11 @@ export function usePrintings(filters: CardFilters, availableAspects?: string[]) 
     ...(filters.deploys?.length ? { deploys: filters.deploys } : {}),
     ...(filters.forfeits?.length ? { forfeits: filters.forfeits } : {}),
     ...(filters.powers?.length ? { powers: filters.powers } : {}),
+    ...(filters.costs?.length ? { costs: filters.costs } : {}),
+    ...(filters.toughnesses?.length ? { toughnesses: filters.toughnesses } : {}),
+    ...(filters.loyalties?.length ? { loyalties: filters.loyalties } : {}),
+    ...(filters.upgradePowers?.length ? { upgradePowers: filters.upgradePowers } : {}),
+    ...(filters.upgradeHps?.length ? { upgradeHps: filters.upgradeHps } : {}),
     ...(filters.abilities?.length ? { abilities: filters.abilities } : {}),
     ...(filters.lightSideIcons?.length ? { lightSideIcons: filters.lightSideIcons } : {}),
     ...(filters.darkSideIcons?.length ? { darkSideIcons: filters.darkSideIcons } : {}),
@@ -47,6 +53,12 @@ export function usePrintings(filters: CardFilters, availableAspects?: string[]) 
     ...(availableAspects !== undefined ? { availableAspects } : {}),
   };
 
+  return query;
+}
+
+/** Queries paginated card printings, applying any deck aspect budget before pagination. */
+export function usePrintings(filters: CardFilters, availableAspects?: string[]) {
+  const query = buildPrintingQuery(filters, availableAspects);
   return useQuery<PrintingsResult, Error>({
     queryKey: [...cardsQueryKeys.list(filters), query],
     queryFn: async () => {

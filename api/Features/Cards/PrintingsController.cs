@@ -221,6 +221,24 @@ public sealed class PrintingsController : ControllerBase
         var powers = CsvUtils.Parse(qp.Power);
         query = query.ApplyNumericFilter(powers, p => p.Card.Power);
 
+        var costs = CsvUtils.Parse(qp.Cost);
+        query = query.ApplyNumericFilter(costs, p => p.Card.Cost);
+
+        var toughnesses = CsvUtils.Parse(qp.Toughness);
+        query = query.ApplyNumericFilter(toughnesses, p => p.Card.Toughness);
+
+        var loyalties = CsvUtils.Parse(qp.Loyalty);
+        query = query.ApplyNumericFilter(loyalties, p => p.Card.Loyalty);
+
+        var upgradePowers = CsvUtils.Parse(qp.UpgradePower);
+        query = query.ApplyNumericFilter(upgradePowers, p => p.Card.UpgradePower);
+
+        var upgradeHps = CsvUtils.Parse(qp.UpgradeHp);
+        query = query.ApplyNumericFilter(upgradeHps, p => p.Card.UpgradeHp);
+
+        var colorIdentities = CsvUtils.Parse(qp.ColorIdentity);
+        query = query.ApplyColorIdentityFilter(colorIdentities);
+
         var abilities = CsvUtils.Parse(qp.Ability);
         query = query.ApplyNumericFilter(abilities, p => p.Card.Ability);
 

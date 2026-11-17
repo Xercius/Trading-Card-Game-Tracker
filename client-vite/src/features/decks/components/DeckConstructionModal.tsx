@@ -60,7 +60,14 @@ type FilterArrayKey =
   | "lightSideIcons"
   | "darkSideIcons"
   | "hps"
-  | "stages";
+  | "stages"
+  | "costs"
+  | "toughnesses"
+  | "loyalties"
+  | "upgradePowers"
+  | "upgradeHps"
+  | "colorIdentities"
+  | "specialTypes";
 
 export function DeckConstructionModal({
   deckId,
@@ -508,14 +515,70 @@ export function DeckConstructionModal({
         items: filters.rarities.map((v) => ({ display: v, value: v })),
       });
     }
+    if (filters.subTypes?.length) {
+      list.push({
+        key: "subTypes",
+        label: "Subtype",
+        items: filters.subTypes.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.colorIdentities?.length) {
+      list.push({
+        key: "colorIdentities",
+        label: "Color Identity",
+        items: filters.colorIdentities.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.costs?.length) {
+      list.push({
+        key: "costs",
+        label: isMtg ? "Mana Value" : "Cost",
+        items: filters.costs.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.powers?.length) {
+      list.push({
+        key: "powers",
+        label: "Power",
+        items: filters.powers.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.toughnesses?.length) {
+      list.push({
+        key: "toughnesses",
+        label: "Toughness",
+        items: filters.toughnesses.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.loyalties?.length) {
+      list.push({
+        key: "loyalties",
+        label: "Loyalty",
+        items: filters.loyalties.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.upgradePowers?.length) {
+      list.push({
+        key: "upgradePowers",
+        label: "Upgrade Power",
+        items: filters.upgradePowers.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.upgradeHps?.length) {
+      list.push({
+        key: "upgradeHps",
+        label: "Upgrade HP",
+        items: filters.upgradeHps.map((v) => ({ display: v, value: v })),
+      });
+    }
+    if (filters.hps?.length) {
+      list.push({
+        key: "hps",
+        label: "HP",
+        items: filters.hps.map((v) => ({ display: v, value: v })),
+      });
+    }
     if (currentGame.toLowerCase().includes("pokemon")) {
-      if (filters.hps?.length) {
-        list.push({
-          key: "hps",
-          label: "HP",
-          items: filters.hps.map((v) => ({ display: v, value: v })),
-        });
-      }
       if (filters.stages?.length) {
         list.push({
           key: "stages",
@@ -523,9 +586,16 @@ export function DeckConstructionModal({
           items: filters.stages.map((v) => ({ display: v, value: v })),
         });
       }
+      if (filters.specialTypes?.length) {
+        list.push({
+          key: "specialTypes",
+          label: "Special Type",
+          items: filters.specialTypes.map((v) => ({ display: v, value: v })),
+        });
+      }
     }
     return list;
-  }, [filters, currentGame]);
+  }, [filters, currentGame, isMtg]);
 
   const activeFilterCount = activeFilters.reduce((sum, f) => sum + f.items.length, 0);
 
@@ -551,10 +621,30 @@ export function DeckConstructionModal({
       types: [],
       arenas: [],
       aspects: [],
+      aspectMethod: "or",
+      traitMethod: "or",
+      keywordMethod: "or",
+      subTypes: [],
+      personas: [],
+      destinies: [],
+      deploys: [],
+      forfeits: [],
+      powers: [],
+      abilities: [],
+      lightSideIcons: [],
+      darkSideIcons: [],
+      specialTypes: [],
+      evolvesFrom: undefined,
       traits: [],
       keywords: [],
       hps: [],
       stages: [],
+      costs: [],
+      toughnesses: [],
+      loyalties: [],
+      upgradePowers: [],
+      upgradeHps: [],
+      colorIdentities: [],
       side: currentSide || undefined,
       page: 1,
     }));

@@ -32,6 +32,7 @@ namespace api.Data
         public DbSet<CardKeyword> CardKeywords => Set<CardKeyword>();
         public DbSet<CardArena> CardArenas => Set<CardArena>();
         public DbSet<CardAspect> CardAspects => Set<CardAspect>();
+        public DbSet<CardColorIdentity> CardColorIdentities => Set<CardColorIdentity>();
         public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
 
         protected override void OnModelCreating(ModelBuilder b)

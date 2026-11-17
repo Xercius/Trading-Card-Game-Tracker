@@ -121,6 +121,43 @@ internal static class QueryExtensions
                 }
                 return query;
 
+            case "subset":
+            {
+                var selectedNames = aspectCounts.Select(a => a.Name).ToList();
+                if (hasNoAspect && selectedNames.Count == 0)
+                    return query.Where(c => !c.CardAspects.Any());
+                if (selectedNames.Count == 0)
+                    return query;
+
+                if (hasNoAspect)
+                {
+                    return query.Where(c => !c.CardAspects.Any(ca =>
+                        !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+                }
+
+                return query.Where(c =>
+                    c.CardAspects.Any(ca => selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))) &&
+                    !c.CardAspects.Any(ca => !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+            }
+
+            case "exact":
+            {
+                var selectedNames = aspectCounts.Select(a => a.Name).ToList();
+                if (hasNoAspect && selectedNames.Count > 0)
+                    return query.Where(c => false);
+                if (hasNoAspect)
+                    return query.Where(c => !c.CardAspects.Any());
+
+                foreach (var req in aspectCounts)
+                {
+                    query = query.Where(c => c.CardAspects.Any(ca =>
+                        EF.Functions.Collate(ca.Aspect.Name, "NOCASE") == req.Name && ca.Count >= req.Count));
+                }
+
+                return query.Where(c => !c.CardAspects.Any(ca =>
+                    !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+            }
+
             case "or":
             default:
                 if (hasNoAspect && aspectCounts.Count == 0)
@@ -193,6 +230,43 @@ internal static class QueryExtensions
                 }
                 return query;
 
+            case "subset":
+            {
+                var selectedNames = aspectCounts.Select(a => a.Name).ToList();
+                if (hasNoAspect && selectedNames.Count == 0)
+                    return query.Where(p => !p.Card.CardAspects.Any());
+                if (selectedNames.Count == 0)
+                    return query;
+
+                if (hasNoAspect)
+                {
+                    return query.Where(p => !p.Card.CardAspects.Any(ca =>
+                        !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+                }
+
+                return query.Where(p =>
+                    p.Card.CardAspects.Any(ca => selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))) &&
+                    !p.Card.CardAspects.Any(ca => !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+            }
+
+            case "exact":
+            {
+                var selectedNames = aspectCounts.Select(a => a.Name).ToList();
+                if (hasNoAspect && selectedNames.Count > 0)
+                    return query.Where(p => false);
+                if (hasNoAspect)
+                    return query.Where(p => !p.Card.CardAspects.Any());
+
+                foreach (var req in aspectCounts)
+                {
+                    query = query.Where(p => p.Card.CardAspects.Any(ca =>
+                        EF.Functions.Collate(ca.Aspect.Name, "NOCASE") == req.Name && ca.Count >= req.Count));
+                }
+
+                return query.Where(p => !p.Card.CardAspects.Any(ca =>
+                    !selectedNames.Contains(EF.Functions.Collate(ca.Aspect.Name, "NOCASE"))));
+            }
+
             case "or":
             default:
                 if (hasNoAspect && aspectCounts.Count == 0)
@@ -253,6 +327,24 @@ internal static class QueryExtensions
                 return query.Where(c => c.CardTraits.Any(ct =>
                     normalizedTraits.Contains(EF.Functions.Collate(ct.Trait.Name, "NOCASE"))));
         }
+    }
+
+    internal static IQueryable<CardPrinting> ApplyColorIdentityFilter(
+        this IQueryable<CardPrinting> query,
+        IReadOnlyCollection<string>? colorIdentities)
+    {
+        if (colorIdentities is null || colorIdentities.Count == 0) return query;
+
+        var normalized = colorIdentities
+            .Select(SqliteCaseNormalizer.Normalize)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct()
+            .ToList();
+
+        if (normalized.Count == 0) return query;
+
+        return query.Where(p => !p.Card.CardColorIdentities.Any(ci =>
+            !normalized.Contains(EF.Functions.Collate(ci.Aspect.Name, "NOCASE"))));
     }
 
     internal static IQueryable<CardPrinting> ApplyTraitFilter(

@@ -31,7 +31,8 @@ export type PrintingQuery = {
   types?: string[];
   arenas?: string[];
   aspects?: string[];
-  aspectMethod?: "or" | "and" | "exclude";
+  aspectMethod?: "or" | "and" | "exclude" | "subset" | "exact";
+  colorIdentities?: string[];
   availableAspects?: string[];
   traits?: string[];
   traitMethod?: "or" | "and" | "exclude";
@@ -44,6 +45,11 @@ export type PrintingQuery = {
   deploys?: string[];
   forfeits?: string[];
   powers?: string[];
+  costs?: string[];
+  toughnesses?: string[];
+  loyalties?: string[];
+  upgradePowers?: string[];
+  upgradeHps?: string[];
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
@@ -73,6 +79,7 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.aspects?.length) params.set("aspect", query.aspects.join(","));
   if (query.aspectMethod && query.aspectMethod !== "or")
     params.set("aspectMethod", query.aspectMethod);
+  if (query.colorIdentities?.length) params.set("colorIdentity", query.colorIdentities.join(","));
   if (query.availableAspects !== undefined)
     params.set("availableAspects", query.availableAspects.join(","));
   if (query.traits?.length) params.set("trait", query.traits.join(","));
@@ -87,6 +94,11 @@ export async function fetchPrintings(query: PrintingQuery): Promise<PrintingsRes
   if (query.deploys?.length) params.set("deploy", query.deploys.join(","));
   if (query.forfeits?.length) params.set("forfeit", query.forfeits.join(","));
   if (query.powers?.length) params.set("power", query.powers.join(","));
+  if (query.costs?.length) params.set("cost", query.costs.join(","));
+  if (query.toughnesses?.length) params.set("toughness", query.toughnesses.join(","));
+  if (query.loyalties?.length) params.set("loyalty", query.loyalties.join(","));
+  if (query.upgradePowers?.length) params.set("upgradePower", query.upgradePowers.join(","));
+  if (query.upgradeHps?.length) params.set("upgradeHp", query.upgradeHps.join(","));
   if (query.abilities?.length) params.set("ability", query.abilities.join(","));
   if (query.lightSideIcons?.length) params.set("lightSideIcon", query.lightSideIcons.join(","));
   if (query.darkSideIcons?.length) params.set("darkSideIcon", query.darkSideIcons.join(","));

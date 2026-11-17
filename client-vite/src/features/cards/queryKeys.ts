@@ -6,11 +6,19 @@ import type { CardFilters } from "./filters/useCardFilters";
 type OptionalExtraFilterFields = {
   arenas?: string[];
   aspects?: string[];
-  aspectMethod?: "or" | "and" | "exclude";
+  aspectMethod?: "or" | "and" | "exclude" | "subset" | "exact";
+  colorIdentities?: string[];
   traits?: string[];
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
   keywordMethod?: "or" | "and" | "exclude";
+  costs?: string[];
+  powers?: string[];
+  toughnesses?: string[];
+  loyalties?: string[];
+  upgradePowers?: string[];
+  upgradeHps?: string[];
+  hps?: string[];
 };
 
 export const cardsQueryKeys = {

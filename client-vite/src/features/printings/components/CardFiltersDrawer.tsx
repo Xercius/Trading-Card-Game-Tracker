@@ -1,15 +1,12 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { MultiSelect } from "./MultiSelect";
-import { AspectFilter } from "./AspectFilter";
-import { MtgColorFilter } from "./MtgColorFilter";
-import { PokemonTypeFilter } from "./PokemonTypeFilter";
-import { EvolvesFromFilter } from "./EvolvesFromFilter";
-import { Input } from "@/components/ui/input";
-import { LightsaberBlade } from "@/features/cards/components/SwccgForceIcons";
 import type { CardFilters } from "@/features/cards/filters/useCardFilters";
 import type { PrintingFacets } from "../api/usePrintingFacets";
+import { MtgFiltersSection } from "./filters/MtgFiltersSection";
+import { PokemonFiltersSection } from "./filters/PokemonFiltersSection";
+import { SwccgFiltersSection } from "./filters/SwccgFiltersSection";
+import { SwuFiltersSection } from "./filters/SwuFiltersSection";
 
 export type CardFiltersDrawerProps = {
   open: boolean;
@@ -24,19 +21,6 @@ export type CardFiltersDrawerProps = {
   hasActiveFilters: boolean;
   game?: string;
 };
-
-type NumericFilterKey = "powers" | "abilities" | "lightSideIcons" | "darkSideIcons" | "hps";
-type NumericFilterDrafts = Record<NumericFilterKey, string>;
-
-function getNumericFilterDrafts(filters: CardFilters): NumericFilterDrafts {
-  return {
-    powers: filters.powers?.join(", ") ?? "",
-    abilities: filters.abilities?.join(", ") ?? "",
-    lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
-    darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
-    hps: filters.hps?.join(", ") ?? "",
-  };
-}
 
 const FOCUSABLE = [
   "a[href]",
@@ -66,8 +50,7 @@ function CloseIcon({ className = "" }: { className?: string }) {
 }
 
 /**
- * Slide-out filter drawer inspired by Star Wars: Unlimited card search page.
- * Houses all facet controls and a clear filters action.
+ * Slide-out filter drawer housing game-scoped facet controls and clear filters action.
  */
 export function CardFiltersDrawer({
   open,
@@ -84,43 +67,9 @@ export function CardFiltersDrawer({
 }: CardFiltersDrawerProps) {
   const drawerRef = React.useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = React.useRef<HTMLElement | null>(null);
-  const [numericFilterDrafts, setNumericFilterDrafts] = React.useState(() =>
-    getNumericFilterDrafts(filters)
-  );
   const isSwccg = game === "Star Wars CCG";
   const isPokemon = game === "Pokemon TCG";
   const isMtg = game === "Magic The Gathering";
-  const activeSide = filters.side
-    ? filters.side.toLowerCase() === "light"
-      ? "Light"
-      : filters.side.toLowerCase() === "dark"
-        ? "Dark"
-        : null
-    : null;
-
-  React.useEffect(() => {
-    setNumericFilterDrafts({
-      powers: filters.powers?.join(", ") ?? "",
-      abilities: filters.abilities?.join(", ") ?? "",
-      lightSideIcons: filters.lightSideIcons?.join(", ") ?? "",
-      darkSideIcons: filters.darkSideIcons?.join(", ") ?? "",
-      hps: filters.hps?.join(", ") ?? "",
-    });
-  }, [
-    filters.powers,
-    filters.abilities,
-    filters.lightSideIcons,
-    filters.darkSideIcons,
-    filters.hps,
-  ]);
-
-  const commitNumericFilter = (key: NumericFilterKey) => {
-    const values = numericFilterDrafts[key]
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-    setFilters((prev) => ({ ...prev, [key]: values, page: 1 }));
-  };
 
   React.useEffect(() => {
     if (!open) return;
@@ -188,20 +137,16 @@ export function CardFiltersDrawer({
       aria-labelledby="card-filters-drawer-title"
       className="fixed inset-0 z-50 flex justify-end"
     >
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
-
-      {/* Drawer Panel */}
       <div
         ref={drawerRef}
         tabIndex={-1}
         className="relative z-10 flex h-full w-full max-w-sm flex-col bg-[#141416] text-white shadow-2xl outline-hidden animate-in slide-in-from-right duration-200"
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-2">
             <h2 id="card-filters-drawer-title" className="text-lg font-bold tracking-tight">
@@ -223,7 +168,6 @@ export function CardFiltersDrawer({
           </Button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 space-y-2.5 overflow-y-auto p-5">
           {isFacetsLoading && <div className="text-sm text-muted-foreground">Loading filters…</div>}
           {isFacetsError && (
@@ -236,538 +180,32 @@ export function CardFiltersDrawer({
           )}
 
           {isSwccg ? (
-            <>
-              {/* Dark / Light Toggle */}
-              <div className="space-y-1.5">
-                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Side filter">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    aria-pressed={activeSide === "Dark"}
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        side: activeSide === "Dark" ? undefined : "Dark",
-                        page: 1,
-                      }))
-                    }
-                    className={
-                      activeSide === "Dark"
-                        ? "border-red-500 bg-red-950/80 text-red-200 font-bold shadow-sm hover:bg-red-900"
-                        : "border-white/20 bg-card/40 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                    }
-                  >
-                    Dark Side
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    aria-pressed={activeSide === "Light"}
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        side: activeSide === "Light" ? undefined : "Light",
-                        page: 1,
-                      }))
-                    }
-                    className={
-                      activeSide === "Light"
-                        ? "border-blue-500 bg-blue-950/80 text-blue-200 font-bold shadow-sm hover:bg-blue-900"
-                        : "border-white/20 bg-card/40 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                    }
-                  >
-                    Light Side
-                  </Button>
-                </div>
-              </div>
-
-              {/* Card Type */}
-              <MultiSelect
-                label="Card Type"
-                className="w-full justify-between"
-                values={filters.types ?? []}
-                options={availableFacets.types ?? []}
-                placeholder="Search card types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
-              />
-
-              {/* Sub-Type */}
-              <MultiSelect
-                label="Sub-Type"
-                className="w-full justify-between"
-                values={filters.subTypes ?? []}
-                options={availableFacets.subTypes ?? []}
-                placeholder="Search sub-types…"
-                onChange={(values) =>
-                  setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))
-                }
-              />
-
-              {/* Persona */}
-              <MultiSelect
-                label="Persona"
-                className="w-full justify-between"
-                values={filters.personas ?? []}
-                options={availableFacets.personas ?? []}
-                placeholder="Search personas…"
-                onChange={(values) =>
-                  setFilters((prev) => ({ ...prev, personas: values, page: 1 }))
-                }
-              />
-
-              {/* Set */}
-              <MultiSelect
-                label="Set"
-                className="w-full justify-between"
-                values={filters.sets ?? []}
-                options={availableFacets.sets ?? []}
-                placeholder="Search sets…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
-              />
-
-              {/* Rarity */}
-              <MultiSelect
-                label="Rarity"
-                className="w-full justify-between"
-                values={filters.rarities ?? []}
-                options={availableFacets.rarities ?? []}
-                placeholder="Search rarities…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
-              />
-
-              {/* Traits */}
-              <MultiSelect
-                label="Traits"
-                className="w-full justify-between"
-                values={filters.traits ?? []}
-                options={availableFacets.traits ?? []}
-                placeholder="Search traits…"
-                method={filters.traitMethod ?? "or"}
-                onMethodChange={(method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    traitMethod: method,
-                    page: 1,
-                  }))
-                }
-                onChange={(values) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    traits: values,
-                    ...(values.length === 0 ? { traitMethod: "or" as const } : {}),
-                    page: 1,
-                  }))
-                }
-              />
-
-              {/* Destiny */}
-              <MultiSelect
-                label="Destiny"
-                className="w-full justify-between"
-                values={filters.destinies ?? []}
-                options={availableFacets.destinies ?? []}
-                placeholder="Search destinies…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, destinies: vals, page: 1 }))}
-              />
-
-              {/* Deploy */}
-              <MultiSelect
-                label="Deploy"
-                className="w-full justify-between"
-                values={filters.deploys ?? []}
-                options={availableFacets.deploys ?? []}
-                placeholder="Search deploys…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, deploys: vals, page: 1 }))}
-              />
-
-              {/* Forfeit */}
-              <MultiSelect
-                label="Forfeit"
-                className="w-full justify-between"
-                values={filters.forfeits ?? []}
-                options={availableFacets.forfeits ?? []}
-                placeholder="Search forfeits…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, forfeits: vals, page: 1 }))}
-              />
-
-              {/* Power & Ability */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="filter-power"
-                    className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
-                  >
-                    Power
-                  </label>
-                  <Input
-                    id="filter-power"
-                    placeholder="e.g. >2"
-                    className="h-8 text-xs bg-card/40 border-white/20"
-                    value={numericFilterDrafts.powers}
-                    onChange={(e) =>
-                      setNumericFilterDrafts((prev) => ({ ...prev, powers: e.target.value }))
-                    }
-                    onBlur={() => commitNumericFilter("powers")}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="filter-ability"
-                    className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
-                  >
-                    Ability
-                  </label>
-                  <Input
-                    id="filter-ability"
-                    placeholder="e.g. >2"
-                    className="h-8 text-xs bg-card/40 border-white/20"
-                    value={numericFilterDrafts.abilities}
-                    onChange={(e) =>
-                      setNumericFilterDrafts((prev) => ({ ...prev, abilities: e.target.value }))
-                    }
-                    onBlur={() => commitNumericFilter("abilities")}
-                  />
-                </div>
-              </div>
-
-              {/* Light Side & Dark Side Icons */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2" title="Light Side Icons">
-                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
-                    <LightsaberBlade side="light" size="sm" />
-                  </div>
-                  <Input
-                    id="filter-light-side-icons"
-                    aria-label="Light Side Icons"
-                    placeholder="e.g. >1"
-                    className="h-8 text-xs bg-card/40 border-white/20"
-                    value={numericFilterDrafts.lightSideIcons}
-                    onChange={(e) =>
-                      setNumericFilterDrafts((prev) => ({
-                        ...prev,
-                        lightSideIcons: e.target.value,
-                      }))
-                    }
-                    onBlur={() => commitNumericFilter("lightSideIcons")}
-                  />
-                </div>
-                <div className="flex items-center gap-2" title="Dark Side Icons">
-                  <div className="flex items-center justify-center w-5 shrink-0" aria-hidden="true">
-                    <LightsaberBlade side="dark" size="sm" />
-                  </div>
-                  <Input
-                    id="filter-dark-side-icons"
-                    aria-label="Dark Side Icons"
-                    placeholder="e.g. >1"
-                    className="h-8 text-xs bg-card/40 border-white/20"
-                    value={numericFilterDrafts.darkSideIcons}
-                    onChange={(e) =>
-                      setNumericFilterDrafts((prev) => ({ ...prev, darkSideIcons: e.target.value }))
-                    }
-                    onBlur={() => commitNumericFilter("darkSideIcons")}
-                  />
-                </div>
-              </div>
-            </>
+            <SwccgFiltersSection
+              filters={filters}
+              setFilters={setFilters}
+              availableFacets={availableFacets}
+            />
           ) : isPokemon ? (
-            <>
-              {/* Pokémon Filters */}
-              <PokemonTypeFilter
-                className="w-full justify-between"
-                values={filters.aspects ?? []}
-                availableTypes={availableFacets.aspects ?? []}
-                onChange={(values) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    aspects: values,
-                    aspectMethod: "or",
-                    page: 1,
-                  }))
-                }
-              />
-
-              <MultiSelect
-                label="Card Type"
-                className="w-full justify-between"
-                values={filters.types ?? []}
-                options={availableFacets.types ?? []}
-                placeholder="Search card types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Stage"
-                className="w-full justify-between"
-                values={filters.stages ?? []}
-                options={
-                  availableFacets.stages && availableFacets.stages.length > 0
-                    ? availableFacets.stages
-                    : ["Basic", "Stage 1", "Stage 2", "VMAX", "VSTAR", "Restored"]
-                }
-                placeholder="Search stages…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, stages: values, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Special Type"
-                className="w-full justify-between"
-                values={filters.specialTypes ?? []}
-                options={
-                  availableFacets.specialTypes && availableFacets.specialTypes.length > 0
-                    ? availableFacets.specialTypes
-                    : [
-                        "Pokémon V",
-                        "Pokémon EX / ex",
-                        "Mega Evolution",
-                        "Pokémon-GX",
-                        "Radiant",
-                        "Tera",
-                        "Ancient",
-                        "Future",
-                        "ACE SPEC",
-                      ]
-                }
-                placeholder="Search special types…"
-                onChange={(values) =>
-                  setFilters((prev) => ({ ...prev, specialTypes: values, page: 1 }))
-                }
-              />
-
-              <EvolvesFromFilter
-                value={filters.evolvesFrom}
-                onChange={(evolvesFrom) =>
-                  setFilters((prev) => ({ ...prev, evolvesFrom, page: 1 }))
-                }
-              />
-
-              {/* HP Numeric Filter */}
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="filter-pokemon-hp"
-                  className="text-xs font-semibold text-muted-foreground w-12 shrink-0"
-                >
-                  HP
-                </label>
-                <Input
-                  id="filter-pokemon-hp"
-                  placeholder="e.g. >109 or 110"
-                  className="h-8 text-xs bg-card/40 border-white/20"
-                  value={numericFilterDrafts.hps}
-                  onChange={(e) =>
-                    setNumericFilterDrafts((prev) => ({ ...prev, hps: e.target.value }))
-                  }
-                  onBlur={() => commitNumericFilter("hps")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitNumericFilter("hps");
-                    }
-                  }}
-                />
-              </div>
-
-              <MultiSelect
-                label="Set"
-                className="w-full justify-between"
-                values={filters.sets ?? []}
-                options={availableFacets.sets}
-                placeholder="Search sets…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Rarity"
-                className="w-full justify-between"
-                values={filters.rarities ?? []}
-                options={availableFacets.rarities}
-                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
-              />
-            </>
+            <PokemonFiltersSection
+              filters={filters}
+              setFilters={setFilters}
+              availableFacets={availableFacets}
+            />
           ) : isMtg ? (
-            <>
-              {/* Magic: The Gathering Filters */}
-              <MtgColorFilter
-                className="w-full justify-between"
-                values={filters.aspects ?? []}
-                method={filters.aspectMethod ?? "or"}
-                availableColors={availableFacets.aspects ?? []}
-                onChange={(values, method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    aspects: values,
-                    aspectMethod: method,
-                    page: 1,
-                  }))
-                }
-              />
-
-              <MultiSelect
-                label="Card Type"
-                className="w-full justify-between"
-                values={filters.types ?? []}
-                options={availableFacets.types ?? []}
-                placeholder="Search card types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Sub-Type"
-                className="w-full justify-between"
-                values={filters.subTypes ?? []}
-                options={availableFacets.subTypes ?? []}
-                placeholder="Search sub-types…"
-                onChange={(values) =>
-                  setFilters((prev) => ({ ...prev, subTypes: values, page: 1 }))
-                }
-              />
-
-              <MultiSelect
-                label="Set"
-                className="w-full justify-between"
-                values={filters.sets ?? []}
-                options={availableFacets.sets}
-                placeholder="Search sets…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Rarity"
-                className="w-full justify-between"
-                values={filters.rarities ?? []}
-                options={availableFacets.rarities}
-                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Keywords"
-                className="w-full justify-between"
-                values={filters.keywords ?? []}
-                options={availableFacets.keywords ?? []}
-                placeholder="Search keywords…"
-                method={filters.keywordMethod ?? "or"}
-                onMethodChange={(method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    keywordMethod: method,
-                    page: 1,
-                  }))
-                }
-                onChange={(values) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    keywords: values,
-                    ...(values.length === 0 ? { keywordMethod: "or" as const } : {}),
-                    page: 1,
-                  }))
-                }
-              />
-            </>
+            <MtgFiltersSection
+              filters={filters}
+              setFilters={setFilters}
+              availableFacets={availableFacets}
+            />
           ) : (
-            <>
-              {/* SWU Filters */}
-              <AspectFilter
-                className="w-full justify-between"
-                values={filters.aspects ?? []}
-                method={filters.aspectMethod ?? "or"}
-                availableAspects={availableFacets.aspects ?? []}
-                onChange={(values, method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    aspects: values,
-                    aspectMethod: method,
-                    page: 1,
-                  }))
-                }
-              />
-
-              <MultiSelect
-                label="Card Type"
-                className="w-full justify-between"
-                values={filters.types ?? []}
-                options={availableFacets.types ?? []}
-                placeholder="Search card types…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, types: values, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Set"
-                className="w-full justify-between"
-                values={filters.sets ?? []}
-                options={availableFacets.sets}
-                placeholder="Search sets…"
-                onChange={(vals) => setFilters((prev) => ({ ...prev, sets: vals, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Rarity"
-                className="w-full justify-between"
-                values={filters.rarities ?? []}
-                options={availableFacets.rarities}
-                onChange={(vals) => setFilters((prev) => ({ ...prev, rarities: vals, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Arena"
-                className="w-full justify-between"
-                values={filters.arenas ?? []}
-                options={availableFacets.arenas ?? []}
-                placeholder="Search arenas…"
-                onChange={(values) => setFilters((prev) => ({ ...prev, arenas: values, page: 1 }))}
-              />
-
-              <MultiSelect
-                label="Traits"
-                className="w-full justify-between"
-                values={filters.traits ?? []}
-                options={availableFacets.traits ?? []}
-                placeholder="Search traits…"
-                method={filters.traitMethod ?? "or"}
-                onMethodChange={(method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    traitMethod: method,
-                    page: 1,
-                  }))
-                }
-                onChange={(values) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    traits: values,
-                    ...(values.length === 0 ? { traitMethod: "or" as const } : {}),
-                    page: 1,
-                  }))
-                }
-              />
-
-              <MultiSelect
-                label="Keywords"
-                className="w-full justify-between"
-                values={filters.keywords ?? []}
-                options={availableFacets.keywords ?? []}
-                placeholder="Search keywords…"
-                method={filters.keywordMethod ?? "or"}
-                onMethodChange={(method) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    keywordMethod: method,
-                    page: 1,
-                  }))
-                }
-                onChange={(values) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    keywords: values,
-                    ...(values.length === 0 ? { keywordMethod: "or" as const } : {}),
-                    page: 1,
-                  }))
-                }
-              />
-            </>
+            <SwuFiltersSection
+              filters={filters}
+              setFilters={setFilters}
+              availableFacets={availableFacets}
+            />
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between border-t border-white/10 bg-[#141416] p-4">
           <Button
             type="button"

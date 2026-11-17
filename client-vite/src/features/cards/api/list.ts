@@ -11,7 +11,7 @@ export type CardsPageParams = {
   types?: string[];
   arenas?: string[];
   aspects?: string[];
-  aspectMethod?: "or" | "and" | "exclude";
+  aspectMethod?: "or" | "and" | "exclude" | "subset" | "exact";
   traits?: string[];
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
@@ -238,6 +238,7 @@ export async function fetchCardFacets({
   arenas,
   aspects,
   aspectMethod,
+  colorIdentities,
   traits,
   traitMethod,
   keywords,
@@ -249,6 +250,11 @@ export async function fetchCardFacets({
   deploys,
   forfeits,
   powers,
+  costs,
+  toughnesses,
+  loyalties,
+  upgradePowers,
+  upgradeHps,
   abilities,
   lightSideIcons,
   darkSideIcons,
@@ -265,7 +271,8 @@ export async function fetchCardFacets({
   types?: string[];
   arenas?: string[];
   aspects?: string[];
-  aspectMethod?: "or" | "and" | "exclude";
+  aspectMethod?: "or" | "and" | "exclude" | "subset" | "exact";
+  colorIdentities?: string[];
   traits?: string[];
   traitMethod?: "or" | "and" | "exclude";
   keywords?: string[];
@@ -277,6 +284,11 @@ export async function fetchCardFacets({
   deploys?: string[];
   forfeits?: string[];
   powers?: string[];
+  costs?: string[];
+  toughnesses?: string[];
+  loyalties?: string[];
+  upgradePowers?: string[];
+  upgradeHps?: string[];
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
@@ -295,6 +307,7 @@ export async function fetchCardFacets({
   if (arenas?.length) params.set("arena", arenas.join(","));
   if (aspects?.length) params.set("aspect", aspects.join(","));
   if (aspectMethod && aspectMethod !== "or") params.set("aspectMethod", aspectMethod);
+  if (colorIdentities?.length) params.set("colorIdentity", colorIdentities.join(","));
   if (traits?.length) params.set("trait", traits.join(","));
   if (traitMethod && traitMethod !== "or") params.set("traitMethod", traitMethod);
   if (keywords?.length) params.set("keyword", keywords.join(","));
@@ -306,6 +319,11 @@ export async function fetchCardFacets({
   if (deploys?.length) params.set("deploy", deploys.join(","));
   if (forfeits?.length) params.set("forfeit", forfeits.join(","));
   if (powers?.length) params.set("power", powers.join(","));
+  if (costs?.length) params.set("cost", costs.join(","));
+  if (toughnesses?.length) params.set("toughness", toughnesses.join(","));
+  if (loyalties?.length) params.set("loyalty", loyalties.join(","));
+  if (upgradePowers?.length) params.set("upgradePower", upgradePowers.join(","));
+  if (upgradeHps?.length) params.set("upgradeHp", upgradeHps.join(","));
   if (abilities?.length) params.set("ability", abilities.join(","));
   if (lightSideIcons?.length) params.set("lightSideIcon", lightSideIcons.join(","));
   if (darkSideIcons?.length) params.set("darkSideIcon", darkSideIcons.join(","));

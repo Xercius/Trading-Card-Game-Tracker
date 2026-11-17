@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
-export type AspectMethod = "or" | "and" | "exclude";
+export type AspectMethod = "or" | "and" | "exclude" | "subset" | "exact";
 export type TraitMethod = "or" | "and" | "exclude";
 export type KeywordMethod = "or" | "and" | "exclude";
 
@@ -14,6 +14,7 @@ export type CardFilters = {
   arenas: string[];
   aspects: string[];
   aspectMethod: AspectMethod;
+  colorIdentities?: string[];
   traits: string[];
   traitMethod: TraitMethod;
   keywords: string[];
@@ -25,6 +26,11 @@ export type CardFilters = {
   deploys?: string[];
   forfeits?: string[];
   powers?: string[];
+  costs?: string[];
+  toughnesses?: string[];
+  loyalties?: string[];
+  upgradePowers?: string[];
+  upgradeHps?: string[];
   abilities?: string[];
   lightSideIcons?: string[];
   darkSideIcons?: string[];
@@ -45,6 +51,7 @@ const filterKeys = [
   "arena",
   "aspect",
   "aspectMethod",
+  "colorIdentity",
   "trait",
   "traitMethod",
   "keyword",
@@ -56,6 +63,11 @@ const filterKeys = [
   "deploy",
   "forfeit",
   "power",
+  "cost",
+  "toughness",
+  "loyalty",
+  "upgradePower",
+  "upgradeHp",
   "ability",
   "lightSideIcon",
   "darkSideIcon",
@@ -138,7 +150,9 @@ function sanitizeList(values: string[]): string[] {
 function sanitizeFilters(input: CardFilters): CardFilters {
   const rawMethod = (input.aspectMethod || "or").toLowerCase();
   const validMethod: AspectMethod =
-    rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
+    rawMethod === "and" || rawMethod === "exclude" || rawMethod === "subset" || rawMethod === "exact"
+      ? rawMethod
+      : "or";
 
   const rawTraitMethod = (input.traitMethod || "or").toLowerCase();
   const validTraitMethod: TraitMethod =
@@ -171,6 +185,12 @@ function sanitizeFilters(input: CardFilters): CardFilters {
     deploys: sanitizeList(input.deploys ?? []),
     forfeits: sanitizeList(input.forfeits ?? []),
     powers: sanitizeList(input.powers ?? []),
+    costs: sanitizeList(input.costs ?? []),
+    toughnesses: sanitizeList(input.toughnesses ?? []),
+    loyalties: sanitizeList(input.loyalties ?? []),
+    upgradePowers: sanitizeList(input.upgradePowers ?? []),
+    upgradeHps: sanitizeList(input.upgradeHps ?? []),
+    colorIdentities: sanitizeList(input.colorIdentities ?? []),
     abilities: sanitizeList(input.abilities ?? []),
     lightSideIcons: sanitizeList(input.lightSideIcons ?? []),
     darkSideIcons: sanitizeList(input.darkSideIcons ?? []),
@@ -196,7 +216,10 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const aspects = parseCsv(params.get("aspect"));
   const rawMethod = params.get("aspectMethod")?.toLowerCase();
   const aspectMethod: AspectMethod =
-    rawMethod === "and" || rawMethod === "exclude" ? rawMethod : "or";
+    rawMethod === "and" || rawMethod === "exclude" || rawMethod === "subset" || rawMethod === "exact"
+      ? rawMethod
+      : "or";
+  const colorIdentities = parseCsv(params.get("colorIdentity"));
   const traits = parseCsv(params.get("trait"));
   const rawTraitMethod = params.get("traitMethod")?.toLowerCase();
   const traitMethod: TraitMethod =
@@ -209,6 +232,11 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const deploys = parseCsv(params.get("deploy"));
   const forfeits = parseCsv(params.get("forfeit"));
   const powers = parseCsv(params.get("power"));
+  const costs = parseCsv(params.get("cost"));
+  const toughnesses = parseCsv(params.get("toughness"));
+  const loyalties = parseCsv(params.get("loyalty"));
+  const upgradePowers = parseCsv(params.get("upgradePower"));
+  const upgradeHps = parseCsv(params.get("upgradeHp"));
   const abilities = parseCsv(params.get("ability"));
   const lightSideIcons = parseCsv(params.get("lightSideIcon"));
   const darkSideIcons = parseCsv(params.get("darkSideIcon"));
@@ -239,6 +267,7 @@ function parseFilters(params: URLSearchParams): CardFilters {
     arenas,
     aspects,
     aspectMethod,
+    colorIdentities,
     traits,
     traitMethod,
     keywords,
@@ -250,6 +279,11 @@ function parseFilters(params: URLSearchParams): CardFilters {
     deploys,
     forfeits,
     powers,
+    costs,
+    toughnesses,
+    loyalties,
+    upgradePowers,
+    upgradeHps,
     abilities,
     lightSideIcons,
     darkSideIcons,
@@ -290,6 +324,9 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   if (filters.aspectMethod && filters.aspectMethod !== "or") {
     next.set("aspectMethod", filters.aspectMethod);
   }
+  if (filters.colorIdentities && filters.colorIdentities.length > 0) {
+    next.set("colorIdentity", filters.colorIdentities.join(","));
+  }
   if (filters.traits.length > 0) {
     next.set("trait", filters.traits.join(","));
   }
@@ -322,6 +359,21 @@ function applyFiltersToParams(prev: URLSearchParams, filters: CardFilters): URLS
   }
   if (filters.powers && filters.powers.length > 0) {
     next.set("power", filters.powers.join(","));
+  }
+  if (filters.costs && filters.costs.length > 0) {
+    next.set("cost", filters.costs.join(","));
+  }
+  if (filters.toughnesses && filters.toughnesses.length > 0) {
+    next.set("toughness", filters.toughnesses.join(","));
+  }
+  if (filters.loyalties && filters.loyalties.length > 0) {
+    next.set("loyalty", filters.loyalties.join(","));
+  }
+  if (filters.upgradePowers && filters.upgradePowers.length > 0) {
+    next.set("upgradePower", filters.upgradePowers.join(","));
+  }
+  if (filters.upgradeHps && filters.upgradeHps.length > 0) {
+    next.set("upgradeHp", filters.upgradeHps.join(","));
   }
   if (filters.abilities && filters.abilities.length > 0) {
     next.set("ability", filters.abilities.join(","));

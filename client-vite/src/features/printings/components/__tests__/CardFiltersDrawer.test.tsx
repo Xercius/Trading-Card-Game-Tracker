@@ -77,12 +77,17 @@ describe("CardFiltersDrawer", () => {
     expect(screen.getByRole("heading", { name: "Filters" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Game" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Aspects" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rarity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Arena" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Traits" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Keywords" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trait" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keyword" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Cost")).toBeInTheDocument();
+    expect(screen.getByLabelText("Power")).toBeInTheDocument();
+    expect(screen.getByLabelText("HP")).toBeInTheDocument();
+    expect(screen.getByLabelText("Upgrade Power")).toBeInTheDocument();
+    expect(screen.getByLabelText("Upgrade HP")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear Filters" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
@@ -108,7 +113,7 @@ describe("CardFiltersDrawer", () => {
       </QueryClientProvider>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Types \(Grass\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Energy Type \(Grass\)/ }));
     fireEvent.click(screen.getByRole("button", { name: "Fire" }));
 
     const updateFilters = setFilters.mock.calls[0]?.[0];
@@ -373,8 +378,8 @@ describe("CardFiltersDrawer", () => {
     );
 
     // Pokemon specific controls
-    expect(screen.getByRole("button", { name: /^Types/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Card Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Energy Type/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Type$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Stage/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Special Type/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /^Evolves From/i })).toBeInTheDocument();
@@ -539,19 +544,24 @@ describe("CardFiltersDrawer", () => {
 
     expect(screen.getByText("Magic The Gathering")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Colors" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Card Type" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sub-Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Color Identity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subtype" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rarity" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keywords" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Mana Value")).toBeInTheDocument();
+    expect(screen.getByLabelText("Power")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toughness")).toBeInTheDocument();
+    expect(screen.getByLabelText("Loyalty")).toBeInTheDocument();
 
     expect(screen.queryByRole("button", { name: "Aspects" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Arena" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Traits" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Trait" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Colors" }));
     expect(screen.queryByRole("button", { name: "Vigilance" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Green" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Green" }));
 
     const updater = setFilters.mock.calls[0]?.[0];
     expect(typeof updater).toBe("function");

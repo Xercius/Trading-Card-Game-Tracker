@@ -30,6 +30,12 @@ internal sealed class CardConfiguration : IEntityTypeConfiguration<Card>
             .HasDatabaseName("IX_Cards_GameId_Name");
         e.HasIndex(c => new { c.GameId, c.Persona })
             .HasDatabaseName("IX_Cards_GameId_Persona");
+        e.HasIndex(c => c.Cost).HasDatabaseName("IX_Cards_Cost");
+        e.HasIndex(c => c.Power).HasDatabaseName("IX_Cards_Power");
+        e.HasIndex(c => c.Toughness).HasDatabaseName("IX_Cards_Toughness");
+        e.HasIndex(c => c.Loyalty).HasDatabaseName("IX_Cards_Loyalty");
+        e.HasIndex(c => c.UpgradePower).HasDatabaseName("IX_Cards_UpgradePower");
+        e.HasIndex(c => c.UpgradeHp).HasDatabaseName("IX_Cards_UpgradeHp");
         e.HasOne(c => c.Game)
             .WithMany()
             .HasForeignKey(c => c.GameId)

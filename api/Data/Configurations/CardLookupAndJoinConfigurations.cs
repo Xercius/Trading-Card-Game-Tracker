@@ -171,3 +171,18 @@ internal sealed class CardAspectConfiguration : IEntityTypeConfiguration<CardAsp
         e.HasIndex(x => x.AspectId).HasDatabaseName("IX_CardAspects_AspectId");
     }
 }
+
+internal sealed class CardColorIdentityConfiguration : IEntityTypeConfiguration<CardColorIdentity>
+{
+    public void Configure(EntityTypeBuilder<CardColorIdentity> e)
+    {
+        e.ToTable("CardColorIdentities");
+        e.HasKey(x => new { x.CardId, x.AspectId });
+        // Cascade: join rows are owned by Card.
+        e.HasOne(x => x.Card).WithMany(c => c.CardColorIdentities)
+            .HasForeignKey(x => x.CardId).OnDelete(DeleteBehavior.Cascade);
+        e.HasOne(x => x.Aspect).WithMany()
+            .HasForeignKey(x => x.AspectId).OnDelete(DeleteBehavior.Restrict);
+        e.HasIndex(x => x.AspectId).HasDatabaseName("IX_CardColorIdentities_AspectId");
+    }
+}
