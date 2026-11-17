@@ -203,4 +203,11 @@ describe("Header", () => {
       expect(params.get("page")).toBe("1");
     });
   });
+
+  it("renders the What's New changelog flyout trigger in the header", () => {
+    renderHeader();
+
+    const whatsNewBtn = screen.getByRole("button", { name: "What's new" });
+    expect(whatsNewBtn).toBeInTheDocument();
+  });
 });
