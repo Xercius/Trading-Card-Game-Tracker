@@ -13,7 +13,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 - Collections, decks and wishlists reference shared `CardPrinting` IDs, never `SwuCardPrinting`. Preserve these IDs.
 - API keeps the `Style` field (maps to `Treatment.Name`); persistence uses nullable `TreatmentId`.
 - Sets are unique on `(GameId, Code)`.
-- `UserCard.IsProxy = true` is excluded from all value calculations.
+- Proxy quantities are excluded from all value calculations.
 
 ## Security
 - Forwarded headers: trust them only from the configured `ForwardedHeaders:KnownProxies`/`KnownNetworks` config entries within `ForwardLimit`; client IP = rightmost untrusted `X-Forwarded-For`. In code, populate `ForwardedHeadersOptions.KnownIPNetworks` (`System.Net.IPNetwork`); `ForwardedHeadersOptions.KnownNetworks` is obsolete in .NET 10 (ASPDEPR005) and fails the warnings-as-errors build.
@@ -49,9 +49,9 @@ ASPNETCORE_ENVIRONMENT=Testing dotnet test ./api/api.sln -c Release
 cd client-vite && npm ci && npm audit --audit-level=high && npm run lint:strict && npm run typecheck && npm run format && npm test -- --run && npm run build && npm run build-storybook
 ```
 PowerShell: replace the env prefix with `$env:ASPNETCORE_ENVIRONMENT='Testing'; dotnet test ./api/api.sln -c Release`.
-During iteration, run targeted tests (`dotnet test --no-build --filter "FullyQualifiedName~<Class>"` or `cd client-vite && npx vitest run <file>`). Before a PR, run the full check suite for the touched stack (or both when a DTO or route changes).
+During iteration, run targeted tests (`dotnet test ./api/api.sln -c Release --filter "FullyQualifiedName~<Class>"` or `cd client-vite && npx vitest run <file>`). Before a PR, run the full check suite for the touched stack (or both when a DTO or route changes).
 Run API: `dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"`.
-Run client: `cd client-vite && npm run dev`; needs `client-vite/.env.local` with `VITE_API_BASE=https://localhost:7226/api`.
+Run client: `cd client-vite && npm run dev`.
 
 ## Branches and PRs
 - Branch from and target `master` (there is no `dev` branch).
