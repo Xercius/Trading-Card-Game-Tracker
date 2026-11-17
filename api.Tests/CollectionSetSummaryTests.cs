@@ -206,4 +206,68 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
         Assert.Equal(1, virtualSet.OwnedCards);
         Assert.Equal(100.0, virtualSet.CompletionPercentage);
     }
+
+    [Fact]
+    public async Task GetSetsSummary_ExcludesEmptySetsAndOrdersNewestFirst()
+    {
+        await factory.ResetDatabaseAsync();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<api.Data.AppDbContext>();
+            var game = new Game { Name = "Order Test Game" };
+            db.Games.Add(game);
+            await db.SaveChangesAsync();
+
+            var emptySet = new Set
+            {
+                Code = "EMPTY",
+                Name = "Empty Set",
+                GameId = game.Id,
+                ReleasedAt = new DateOnly(2026, 1, 1)
+            };
+            var olderSet = new Set
+            {
+                Code = "OLD",
+                Name = "Older Set",
+                GameId = game.Id,
+                ReleasedAt = new DateOnly(2020, 5, 1)
+            };
+            var newerSet = new Set
+            {
+                Code = "NEW",
+                Name = "Newer Set",
+                GameId = game.Id,
+                ReleasedAt = new DateOnly(2025, 6, 15)
+            };
+            var undatedSet = new Set
+            {
+                Code = "NULL",
+                Name = "Undated Set",
+                GameId = game.Id,
+                ReleasedAt = null
+            };
+            db.Sets.AddRange(emptySet, olderSet, newerSet, undatedSet);
+            await db.SaveChangesAsync();
+
+            var card = new Card { Name = "Test Card", GameId = game.Id };
+            db.Cards.Add(card);
+            await db.SaveChangesAsync();
+
+            db.CardPrintings.AddRange(
+                new CardPrinting { CardId = card.Id, SetId = olderSet.Id, Number = "1" },
+                new CardPrinting { CardId = card.Id, SetId = newerSet.Id, Number = "2" },
+                new CardPrinting { CardId = card.Id, SetId = undatedSet.Id, Number = "3" }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        var response = await client.GetAsync("/api/collection/sets-summary?game=Order%20Test%20Game");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var summary = await response.Content.ReadFromJsonAsync<CollectionSetSummaryResponse>(_jsonOptions);
+        Assert.NotNull(summary);
+        Assert.Equal(["NEW", "OLD", "NULL"], summary.Sets.Select(s => s.SetCode).ToArray());
+    }
 }

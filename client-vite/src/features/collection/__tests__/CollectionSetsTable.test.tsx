@@ -1,9 +1,10 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { CollectionSetsTable } from "../components/CollectionSetsTable";
+import { useCollectionSetsSummaryQuery } from "../api";
 
 const mockSummary = {
   sets: [
@@ -70,6 +71,14 @@ vi.mock("@/state/useGame", () => ({
 }));
 
 describe("CollectionSetsTable", () => {
+  beforeEach(() => {
+    vi.mocked(useCollectionSetsSummaryQuery).mockReturnValue({
+      data: mockSummary,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCollectionSetsSummaryQuery>);
+  });
+
   it("renders sets with code, year, unique cards, and completion percentage", async () => {
     const router = createMemoryRouter([{ path: "/", element: <CollectionSetsTable /> }]);
 
@@ -128,6 +137,108 @@ describe("CollectionSetsTable", () => {
       expect(container.textContent).toContain("Shadows of the Galaxy");
       expect(container.textContent).not.toContain("Spark of Rebellion");
     });
+
+    await act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("hides sets with 0 cards and orders sets newest first", async () => {
+    vi.mocked(useCollectionSetsSummaryQuery).mockReturnValue({
+      data: {
+        ...mockSummary,
+        sets: [
+          ...mockSummary.sets,
+          {
+            setId: 30,
+            setCode: "EMPTY",
+            setName: "Empty Future Set",
+            releaseYear: 2026,
+            releasedAt: "2026-01-01",
+            isVirtualSet: false,
+            totalCards: 0,
+            ownedCards: 0,
+            completionPercentage: 0,
+            subsets: [],
+          },
+          {
+            setId: 40,
+            setCode: "NULL",
+            setName: "Undated Set",
+            releaseYear: null,
+            releasedAt: null,
+            isVirtualSet: false,
+            totalCards: 10,
+            ownedCards: 0,
+            completionPercentage: 0,
+            subsets: [],
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCollectionSetsSummaryQuery>);
+
+    const router = createMemoryRouter([{ path: "/", element: <CollectionSetsTable /> }]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    expect(container.textContent).not.toContain("Empty Future Set");
+
+    const rowLinks = Array.from(container.querySelectorAll("tbody tr td:nth-child(2) a")).map(
+      (el) => el.textContent
+    );
+    expect(rowLinks).toEqual(["Shadows of the Galaxy", "Spark of Rebellion", "Undated Set"]);
+
+    await act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("shows empty state when all sets have 0 cards", async () => {
+    vi.mocked(useCollectionSetsSummaryQuery).mockReturnValue({
+      data: {
+        sets: [
+          {
+            setId: 30,
+            setCode: "EMPTY",
+            setName: "Empty Set",
+            releaseYear: 2026,
+            releasedAt: "2026-01-01",
+            isVirtualSet: false,
+            totalCards: 0,
+            ownedCards: 0,
+            completionPercentage: 0,
+            subsets: [],
+          },
+        ],
+        totalUniqueCardsOwned: 0,
+        totalUniqueCardsInGame: 0,
+        overallCompletionPercentage: 0,
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCollectionSetsSummaryQuery>);
+
+    const router = createMemoryRouter([{ path: "/", element: <CollectionSetsTable /> }]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />);
+    });
+
+    expect(container.textContent).toContain("No sets found for Star Wars Unlimited.");
 
     await act(() => {
       root.unmount();

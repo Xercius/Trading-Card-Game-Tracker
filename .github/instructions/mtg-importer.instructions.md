@@ -10,3 +10,4 @@ applyTo: "api/Importing/Mtg/**"
 - `Set.Code` is the upper-cased Scryfall set code; skip digital-only sets (`s.Digital == true`) during `SyncSetsAsync`.
 - Create one `CardPrinting` per distinct physical finish in `ScryfallCard.Finishes` (defaulting to `"nonfoil"`), mapping frame/finish attributes to canonical `Treatment` names via `MtgCatalog.ResolveTreatmentName`.
 - Sanitize all set icon and card image URLs through `ImportHttpGuard.SanitizeAllowedImageUrl` using the `AllowedImageHosts` allow-list (`cards.scryfall.io`, `c1.scryfall.com`, `c2.scryfall.com`, `svgs.scryfall.io`).
+- Uses the two-step **"Sync Sets First"** workflow (`SyncSetsAsync` → `SyncCardsAsync`), where already-synced sets remain checked/locked in the UI and are re-included on every **Sync Cards** run alongside newly selected sets.
