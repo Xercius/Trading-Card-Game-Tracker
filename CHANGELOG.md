@@ -2,24 +2,60 @@
 
 All notable changes to Trading Card Game Tracker are documented in this file.
 
-## [v1.4.0] - 2026-11-17
+## [Unreleased]
+
+## [v0.26.1] - 2026-11-17
+
+### New Features
+
+- Added game-specific card filters across all active games: Magic: The Gathering (Color Identity, Mana Value, Power, Toughness, Loyalty, and AND/OR/EXACT Color operators), Star Wars: Unlimited (Cost, Power, HP, Upgrade Power, Upgrade HP), and Pokémon TCG (Energy Type).
+
+### Improvements
+
+- Unified card filtering across Cards, Deck Construction, and Deck Builder views using game-scoped filter drawer sections.
+
+## [v0.26.0] - 2026-11-17
 
 ### New Features
 
 - Added an in-app "What's New" changelog flyout in the header with unread release tracking.
-- Added a two-step "Sync Sets First" workflow for Magic: The Gathering and Pokémon TCG importers.
-- Added Magic: The Gathering deck validation rules service.
+
+## [v0.25.3] - 2026-11-17
 
 ### Improvements
 
 - Streamlined the application by removing legacy user-related state and context for a cleaner single-user experience.
-- Updated importer guidelines and agent documentation for Magic: The Gathering.
+- Updated GitHub security checks and agent guidance.
 
-### Bug Fixes
+## [v0.25.2] - 2026-11-16
 
-- Fixed invalid query handling and importer selection edge cases.
+### Improvements
 
-## [v1.3.0] - 2026-11-05
+- GitHub security checks (#829).
+
+## [v0.25.1] - 2026-11-16
+
+### Improvements
+
+- [Copilot Dreaming] Avoid invalid queries and wrong importer choices; remove stale and duplicate guidance (#822).
+
+## [v0.25.0] - 2026-11-16
+
+### New Features
+
+- Added a two-step "Sync Sets First" workflow for Magic: The Gathering and Pokémon TCG importers.
+
+### Improvements
+
+- Updated Magic: The Gathering importer guidelines and agent instructions.
+
+## [v0.23.0] - 2026-11-16
+
+### New Features
+
+- Added Magic: The Gathering deck validation rules service.
+
+## [v0.22.2] - 2026-11-13
 
 ### New Features
 
@@ -29,33 +65,3 @@ All notable changes to Trading Card Game Tracker are documented in this file.
 ### Improvements
 
 - Refactored admin import and sync workflows for more consistent progress tracking.
-
-### Bug Fixes
-
-- Resolved filter state synchronization issues when switching between games.
-
-## [v1.2.0] - 2026-10-20
-
-### New Features
-
-- Added Star Wars: Unlimited and Star Wars CCG collection value history charts.
-- Added proxy quantity toggle with persistent preference across sessions.
-
-### Improvements
-
-- Improved card grid virtualization performance for large collections.
-
-### Bug Fixes
-
-- Fixed proxy quantities being included in total collection value calculations.
-
-## [v1.1.0] - 2026-10-01
-
-### New Features
-
-- Added wishlist management and deck-building support across supported games.
-- Added inline card image hover preview in list and deck views.
-
-### Improvements
-
-- Enhanced header navigation with quick game switching and debounced search.

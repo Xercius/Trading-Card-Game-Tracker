@@ -80,4 +80,28 @@ describe("parseChangelog", () => {
     expect(parseChangelog("# Nothing here")).toEqual([]);
     expect(parseChangelog(SAMPLE_CHANGELOG, 0)).toEqual([]);
   });
+
+  it("ignores ## [Unreleased] sections before versioned releases", () => {
+    const withUnreleased = `# Changelog
+
+## [Unreleased]
+
+### New Features
+- Work in progress feature.
+
+## [v0.26.1] - 2026-11-17
+
+### New Features
+- Shipped feature.
+`;
+
+    const releases = parseChangelog(withUnreleased);
+    expect(releases).toEqual([
+      {
+        version: "v0.26.1",
+        date: "2026-11-17",
+        sections: [{ category: "New Features", items: ["Shipped feature."] }],
+      },
+    ]);
+  });
 });
