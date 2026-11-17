@@ -35,7 +35,6 @@ export type CollectionFilters = {
 };
 
 export type CollectionQueryParams = {
-  userId: number | null;
   page: number;
   pageSize?: number;
   filters: CollectionFilters;
@@ -44,11 +43,10 @@ export type CollectionQueryParams = {
 
 export const collectionKeys = {
   all: ["collection"] as const,
-  list: (params: Omit<CollectionQueryParams, "userId"> & { userId: number | null }) =>
+  list: (params: CollectionQueryParams) =>
     [
       "collection",
       {
-        userId: params.userId,
         page: params.page,
         pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
         filters: params.filters,

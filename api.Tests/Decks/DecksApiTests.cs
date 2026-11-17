@@ -24,7 +24,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     public async Task CreateDeck_ReturnsCreatedDeck()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/deck", new
         {
@@ -38,8 +38,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
 
         var deck = await response.Content.ReadFromJsonAsync<DeckResponseContract>();
         deck.Should().NotBeNull();
-        deck!.UserId.Should().Be(Seed.AdminUserId);
-        deck.Name.Should().Be("Test Deck");
+        deck!.Name.Should().Be("Test Deck");
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
@@ -53,7 +52,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     public async Task AddCardToDeck_AddsEntryAndReturnsAvailability()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync($"/api/decks/{Seed.AdminDeckId}/cards/upsert", new
         {
@@ -80,14 +79,13 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     public async Task GetDeckById_ReturnsDeckForOwner()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync($"/api/deck/{Seed.AdminDeckId}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var deck = await response.Content.ReadFromJsonAsync<DeckResponseContract>();
         deck.Should().NotBeNull();
         deck!.Id.Should().Be(Seed.AdminDeckId);
-        deck.UserId.Should().Be(Seed.AdminUserId);
     }
 
     [Fact]
@@ -104,7 +102,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     public async Task DeleteCardFromDeck_RemovesEntry()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         await client.PostAsJsonAsync($"/api/decks/{Seed.AdminDeckId}/cards/upsert", new { printingId = Seed.GoblinPrintingId, qty = 1 });
         var response = await client.DeleteAsync($"/api/decks/{Seed.AdminDeckId}/cards/{Seed.GoblinPrintingId}");
@@ -121,7 +119,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
     public async Task GetDeck_WithUnknownId_ReturnsNotFoundProblem()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/deck/9999");
 
@@ -138,7 +136,7 @@ public class DecksApiTests(TestingWebAppFactory factory) : IClassFixture<Testing
         problem.Extensions.Should().ContainKey("traceId");
     }
 
-    private sealed record DeckResponseContract(int Id, int UserId, string Game, string Name, string? Description, DateTime CreatedUtc, DateTime? UpdatedUtc);
+    private sealed record DeckResponseContract(int Id, string Game, string Name, string? Description, DateTime CreatedUtc, DateTime? UpdatedUtc);
 
     private sealed record DeckCardAvailabilityContract(int PrintingId, string CardName, string? ImageUrl, int QuantityInDeck, int Availability, int AvailabilityWithProxies);
 }

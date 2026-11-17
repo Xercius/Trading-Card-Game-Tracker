@@ -1,10 +1,8 @@
 import { Suspense, lazy } from "react";
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import AppShell from "@/app/AppShell";
-import { UserProvider } from "@/state/UserProvider";
 import { GameProvider } from "@/state/GameProvider";
 import { paths } from "@/routes/paths";
-import { RequireAdmin } from "@/app/RequireAdmin";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const CardsPage = lazy(() => import("@/pages/CardsPage"));
@@ -17,7 +15,6 @@ const AdminSyncPanel = lazy(() => import("@/features/admin/sync/AdminSyncPanel")
 const AdminSwccgSyncPanel = lazy(() => import("@/features/admin/sync/AdminSwccgSyncPanel"));
 const AdminPokemonSyncPanel = lazy(() => import("@/features/admin/sync/AdminPokemonSyncPanel"));
 const AdminMtgSyncPanel = lazy(() => import("@/features/admin/sync/AdminMtgSyncPanel"));
-const UsersPage = lazy(() => import("@/pages/UsersPage"));
 const ValueHubPage = lazy(() => import("@/pages/ValueHubPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
@@ -30,11 +27,9 @@ const router = createBrowserRouter([
     path: "/",
     element: (
       <ErrorBoundary>
-        <UserProvider>
-          <GameProvider>
-            <AppShell />
-          </GameProvider>
-        </UserProvider>
+        <GameProvider>
+          <AppShell />
+        </GameProvider>
       </ErrorBoundary>
     ),
     children: [
@@ -46,14 +41,6 @@ const router = createBrowserRouter([
       { path: `${paths.decks}/:deckId`, element: withBoundary(<DeckBuilderPage />) },
       { path: paths.decks, element: withBoundary(<DecksPage />) },
       { path: paths.value, element: withBoundary(<ValueHubPage />) },
-      {
-        path: paths.users,
-        element: withBoundary(
-          <RequireAdmin>
-            <UsersPage />
-          </RequireAdmin>
-        ),
-      },
       {
         path: paths.adminSync,
         element: withBoundary(<AdminSyncPanel />),

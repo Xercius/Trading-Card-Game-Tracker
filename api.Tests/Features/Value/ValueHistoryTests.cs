@@ -56,7 +56,7 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/collection/value/history?days=5");
         response.EnsureSuccessStatusCode();
 
@@ -126,7 +126,7 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync($"/api/decks/{TestDataSeeder.AliceMagicDeckId}/value/history?days=3");
         response.EnsureSuccessStatusCode();
 
@@ -155,7 +155,7 @@ public sealed class ValueHistoryTests(CustomWebApplicationFactory factory) : ICl
             new { cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId, capturedAt = captureDate, price = 12.34m }
         };
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId).AsAdmin();
+        using var client = factory.CreateClient().AsAdmin();
 
         var first = await client.PostAsJsonAsync("/api/admin/prices/ingest", payload);
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);

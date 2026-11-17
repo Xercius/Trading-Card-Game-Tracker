@@ -1,17 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 import { useQueryState } from "@/hooks/useQueryState";
 import { collectionValueSummaryQueryOptions } from "@/features/value/api";
 
 export default function ValueHubPage() {
-  const { userId } = useUser();
   const [q] = useQueryState("q", "");
   const { activeGame } = useGame();
 
-  const { data, isLoading, error } = useQuery(
-    collectionValueSummaryQueryOptions(userId, q, activeGame)
-  );
+  const { data, isLoading, error } = useQuery(collectionValueSummaryQueryOptions(q, activeGame));
 
   if (isLoading) return <div className="p-4">Loading…</div>;
   if (error) return <div className="p-4 text-red-500">Error loading value summary</div>;

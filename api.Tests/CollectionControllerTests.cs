@@ -24,7 +24,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Get_CurrentUser_FilteredOnly_ReturnsExpected()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var all = await GetCollectionAsync(client, string.Empty);
         Assert.Equal(5, all.Count); // All items belong to the single user
@@ -47,7 +47,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Post_Upsert_ClampsNonNegative()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/collection",
@@ -88,7 +88,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Post_Upsert_SkipsInsertingAllZeroRowsAndUpdatesExisting()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var skipResponse = await client.PostAsJsonAsync(
             "/api/collection",
@@ -143,7 +143,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Put_UserScoped_SetAll_UpdatesOr404()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var updateResponse = await client.PutAsJsonAsync(
             $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
@@ -176,7 +176,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Patch_Partial_UpdatesOnlySpecified()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var patchReq = new HttpRequestMessage(
             HttpMethod.Patch,
@@ -199,7 +199,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Put_OwnedProxy_SetsValuesAndIsIdempotent()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PutAsJsonAsync(
             $"/api/collection/{TestDataSeeder.LightningBoltAlphaPrintingId}",
@@ -228,7 +228,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_BulkPatch_UpdatesMultiplePrintings()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/collection/bulk")
         {
@@ -258,7 +258,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_BulkPatch_InvalidPrintingRollsBack()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, "/api/collection/bulk")
         {
@@ -288,7 +288,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_BulkPatch_UserScoped_InvalidPrintingRollsBack()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.SendAsync(new HttpRequestMessage(
             HttpMethod.Patch,
@@ -320,7 +320,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_List_IncludesAvailability()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var rows = await GetCollectionAsync(client, "");
         Assert.NotEmpty(rows);
@@ -334,7 +334,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Patch_AllZero_DoesNotDeleteRow()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var patchReq = new HttpRequestMessage(
             HttpMethod.Patch,
@@ -362,7 +362,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Delta_CreatesMissing_ValidatesIds()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deltaResponse = await client.PostAsJsonAsync(
             "/api/collection/delta",
@@ -416,7 +416,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_Delete_RemovesRow()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deleteResponse = await client.DeleteAsync($"/api/collection/{TestDataSeeder.LightningBoltBetaPrintingId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -429,7 +429,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_QuickAdd_CreatesAndAccumulates()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/collection/items",
@@ -455,7 +455,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_QuickAdd_ClampsAtIntMax()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/collection/items",
@@ -476,7 +476,7 @@ public class CollectionControllerTests(CustomWebApplicationFactory factory)
     public async Task Collection_QuickAdd_RejectsInvalidQuantity()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             "/api/collection/items",

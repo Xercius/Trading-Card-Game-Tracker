@@ -10,7 +10,7 @@ public class CardsRouteContractTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Singular_path_returns_404()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var res = await client.GetAsync("/api/card?skip=0&take=1");
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }
@@ -18,7 +18,7 @@ public class CardsRouteContractTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Plural_path_returns_200()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var res = await client.GetAsync("/api/cards?skip=0&take=1");
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }

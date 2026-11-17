@@ -7,7 +7,6 @@ applyTo: "client-vite/src/**/*.{ts,tsx}"
 - New page: component in `src/pages/` (or feature panel for admin sync routes) → route in `src/routes/index.tsx` (lazy, `Suspense` + `ErrorBoundary`) → API function in `features/<area>/api.ts` (or `features/<area>/api/`) using `lib/http.ts` → key in `lib/queryKeys.ts` → Vitest test in an adjacent `__tests__/`.
 - Feature code lives in `features/<area>/`; shared hooks in `hooks/`; route components only compose feature components.
 - Server data lives only in TanStack Query; never copy it into `useState`. Set `staleTime` per query; optimistic updates use `onMutate/onError/onSettled`. For new queries, prefer `queryOptions()` factories so the key and fetcher are defined together and reused by `useQuery`, `prefetchQuery` and `invalidateQueries`.
-- `UserContext` is for auth/current user only.
 - Forms: controlled components with explicit validation; the server (FluentValidation) is authoritative and its `ProblemDetails.errors` are surfaced per field. Do not add a form or schema library without asking.
 - API responses are typed with explicit interfaces mirroring the DTOs; no `any`.
 - UI primitives come from `components/ui/` (local shadcn-style components, not an npm package); Tailwind classes for styling.

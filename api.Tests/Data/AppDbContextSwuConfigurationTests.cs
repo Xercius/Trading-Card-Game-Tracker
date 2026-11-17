@@ -220,11 +220,11 @@ public sealed class AppDbContextSwuConfigurationTests
             VALUES (7, 3, 'SOR', '001', 'Common', 'Standard');
             INSERT INTO "CardPrintings" ("Id", "CardId", "Set", "Number", "Rarity", "Style")
             VALUES (9, 5, 'SOR', '001', 'Common', 'Standard');
+            INSERT INTO "Users" ("Id", "Username", "DisplayName", "IsAdmin", "CreatedUtc")
+            VALUES (1, 'owner', 'Owner', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO "UserCards" ("UserId", "CardPrintingId", "QuantityOwned", "QuantityWanted", "QuantityProxyOwned")
+            VALUES (1, 9, 1, 0, 0);
             """);
-        var user = new User { Username = "owner", DisplayName = "Owner" };
-        db.UserCards.Add(new UserCard { User = user, CardPrintingId = 9, QuantityOwned = 1 });
-        await db.SaveChangesAsync();
-        db.ChangeTracker.Clear();
 
         await migrator.MigrateAsync();
 

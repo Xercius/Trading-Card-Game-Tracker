@@ -18,8 +18,6 @@ public sealed class ValuesController(
     IMapper mapper,
     TimeProvider timeProvider) : ControllerBase
 {
-    private const int UserId = DbSeeder.DefaultUserId;
-
     /// <summary>Records refreshed price snapshots for valid card printings in a game.</summary>
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(
@@ -90,7 +88,7 @@ public sealed class ValuesController(
 
         var query = db.UserCards
             .AsNoTracking()
-            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0);
+            .Where(uc => uc.QuantityOwned > 0);
 
         if (!string.IsNullOrWhiteSpace(game))
         {

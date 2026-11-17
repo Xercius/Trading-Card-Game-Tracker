@@ -66,7 +66,7 @@ public sealed class SwuSetsEndpointTests(CustomWebApplicationFactory factory)
     }
 
     private HttpClient AuthenticatedClient()
-        => factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        => factory.CreateClient();
 
     // ─── tests ──────────────────────────────────────────────────────────────
 

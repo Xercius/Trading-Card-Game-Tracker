@@ -74,7 +74,18 @@ public sealed class DatabaseConfigurationTests
             Assert.True(File.Exists(databasePath));
             Assert.NotEmpty(await db.Database.GetAppliedMigrationsAsync());
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.Empty(await db.Users.ToListAsync());
+            Assert.Empty(await db.Decks.ToListAsync());
+
+            // Verify single-user collection and deck writes succeed immediately without user seeding
+            var game = new api.Models.Game { Name = "Custom Test Game" };
+            var card = new api.Models.Card { Name = "Luke Skywalker", Game = game };
+            var printing = new api.Models.CardPrinting { Card = card, Number = "001" };
+            db.UserCards.Add(new api.Models.UserCard { CardPrinting = printing, QuantityOwned = 2 });
+            db.Decks.Add(new api.Models.Deck { Game = "Custom Test Game", Name = "Rebel Deck" });
+            await db.SaveChangesAsync();
+
+            Assert.Single(await db.UserCards.ToListAsync());
+            Assert.Single(await db.Decks.ToListAsync());
         }
         finally
         {

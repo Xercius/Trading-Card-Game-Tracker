@@ -25,7 +25,7 @@ public class DecksControllerTests_Upsert(CustomWebApplicationFactory factory) : 
     public async Task Upsert_SetsAbsoluteQuantityAndIsIdempotent()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deckId = TestDataSeeder.AliceMagicDeckId;
         var printingId = TestDataSeeder.LightningBoltAlphaPrintingId;

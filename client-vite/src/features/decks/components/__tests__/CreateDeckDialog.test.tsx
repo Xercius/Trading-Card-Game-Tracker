@@ -36,7 +36,6 @@ describe("CreateDeckDialog", () => {
     const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 123,
-        userId: 1,
         game: "Star Wars Unlimited",
         name: "Luke Control",
         description: "Late game control",
@@ -97,7 +96,6 @@ describe("CreateDeckDialog", () => {
     const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 456,
-        userId: 1,
         game: "Star Wars CCG",
         name: "Dark Side Space",
         description: "",

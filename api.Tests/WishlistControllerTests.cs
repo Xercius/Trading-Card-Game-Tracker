@@ -26,7 +26,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_Get_CurrentUser_FiltersWantedOnly()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var items = await GetWishlistAsync(client, string.Empty);
         Assert.Equal(4, items.Count);
@@ -48,7 +48,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_Post_Upsert_ClampsToZero()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/wishlist",
@@ -80,7 +80,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_BulkSet_CreatesMissingAndValidates()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        using var client = factory.CreateClient();
 
         var payload = new[]
         {
@@ -111,7 +111,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_MoveToCollection_MovesMinQuantityAndReturnsSnapshot()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/move-to-collection",
@@ -136,8 +136,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.UserCards.SingleAsync(
-            uc => uc.UserId == TestDataSeeder.AliceUserId
-                  && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            uc => uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
 
         Assert.Equal(payload.WantedAfter, row.QuantityWanted);
         Assert.Equal(payload.OwnedAfter, row.QuantityOwned);
@@ -148,7 +147,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_MoveToCollection_WhenWantedZero_ReturnsUnchangedSnapshot()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/move-to-collection",
@@ -173,8 +172,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.UserCards.SingleAsync(
-            uc => uc.UserId == TestDataSeeder.AliceUserId
-                  && uc.CardPrintingId == TestDataSeeder.ElsaPrintingId);
+            uc => uc.CardPrintingId == TestDataSeeder.ElsaPrintingId);
 
         Assert.Equal(0, row.QuantityWanted);
         Assert.Equal(1, row.QuantityOwned);
@@ -185,7 +183,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_MoveToCollection_UseProxySnapshotMatchesDatabase()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/move-to-collection",
@@ -203,8 +201,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var row = await db.UserCards.SingleAsync(
-            uc => uc.UserId == TestDataSeeder.AliceUserId
-                  && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            uc => uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
 
         Assert.Equal(row.CardPrintingId, payload!.PrintingId);
         Assert.Equal(row.QuantityWanted, payload.WantedAfter);
@@ -223,7 +220,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_Delete_SetsWantedZeroAndRemovesWhenEmpty()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        using var client = factory.CreateClient();
 
         var deleteResponse = await client.DeleteAsync($"/api/wishlist/{TestDataSeeder.MickeyPrintingId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -236,7 +233,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_QuickAdd_CreatesAndAccumulates()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var create = await client.PostAsJsonAsync(
             "/api/wishlist/items",
@@ -262,7 +259,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_QuickAdd_ClampsAtIntMax()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var create = await client.PostAsJsonAsync(
             "/api/wishlist/items",
@@ -283,7 +280,7 @@ public class WishlistControllerTests(CustomWebApplicationFactory factory) : ICla
     public async Task Wishlist_QuickAdd_RejectsInvalidQuantity()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             "/api/wishlist/items",

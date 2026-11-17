@@ -6,8 +6,6 @@ namespace api.Tests.Infrastructure;
 
 public static class Seed
 {
-    public const int UserId = DbSeeder.DefaultUserId;
-
     public const int LightningCardId = 200;
     public const int GoblinCardId = 201;
     public const int PhoenixCardId = 202;
@@ -22,21 +20,11 @@ public static class Seed
     public const int DeckId = 4001;
 
     // Keep these aliases for tests that use them
-    public const int AdminUserId = UserId;
-    public const int SecondaryUserId = UserId;
     public const int AdminDeckId = DeckId;
     public const int SecondaryDeckId = DeckId;
 
     public static async Task SeedAsync(AppDbContext db)
     {
-        var user = new User
-        {
-            Id = UserId,
-            Username = "owner",
-            DisplayName = "Owner"
-        };
-        db.Users.Add(user);
-
         var lightning = new Card
         {
             Id = LightningCardId,
@@ -126,7 +114,6 @@ public static class Seed
         db.UserCards.AddRange(
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = LightningAlphaPrintingId,
                 QuantityOwned = 2,
                 QuantityWanted = 0,
@@ -134,7 +121,6 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = LightningBetaPrintingId,
                 QuantityOwned = 3,
                 QuantityWanted = 1,
@@ -142,7 +128,6 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = PhoenixPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 2,
@@ -150,7 +135,6 @@ public static class Seed
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = GoblinPrintingId,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -160,7 +144,6 @@ public static class Seed
         var deck = new Deck
         {
             Id = DeckId,
-            UserId = UserId,
             Game = "Magic",
             Name = "My Deck",
             Description = "Primary testing deck"

@@ -4,8 +4,6 @@ namespace api.Models
     public class Deck
     {
         [Key] public int Id { get; set; }
-        [Required] public int UserId { get; set; }
-        public User? User { get; set; }
         [Required, MaxLength(120)] public string Name { get; set; } = "";
         public int? GameId { get; set; }
         public Game? GameNavigation { get; set; }

@@ -7,13 +7,6 @@ namespace api.Tests.Fixtures;
 
 public static class TestDataSeeder
 {
-    public const int UserId = DbSeeder.DefaultUserId;
-
-    // Keep aliases for backward compatibility with tests
-    public const int AdminUserId = UserId;
-    public const int AliceUserId = UserId;
-    public const int BobUserId = UserId;
-
     public const int LightningBoltCardId = 100;
     public const int GoblinGuideCardId = 101;
     public const int ElsaCardId = 200;
@@ -36,7 +29,6 @@ public static class TestDataSeeder
         await ClearDatabaseAsync(db);
 
         db.Games.Add(new Game { Id = 1, Name = "Star Wars Unlimited" });
-        db.Users.Add(new User { Id = UserId, Username = "owner", DisplayName = "Owner" });
 
         var lightningBolt = new Card
         {
@@ -142,7 +134,6 @@ public static class TestDataSeeder
         db.UserCards.AddRange(
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = LightningBoltAlphaPrintingId,
                 QuantityOwned = 5,
                 QuantityWanted = 1,
@@ -150,7 +141,6 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = LightningBoltBetaPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 2,
@@ -158,7 +148,6 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = ElsaPrintingId,
                 QuantityOwned = 1,
                 QuantityWanted = 0,
@@ -166,7 +155,6 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = GoblinGuidePrintingId,
                 QuantityOwned = 2,
                 QuantityWanted = 1,
@@ -174,7 +162,6 @@ public static class TestDataSeeder
             },
             new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = MickeyPrintingId,
                 QuantityOwned = 0,
                 QuantityWanted = 3,
@@ -185,7 +172,6 @@ public static class TestDataSeeder
         var magicDeck = new Deck
         {
             Id = AliceMagicDeckId,
-            UserId = UserId,
             Game = "Magic",
             Name = "Alice Aggro",
             Description = "Fast red spells"
@@ -193,7 +179,6 @@ public static class TestDataSeeder
         var lorcanaDeck = new Deck
         {
             Id = AliceLorcanaDeckId,
-            UserId = UserId,
             Game = "Lorcana",
             Name = "Alice Control",
             Description = "Frosty defenses"
@@ -201,7 +186,6 @@ public static class TestDataSeeder
         var emptyDeck = new Deck
         {
             Id = AliceEmptyDeckId,
-            UserId = UserId,
             Game = "Magic",
             Name = "Alice Empty",
             Description = "Testing deck with no cards"
@@ -209,7 +193,6 @@ public static class TestDataSeeder
         var burnDeck = new Deck
         {
             Id = BobMagicDeckId,
-            UserId = UserId,
             Game = "Magic",
             Name = "Bob Burn",
             Description = "Lots of fire"

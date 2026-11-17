@@ -4,7 +4,6 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import type { Location } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Header from "../Header";
-import { UserProvider } from "@/state/UserProvider";
 import { GameProvider } from "@/state/GameProvider";
 import { STORAGE_KEY_ACTIVE_GAME } from "@/state/GameContext";
 import * as cardsApi from "@/features/cards/api/list";
@@ -23,12 +22,10 @@ function renderHeader(initialEntries = ["/cards"], onLocation?: (loc: Location) 
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <UserProvider>
-          <GameProvider>
-            <Header />
-            {onLocation && <LocationProbe onLocation={onLocation} />}
-          </GameProvider>
-        </UserProvider>
+        <GameProvider>
+          <Header />
+          {onLocation && <LocationProbe onLocation={onLocation} />}
+        </GameProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -84,11 +81,13 @@ describe("Header", () => {
     expect(pokemonButton).toHaveAttribute("aria-pressed", "false");
     expect(pokemonButton).toBeEnabled();
 
-    // Hellbreak and MTG are disabled (not selectable yet)
+    // Hellbreak is disabled (not selectable yet), MTG is enabled
     expect(buttons[2]).toBeDisabled();
     expect(buttons[2]).toHaveAttribute("aria-pressed", "false");
-    expect(buttons[3]).toBeDisabled();
+    expect(buttons[3]).toBeEnabled();
     expect(buttons[3]).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("Owner")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
   });
 
   it("renders the search bar to the right of the Importers dropdown in the top row", async () => {

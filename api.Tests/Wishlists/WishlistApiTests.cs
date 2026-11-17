@@ -21,7 +21,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
     public async Task GetWishlist_ReturnsOnlyCurrentUserEntries()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/wishlist");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -38,7 +38,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
     public async Task QuickAdd_AddsNewWishlistQuantity()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/wishlist/items", new
         {
@@ -54,7 +54,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
-            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.GoblinPrintingId);
+            var card = await db.UserCards.FindAsync(Seed.GoblinPrintingId);
             card.Should().NotBeNull();
             card!.QuantityWanted.Should().Be(2);
         });
@@ -64,7 +64,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
     public async Task QuickAdd_ForExistingPrinting_AccumulatesQuantity()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         await client.PostAsJsonAsync("/api/wishlist/items", new { printingId = Seed.LightningBetaPrintingId, quantity = 2 });
         var response = await client.PostAsJsonAsync("/api/wishlist/items", new { printingId = Seed.LightningBetaPrintingId, quantity = 1 });
@@ -79,7 +79,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
     public async Task MoveToCollection_ReducesWishlistAndUpdatesOwned()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/wishlist/move-to-collection", new
         {
@@ -98,7 +98,7 @@ public class WishlistApiTests(TestingWebAppFactory factory) : IClassFixture<Test
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
-            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.PhoenixPrintingId);
+            var card = await db.UserCards.FindAsync(Seed.PhoenixPrintingId);
             card.Should().NotBeNull();
             card!.QuantityWanted.Should().Be(1);
             card.QuantityOwned.Should().Be(1);

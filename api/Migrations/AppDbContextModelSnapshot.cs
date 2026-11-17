@@ -520,16 +520,10 @@ namespace api.Migrations
                     b.Property<DateTimeOffset?>("UpdatedUtc")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.HasIndex("GameId")
                         .HasDatabaseName("IX_Decks_GameId");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_Decks_UserId");
 
                     b.ToTable("Decks");
                 });
@@ -864,46 +858,8 @@ namespace api.Migrations
                     b.ToTable("Treatments", (string)null);
                 });
 
-            modelBuilder.Entity("api.Models.User", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsAdmin")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("PasswordHash")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Username")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Users_Username");
-
-                    b.ToTable("Users");
-                });
-
             modelBuilder.Entity("api.Models.UserCard", b =>
                 {
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("CardPrintingId")
                         .HasColumnType("INTEGER");
 
@@ -922,9 +878,7 @@ namespace api.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
-                    b.HasKey("UserId", "CardPrintingId");
-
-                    b.HasIndex("CardPrintingId");
+                    b.HasKey("CardPrintingId");
 
                     b.ToTable("UserCards");
                 });
@@ -1181,15 +1135,7 @@ namespace api.Migrations
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("api.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("GameNavigation");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("api.Models.DeckCard", b =>
@@ -1295,15 +1241,7 @@ namespace api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("api.Models.User", "User")
-                        .WithMany("UserCards")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("CardPrinting");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("api.Models.Arena", b =>
@@ -1392,11 +1330,6 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.Treatment", b =>
                 {
                     b.Navigation("CardPrintings");
-                });
-
-            modelBuilder.Entity("api.Models.User", b =>
-                {
-                    b.Navigation("UserCards");
                 });
 #pragma warning restore 612, 618
         }

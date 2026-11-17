@@ -12,7 +12,7 @@ public class CsvParsingIntegrationTests(CustomWebApplicationFactory factory)
     public async Task CardsController_ListCardsVirtualized_NormalizesCsvFilters()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var baseline = await client.GetFromJsonAsync<CardListPageResponse>("/api/cards?take=200");
         Assert.NotNull(baseline);
@@ -37,7 +37,7 @@ public class CsvParsingIntegrationTests(CustomWebApplicationFactory factory)
     public async Task CardFacetsController_NormalizesCsvFilters()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var allSets = await client.GetFromJsonAsync<CardFacetSetsResponse>("/api/cards/facets/sets");
         Assert.NotNull(allSets);

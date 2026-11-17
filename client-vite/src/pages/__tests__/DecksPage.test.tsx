@@ -24,7 +24,6 @@ const mockDecksResponse = {
   items: [
     {
       id: 1,
-      userId: 1,
       game: "Star Wars Unlimited",
       name: "Sabine Aggro",
       description: "Fast red/yellow aggro deck",
@@ -221,7 +220,6 @@ describe("DecksPage", () => {
     const postSpy = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         id: 2,
-        userId: 1,
         game: "Star Wars Unlimited",
         name: "Boba Yellow",
         description: "Twin Suns variant",

@@ -16,7 +16,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     public async Task History_ReturnsEmptyArray_WhenNoRows()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/prices/{TestDataSeeder.LightningBoltAlphaPrintingId}/history");
 
@@ -49,7 +49,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
 
         await db.SaveChangesAsync();
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync($"/api/prices/{TestDataSeeder.LightningBoltAlphaPrintingId}/history?days=10");
         response.EnsureSuccessStatusCode();
 
@@ -73,7 +73,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task DeckValueHistory_ReturnsNotFound_ForMissingDeck()
     {
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/decks/999999/value/history");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -83,7 +83,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     public async Task DeckValueHistory_AllowsOwner()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/decks/{TestDataSeeder.AliceMagicDeckId}/value/history");
 
@@ -94,7 +94,7 @@ public class PricesControllerTests(CustomWebApplicationFactory factory)
     public async Task DeckValueHistory_AllowsAdmin()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AdminUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync($"/api/decks/{TestDataSeeder.AliceMagicDeckId}/value/history");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

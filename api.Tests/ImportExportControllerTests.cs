@@ -23,13 +23,13 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
     private record ExportDeck(string Game, string Name, string? Description, List<ExportDeckCard> Cards);
     private record ExportCollectionItem(int CardPrintingId, int QtyOwned, int QtyProxyOwned);
     private record ExportWishlistItem(int CardPrintingId, int Qty);
-    private record ExportPayload(int Version, JsonElement? User, List<ExportCollectionItem> Collection, List<ExportWishlistItem> Wishlist, List<ExportDeck> Decks);
+    private record ExportPayload(int Version, List<ExportCollectionItem> Collection, List<ExportWishlistItem> Wishlist, List<ExportDeck> Decks);
 
     [Fact]
     public async Task ImportExport_ExportJsonAndCsvThenReplaceImport_RestoresState()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var exportResponse = await client.GetAsync("/api/export/json");
         exportResponse.EnsureSuccessStatusCode();
@@ -59,10 +59,8 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var cards = db.UserCards.Where(uc => uc.UserId == TestDataSeeder.AliceUserId);
-            db.UserCards.RemoveRange(cards);
-            var decks = db.Decks.Where(d => d.UserId == TestDataSeeder.AliceUserId);
-            db.Decks.RemoveRange(decks);
+            db.UserCards.RemoveRange(db.UserCards);
+            db.Decks.RemoveRange(db.Decks);
             await db.SaveChangesAsync();
         }
 
@@ -94,7 +92,6 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             }
 
             var userCards = await db.UserCards
-                .Where(uc => uc.UserId == TestDataSeeder.AliceUserId)
                 .OrderBy(uc => uc.CardPrintingId)
                 .ToListAsync();
 
@@ -108,7 +105,6 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             }
 
             var decks = await db.Decks
-                .Where(d => d.UserId == TestDataSeeder.AliceUserId)
                 .Include(d => d.Cards)
                 .ToListAsync();
 
@@ -140,7 +136,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
     public async Task ImportExport_ExportJsonThenMergeImport_AddsDataInsteadOfReplacing()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var exportResponse = await client.GetAsync("/api/export/json");
         exportResponse.EnsureSuccessStatusCode();
@@ -153,13 +149,13 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var alphaCard = await db.UserCards.SingleAsync(
-                uc => uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+                uc => uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
             alphaCard.QuantityOwned = 1;
             alphaCard.QuantityProxyOwned = 0;
             alphaCard.QuantityWanted = 0;
 
             var betaCard = await db.UserCards.SingleAsync(
-                uc => uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+                uc => uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
             betaCard.QuantityOwned = 7;
             betaCard.QuantityProxyOwned = 1;
             betaCard.QuantityWanted = 5;
@@ -201,13 +197,13 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
             var exportedBetaDeckCard = exportedAggroDeck.Cards.Single(c => c.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
 
             var alphaCard = await db.UserCards.SingleAsync(
-                uc => uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+                uc => uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
             Assert.Equal(1 + exportedCollection[TestDataSeeder.LightningBoltAlphaPrintingId].QtyOwned, alphaCard.QuantityOwned);
             Assert.Equal(0 + exportedCollection[TestDataSeeder.LightningBoltAlphaPrintingId].QtyProxyOwned, alphaCard.QuantityProxyOwned);
             Assert.Equal(exportedWishlist[TestDataSeeder.LightningBoltAlphaPrintingId], alphaCard.QuantityWanted);
 
             var betaCard = await db.UserCards.SingleAsync(
-                uc => uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+                uc => uc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
             Assert.Equal(7 + exportedCollection[TestDataSeeder.LightningBoltBetaPrintingId].QtyOwned, betaCard.QuantityOwned);
             Assert.Equal(1 + exportedCollection[TestDataSeeder.LightningBoltBetaPrintingId].QtyProxyOwned, betaCard.QuantityProxyOwned);
             Assert.Equal(5, betaCard.QuantityWanted);
@@ -228,7 +224,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
 
             var lorcanaDeck = await db.Decks
                 .Include(d => d.Cards)
-                .SingleOrDefaultAsync(d => d.UserId == TestDataSeeder.AliceUserId && d.Game == "Lorcana" && d.Name == "Alice Control");
+                .SingleOrDefaultAsync(d => d.Game == "Lorcana" && d.Name == "Alice Control");
             Assert.NotNull(lorcanaDeck);
 
             var exportedLorcanaDeck = payload.Decks.Single(d => d.Game == "Lorcana" && d.Name == "Alice Control");
@@ -241,7 +237,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
     public async Task ImportJson_WithUnknownCardPrintingId_ReturnsValidationProblem()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         const int invalidCardPrintingId = 999999;
         var payload = new
@@ -271,7 +267,7 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var hasInvalidCard = await db.UserCards.AnyAsync(uc =>
-                uc.UserId == TestDataSeeder.AliceUserId && uc.CardPrintingId == invalidCardPrintingId);
+                uc.CardPrintingId == invalidCardPrintingId);
             Assert.False(hasInvalidCard);
         }
     }

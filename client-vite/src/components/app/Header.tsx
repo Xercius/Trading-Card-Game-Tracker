@@ -2,7 +2,6 @@ import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 import { resolveImageUrl } from "@/lib/http";
 import { paths } from "@/routes/paths";
@@ -10,7 +9,6 @@ import { paths } from "@/routes/paths";
 type NavLinkItem = {
   to: string;
   label: string;
-  requiresAdmin?: boolean;
 };
 
 const NAV_LINKS: NavLinkItem[] = [
@@ -19,7 +17,6 @@ const NAV_LINKS: NavLinkItem[] = [
   { to: paths.wishlist, label: "Wishlist" },
   { to: paths.decks, label: "Decks" },
   { to: paths.value, label: "Value" },
-  { to: paths.users, label: "Users", requiresAdmin: true },
 ];
 
 const IMPORTER_LINKS: NavLinkItem[] = [
@@ -127,7 +124,6 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export default function Header() {
-  const { users, userId } = useUser();
   const { activeGame, setActiveGame } = useGame();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
@@ -224,11 +220,6 @@ export default function Header() {
     if (e.key === "Escape") setMobileOpen(false);
   }
 
-  const filteredLinks = useMemo(() => {
-    const currentUser = users.find((u) => u.id === userId);
-    return NAV_LINKS.filter((link) => (link.requiresAdmin ? currentUser?.isAdmin : true));
-  }, [userId, users]);
-
   const isImportersActive = useMemo(() => {
     return IMPORTER_LINKS.some((link) => {
       const target = link.to.startsWith("/") ? link.to : `/${link.to}`;
@@ -262,7 +253,7 @@ export default function Header() {
           </NavLink>
 
           <nav className="hidden md:flex gap-1 ml-4 items-center">
-            {filteredLinks.map((link) => (
+            {NAV_LINKS.map((link) => (
               <NavLink key={link.to} to={link.to} className={linkCls}>
                 {link.label}
               </NavLink>
@@ -373,7 +364,6 @@ export default function Header() {
                 />
               </svg>
             </button>
-            <span className="text-sm text-muted-foreground">Owner</span>
           </div>
         </div>
 
@@ -441,7 +431,7 @@ export default function Header() {
                 </Button>
               </div>
               <ul className="space-y-1">
-                {filteredLinks.map((link) => (
+                {NAV_LINKS.map((link) => (
                   <li key={link.to}>
                     <NavLink to={link.to} className={linkCls}>
                       {link.label}

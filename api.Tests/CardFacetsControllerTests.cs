@@ -19,7 +19,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task Games_ReturnSeededFacets()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets/games");
         response.EnsureSuccessStatusCode();
@@ -35,7 +35,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task SetsAndRarities_FilterByGame()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var setsResponse = await client.GetAsync("/api/cards/facets/sets");
         setsResponse.EnsureSuccessStatusCode();
@@ -72,7 +72,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_ReturnsAllFacetsWithCounts_WhenNoFiltersApplied()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets");
         response.EnsureSuccessStatusCode();
@@ -97,7 +97,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_FiltersSetsByGame_CaseInsensitive()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets?game=magic");
         response.EnsureSuccessStatusCode();
@@ -119,7 +119,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_FiltersRaritiesBySet()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets?set=Alpha");
         response.EnsureSuccessStatusCode();
@@ -138,7 +138,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_FiltersGamesByRarity()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets?rarity=Common");
         response.EnsureSuccessStatusCode();
@@ -155,7 +155,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_FiltersWithSearchTerm()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets?q=black");
         response.EnsureSuccessStatusCode();
@@ -173,7 +173,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_SearchesPrintingSetAndNumber()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var setResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=Beta&printingSearch=true", Options);
         var numberResponse = await client.GetFromJsonAsync<CardsFacetResponse>("/api/cards/facets?q=B2&printingSearch=true", Options);
@@ -188,7 +188,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_SearchesCardTypeInBothSearchModes()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var cardSearchResponse = await client.GetAsync("/api/cards/facets?q=Creature");
         cardSearchResponse.EnsureSuccessStatusCode();
@@ -207,7 +207,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
     public async Task GetFacets_CombinesMultipleFilters()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/facets?game=Magic&rarity=Common");
         response.EnsureSuccessStatusCode();
@@ -260,7 +260,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
         response.EnsureSuccessStatusCode();
 
@@ -317,7 +317,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync(
             "/api/cards/facets?game=Star+Wars+CCG&set=Premiere&side=Dark&destiny=1");
         response.EnsureSuccessStatusCode();
@@ -372,7 +372,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         try
         {
             var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG&persona=Han");
@@ -417,7 +417,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         try
         {
             var response = await client.GetAsync("/api/cards/facets?game=Star+Wars+CCG");
@@ -462,7 +462,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         try
         {
             // SWU facets
@@ -512,7 +512,7 @@ public class CardFacetsControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         try
         {
             // All Pokemon facets

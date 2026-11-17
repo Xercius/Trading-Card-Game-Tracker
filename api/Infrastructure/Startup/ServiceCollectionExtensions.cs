@@ -7,11 +7,9 @@ using api.Importing.Mtg;
 using api.Importing.Pokemon;
 using api.Importing.Swccg;
 using api.Infrastructure.Auth;
-using api.Models;
 using api.Shared.Importing;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -78,8 +76,6 @@ internal static class ServiceCollectionExtensions
                 AdminTokenAuthenticationHandler.SchemeName,
                 _ => { });
 
-        services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-        services.AddScoped<AdminAccountProvisioner>();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

@@ -15,7 +15,6 @@ export type DeckFeaturedCard = {
 
 export type DeckDetails = {
   id: number;
-  userId: number;
   game: string;
   name: string;
   description: string | null;
@@ -33,7 +32,6 @@ export type DeckDetails = {
 
 export type DeckListItem = {
   id: number;
-  userId: number;
   game: string;
   name: string;
   description: string | null;

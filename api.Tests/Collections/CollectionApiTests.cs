@@ -20,7 +20,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     public async Task GetCollection_ForCurrentUser_ReturnsOnlyOwnedEntries()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/collection");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -39,7 +39,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     public async Task QuickAdd_IncrementsQuantityOwned()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/collection/items", new
         {
@@ -55,7 +55,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
-            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.GoblinPrintingId);
+            var card = await db.UserCards.FindAsync(Seed.GoblinPrintingId);
             card.Should().NotBeNull();
             card!.QuantityOwned.Should().Be(3);
         });
@@ -65,7 +65,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     public async Task PostCollection_WithInvalidQuantities_ClampsToZero()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/collection", new
         {
@@ -79,7 +79,7 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
-            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.GoblinPrintingId);
+            var card = await db.UserCards.FindAsync(Seed.GoblinPrintingId);
             card.Should().NotBeNull();
             card!.QuantityOwned.Should().Be(0);
         });
@@ -89,14 +89,14 @@ public class CollectionApiTests(TestingWebAppFactory factory) : IClassFixture<Te
     public async Task DeleteCollectionItem_RemovesRow()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.DeleteAsync($"/api/collection/{Seed.LightningAlphaPrintingId}");
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         await _factory.ExecuteDbContextAsync(async db =>
         {
-            var card = await db.UserCards.FindAsync(Seed.AdminUserId, Seed.LightningAlphaPrintingId);
+            var card = await db.UserCards.FindAsync(Seed.LightningAlphaPrintingId);
             card.Should().BeNull();
         });
     }

@@ -13,13 +13,6 @@ import {
   type Paged as CollectionPaged,
 } from "@/features/collection/api";
 
-vi.mock("@/state/useUser", () => ({
-  useUser: () => ({
-    userId: 1,
-    users: [{ id: 1, name: "Owner", isAdmin: false }],
-  }),
-}));
-
 type WishlistItem = {
   cardPrintingId: number;
   quantityWanted: number;
@@ -40,7 +33,7 @@ type WishlistPaged = {
   pageSize: number;
 };
 
-const wishlistQueryKey = ["wishlist", 1, 1, 50, "", "Star Wars Unlimited"] as const;
+const wishlistQueryKey = ["wishlist", 1, 50, "", "Star Wars Unlimited"] as const;
 
 function createClient() {
   return new QueryClient({
@@ -106,7 +99,7 @@ describe("WishlistPage", () => {
     const { cleanup } = await renderPage(client, ["/wishlist?q=bolt&game=Magic"]);
 
     expect(getMock).toHaveBeenCalledWith(
-      "user/1/wishlist",
+      "wishlist",
       expect.objectContaining({
         params: expect.objectContaining({ name: "bolt", game: "Magic" }),
       })
@@ -161,7 +154,6 @@ describe("WishlistPage", () => {
 
     const client = createClient();
     const collectionKey = collectionKeys.list({
-      userId: 1,
       page: 1,
       pageSize: 50,
       filters: { q: "", game: "", set: "", rarity: "" },

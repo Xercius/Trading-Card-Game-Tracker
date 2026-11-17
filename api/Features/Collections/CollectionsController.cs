@@ -20,7 +20,6 @@ public class CollectionsController : ControllerBase
 {
     private const int DefaultPageNumber = 1;
     private const int DefaultPageSize = 50;
-    private const int UserId = DbSeeder.DefaultUserId;
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
@@ -65,7 +64,6 @@ public class CollectionsController : ControllerBase
         var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
-            .Where(uc => uc.UserId == UserId)
             .AsNoTracking()
             .FilterByPrintingMetadata(game, set, rarity, name, cardPrintingId, useCaseInsensitiveName: false);
 
@@ -104,13 +102,12 @@ public class CollectionsController : ControllerBase
         }
 
         var existing = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
 
         if (existing is null)
         {
             var newCard = new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned),
                 QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted),
@@ -135,7 +132,7 @@ public class CollectionsController : ControllerBase
     private async Task<IActionResult> SetQuantitiesCore(int cardPrintingId, SetUserCardQuantitiesRequest dto)
     {
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -171,7 +168,7 @@ public class CollectionsController : ControllerBase
         }
 
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -244,7 +241,7 @@ public class CollectionsController : ControllerBase
         }
 
         var map = await _db.UserCards
-            .Where(uc => uc.UserId == UserId && printingIds.Contains(uc.CardPrintingId))
+            .Where(uc => printingIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
         foreach (var d in deltaList)
@@ -253,7 +250,6 @@ public class CollectionsController : ControllerBase
             {
                 row = new UserCard
                 {
-                    UserId = UserId,
                     CardPrintingId = d.CardPrintingId,
                     QuantityOwned = 0,
                     QuantityWanted = 0,
@@ -296,7 +292,7 @@ public class CollectionsController : ControllerBase
     private async Task<IActionResult> RemoveCore(int cardPrintingId)
     {
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -337,7 +333,7 @@ public class CollectionsController : ControllerBase
 
         var uc = await _db.UserCards
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
 
         if (uc is null)
         {
@@ -395,13 +391,12 @@ public class CollectionsController : ControllerBase
         }
 
         var card = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.PrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.PrintingId);
 
         if (card is null)
         {
             card = new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = dto.PrintingId,
                 QuantityOwned = QuantityGuards.Clamp(dto.Quantity),
                 QuantityWanted = 0,
@@ -494,7 +489,7 @@ public class CollectionsController : ControllerBase
         var validSet = validIds.ToHashSet();
 
         var map = await _db.UserCards
-            .Where(uc => uc.UserId == UserId && printingIds.Contains(uc.CardPrintingId))
+            .Where(uc => printingIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
         foreach (var item in request.Items)
@@ -512,7 +507,6 @@ public class CollectionsController : ControllerBase
 
                 row = new UserCard
                 {
-                    UserId = UserId,
                     CardPrintingId = item.CardPrintingId,
                     QuantityOwned = owned,
                     QuantityProxyOwned = proxy,
@@ -544,20 +538,14 @@ public class CollectionsController : ControllerBase
     /// <summary>
     /// Computes collection completion progress grouped by Set and Treatment subset for a given game.
     /// </summary>
-    /// <param name="userId">Optional user ID (defaults to current default user).</param>
     /// <param name="game">Game name to filter by (e.g. "Star Wars Unlimited").</param>
     /// <param name="ct">Cancellation token.</param>
     [HttpGet("sets-summary")]
     [HttpGet("/api/collections/sets-summary")]
-    [HttpGet("/api/user/{userId:int}/collection/sets-summary")]
-    [HttpGet("/api/user/{userId:int}/collections/sets-summary")]
     public async Task<ActionResult<CollectionSetSummaryResponse>> GetSetsSummary(
-        int? userId,
         [FromQuery] string? game,
         CancellationToken ct = default)
     {
-        var targetUserId = userId ?? UserId;
-
         // 1. Resolve Game IDs if game filter is provided
         var games = CsvUtils.Parse(game);
         var normalizedGames = games.Select(SqliteCaseNormalizer.Normalize).ToList();
@@ -605,7 +593,7 @@ public class CollectionsController : ControllerBase
         // 4. Query user's cards for these printings
         var allPrintingIds = printings.Select(p => p.Id).ToList();
         var userCards = await _db.UserCards.AsNoTracking()
-            .Where(uc => uc.UserId == targetUserId && allPrintingIds.Contains(uc.CardPrintingId))
+            .Where(uc => allPrintingIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, uc => new { uc.QuantityOwned, uc.QuantityProxyOwned }, ct);
 
         // 5. Build set summaries

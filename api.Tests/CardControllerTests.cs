@@ -25,7 +25,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
     public async Task Card_List_FiltersAndPaging_ReturnsExpected()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var pageOneResponse = await client.GetAsync("/api/cards/search?game=Magic&page=1&pageSize=1");
         pageOneResponse.EnsureSuccessStatusCode();
@@ -59,7 +59,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
     public async Task Card_Get_ById_ReturnsDetailOr404()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}");
         response.EnsureSuccessStatusCode();
@@ -183,7 +183,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
     public async Task Card_Printings_ByCard_ReturnsOrderedList()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/{TestDataSeeder.LightningBoltCardId}/printings");
         response.EnsureSuccessStatusCode();
@@ -219,7 +219,7 @@ public class CardControllerTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var detail = await client.GetFromJsonAsync<CardDetailResponse>(
             $"/api/cards/{TestDataSeeder.LightningBoltCardId}",

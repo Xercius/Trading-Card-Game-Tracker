@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGame } from "@/state/useGame";
-import { useUser } from "@/state/useUser";
 import { queryKeys } from "@/lib/queryKeys";
 import { fetchAllPrintings } from "@/features/printings/api/printings";
 import {
@@ -35,7 +34,6 @@ export default function CollectionSetDetailPage() {
   const { setCode } = useParams<{ setCode: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeGame } = useGame();
-  const { userId } = useUser();
   const queryClient = useQueryClient();
 
   // Query parameter for treatment
@@ -93,7 +91,7 @@ export default function CollectionSetDetailPage() {
   });
 
   // 3. Fetch user's collection for this set
-  const collectionQueryKey = queryKeys.collection.setDetail(setCode, userId, activeGame);
+  const collectionQueryKey = queryKeys.collection.setDetail(setCode, activeGame);
   const {
     data: collectionData,
     isLoading: collectionLoading,
@@ -102,15 +100,14 @@ export default function CollectionSetDetailPage() {
   } = useQuery({
     queryKey: collectionQueryKey,
     queryFn: async () => {
-      if (!userId || !setCode) return [];
+      if (!setCode) return [];
       return fetchAllCollection({
-        userId,
         page: 1,
         filters: { set: setCode, game: activeGame ?? undefined },
         includeProxies: true,
       });
     },
-    enabled: !!userId && !!setCode,
+    enabled: !!setCode,
   });
 
   // Quantities mutation

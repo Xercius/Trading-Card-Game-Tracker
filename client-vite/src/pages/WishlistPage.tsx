@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 import { useQueryState } from "@/hooks/useQueryState";
 import { DEFAULT_PAGE_SIZE } from "@/constants";
@@ -26,7 +25,6 @@ function formatMovedMessage(count: number) {
 }
 
 export default function WishlistPage() {
-  const { userId } = useUser();
   const [q, setQ] = useQueryState("q", "");
   const { activeGame } = useGame();
   const [pageParamRaw, setPageParam] = useQueryState("page", "1");
@@ -61,8 +59,8 @@ export default function WishlistPage() {
   };
 
   const wishlistQueryKey = useMemo(
-    () => queryKeys.wishlist.list(userId, page, pageSize, q, activeGame),
-    [userId, page, pageSize, q, activeGame]
+    () => queryKeys.wishlist.list(page, pageSize, q, activeGame),
+    [page, pageSize, q, activeGame]
   );
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -82,7 +80,6 @@ export default function WishlistPage() {
   }, [toast]);
 
   const { data, isLoading, error } = useWishlistQuery({
-    userId,
     page,
     pageSize,
     q,
