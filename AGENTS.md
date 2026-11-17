@@ -16,5 +16,4 @@ If a path matches more than one scoped file, read all of them; on conflict, the 
 
 ## Context & Token Guardrails
 - **Code Reviews**: Never scan the full workspace or read unmodified files unless verifying a direct caller/callee contract changed in the diff.
-- **Excluded Paths**: Never read or review paths matched by `.copilotignore` (e.g., `**/bin/`, `**/obj/`, `**/node_modules/`, `**/dist/`, `**/TestResults/`, `*.trx`, `Imports/`, `api/Migrations/*.Designer.cs`, `api/Migrations/AppDbContextModelSnapshot.cs`, lockfiles). The file is advisory (not read natively by any tool); this rule is what enforces it.
 - **Targeted Verification**: During iteration, run only the specific test class (`dotnet test --filter`) or test file (`npx vitest run <path>`) covering the edited code; reserve full suite runs for final pre-PR verification.
