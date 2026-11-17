@@ -43,7 +43,6 @@ export type MoveVariables = {
 };
 
 export type WishlistQueryParams = {
-  userId: number | null | undefined;
   page: number;
   pageSize: number;
   q: string;
@@ -52,26 +51,18 @@ export type WishlistQueryParams = {
 };
 
 /**
- * Fetches the paginated wishlist for a user, filtered by search text and active game.
+ * Fetches the paginated wishlist filtered by search text and active game.
  */
-export function useWishlistQuery({
-  userId,
-  page,
-  pageSize,
-  q,
-  game,
-  enabled = true,
-}: WishlistQueryParams) {
+export function useWishlistQuery({ page, pageSize, q, game, enabled = true }: WishlistQueryParams) {
   return useQuery<PagedWishlist<WishlistItemDto>>({
-    queryKey: queryKeys.wishlist.list(userId, page, pageSize, q, game),
+    queryKey: queryKeys.wishlist.list(page, pageSize, q, game),
     queryFn: async () => {
-      if (!userId) throw new Error("User not selected");
-      const res = await http.get<PagedWishlist<WishlistItemDto>>(`user/${userId}/wishlist`, {
+      const res = await http.get<PagedWishlist<WishlistItemDto>>("wishlist", {
         params: { page, pageSize, name: q || undefined, game },
       });
       return res.data;
     },
-    enabled: Boolean(userId) && enabled,
+    enabled,
     staleTime: 30_000,
   });
 }

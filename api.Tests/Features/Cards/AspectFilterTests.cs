@@ -64,7 +64,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_OrMethod_MatchesCardsWithAnySpecifiedAspect()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Aggression (Count >= 1) with OR
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -80,7 +80,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_OrMethod_WithDoubleAspect_MatchesOnlyDoubleOrHigher()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Aggression x2 with OR -> cards with Aggression count >= 2
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -94,7 +94,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_AndMethod_MatchesCardsWithAllSpecifiedAspects()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Aggression AND Command
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -108,7 +108,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_ExcludeMethod_PreservesCardsWithNoAspect()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Exclude Aggression: should keep Single Command and Neutral Base
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -123,7 +123,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_ExcludeMethod_WithDoubleAspect_KeepsCardsWithSingleAspect()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Exclude Aggression x2: should exclude Double Aggression, but keep Single Aggression, Aggression and Command, Single Command, Neutral Base
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -141,7 +141,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_NoAspect_MatchesOnlyCardsWithZeroAspects()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&aspect=no-aspect");
@@ -154,7 +154,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task Aspect_Exclude_NoAspect_ExcludesCardsWithNoAspect()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&aspect=no-aspect&aspectMethod=exclude");
@@ -167,7 +167,7 @@ public sealed class AspectFilterTests(CustomWebApplicationFactory factory)
     public async Task CardsEndpoint_AppliesAspectMethod()
     {
         await SeedAspectTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetFromJsonAsync<CardListPageResponse>(
             "/api/cards?game=Star+Wars+Unlimited&aspect=Aggression&aspectMethod=exclude");

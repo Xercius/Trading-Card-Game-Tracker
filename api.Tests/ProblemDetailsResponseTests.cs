@@ -23,7 +23,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task InvalidQuery_ReturnsValidationProblemDetailsWithTraceId()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
+        using var client = _factory.CreateClient().AsAdmin();
 
         var response = await client.GetAsync("/api/cards?skip=foo");
 
@@ -43,7 +43,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task ValueRefresh_MissingGame_ReturnsValidationProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
+        using var client = _factory.CreateClient().AsAdmin();
 
         var payload = new[]
         {
@@ -76,7 +76,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task CardsPrinting_InvalidPayload_ReturnsValidationProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
+        using var client = _factory.CreateClient().AsAdmin();
 
         var response = await client.PostAsJsonAsync(
             "/api/cards/printing",
@@ -107,7 +107,7 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task GetCard_MissingResource_ReturnsNotFoundProblemDetailsWithDetail()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
+        using var client = _factory.CreateClient().AsAdmin();
 
         var response = await client.GetAsync("/api/cards/999999");
 
@@ -129,9 +129,9 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
     public async Task MissingResource_ReturnsNotFoundProblemDetails()
     {
         await SeedAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId).AsAdmin();
+        using var client = _factory.CreateClient().AsAdmin();
 
-        var response = await client.GetAsync("/api/user/99999");
+        var response = await client.GetAsync("/api/decks/99999");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
@@ -141,9 +141,9 @@ public class ProblemDetailsResponseTests(TestingWebAppFactory factory) : IClassF
         problem!.Status.Should().Be(StatusCodes.Status404NotFound);
         problem.Type.Should().Be(ProblemTypes.NotFound.Type);
         problem.Title.Should().Be(ProblemTypes.NotFound.Title);
-        problem.Detail.Should().Be("User 99999 was not found.");
+        problem.Detail.Should().Be("Deck 99999 was not found.");
         problem.Extensions.Should().ContainKey("traceId");
-        problem.Instance.Should().Be("/api/user/99999");
+        problem.Instance.Should().Be("/api/decks/99999");
     }
 
     [Fact]

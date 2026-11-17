@@ -163,7 +163,6 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         var unitType = await GetCardTypeAsync("Unit");
         var deck = new Deck
         {
-            UserId = TestDataSeeder.UserId,
             Game = game.Name,
             Name = "Count contract"
         };
@@ -209,7 +208,6 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         };
         var deck = new Deck
         {
-            UserId = TestDataSeeder.UserId,
             Game = game.Name,
             Name = "Metadata"
         };
@@ -233,7 +231,6 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var deck = new Deck
         {
-            UserId = TestDataSeeder.UserId,
             Game = "Pokemon TCG",
             Format = "Standard",
             Name = "Pokémon validation"
@@ -262,7 +259,6 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
         var rarity = new Rarity { Game = game, Name = "Ace Spec Rare" };
         var deck = new Deck
         {
-            UserId = TestDataSeeder.UserId,
             Game = "Pokemon TCG",
             Format = "Standard",
             Name = "ACE SPEC rarity validation"
@@ -324,14 +320,13 @@ public class DeckConstructionTests(CustomWebApplicationFactory factory) : IClass
             Card = new Card { Name = "Construction Test Card", Game = game },
             Number = "001"
         };
-        var deck = new Deck { UserId = TestDataSeeder.UserId, Game = game.Name, Name = "Deck Construction" };
+        var deck = new Deck { Game = game.Name, Name = "Deck Construction" };
         db.CardPrintings.Add(printing);
         db.Decks.Add(deck);
         if (owned > 0 || proxies > 0)
         {
             db.UserCards.Add(new UserCard
             {
-                UserId = TestDataSeeder.UserId,
                 CardPrinting = printing,
                 QuantityOwned = owned,
                 QuantityProxyOwned = proxies

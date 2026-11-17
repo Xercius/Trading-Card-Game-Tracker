@@ -14,7 +14,6 @@ public sealed class PricesController(AppDbContext db, TimeProvider timeProvider)
 {
     private const int DefaultHistoryDays = 30;
     private const int DefaultValueHistoryDays = 90;
-    private const int UserId = DbSeeder.DefaultUserId;
 
     /// <summary>Gets price history for a single card printing.</summary>
     [HttpGet("{printingId:int}/history")]
@@ -92,7 +91,7 @@ public sealed class PricesController(AppDbContext db, TimeProvider timeProvider)
         var (rangeStart, today) = GetDateRange(days, DefaultValueHistoryDays);
         var quantityMap = await db.UserCards
             .AsNoTracking()
-            .Where(uc => uc.UserId == UserId && uc.QuantityOwned > 0)
+            .Where(uc => uc.QuantityOwned > 0)
             .Where(uc => !EF.Functions.Like(uc.CardPrinting.Treatment == null ? string.Empty : uc.CardPrinting.Treatment.Name, "%proxy%"))
             .ToDictionaryAsync(uc => uc.CardPrintingId, uc => uc.QuantityOwned, ct);
 

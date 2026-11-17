@@ -7,7 +7,6 @@ public sealed record ExportWishlistItem(int CardPrintingId, int Qty);
 
 public sealed record ExportPayload(
     int Version,
-    object? User,
     List<ExportCollectionItem> Collection,
     List<ExportWishlistItem> Wishlist,
     List<ExportDeck> Decks);

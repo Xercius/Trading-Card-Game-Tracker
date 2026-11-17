@@ -47,11 +47,10 @@ public sealed class SwuSharedImporterRegressionTests
                 DetailsJson = """{"sourceId":2,"cardUid":"legacy-2","serialCode":"two"}"""
             };
             seed.CardPrintings.AddRange(first, second);
-            var user = new User { Username = "owner", DisplayName = "Owner" };
-            seed.UserCards.Add(new UserCard { User = user, CardPrinting = second, QuantityOwned = 3 });
+            seed.UserCards.Add(new UserCard { CardPrinting = second, QuantityOwned = 3 });
             seed.DeckCards.Add(new DeckCard
             {
-                Deck = new Deck { User = user, Name = "Deck", Game = "Star Wars Unlimited" },
+                Deck = new Deck { Name = "Deck", Game = "Star Wars Unlimited" },
                 CardPrinting = first,
                 QuantityInDeck = 2
             });
@@ -289,11 +288,9 @@ public sealed class SwuSharedImporterRegressionTests
             var printing = await db.CardPrintings.SingleAsync();
             cardId = printing.CardId;
             printingId = printing.Id;
-            var user = new User { Username = "owner", DisplayName = "Owner" };
-            var deck = new Deck { User = user, Name = "Deck", Game = "Star Wars Unlimited" };
+            var deck = new Deck { Name = "Deck", Game = "Star Wars Unlimited" };
             db.UserCards.Add(new UserCard
             {
-                User = user,
                 CardPrintingId = printingId,
                 QuantityOwned = 3
             });

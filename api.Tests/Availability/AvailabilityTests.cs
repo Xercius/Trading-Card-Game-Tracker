@@ -20,7 +20,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
     public async Task CollectionAvailability_AccountsForDeckAssignments()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var payload = await client.GetFromJsonAsync<PagedResponse<CollectionItemContract>>("/api/collection");
         payload.Should().NotBeNull();
@@ -33,7 +33,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
     public async Task DeckCardsWithAvailability_ReturnCurrentDeckSnapshot()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync($"/api/decks/{Seed.AdminDeckId}/cards-with-availability");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -48,7 +48,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
     public async Task WishlistOnlyEntries_DoNotContributeToAvailability()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var payload = await client.GetFromJsonAsync<PagedResponse<CollectionItemContract>>("/api/collection");
         payload.Should().NotBeNull();
@@ -62,7 +62,7 @@ public class AvailabilityTests(TestingWebAppFactory factory) : IClassFixture<Tes
     public async Task AvailabilityReachesZeroWhenUsageMatchesOwnership()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var upsert = await client.PostAsJsonAsync($"/api/decks/{Seed.AdminDeckId}/cards/upsert", new
         {

@@ -22,7 +22,7 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
     public async Task GetSetsSummary_ReturnsAggregatedSetAndTreatmentData()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/collection/sets-summary?game=Magic");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -85,13 +85,11 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             db.UserCards.AddRange(
                 new UserCard
                 {
-                    UserId = TestDataSeeder.UserId,
                     CardPrinting = hyperspacePrinting,
                     QuantityOwned = 3
                 },
                 new UserCard
                 {
-                    UserId = TestDataSeeder.UserId,
                     CardPrinting = foilPrinting,
                     QuantityOwned = ownsFoil ? 2 : 0,
                     QuantityProxyOwned = 2,
@@ -100,7 +98,7 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/collection/sets-summary?game=Magic");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -129,7 +127,7 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
     public async Task GetSetsSummary_WhenGameDoesNotMatch_ReturnsNoResults()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/collection/sets-summary?game=Unknown Game");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -183,7 +181,6 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             // Add user card with 0 owned, 2 proxy
             db.UserCards.Add(new UserCard
             {
-                UserId = TestDataSeeder.UserId,
                 CardPrintingId = printing.Id,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 2,
@@ -192,7 +189,7 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/collection/sets-summary?game=Star Wars Customizable Card Game");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -262,7 +259,7 @@ public class CollectionSetSummaryTests(CustomWebApplicationFactory factory)
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.UserId);
+        using var client = factory.CreateClient();
         var response = await client.GetAsync("/api/collection/sets-summary?game=Order%20Test%20Game");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 

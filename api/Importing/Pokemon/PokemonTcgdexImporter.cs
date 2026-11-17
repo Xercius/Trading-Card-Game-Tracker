@@ -631,9 +631,9 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
         foreach (var uc in userCards)
         {
             var existingTarget = _db.UserCards.Local.FirstOrDefault(
-                x => !ReferenceEquals(x, uc) && x.UserId == uc.UserId && x.CardPrintingId == canonicalPrintingId)
+                x => !ReferenceEquals(x, uc) && x.CardPrintingId == canonicalPrintingId)
                 ?? await _db.UserCards.FirstOrDefaultAsync(
-                    x => x.UserId == uc.UserId && x.CardPrintingId == canonicalPrintingId, ct);
+                    x => x.CardPrintingId == canonicalPrintingId, ct);
             if (existingTarget != null)
             {
                 existingTarget.QuantityOwned += uc.QuantityOwned;
@@ -644,7 +644,6 @@ public sealed class PokemonTcgdexImporter : ISourceImporter
             {
                 _db.UserCards.Add(new UserCard
                 {
-                    UserId = uc.UserId,
                     CardPrintingId = canonicalPrintingId,
                     QuantityOwned = uc.QuantityOwned,
                     QuantityWanted = uc.QuantityWanted,

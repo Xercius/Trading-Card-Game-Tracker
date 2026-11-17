@@ -68,7 +68,7 @@ public sealed class TraitFilterTests(CustomWebApplicationFactory factory)
     public async Task Trait_OrMethod_MatchesCardsWithAnySpecifiedTrait()
     {
         await SeedTraitTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Force OR Imperial: should match Darth Vader (Force, Imperial), Luke Skywalker (Force), Stormtrooper (Imperial)
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -84,7 +84,7 @@ public sealed class TraitFilterTests(CustomWebApplicationFactory factory)
     public async Task Trait_AndMethod_MatchesCardsWithAllSpecifiedTraits()
     {
         await SeedTraitTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Force AND Imperial: only Darth Vader has both
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -98,7 +98,7 @@ public sealed class TraitFilterTests(CustomWebApplicationFactory factory)
     public async Task Trait_ExcludeMethod_ExcludesCardsWithAnySpecifiedTraits()
     {
         await SeedTraitTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Exclude Imperial: should exclude Darth Vader and Stormtrooper, leaving Luke Skywalker, Rebel Trooper, Space Base
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -116,7 +116,7 @@ public sealed class TraitFilterTests(CustomWebApplicationFactory factory)
     public async Task CardsEndpoint_AppliesTraitMethod()
     {
         await SeedTraitTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Cards virtualized search endpoint with traitMethod=and
         var response = await client.GetFromJsonAsync<CardListPageResponse>(
@@ -130,7 +130,7 @@ public sealed class TraitFilterTests(CustomWebApplicationFactory factory)
     public async Task FacetsEndpoint_AppliesTraitMethod()
     {
         await SeedTraitTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // When filtering with traitMethod=exclude for Imperial, the available cards are Luke, Rebel Trooper, Space Base
         // Available traits computed on traitQuery are not filtered by traits itself, but other facet queries are

@@ -25,7 +25,6 @@ public class DecksController : ControllerBase
     private readonly ILogger<DecksController> _logger;
     private readonly PokemonDeckValidationService _pokemonDeckValidationService;
     private readonly MtgDeckValidationService _mtgDeckValidationService;
-    private const int UserId = DbSeeder.DefaultUserId;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(
@@ -272,7 +271,7 @@ public class DecksController : ControllerBase
         }).ToList();
     }
 
-    private async Task<(Paged<DeckDto>? Page, ActionResult? Error)> ListUserDecksCore(
+    private async Task<(Paged<DeckDto>? Page, ActionResult? Error)> ListDecksCore(
         string? game,
         string? name,
         bool? hasCards,
@@ -284,7 +283,7 @@ public class DecksController : ControllerBase
 
         var ct = HttpContext.RequestAborted;
 
-        var query = _db.Decks.Where(d => d.UserId == UserId).AsNoTracking();
+        var query = _db.Decks.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(game))
         {
@@ -349,18 +348,16 @@ public class DecksController : ControllerBase
         var game = dto.Game.Trim();
 
         var duplicate = await _db.Decks.AnyAsync(x =>
-            x.UserId == UserId &&
             EF.Functions.Collate(x.Game, "NOCASE") == game &&
             EF.Functions.Collate(x.Name, "NOCASE") == name);
         if (duplicate)
         {
             return this.CreateProblem(
                 StatusCodes.Status409Conflict,
-                detail: "Duplicate deck name for user.");
+                detail: "Duplicate deck name.");
         }
 
         var deck = _mapper.Map<Deck>(dto);
-        deck.UserId = UserId;
         deck.Game = game;
         deck.Name = name;
         deck.Format = dto.Format?.Trim() ?? ResolveDefaultFormat(game);
@@ -470,7 +467,6 @@ public class DecksController : ControllerBase
         var targetName = dto.Name.Trim();
         var targetGame = dto.Game.Trim();
         var nameInUse = await _db.Decks.AnyAsync(x =>
-            x.UserId == d.UserId &&
             x.Id != d.Id &&
             EF.Functions.Collate(x.Game, "NOCASE") == targetGame &&
             EF.Functions.Collate(x.Name, "NOCASE") == targetName);
@@ -478,7 +474,7 @@ public class DecksController : ControllerBase
         {
             return this.CreateProblem(
                 StatusCodes.Status409Conflict,
-                detail: "Duplicate deck name for user.");
+                detail: "Duplicate deck name.");
         }
 
         _mapper.Map(dto, d);
@@ -499,7 +495,6 @@ public class DecksController : ControllerBase
                 detail: "JSON object required.");
         }
 
-        var ownerId = deck.UserId;
         var currentName = deck.Name ?? string.Empty;
         var changed = false;
 
@@ -523,7 +518,6 @@ public class DecksController : ControllerBase
             {
                 // Case-insensitive, SQL-translatable check using SQLite NOCASE collation
                 var exists = await _db.Decks.AnyAsync(d =>
-                    d.UserId == ownerId &&
                     d.Id != deck.Id &&
                     EF.Functions.Collate(d.Game, "NOCASE") == targetGameForNameCheck &&
                     EF.Functions.Collate(d.Name, "NOCASE") == requestedName);
@@ -567,7 +561,6 @@ public class DecksController : ControllerBase
             if (!string.Equals(deck.Game, requestedGame, StringComparison.OrdinalIgnoreCase))
             {
                 var collision = await _db.Decks.AnyAsync(d =>
-                    d.UserId == ownerId &&
                     d.Id != deck.Id &&
                     EF.Functions.Collate(d.Game, "NOCASE") == requestedGame &&
                     EF.Functions.Collate(d.Name, "NOCASE") == (deck.Name ?? string.Empty).Trim());
@@ -1058,7 +1051,7 @@ public class DecksController : ControllerBase
 
         var userCard = await _db.UserCards
             .AsNoTracking()
-            .FirstOrDefaultAsync(uc => uc.UserId == deck.UserId && uc.CardPrintingId == cardPrintingId, cancellationToken);
+            .FirstOrDefaultAsync(uc => uc.CardPrintingId == cardPrintingId, cancellationToken);
 
         var owned = userCard?.QuantityOwned ?? 0;
         var proxy = userCard?.QuantityProxyOwned ?? 0;
@@ -1115,7 +1108,7 @@ public class DecksController : ControllerBase
         var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
         var userCards = await _db.UserCards
             .AsNoTracking()
-            .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
+            .Where(uc => printIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
         var isMtg = string.Equals(deck.Game, "Magic The Gathering", StringComparison.OrdinalIgnoreCase);
@@ -1187,7 +1180,7 @@ public class DecksController : ControllerBase
         var printIds = cards.Select(dc => dc.CardPrintingId).ToList();
         var userCards = await _db.UserCards
             .AsNoTracking()
-            .Where(uc => uc.UserId == deck.UserId && printIds.Contains(uc.CardPrintingId))
+            .Where(uc => printIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
         var result = new List<DeckAvailabilityItemResponse>();
@@ -1215,7 +1208,7 @@ public class DecksController : ControllerBase
     // Auth-derived aliases (preferred)
     // -----------------------------------------
 
-    // GET /api/decks  (list current user's decks)
+    // GET /api/decks  (list decks)
     [HttpGet("/api/decks")]
     public async Task<ActionResult<Paged<DeckDto>>> GetMyDecks(
         [FromQuery] string? game = null,
@@ -1224,7 +1217,7 @@ public class DecksController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        var (pageResult, error) = await ListUserDecksCore(game, name, hasCards, page, pageSize);
+        var (pageResult, error) = await ListDecksCore(game, name, hasCards, page, pageSize);
         if (error != null) return error;
         return Ok(pageResult);
     }
@@ -1238,12 +1231,12 @@ public class DecksController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        var (pageResult, error) = await ListUserDecksCore(game, name, hasCards, page, pageSize);
+        var (pageResult, error) = await ListDecksCore(game, name, hasCards, page, pageSize);
         if (error != null) return error;
         return Ok(pageResult!.Items.ToList());
     }
 
-    // POST /api/deck  (create for current user)
+    // POST /api/deck  (create deck)
     [HttpPost("/api/deck")]
     [HttpPost("/api/decks")] // alias
     [Consumes("application/json")]

@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import http from "@/lib/http";
 import { fetchAllPrintings, type PrintingListItem } from "@/features/printings/api/printings";
 import { useBatchSetCollectionMutation, fetchAllCollection, type CollectionItem } from "./api";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 
 type MassEntryModalProps = {
@@ -39,7 +38,6 @@ export default function MassEntryModal({
   onSuccess,
   game,
 }: MassEntryModalProps) {
-  const { userId } = useUser();
   const { activeGame } = useGame();
   const currentGame = game || activeGame || "Star Wars Unlimited";
 
@@ -112,14 +110,11 @@ export default function MassEntryModal({
         set: [selectedSet],
         game: currentGame ? [currentGame] : undefined,
       }),
-      userId
-        ? fetchAllCollection({
-            userId,
-            page: 1,
-            filters: { set: selectedSet, game: currentGame },
-            includeProxies: true,
-          })
-        : Promise.reject(new Error("User not selected")),
+      fetchAllCollection({
+        page: 1,
+        filters: { set: selectedSet, game: currentGame },
+        includeProxies: true,
+      }),
     ])
       .then(([printingsList, collectionList]) => {
         if (isCancelled) return;
@@ -177,7 +172,7 @@ export default function MassEntryModal({
     return () => {
       isCancelled = true;
     };
-  }, [open, selectedSet, userId, currentGame]);
+  }, [open, selectedSet, currentGame]);
 
   const modifiedRows = useMemo(() => {
     return rows.filter(

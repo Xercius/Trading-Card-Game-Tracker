@@ -10,7 +10,6 @@ namespace api.Data
 
         public DbSet<Card> Cards => Set<Card>();
         public DbSet<CardPrinting> CardPrintings => Set<CardPrinting>();
-        public DbSet<User> Users => Set<User>();
         public DbSet<UserCard> UserCards => Set<UserCard>();
         public DbSet<Deck> Decks => Set<Deck>();
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();

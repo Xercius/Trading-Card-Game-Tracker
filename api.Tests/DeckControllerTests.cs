@@ -21,7 +21,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_List_CurrentUser_FiltersAndHasCards_Works()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var decks = await GetDecksAsync(client, string.Empty);
         Assert.Equal(4, decks.Count); // All decks belong to the single user
@@ -45,8 +45,8 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_Create_Update_Delete_EnforcesOwnership()
     {
         await factory.ResetDatabaseAsync();
-        using var alice = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
-        using var bob = factory.CreateClient().WithUser(TestDataSeeder.BobUserId);
+        using var alice = factory.CreateClient();
+        using var bob = factory.CreateClient();
 
         var createResponse = await alice.PostAsJsonAsync(
             "/api/deck",
@@ -86,7 +86,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_Create_AllowsSameNameAcrossGames()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var first = await client.PostAsJsonAsync(
             "/api/deck",
@@ -103,7 +103,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task DeckCards_Delta_CreatesMissing_ClampsNonNegative_ValidatesGame()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deltaResponse = await client.PostAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/delta",
@@ -158,7 +158,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task DeckCards_Delta_RemovesRowsWhenAllQuantitiesReachZero()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards/delta",
@@ -218,7 +218,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task DeckCards_SingleUpsert_Set_Patch_Delete()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var upsertResponse = await client.PostAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}/cards",
@@ -272,7 +272,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_Patch_DuplicateName_ReturnsConflict()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var patchReq = new HttpRequestMessage(
             HttpMethod.Patch,
@@ -291,7 +291,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_Put_RequiresNameAndGameAndRejectsDuplicates()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var missingName = await client.PutAsJsonAsync(
             $"/api/deck/{TestDataSeeder.AliceMagicDeckId}",
@@ -328,7 +328,7 @@ public class DeckControllerTests(CustomWebApplicationFactory factory) : IClassFi
     public async Task Deck_Availability_WithAndWithoutProxies_ReturnsExpected()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var withoutProxies = await GetDeckAvailabilityAsync(client, includeProxies: false);
         Assert.Equal(2, withoutProxies.Count);

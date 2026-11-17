@@ -65,7 +65,7 @@ public sealed class KeywordFilterTests(CustomWebApplicationFactory factory)
     public async Task Keyword_OrMethod_MatchesCardsWithAnySpecifiedKeyword()
     {
         await SeedKeywordTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Sentinel OR Grit: should match Obi-Wan, Echo Base Defender, Chewbacca
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -81,7 +81,7 @@ public sealed class KeywordFilterTests(CustomWebApplicationFactory factory)
     public async Task Keyword_AndMethod_MatchesCardsWithAllSpecifiedKeywords()
     {
         await SeedKeywordTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Sentinel AND Grit: only Obi-Wan has both
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -95,7 +95,7 @@ public sealed class KeywordFilterTests(CustomWebApplicationFactory factory)
     public async Task Keyword_ExcludeMethod_ExcludesCardsWithAnySpecifiedKeywords()
     {
         await SeedKeywordTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Exclude Sentinel: should exclude Obi-Wan and Echo Base Defender, keeping Chewbacca, AT-AT, Basic Trooper
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -113,7 +113,7 @@ public sealed class KeywordFilterTests(CustomWebApplicationFactory factory)
     public async Task CardsEndpoint_AppliesKeywordMethod()
     {
         await SeedKeywordTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetFromJsonAsync<CardListPageResponse>(
             "/api/cards?game=Star+Wars+Unlimited&keyword=Sentinel,Grit&keywordMethod=and");
@@ -126,7 +126,7 @@ public sealed class KeywordFilterTests(CustomWebApplicationFactory factory)
     public async Task FacetsEndpoint_AppliesKeywordMethod()
     {
         await SeedKeywordTestCardsAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var facets = await client.GetFromJsonAsync<CardsFacetResponse>(
             "/api/cards/facets?game=Star+Wars+Unlimited&keyword=Sentinel&keywordMethod=exclude");

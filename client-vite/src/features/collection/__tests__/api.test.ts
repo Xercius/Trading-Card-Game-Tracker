@@ -4,7 +4,6 @@ import { ProblemDetailsError } from "@/lib/problemDetails";
 import { fetchCollection, type CollectionQueryParams } from "../api";
 
 const baseParams: CollectionQueryParams = {
-  userId: 1,
   page: 1,
   pageSize: 50,
   filters: {},

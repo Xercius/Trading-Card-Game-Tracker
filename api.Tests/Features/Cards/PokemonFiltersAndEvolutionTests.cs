@@ -111,7 +111,7 @@ public sealed class PokemonFiltersAndEvolutionTests(CustomWebApplicationFactory 
     public async Task GetPokemonNames_MatchingQuery_ReturnsDistinctSortedPokemonNames()
     {
         await SeedPokemonCatalogAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/cards/pokemon-names?q=Pika");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -128,7 +128,7 @@ public sealed class PokemonFiltersAndEvolutionTests(CustomWebApplicationFactory 
     public async Task GetPrintings_WithSpecialTypeFilter_ReturnsCombinedExAndOtherSpecialTypes()
     {
         var game = await SeedPokemonCatalogAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Combined Pokémon EX / ex matches both "Pikachu ex" and "Charizard-EX"
         var exPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
@@ -159,7 +159,7 @@ public sealed class PokemonFiltersAndEvolutionTests(CustomWebApplicationFactory 
     public async Task GetPrintings_WithEvolvesFrom_ReturnsFullLineageWithoutUnrelatedBranches()
     {
         var game = await SeedPokemonCatalogAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         // Selecting Pikachu returns Pichu (ancestor), Pikachu + V/VMAX/ex/TagTeam (self), and Raichu/Alolan Raichu (descendants)
         var pikachuLine = await client.GetFromJsonAsync<List<PrintingDto>>(

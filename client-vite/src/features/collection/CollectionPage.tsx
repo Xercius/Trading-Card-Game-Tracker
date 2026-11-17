@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 import MoxfieldCardSearch from "@/components/search/MoxfieldCardSearch";
 import AddCardModal from "./AddCardModal";
@@ -18,7 +17,6 @@ function formatCurrency(value: number | null): string {
 const EMPTY_VALUE_HISTORY_POINTS: { d: string; v: number | null }[] = [];
 
 export default function CollectionPage() {
-  const { userId } = useUser();
   const { activeGame } = useGame();
 
   const [addModalPrinting, setAddModalPrinting] = useState<PrintingListItem | null>(null);
@@ -32,13 +30,9 @@ export default function CollectionPage() {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  const valueHistoryQuery = useCollectionValueHistory(undefined, !!userId);
+  const valueHistoryQuery = useCollectionValueHistory();
   const valueHistoryPoints = valueHistoryQuery.data ?? EMPTY_VALUE_HISTORY_POINTS;
   const collectionLatestValue = latestValue(valueHistoryPoints);
-
-  if (!userId) {
-    return <div className="p-6 text-sm text-zinc-400">Select a user to view their collection.</div>;
-  }
 
   return (
     <div className="flex h-full flex-col gap-5 p-6 max-w-7xl mx-auto w-full">

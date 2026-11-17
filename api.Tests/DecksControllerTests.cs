@@ -25,7 +25,7 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task CardsWithAvailability_ReturnsRows()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var rows = await GetRowsAsync(client, TestDataSeeder.AliceMagicDeckId);
 
@@ -47,7 +47,7 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task CardsWithAvailability_IncludingProxiesUsesProxyCounts()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var rows = await GetRowsAsync(client, TestDataSeeder.AliceMagicDeckId, includeProxies: true);
 
@@ -60,7 +60,7 @@ public class DecksControllerTests(CustomWebApplicationFactory factory) : IClassF
     public async Task DeckCardsDelta_UpdatesQuantitiesAndReflectsInAggregate()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var initial = await GetRowsAsync(client, TestDataSeeder.AliceMagicDeckId);
         var alphaBefore = Assert.Single(initial, r => r.PrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);

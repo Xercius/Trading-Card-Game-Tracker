@@ -9,7 +9,6 @@ import type { DeckCardWithAvailability, DeckValidation } from "../../api";
 
 const mockDeckDetails = {
   id: 1,
-  userId: 1,
   game: "Star Wars Unlimited",
   name: "Boba Fett Midrange",
   description: "Cunning Boba deck",

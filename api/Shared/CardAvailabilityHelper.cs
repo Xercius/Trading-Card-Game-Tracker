@@ -7,12 +7,10 @@ public static class CardAvailabilityHelper
 {
     public static readonly Expression<Func<UserCard, int>> AvailabilityExpression =
         uc => Math.Max(0, uc.QuantityOwned - uc.CardPrinting.DeckCards
-            .Where(dc => dc.Deck!.UserId == uc.UserId)
             .Sum(dc => dc.QuantityInDeck));
 
     public static readonly Expression<Func<UserCard, int>> AvailabilityWithProxiesExpression =
         uc => Math.Max(0, uc.QuantityOwned + uc.QuantityProxyOwned - uc.CardPrinting.DeckCards
-            .Where(dc => dc.Deck!.UserId == uc.UserId)
             .Sum(dc => dc.QuantityInDeck));
 
     public static (int Available, int AvailableWithProxies) Calculate(int owned, int proxy, int assigned = 0)

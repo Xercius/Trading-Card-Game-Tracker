@@ -16,7 +16,6 @@ public sealed record DeckFeaturedCardDto(
 /// </summary>
 public sealed record DeckResponse(
     int Id,
-    int UserId,
     string Game,
     string Name,
     string? Description,

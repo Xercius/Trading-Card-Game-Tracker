@@ -4,7 +4,6 @@ public record ImportOptions(
     bool DryRun = true,
     bool Upsert = true,
     int? Limit = null,
-    int? UserId = null,
     string? SetCode = null, // e.g. "khm"
     DateTimeOffset? UpdatedSince = null // optional lower-bound for updatedAt filter (SWU incremental imports)
 );

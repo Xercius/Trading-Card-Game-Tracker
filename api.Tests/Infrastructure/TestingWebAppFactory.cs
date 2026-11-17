@@ -63,12 +63,6 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         _isDatabaseCreated = true;
     }
 
-    public HttpClient CreateClientForUser(int userId)
-    {
-        EnsureDatabaseCreated();
-        return CreateClient().WithUser(userId);
-    }
-
     public async Task ResetStateAsync()
     {
         _ = Server; // ensure host is built

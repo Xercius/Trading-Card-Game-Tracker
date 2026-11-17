@@ -556,7 +556,7 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
         var printingId = initialPrinting.Id;
         Assert.Equal("1st Edition", initialPrinting.Treatment?.Name);
         initialPrinting.CardUid = $"{cardDetail.Id}:1stedition";
-        db.UserCards.Add(new UserCard { UserId = 1, CardPrintingId = printingId, QuantityOwned = 1 });
+        db.UserCards.Add(new UserCard { CardPrintingId = printingId, QuantityOwned = 1 });
         await db.SaveChangesAsync();
 
         cardDetail.Hp = 70;
@@ -619,13 +619,13 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
             IsFoil = true
         }).ToList();
         db.CardPrintings.AddRange(printings);
-        var deck = new Deck { UserId = 1, Name = "Tracked merge", Game = PokemonCatalog.GameName };
+        var deck = new Deck { Name = "Tracked merge", Game = PokemonCatalog.GameName };
         db.Decks.Add(deck);
         await db.SaveChangesAsync();
 
         db.UserCards.AddRange(
-            new UserCard { UserId = 1, CardPrintingId = printings[1].Id, QuantityOwned = 2 },
-            new UserCard { UserId = 1, CardPrintingId = printings[2].Id, QuantityOwned = 3 });
+            new UserCard { CardPrintingId = printings[1].Id, QuantityOwned = 2 },
+            new UserCard { CardPrintingId = printings[2].Id, QuantityOwned = 3 });
         db.DeckCards.AddRange(
             new DeckCard { DeckId = deck.Id, CardPrintingId = printings[1].Id, QuantityInDeck = 2, IsStarting = false },
             new DeckCard { DeckId = deck.Id, CardPrintingId = printings[2].Id, QuantityInDeck = 3, IsStarting = true });
@@ -726,7 +726,6 @@ public sealed class PokemonTcgdexImporterTests(CustomWebApplicationFactory facto
 
         db.UserCards.Add(new UserCard
         {
-            UserId = 1,
             CardPrintingId = printing2Id,
             QuantityOwned = 2
         });

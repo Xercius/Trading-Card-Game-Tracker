@@ -14,7 +14,6 @@ import {
   useDeckQuantityMutation,
   useDeckValueHistory,
 } from "./api";
-import { useUser } from "@/state/useUser";
 import { useGame } from "@/state/useGame";
 import { useIncludeProxies } from "@/hooks/useIncludeProxies";
 import { pageSizeForDevice, overscanForDevice } from "@/lib/perf";
@@ -46,7 +45,6 @@ type Props = {
 };
 
 export default function DeckBuilderPage({ deckId }: Props) {
-  const { userId } = useUser();
   const { activeGame } = useGame();
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
   const { filters, toQueryKey } = useCardFilters();
@@ -54,8 +52,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
   const filterKey = toQueryKey();
   const cardsQueryKey = useMemo(
-    () => ["cards", { userId, game: activeGame, filters: filterKey }],
-    [userId, activeGame, filterKey]
+    () => ["cards", { game: activeGame, filters: filterKey }],
+    [activeGame, filterKey]
   );
 
   const cardsQuery = useInfiniteQuery({
@@ -79,7 +77,6 @@ export default function DeckBuilderPage({ deckId }: Props) {
       }),
     getNextPageParam: (lastPage) => lastPage.nextSkip ?? null,
     staleTime: 60_000,
-    enabled: !!userId,
   });
 
   const items = useMemo(

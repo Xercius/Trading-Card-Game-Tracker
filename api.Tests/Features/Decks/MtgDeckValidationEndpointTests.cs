@@ -29,7 +29,6 @@ public sealed class MtgDeckValidationEndpointTests(TestingWebAppFactory factory)
         {
             var deck = new Deck
             {
-                UserId = Seed.AdminUserId,
                 Game = "Magic The Gathering",
                 Name = "Mono Red",
                 Format = "Constructed"
@@ -39,7 +38,7 @@ public sealed class MtgDeckValidationEndpointTests(TestingWebAppFactory factory)
             deckId = deck.Id;
         });
 
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
         var response = await client.GetAsync($"/api/decks/{deckId}/mtg-validation");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -60,7 +59,6 @@ public sealed class MtgDeckValidationEndpointTests(TestingWebAppFactory factory)
         {
             var deck = new Deck
             {
-                UserId = Seed.AdminUserId,
                 Game = "Star Wars Unlimited",
                 Name = "SWU Deck",
                 Format = "Premier"
@@ -70,7 +68,7 @@ public sealed class MtgDeckValidationEndpointTests(TestingWebAppFactory factory)
             deckId = deck.Id;
         });
 
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
         var response = await client.GetAsync($"/api/decks/{deckId}/mtg-validation");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -80,7 +78,7 @@ public sealed class MtgDeckValidationEndpointTests(TestingWebAppFactory factory)
     public async Task GetMtgDeckValidation_MissingDeck_ReturnsNotFound()
     {
         await SeedDataAsync();
-        using var client = _factory.CreateClientForUser(Seed.AdminUserId);
+        using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/decks/999999/mtg-validation");
 

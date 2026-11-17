@@ -21,7 +21,6 @@ public class WishlistsController : ControllerBase
     private const int DefaultPageNumber = 1;
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 100;
-    private const int UserId = DbSeeder.DefaultUserId;
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
@@ -52,7 +51,7 @@ public class WishlistsController : ControllerBase
         var ct = HttpContext.RequestAborted;
 
         var query = _db.UserCards
-            .Where(uc => uc.UserId == UserId && uc.QuantityWanted > 0)
+            .Where(uc => uc.QuantityWanted > 0)
             .AsNoTracking()
             .FilterByPrintingMetadata(game, set, rarity, name, cardPrintingId, useCaseInsensitiveName: true);
 
@@ -92,13 +91,12 @@ public class WishlistsController : ControllerBase
         }
 
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
 
         if (uc is null)
         {
             uc = new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,
@@ -143,7 +141,7 @@ public class WishlistsController : ControllerBase
         }
 
         var map = await _db.UserCards
-            .Where(uc => uc.UserId == UserId && ids.Contains(uc.CardPrintingId))
+            .Where(uc => ids.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
         foreach (var i in list)
@@ -152,7 +150,6 @@ public class WishlistsController : ControllerBase
             {
                 uc = new UserCard
                 {
-                    UserId = UserId,
                     CardPrintingId = i.CardPrintingId,
                     QuantityOwned = 0,
                     QuantityProxyOwned = 0,
@@ -196,14 +193,13 @@ public class WishlistsController : ControllerBase
         }
 
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
 
         if (uc is null)
         {
             var initialMoveQuantity = dto.Quantity;
             var newUserCard = new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = dto.CardPrintingId,
                 QuantityWanted = 0,
                 QuantityOwned = dto.UseProxy ? 0 : initialMoveQuantity,
@@ -260,7 +256,7 @@ public class WishlistsController : ControllerBase
     private async Task<IActionResult> RemoveCore(int cardPrintingId)
     {
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -282,7 +278,6 @@ public class WishlistsController : ControllerBase
     // -----------------------------------------
 
     [HttpGet]
-    [HttpGet("/api/user/{userId:int}/wishlist")]
     public async Task<ActionResult<Paged<WishlistItemDto>>> GetAll(
         [FromQuery] string? game,
         [FromQuery] string? set,
@@ -290,12 +285,8 @@ public class WishlistsController : ControllerBase
         [FromQuery] string? name,
         [FromQuery] int? cardPrintingId,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
-        int? userId = null)
+        [FromQuery] int pageSize = 50)
     {
-        if (userId is { } requestedUserId && requestedUserId != UserId)
-            return this.CreateValidationProblem("userId", $"Wishlist access is only supported for user {UserId}.");
-
         var (pageResult, error) = await GetAllCore(game, set, rarity, name, cardPrintingId, page, pageSize);
         if (error is not null) return error;
         return Ok(pageResult);
@@ -337,13 +328,12 @@ public class WishlistsController : ControllerBase
         }
 
         var card = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.UserId == UserId && x.CardPrintingId == dto.PrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.PrintingId);
 
         if (card is null)
         {
             card = new UserCard
             {
-                UserId = UserId,
                 CardPrintingId = dto.PrintingId,
                 QuantityOwned = 0,
                 QuantityProxyOwned = 0,

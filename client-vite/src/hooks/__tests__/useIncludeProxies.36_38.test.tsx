@@ -109,7 +109,6 @@ describe("useIncludeProxies", () => {
 
   it("includes the includeProxies discriminator in query keys", () => {
     const commonCollectionParams = {
-      userId: 1,
       page: 1,
       pageSize: 25,
       filters: { q: "", game: "", set: "", rarity: "" },

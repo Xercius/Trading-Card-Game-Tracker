@@ -78,7 +78,4 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         await db.Database.MigrateAsync();
         await TestDataSeeder.SeedAsync(db);
     }
-
-    public HttpClient CreateClientForUser(int userId)
-        => CreateClient().WithUser(userId);
 }

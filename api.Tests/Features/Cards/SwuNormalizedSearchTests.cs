@@ -27,7 +27,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
                 new DateOnly(2025, 10, 3), "Leader", "Leader Unit", "Heroism", 2);
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&set=SOR&rarity=Rare&type=Leader+Unit&arena=Ground&aspect=Heroism&trait=Rebel");
 
@@ -133,7 +133,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&uniqueCards=true");
 
@@ -197,7 +197,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             cardId = card.Id;
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>($"/api/cards/{cardId}/printings");
         Assert.NotNull(printings);
         Assert.Equal(4, printings.Count);
@@ -254,7 +254,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             legacyCardId = legacyCard.Id;
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>($"/api/cards/{cardId}/printings");
         var legacyPrintings = await client.GetFromJsonAsync<List<PrintingDto>>(
             $"/api/cards/{legacyCardId}/printings");
@@ -437,7 +437,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&uniqueCards=true");
 
@@ -501,7 +501,7 @@ public sealed class SwuNormalizedSearchTests(CustomWebApplicationFactory factory
             await db.SaveChangesAsync();
         }
 
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
         var printings = await client.GetFromJsonAsync<List<PrintingDto>>(
             "/api/cards/printings?game=Star+Wars+Unlimited&uniqueCards=true");
 

@@ -40,17 +40,13 @@ const mockSummary = {
 };
 
 vi.mock("../api", () => ({
-  collectionKeys: { all: ["collection"], list: vi.fn(() => ["collection", { userId: 1 }]) },
+  collectionKeys: { all: ["collection"], list: vi.fn(() => ["collection", {}]) },
   useCollectionSetsSummaryQuery: vi.fn(() => ({
     data: mockSummary,
     isLoading: false,
     error: null,
   })),
   useBatchSetCollectionMutation: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
-}));
-
-vi.mock("@/state/useUser", () => ({
-  useUser: () => ({ userId: 1 }),
 }));
 
 vi.mock("@/state/useGame", () => ({

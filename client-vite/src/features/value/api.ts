@@ -24,15 +24,10 @@ export async function fetchCollectionValueSummary(
 }
 
 /** Query options for collection value summary with a 1-minute stale time. */
-export function collectionValueSummaryQueryOptions(
-  userId: number | null | undefined,
-  q: string,
-  game: string
-) {
+export function collectionValueSummaryQueryOptions(q: string, game: string) {
   return queryOptions({
-    queryKey: [...queryKeys.value.summary(game), userId, q] as const,
+    queryKey: [...queryKeys.value.summary(game), q] as const,
     queryFn: () => fetchCollectionValueSummary(q, game),
-    enabled: Boolean(userId),
     staleTime: 60_000,
   });
 }

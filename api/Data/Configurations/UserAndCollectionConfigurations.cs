@@ -4,32 +4,12 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace api.Data.Configurations;
 
-internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
-{
-    public void Configure(EntityTypeBuilder<User> e)
-    {
-        e.HasKey(u => u.Id);
-        e.Property(u => u.Username).IsRequired().HasMaxLength(128);
-        e.Property(u => u.DisplayName).IsRequired().HasMaxLength(128);
-        e.Property(u => u.PasswordHash).HasMaxLength(512);
-        e.HasIndex(u => u.Username)
-            .IsUnique()
-            .HasDatabaseName("UX_Users_Username");
-    }
-}
-
 internal sealed class DeckConfiguration : IEntityTypeConfiguration<Deck>
 {
     public void Configure(EntityTypeBuilder<Deck> e)
     {
         e.HasKey(d => d.Id);
         e.Property(d => d.Game).IsRequired().HasMaxLength(80);
-
-        e.HasOne(d => d.User)
-            .WithMany()
-            .HasForeignKey(d => d.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
-        e.HasIndex(d => d.UserId).HasDatabaseName("IX_Decks_UserId");
 
         e.HasOne(d => d.GameNavigation)
             .WithMany()
@@ -67,17 +47,11 @@ internal sealed class UserCardConfiguration : IEntityTypeConfiguration<UserCard>
 {
     public void Configure(EntityTypeBuilder<UserCard> e)
     {
-        e.HasKey(uc => new { uc.UserId, uc.CardPrintingId });
+        e.HasKey(uc => uc.CardPrintingId);
 
         e.Property(uc => uc.QuantityOwned).HasDefaultValue(0);
         e.Property(uc => uc.QuantityWanted).HasDefaultValue(0);
         e.Property(uc => uc.QuantityProxyOwned).HasDefaultValue(0);
-
-        // Cascade: UserCard rows are owned collection/wishlist entries of User.
-        e.HasOne(uc => uc.User)
-            .WithMany(u => u.UserCards)
-            .HasForeignKey(uc => uc.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
 
         e.HasOne(uc => uc.CardPrinting)
             .WithMany()

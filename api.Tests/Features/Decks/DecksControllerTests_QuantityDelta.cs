@@ -25,7 +25,7 @@ public class DecksControllerTests_QuantityDelta(CustomWebApplicationFactory fact
     public async Task QuantityDelta_AdjustsQuantitiesAndClampsAtZero()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deckId = TestDataSeeder.AliceMagicDeckId;
         var printingId = TestDataSeeder.LightningBoltBetaPrintingId;
@@ -62,7 +62,7 @@ public class DecksControllerTests_QuantityDelta(CustomWebApplicationFactory fact
     public async Task QuantityDelta_WithIncludeProxiesReturnsProxyAvailability()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var deckId = TestDataSeeder.AliceMagicDeckId;
         var printingId = TestDataSeeder.LightningBoltAlphaPrintingId;
@@ -84,7 +84,7 @@ public class DecksControllerTests_QuantityDelta(CustomWebApplicationFactory fact
     public async Task LegacyEndpoint_StillProcessesDeltaRequests()
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
             $"/api/decks/{TestDataSeeder.AliceMagicDeckId}/cards",

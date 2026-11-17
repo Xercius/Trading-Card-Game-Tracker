@@ -15,26 +15,23 @@ public sealed class ImportExportService(
     TimeProvider timeProvider,
     ILogger<ImportExportService> logger)
 {
-    private const int UserId = DbSeeder.DefaultUserId;
     private static readonly EventId ImportCompletedEventId = new(4100, "UserImportCompleted");
 
     /// <summary>Exports the user's collection, wishlist, and decks as formatted JSON bytes.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportJsonAsync(CancellationToken ct)
     {
         var collection = await db.UserCards.AsNoTracking()
-            .Where(x => x.UserId == UserId)
             .OrderBy(x => x.CardPrintingId)
             .Select(x => new ExportCollectionItem(x.CardPrintingId, x.QuantityOwned, x.QuantityProxyOwned))
             .ToListAsync(ct);
 
         var wishlist = await db.UserCards.AsNoTracking()
-            .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
+            .Where(x => x.QuantityWanted > 0)
             .OrderBy(x => x.CardPrintingId)
             .Select(x => new ExportWishlistItem(x.CardPrintingId, x.QuantityWanted))
             .ToListAsync(ct);
 
         var deckEntities = await db.Decks.AsNoTracking()
-            .Where(d => d.UserId == UserId)
             .Include(d => d.Cards)
             .OrderBy(d => d.Game).ThenBy(d => d.Name)
             .ToListAsync(ct);
@@ -47,7 +44,7 @@ public sealed class ImportExportService(
                 .Select(c => new ExportDeckCard(c.CardPrintingId, c.QuantityInDeck, c.QuantityIdea, c.QuantityAcquire, c.QuantityProxy))
                 .ToList())).ToList();
 
-        var payload = new ExportPayload(1, new { id = UserId }, collection, wishlist, decks);
+        var payload = new ExportPayload(1, collection, wishlist, decks);
         var jsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
         jsonOptions.WriteIndented = true;
         jsonOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
@@ -61,7 +58,6 @@ public sealed class ImportExportService(
     public async Task<byte[]> ExportCollectionCsvAsync(CancellationToken ct)
     {
         var rows = await db.UserCards.AsNoTracking()
-            .Where(x => x.UserId == UserId)
             .OrderBy(r => r.CardPrinting.Card.Game.Name)
             .ThenBy(r => r.CardPrinting.Card.Name)
             .ThenBy(r => r.CardPrinting.CatalogSet == null ? string.Empty : r.CardPrinting.CatalogSet.Code)
@@ -91,7 +87,7 @@ public sealed class ImportExportService(
     public async Task<byte[]> ExportWishlistCsvAsync(CancellationToken ct)
     {
         var rows = await db.UserCards.AsNoTracking()
-            .Where(x => x.UserId == UserId && x.QuantityWanted > 0)
+            .Where(x => x.QuantityWanted > 0)
             .OrderBy(r => r.CardPrinting.Card.Game.Name)
             .ThenBy(r => r.CardPrinting.Card.Name)
             .ThenBy(r => r.CardPrinting.CatalogSet == null ? string.Empty : r.CardPrinting.CatalogSet.Code)
@@ -120,7 +116,7 @@ public sealed class ImportExportService(
     public async Task<byte[]> ExportDecksCsvAsync(CancellationToken ct)
     {
         var rows = await db.DeckCards.AsNoTracking()
-            .Where(dc => dc.Deck != null && dc.CardPrinting != null && dc.CardPrinting.Card != null && dc.Deck.UserId == UserId)
+            .Where(dc => dc.Deck != null && dc.CardPrinting != null && dc.CardPrinting.Card != null)
             .OrderBy(r => r.Deck!.Game).ThenBy(r => r.Deck!.Name)
             .ThenBy(r => r.CardPrinting!.Card.Name)
             .ThenBy(r => r.CardPrinting!.CatalogSet == null ? string.Empty : r.CardPrinting!.CatalogSet.Code)
@@ -182,10 +178,10 @@ public sealed class ImportExportService(
 
         if (replaceMode)
         {
-            var existingDecks = await db.Decks.Where(d => d.UserId == UserId).ToListAsync(ct);
+            var existingDecks = await db.Decks.ToListAsync(ct);
             if (existingDecks.Count > 0) db.Decks.RemoveRange(existingDecks);
 
-            var existingUserCards = await db.UserCards.Where(uc => uc.UserId == UserId).ToListAsync(ct);
+            var existingUserCards = await db.UserCards.ToListAsync(ct);
             if (existingUserCards.Count > 0) db.UserCards.RemoveRange(existingUserCards);
 
             await db.SaveChangesAsync(ct);
@@ -213,7 +209,7 @@ public sealed class ImportExportService(
         bool replaceMode,
         CancellationToken ct)
     {
-        var userCardMap = await db.UserCards.Where(uc => uc.UserId == UserId).ToDictionaryAsync(uc => uc.CardPrintingId, ct);
+        var userCardMap = await db.UserCards.ToDictionaryAsync(uc => uc.CardPrintingId, ct);
 
         foreach (var c in collection)
         {
@@ -237,7 +233,7 @@ public sealed class ImportExportService(
         if (map.TryGetValue(printingId, out var row))
             return row;
 
-        row = new UserCard { UserId = UserId, CardPrintingId = printingId };
+        row = new UserCard { CardPrintingId = printingId };
         map[printingId] = row;
         db.UserCards.Add(row);
         return row;
@@ -245,14 +241,14 @@ public sealed class ImportExportService(
 
     private async Task ApplyDecksAsync(IReadOnlyList<ExportDeck> decks, bool replaceMode, CancellationToken ct)
     {
-        var decksByKey = await db.Decks.Where(d => d.UserId == UserId).Include(d => d.Cards)
+        var decksByKey = await db.Decks.Include(d => d.Cards)
             .ToDictionaryAsync(d => (d.Game, d.Name), ct);
 
         foreach (var d in decks)
         {
             if (!decksByKey.TryGetValue((d.Game, d.Name), out var deck))
             {
-                deck = new Deck { UserId = UserId, Game = d.Game, Name = d.Name, Description = d.Description };
+                deck = new Deck { Game = d.Game, Name = d.Name, Description = d.Description };
                 decksByKey[(d.Game, d.Name)] = deck;
                 db.Decks.Add(deck);
             }

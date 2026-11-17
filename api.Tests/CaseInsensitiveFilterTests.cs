@@ -26,7 +26,7 @@ public class CaseInsensitiveFilterTests(CustomWebApplicationFactory factory)
     public async Task Card_List_GameFilter_CaseInsensitive_ReturnsResults(string gameFilter)
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/search?game={gameFilter}&page=1&pageSize=10");
         response.EnsureSuccessStatusCode();
@@ -44,7 +44,7 @@ public class CaseInsensitiveFilterTests(CustomWebApplicationFactory factory)
     public async Task Card_List_SetFilter_CaseInsensitive_ReturnsResults(string setFilter)
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/search?set={setFilter}&page=1&pageSize=10");
         response.EnsureSuccessStatusCode();
@@ -61,7 +61,7 @@ public class CaseInsensitiveFilterTests(CustomWebApplicationFactory factory)
     public async Task Card_List_RarityFilter_CaseInsensitive_ReturnsResults(string rarityFilter)
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/search?rarity={rarityFilter}&page=1&pageSize=10");
         response.EnsureSuccessStatusCode();
@@ -78,7 +78,7 @@ public class CaseInsensitiveFilterTests(CustomWebApplicationFactory factory)
     public async Task CardFacets_Sets_GameFilter_CaseInsensitive_ReturnsResults(string gameFilter)
     {
         await factory.ResetDatabaseAsync();
-        using var client = factory.CreateClient().WithUser(TestDataSeeder.AliceUserId);
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/api/cards/facets/sets?game={gameFilter}");
         response.EnsureSuccessStatusCode();
