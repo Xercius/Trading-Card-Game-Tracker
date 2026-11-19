@@ -4,6 +4,13 @@ All notable changes to Trading Card Game Tracker are documented in this file.
 
 ## [Unreleased]
 
+## [v0.27.0] - 2026-11-19
+
+### New Features
+
+- Add UX testing instructions for project setup and testing workf… (#836).
+- Enhance changelog management and release workflow automation (#835).
+
 ## [v0.26.1] - 2026-11-17
 
 ### New Features
