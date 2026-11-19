@@ -597,6 +597,7 @@ public class CollectionsController : ControllerBase
             .ToDictionaryAsync(uc => uc.CardPrintingId, uc => new { uc.QuantityOwned, uc.QuantityProxyOwned }, ct);
 
         // 5. Build set summaries
+        var printingsBySet = printings.ToLookup(p => p.SetId);
         var setSummaries = new List<CollectionSetSummaryDto>();
         var allPrintingIdsInGame = new HashSet<int>();
         var allOwnedPrintingIdsInGame = new HashSet<int>();
@@ -604,7 +605,7 @@ public class CollectionsController : ControllerBase
         foreach (var set in sets)
         {
             bool isVirtualSet = IsVirtualSet(set.Game?.Name, set.Name);
-            var setPrintings = printings.Where(p => p.SetId == set.Id).ToList();
+            var setPrintings = printingsBySet[set.Id].ToList();
             if (setPrintings.Count == 0)
             {
                 continue;

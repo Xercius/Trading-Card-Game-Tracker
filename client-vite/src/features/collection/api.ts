@@ -124,6 +124,7 @@ export type SetCardQuantitiesVariables = {
 export function useSetCardQuantitiesMutation() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: ["collection", "set-quantities"],
     mutationFn: async (variables: SetCardQuantitiesVariables) => {
       try {
         await http.post("collection", {
@@ -137,18 +138,86 @@ export function useSetCardQuantitiesMutation() {
         throw toProblemDetailsError(error);
       }
     },
-    onSuccess: (variables) => {
-      queryClient.setQueryData(
-        ["collection", "quantities", variables.printingId],
-        (existing: UserCardQuantities | undefined) => ({
-          cardPrintingId: variables.printingId,
-          quantityOwned: variables.quantityOwned ?? existing?.quantityOwned ?? 0,
-          quantityProxyOwned: variables.quantityProxyOwned ?? existing?.quantityProxyOwned ?? 0,
-          quantityWanted: variables.quantityWanted ?? existing?.quantityWanted ?? 0,
-        })
-      );
-      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: collectionKeys.all });
+
+      const quantitiesKey = ["collection", "quantities", variables.printingId] as const;
+      const prevQuantities = queryClient.getQueryData<UserCardQuantities>(quantitiesKey);
+      const prevSetDetails = queryClient.getQueriesData<CollectionItem[]>({
+        queryKey: ["collection", "set-detail"],
+      });
+
+      const nextOwned = variables.quantityOwned ?? prevQuantities?.quantityOwned ?? 0;
+      const nextProxy = variables.quantityProxyOwned ?? prevQuantities?.quantityProxyOwned ?? 0;
+      const nextWanted = variables.quantityWanted ?? prevQuantities?.quantityWanted ?? 0;
+
+      queryClient.setQueryData<UserCardQuantities>(quantitiesKey, {
+        cardPrintingId: variables.printingId,
+        quantityOwned: nextOwned,
+        quantityProxyOwned: nextProxy,
+        quantityWanted: nextWanted,
+      });
+
+      for (const [key, items] of prevSetDetails) {
+        if (!Array.isArray(items)) continue;
+        const idx = items.findIndex((item) => item.cardPrintingId === variables.printingId);
+        if (idx >= 0) {
+          const updated = [...items];
+          const existing = updated[idx];
+          const owned = variables.quantityOwned ?? existing.quantityOwned;
+          const proxy = variables.quantityProxyOwned ?? existing.quantityProxyOwned;
+          const wanted = variables.quantityWanted ?? existing.quantityWanted;
+          updated[idx] = {
+            ...existing,
+            quantityOwned: owned,
+            quantityProxyOwned: proxy,
+            quantityWanted: wanted,
+            availability: owned,
+            availabilityWithProxies: owned + proxy,
+          };
+          queryClient.setQueryData<CollectionItem[]>(key, updated);
+        } else {
+          const inserted: CollectionItem = {
+            cardPrintingId: variables.printingId,
+            quantityOwned: nextOwned,
+            quantityProxyOwned: nextProxy,
+            quantityWanted: nextWanted,
+            availability: nextOwned,
+            availabilityWithProxies: nextOwned + nextProxy,
+            cardId: 0,
+            cardName: "",
+            game: "",
+            set: "",
+            number: "",
+            rarity: "",
+            style: "",
+            imageUrl: null,
+          };
+          queryClient.setQueryData<CollectionItem[]>(key, [...items, inserted]);
+        }
+      }
+
+      return { prevQuantities, prevSetDetails, quantitiesKey };
+    },
+    onError: (_error, _variables, context) => {
+      if (!context) return;
+      queryClient.setQueryData(context.quantitiesKey, context.prevQuantities);
+      for (const [key, data] of context.prevSetDetails) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      const remaining = queryClient.isMutating({
+        mutationKey: ["collection", "set-quantities"],
+      });
+      if (remaining <= 1) {
+        queryClient.invalidateQueries({ queryKey: ["collection", "set-detail"] });
+        queryClient.invalidateQueries({ queryKey: ["collection", "sets-summary"] });
+        queryClient.invalidateQueries({ queryKey: ["collection", "value-history"] });
+        if (variables.quantityWanted !== undefined) {
+          queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+        }
+      }
     },
   });
 }

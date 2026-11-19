@@ -10,25 +10,15 @@ import {
   useCollectionSetsSummaryQuery,
   type CollectionItem,
 } from "@/features/collection/api";
-import { CardImageHoverPreview } from "@/components/ui/CardImageHoverPreview";
 import { isHorizontalPrinting } from "@/features/printings/utils/cardOrientation";
 import EditCardModal from "@/features/collection/EditCardModal";
+import {
+  CollectionSetTable,
+  type SetPrintingRow,
+} from "@/features/collection/components/CollectionSetTable";
 import { paths } from "@/routes/paths";
 
-interface PrintingRowData {
-  printingId: number;
-  cardId: number;
-  cardName: string;
-  number: string;
-  numericNumber: number;
-  treatment: string;
-  rarity: string;
-  imageUrl: string | null;
-  isHorizontal: boolean;
-  owned: number;
-  proxy: number;
-  wanted: number;
-}
+type PrintingRowData = SetPrintingRow;
 
 export default function CollectionSetDetailPage() {
   const { setCode } = useParams<{ setCode: string }>();
@@ -195,31 +185,43 @@ export default function CollectionSetDetailPage() {
     return list;
   }, [rows, selectedTreatment, selectedRarity, searchTerm, hideFullyOwned]);
 
-  // Handler for stepper quantity updates
+  const liveCompletion = useMemo(() => {
+    if (!currentSetSummary) return null;
+    if (rows.length === 0) {
+      return {
+        ownedCards: currentSetSummary.ownedCards,
+        totalCards: currentSetSummary.totalCards,
+        completionPercentage: currentSetSummary.completionPercentage,
+      };
+    }
+    const isVirtual = currentSetSummary.isVirtualSet;
+    const ownedCards = rows.filter((r) =>
+      isVirtual ? r.owned > 0 || r.proxy > 0 : r.owned > 0
+    ).length;
+    const totalCards = rows.length;
+    const completionPercentage =
+      totalCards > 0 ? Math.round((ownedCards / totalCards) * 1000) / 10 : 0;
+    return { ownedCards, totalCards, completionPercentage };
+  }, [currentSetSummary, rows]);
+
+  // Handler for non-blocking stepper quantity updates
   const handleUpdateQty = (
     row: PrintingRowData,
     field: "owned" | "proxy" | "wanted",
     newVal: number
   ) => {
-    if (!collectionLoaded || setQuantitiesMutation.isPending) return;
+    if (!collectionLoaded) return;
     const clamped = Math.max(0, Math.min(999, newVal));
     const nextOwned = field === "owned" ? clamped : row.owned;
     const nextProxy = field === "proxy" ? clamped : row.proxy;
     const nextWanted = field === "wanted" ? clamped : row.wanted;
 
-    setQuantitiesMutation.mutate(
-      {
-        printingId: row.printingId,
-        quantityOwned: nextOwned,
-        quantityProxyOwned: nextProxy,
-        quantityWanted: nextWanted,
-      },
-      {
-        onSuccess: async () => {
-          await queryClient.invalidateQueries({ queryKey: collectionQueryKey });
-        },
-      }
-    );
+    setQuantitiesMutation.mutate({
+      printingId: row.printingId,
+      quantityOwned: nextOwned,
+      quantityProxyOwned: nextProxy,
+      quantityWanted: nextWanted,
+    });
   };
 
   const handleOpenEditModal = (row: PrintingRowData) => {
@@ -280,7 +282,7 @@ export default function CollectionSetDetailPage() {
           </p>
         </div>
 
-        {currentSetSummary && (
+        {liveCompletion && (
           <div className="flex items-center gap-6">
             <div className="text-right">
               <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">
@@ -288,11 +290,11 @@ export default function CollectionSetDetailPage() {
               </div>
               <div className="mt-0.5 flex items-baseline justify-end gap-1.5 font-mono text-zinc-200">
                 <span className="text-xl font-bold text-zinc-100">
-                  {currentSetSummary.ownedCards}
+                  {liveCompletion.ownedCards}
                 </span>
-                <span className="text-zinc-500">/ {currentSetSummary.totalCards} cards</span>
+                <span className="text-zinc-500">/ {liveCompletion.totalCards} cards</span>
                 <span className="ml-1 text-sm font-semibold text-purple-400">
-                  ({currentSetSummary.completionPercentage.toFixed(1)}%)
+                  ({liveCompletion.completionPercentage.toFixed(1)}%)
                 </span>
               </div>
             </div>
@@ -300,7 +302,7 @@ export default function CollectionSetDetailPage() {
               <div
                 className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
                 style={{
-                  width: `${Math.min(100, Math.max(0, currentSetSummary.completionPercentage))}%`,
+                  width: `${Math.min(100, Math.max(0, liveCompletion.completionPercentage))}%`,
                 }}
               />
             </div>
@@ -413,221 +415,12 @@ export default function CollectionSetDetailPage() {
           No cards match your current filter criteria.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-zinc-300">
-              <thead className="border-b border-zinc-800 bg-zinc-950/70 text-xs uppercase tracking-wider text-zinc-400">
-                <tr>
-                  <th scope="col" className="w-16 px-2 py-3 text-center font-semibold">
-                    Image
-                  </th>
-                  <th scope="col" className="w-16 px-3 py-3 text-center font-semibold">
-                    #
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Card Name
-                  </th>
-                  <th scope="col" className="w-32 px-3 py-3 font-semibold">
-                    Treatment
-                  </th>
-                  <th scope="col" className="w-24 px-3 py-3 font-semibold">
-                    Rarity
-                  </th>
-                  <th scope="col" className="w-28 px-3 py-3 text-center font-semibold">
-                    Owned
-                  </th>
-                  <th scope="col" className="w-28 px-3 py-3 text-center font-semibold">
-                    Proxy
-                  </th>
-                  <th scope="col" className="w-28 px-3 py-3 text-center font-semibold">
-                    Wishlist
-                  </th>
-                  <th scope="col" className="w-16 px-3 py-3 text-center font-semibold">
-                    Edit
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60">
-                {filteredRows.map((row) => (
-                  <tr
-                    key={row.printingId}
-                    onClick={() => handleOpenEditModal(row)}
-                    className="cursor-pointer bg-zinc-900 hover:bg-zinc-800/60 transition-colors group"
-                  >
-                    {/* Thumbnail with Hover Zoom */}
-                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center w-12 h-11 mx-auto">
-                        <CardImageHoverPreview
-                          imageUrl={row.imageUrl}
-                          cardName={row.cardName}
-                          isHorizontal={row.isHorizontal}
-                        />
-                      </div>
-                    </td>
-
-                    {/* Collector Number */}
-                    <td className="px-3 py-2 text-center font-mono text-xs font-semibold text-zinc-400">
-                      {row.number}
-                    </td>
-
-                    {/* Card Name */}
-                    <td className="px-4 py-2 font-medium text-zinc-100 group-hover:text-purple-400 transition-colors">
-                      {row.cardName}
-                    </td>
-
-                    {/* Treatment */}
-                    <td className="px-3 py-2 text-xs">
-                      <span className="inline-block rounded bg-zinc-800 border border-zinc-700/60 px-2 py-0.5 text-zinc-300 font-medium">
-                        {row.treatment}
-                      </span>
-                    </td>
-
-                    {/* Rarity */}
-                    <td className="px-3 py-2 text-xs text-zinc-400 font-medium">{row.rarity}</td>
-
-                    {/* Owned Quantity Stepper */}
-                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "owned", row.owned - 1)}
-                          disabled={
-                            !printingsLoaded ||
-                            !collectionLoaded ||
-                            setQuantitiesMutation.isPending ||
-                            row.owned <= 0
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          max={999}
-                          value={row.owned}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          onChange={(e) =>
-                            handleUpdateQty(row, "owned", parseInt(e.target.value, 10) || 0)
-                          }
-                          className="w-8 text-center text-xs font-bold text-zinc-100 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "owned", row.owned + 1)}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Proxy Quantity Stepper */}
-                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "proxy", row.proxy - 1)}
-                          disabled={
-                            !printingsLoaded ||
-                            !collectionLoaded ||
-                            setQuantitiesMutation.isPending ||
-                            row.proxy <= 0
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          max={999}
-                          value={row.proxy}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          onChange={(e) =>
-                            handleUpdateQty(row, "proxy", parseInt(e.target.value, 10) || 0)
-                          }
-                          className="w-8 text-center text-xs font-bold text-amber-300 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "proxy", row.proxy + 1)}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Wishlist Quantity Stepper */}
-                    <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="inline-flex items-center rounded-lg border border-zinc-700/70 bg-zinc-950/80 p-0.5 shadow-inner">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "wanted", row.wanted - 1)}
-                          disabled={
-                            !printingsLoaded ||
-                            !collectionLoaded ||
-                            setQuantitiesMutation.isPending ||
-                            row.wanted <= 0
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          max={999}
-                          value={row.wanted}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          onChange={(e) =>
-                            handleUpdateQty(row, "wanted", parseInt(e.target.value, 10) || 0)
-                          }
-                          className="w-8 text-center text-xs font-bold text-indigo-300 bg-transparent focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQty(row, "wanted", row.wanted + 1)}
-                          disabled={
-                            !printingsLoaded || !collectionLoaded || setQuantitiesMutation.isPending
-                          }
-                          className="h-6 w-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Edit Modal Button */}
-                    <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditModal(row)}
-                        title="Edit collection entry"
-                        className="rounded p-1 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors"
-                      >
-                        ✎
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <CollectionSetTable
+          rows={filteredRows}
+          ready={printingsLoaded && collectionLoaded}
+          onUpdateQty={handleUpdateQty}
+          onEditRow={handleOpenEditModal}
+        />
       )}
 
       {/* Edit Collection Card Modal */}
