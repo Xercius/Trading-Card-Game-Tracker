@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   useDeckDetails: () => ({ data: { name: "Test Deck", game: "Magic The Gathering" } }),
   useDeckCardsWithAvailability: () => ({ data: [] }),
   useDeckQuantityMutation: () => ({ mutate: vi.fn() }),
+  useSwitchDeckCardPrintingMutation: () => ({ mutate: vi.fn(), isPending: false }),
   useDeckValueHistory: () => ({ data: [] }),
 }));
 vi.mock("@/components/VirtualizedCardGrid", () => ({

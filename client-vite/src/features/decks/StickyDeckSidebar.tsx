@@ -4,6 +4,7 @@ import { resolveImageUrl } from "@/lib/http";
 import LineSparkline from "@/components/charts/LineSparkline";
 import type { ValuePoint } from "@/types/value";
 import type { DeckCardWithAvailability } from "./api";
+import { PrintingPickerPopover } from "./components/PrintingPickerPopover";
 import { extractDragData } from "./dragData";
 import {
   AVAILABILITY_DATA,
@@ -30,6 +31,7 @@ type Props = {
   includeProxies: boolean;
   onIncludeProxiesChange: (next: boolean) => void;
   onAdjustQuantity: (printingId: number, delta: number, meta?: AdjustQuantityMeta) => void;
+  onSwitchPrinting?: (fromPrintingId: number, toPrintingId: number) => void;
   isLoading?: boolean;
   valueHistory: {
     points: ValuePoint[];
@@ -46,6 +48,7 @@ export default function StickyDeckSidebar({
   includeProxies,
   onIncludeProxiesChange,
   onAdjustQuantity,
+  onSwitchPrinting,
   isLoading = false,
   valueHistory,
   formatCurrency,
@@ -204,6 +207,19 @@ export default function StickyDeckSidebar({
                     >
                       A+P {row.availabilityWithProxies}
                     </Badge>
+                    {onSwitchPrinting && row.cardId != null && (
+                      <PrintingPickerPopover
+                        cardId={row.cardId}
+                        currentPrintingId={row.printingId}
+                        currentLabel={row.setName ?? "Printing"}
+                        ariaLabel={`Switch printing for ${row.cardName}`}
+                        onSelectPrinting={(targetId) => {
+                          if (targetId !== row.printingId) {
+                            onSwitchPrinting(row.printingId, targetId);
+                          }
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
                 <Button

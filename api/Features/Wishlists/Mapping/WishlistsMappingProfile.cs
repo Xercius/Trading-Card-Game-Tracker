@@ -22,6 +22,7 @@ public sealed class WishlistsMappingProfile : Profile
             .ForCtorParam(nameof(WishlistItemResponse.Style), opt => opt.MapFrom(uc => uc.CardPrinting.Treatment == null
                 ? "Standard"
                 : uc.CardPrinting.Treatment.Name))
-            .ForCtorParam(nameof(WishlistItemResponse.ImageUrl), opt => opt.MapFrom(uc => uc.CardPrinting.ImageUrl));
+            .ForCtorParam(nameof(WishlistItemResponse.ImageUrl), opt => opt.MapFrom(uc => uc.CardPrinting.ImageUrl))
+            .ForCtorParam(nameof(WishlistItemResponse.Sources), opt => opt.MapFrom(_ => Array.Empty<WishlistSourceDto>()));
     }
 }

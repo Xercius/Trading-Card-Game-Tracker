@@ -233,6 +233,7 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<FileParser>();
         services.AddScoped<api.Features.Admin.Prices.AdminPricesService>();
         services.AddScoped<api.Features.ImportExport.Services.ImportExportService>();
+        services.AddScoped<api.Shared.WishlistSourceSyncService>();
         services.AddSingleton<AdminSyncExecutionTracker>();
     }
 

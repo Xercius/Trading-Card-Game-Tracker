@@ -25,6 +25,7 @@ public class DecksController : ControllerBase
     private readonly ILogger<DecksController> _logger;
     private readonly PokemonDeckValidationService _pokemonDeckValidationService;
     private readonly MtgDeckValidationService _mtgDeckValidationService;
+    private readonly WishlistSourceSyncService _sourceSync;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(
@@ -32,13 +33,15 @@ public class DecksController : ControllerBase
         IMapper mapper,
         ILogger<DecksController> logger,
         PokemonDeckValidationService pokemonDeckValidationService,
-        MtgDeckValidationService mtgDeckValidationService)
+        MtgDeckValidationService mtgDeckValidationService,
+        WishlistSourceSyncService sourceSync)
     {
         _db = db;
         _mapper = mapper;
         _logger = logger;
         _pokemonDeckValidationService = pokemonDeckValidationService;
         _mtgDeckValidationService = mtgDeckValidationService;
+        _sourceSync = sourceSync;
     }
 
     private static string ResolveDefaultFormat(string? game) =>
@@ -629,15 +632,20 @@ public class DecksController : ControllerBase
 
     private async Task<IActionResult> DeleteDeckCore(int deckId)
     {
-        var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
+        var ct = HttpContext.RequestAborted;
+        var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId, ct);
         if (d is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await _sourceSync.RemoveDeckSourcesAsync(deckId, ct);
         _db.Decks.Remove(d);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -1409,6 +1417,76 @@ public class DecksController : ControllerBase
     [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")]
     public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement patch)
         => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, patch);
+
+    // PATCH /api/decks/{deckId}/cards/{cardPrintingId}/printing
+    [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}/printing")]
+    [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}/printing")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<IActionResult> SwitchDeckCardPrinting(
+        int deckId,
+        int cardPrintingId,
+        [FromBody] SwitchDeckCardPrintingRequest? request)
+    {
+        if (request is null || request.TargetCardPrintingId <= 0)
+        {
+            return this.CreateValidationProblem("targetCardPrintingId", "TargetCardPrintingId must be positive.");
+        }
+
+        var ct = HttpContext.RequestAborted;
+        var source = await _db.DeckCards
+            .Include(dc => dc.CardPrinting)
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == cardPrintingId, ct);
+        if (source is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {cardPrintingId} was not found in deck {deckId}.");
+        }
+
+        if (request.TargetCardPrintingId == cardPrintingId)
+        {
+            return NoContent();
+        }
+
+        var targetPrinting = await _db.CardPrintings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cp => cp.Id == request.TargetCardPrintingId, ct);
+        if (targetPrinting is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {request.TargetCardPrintingId} was not found.");
+        }
+
+        if (source.CardPrinting is not null && targetPrinting.CardId != source.CardPrinting.CardId)
+        {
+            return this.CreateValidationProblem("targetCardPrintingId", "Target printing must belong to the same card.");
+        }
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        var existingTarget = await _db.DeckCards
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == request.TargetCardPrintingId, ct);
+
+        if (existingTarget is null)
+        {
+            source.CardPrintingId = request.TargetCardPrintingId;
+        }
+        else
+        {
+            existingTarget.QuantityInDeck += source.QuantityInDeck;
+            existingTarget.QuantityIdea += source.QuantityIdea;
+            existingTarget.QuantityProxy += source.QuantityProxy;
+            existingTarget.QuantityAcquire += source.QuantityAcquire;
+            existingTarget.QuantitySideboard += source.QuantitySideboard;
+            existingTarget.IsStarting |= source.IsStarting;
+            existingTarget.IsCommander |= source.IsCommander;
+            _db.DeckCards.Remove(source);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return NoContent();
+    }
 
     // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]

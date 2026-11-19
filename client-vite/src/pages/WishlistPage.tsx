@@ -9,6 +9,7 @@ import EditCardModal from "@/features/collection/EditCardModal";
 import type { PrintingListItem } from "@/features/printings/api/printings";
 import {
   useMoveToCollectionMutation,
+  useUpsertWishlistSourceMutation,
   useWishlistQuery,
   type WishlistItemDto,
 } from "@/features/wishlist/api";
@@ -95,6 +96,7 @@ export default function WishlistPage() {
       return next;
     });
   });
+  const sourceMutation = useUpsertWishlistSourceMutation();
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -116,17 +118,23 @@ export default function WishlistPage() {
     setMoveDialogItems(selectedItems);
   };
 
-  const handleConfirmMove = async (quantities: Map<number, number>) => {
+  const handleConfirmMove = async (
+    quantities: Map<number, number>,
+    selectedSources: Map<number, number | null>
+  ) => {
     const targetItems = moveDialogItems ?? [];
     if (targetItems.length === 0) return;
 
     if (targetItems.length === 1) {
       const item = targetItems[0];
       const quantity = quantities.get(item.cardPrintingId) ?? 0;
+      const hasExplicitSource = selectedSources.has(item.cardPrintingId);
       try {
         const snapshot = await moveMutation.mutateAsync({
           printingId: item.cardPrintingId,
           quantity,
+          deckId: hasExplicitSource ? selectedSources.get(item.cardPrintingId) : undefined,
+          sourceSpecified: hasExplicitSource,
         });
         const moved = Math.max(0, item.quantityWanted - snapshot.wantedAfter);
         setToast({ type: moved > 0 ? "success" : "info", message: formatMovedMessage(moved) });
@@ -146,10 +154,13 @@ export default function WishlistPage() {
           }
           const quantity = quantities.get(item.cardPrintingId);
           if (!quantity || quantity <= 0) throw new Error("Quantity must be a positive number.");
+          const hasExplicitSource = selectedSources.has(item.cardPrintingId);
 
           const snapshot = await moveMutation.mutateAsync({
             printingId: item.cardPrintingId,
             quantity,
+            deckId: hasExplicitSource ? selectedSources.get(item.cardPrintingId) : undefined,
+            sourceSpecified: hasExplicitSource,
           });
           return { item, snapshot };
         })
@@ -264,45 +275,107 @@ export default function WishlistPage() {
             </div>
           </div>
           <ul className="space-y-2">
-            {items.map((item) => (
-              <li
-                key={item.cardPrintingId}
-                className="flex items-center justify-between gap-3 rounded border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/30 transition-colors"
-              >
-                <label className="flex grow items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(item.cardPrintingId)}
-                    onChange={() => handleToggle(item.cardPrintingId)}
-                  />
-                  <span>
-                    <span className="font-medium">{item.cardName}</span>
-                    <span className="text-xs text-gray-500 ml-2">
-                      {item.set} #{item.number} · want {item.quantityWanted}
-                    </span>
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  className="rounded border px-2 py-1 text-sm hover:bg-muted"
-                  onClick={() => {
-                    setEditModalItem(item);
-                    setIsEditModalOpen(true);
-                  }}
-                  aria-label={`Edit ${item.cardName} wishlist entry`}
+            {items.map((item) => {
+              const sources = item.sources ?? [];
+              const hasMultiSource = sources.length > 1;
+              return (
+                <li
+                  key={item.cardPrintingId}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 dark:border-border p-3 hover:bg-gray-50 dark:hover:bg-muted/30 transition-colors"
                 >
-                  Edit
-                </button>
-                <button
-                  className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                  type="button"
-                  onClick={() => openSingleMoveDialog(item)}
-                  disabled={moveMutation.isPending}
-                >
-                  Move to collection
-                </button>
-              </li>
-            ))}
+                  <label className="flex grow items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.cardPrintingId)}
+                      onChange={() => handleToggle(item.cardPrintingId)}
+                    />
+                    <div className="space-y-1">
+                      <div>
+                        <span className="font-medium">{item.cardName}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          {item.set} #{item.number} · want {item.quantityWanted}
+                        </span>
+                      </div>
+                      {sources.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          {sources.map((src) => (
+                            <span
+                              key={src.deckId ?? "general"}
+                              className="inline-flex items-center gap-1 rounded border border-zinc-700/60 bg-zinc-800/70 px-2 py-0.5 text-zinc-200"
+                            >
+                              <span>
+                                {src.deckName}: {src.quantity}
+                              </span>
+                              {hasMultiSource && (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label={`Decrease ${item.cardName} ${src.deckName} quantity`}
+                                    disabled={sourceMutation.isPending}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      sourceMutation.mutate({
+                                        cardPrintingId: item.cardPrintingId,
+                                        deckId: src.deckId,
+                                        quantityWanted: src.quantity - 1,
+                                      });
+                                    }}
+                                    className="ml-1 rounded px-1 hover:bg-zinc-700 disabled:opacity-40"
+                                  >
+                                    −
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Increase ${item.cardName} ${src.deckName} quantity`}
+                                    disabled={sourceMutation.isPending}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      sourceMutation.mutate({
+                                        cardPrintingId: item.cardPrintingId,
+                                        deckId: src.deckId,
+                                        quantityWanted: src.quantity + 1,
+                                      });
+                                    }}
+                                    className="rounded px-1 hover:bg-zinc-700 disabled:opacity-40"
+                                  >
+                                    +
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-sm hover:bg-muted disabled:opacity-40"
+                    disabled={hasMultiSource}
+                    title={
+                      hasMultiSource
+                        ? "Multiple sources: adjust individual sources"
+                        : "Edit wishlist entry"
+                    }
+                    onClick={() => {
+                      setEditModalItem(item);
+                      setIsEditModalOpen(true);
+                    }}
+                    aria-label={`Edit ${item.cardName} wishlist entry`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    type="button"
+                    onClick={() => openSingleMoveDialog(item)}
+                    disabled={moveMutation.isPending}
+                  >
+                    Move to collection
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

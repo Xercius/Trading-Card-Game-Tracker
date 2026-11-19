@@ -7,6 +7,12 @@ import {
   type Paged as CollectionPaged,
 } from "@/features/collection/api";
 
+export type WishlistSourceDto = {
+  deckId: number | null;
+  deckName: string;
+  quantity: number;
+};
+
 export type WishlistItemDto = {
   cardPrintingId: number;
   quantityWanted: number;
@@ -18,6 +24,7 @@ export type WishlistItemDto = {
   rarity: string;
   style: string;
   imageUrl: string | null;
+  sources?: WishlistSourceDto[];
 };
 
 export type PagedWishlist<T> = {
@@ -40,6 +47,8 @@ export type MoveVariables = {
   printingId: number;
   quantity: number;
   useProxy?: boolean;
+  deckId?: number | null;
+  sourceSpecified?: boolean;
 };
 
 export type WishlistQueryParams = {
@@ -82,6 +91,8 @@ export function useMoveToCollectionMutation(
         cardPrintingId: variables.printingId,
         quantity: variables.quantity,
         useProxy: variables.useProxy ?? false,
+        deckId: variables.deckId ?? null,
+        sourceSpecified: variables.sourceSpecified ?? false,
       });
       return response.data;
     },
@@ -147,7 +158,35 @@ export function useMoveToCollectionMutation(
       queryClient.invalidateQueries({ queryKey: ["value", "summary"] });
       queryClient.invalidateQueries({ queryKey: ["collection", "sets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["collection", "set-detail"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wishlist.all() });
       onRemovedFromSelection?.(snapshot.printingId);
+    },
+  });
+}
+
+export type UpsertWishlistSourceVariables = {
+  cardPrintingId: number;
+  quantityWanted: number;
+  deckId: number | null;
+};
+
+/**
+ * Updates the desired quantity for a specific wishlist source (General or a Deck).
+ */
+export function useUpsertWishlistSourceMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (variables: UpsertWishlistSourceVariables) => {
+      await http.post("wishlist", {
+        cardPrintingId: variables.cardPrintingId,
+        quantityWanted: Math.max(0, variables.quantityWanted),
+        deckId: variables.deckId,
+      });
+      return variables;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.wishlist.all() });
+      queryClient.invalidateQueries({ queryKey: collectionKeys.all });
     },
   });
 }

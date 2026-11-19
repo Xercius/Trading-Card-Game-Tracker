@@ -548,3 +548,35 @@ export async function postDeckQuantityDelta(
     throw toProblemDetailsError(error);
   }
 }
+
+/**
+ * Switches a deck card entry to a different printing of the same card.
+ */
+export function useSwitchDeckCardPrintingMutation(deckId: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      fromPrintingId,
+      toPrintingId,
+    }: {
+      fromPrintingId: number;
+      toPrintingId: number;
+    }) => {
+      if (deckId == null) throw new Error("Deck not selected");
+      try {
+        await http.patch(`decks/${deckId}/cards/${fromPrintingId}/printing`, {
+          targetCardPrintingId: toPrintingId,
+        });
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSuccess: () => {
+      if (deckId != null) {
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.all });
+        queryClient.invalidateQueries({ queryKey: ["decks", deckId] });
+      }
+    },
+  });
+}

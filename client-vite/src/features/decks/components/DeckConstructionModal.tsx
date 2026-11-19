@@ -19,9 +19,11 @@ import {
   useMtgDeckValidation,
   useDeckQuantityMutation,
   usePatchDeckCardMutation,
+  useSwitchDeckCardPrintingMutation,
   useUpdateDeckMutation,
   type DeckCardWithAvailability,
 } from "../api";
+import { PrintingPickerPopover } from "./PrintingPickerPopover";
 import {
   SWU_ASPECT_IMAGES,
   computeDeckAspects,
@@ -76,6 +78,7 @@ export function DeckConstructionModal({
   game,
 }: DeckConstructionModalProps) {
   const { data: deck, isLoading: isDeckLoading } = useDeckDetails(deckId);
+  const switchPrintingMutation = useSwitchDeckCardPrintingMutation(deckId);
   const currentGame = deck?.game || game || "Star Wars Unlimited";
   const isSwu = currentGame.toLowerCase().includes("unlimited");
   const isSwccg = currentGame.toLowerCase().includes("ccg");
@@ -1513,6 +1516,23 @@ export function DeckConstructionModal({
                                   >
                                     +SB
                                   </button>
+                                )}
+
+                                {card.cardId != null && (
+                                  <PrintingPickerPopover
+                                    cardId={card.cardId}
+                                    currentPrintingId={card.printingId}
+                                    currentLabel={card.setName ?? "Printing"}
+                                    ariaLabel={`Switch printing for ${card.cardName}`}
+                                    onSelectPrinting={(targetId) => {
+                                      if (targetId !== card.printingId) {
+                                        switchPrintingMutation.mutate({
+                                          fromPrintingId: card.printingId,
+                                          toPrintingId: targetId,
+                                        });
+                                      }
+                                    }}
+                                  />
                                 )}
 
                                 <div className="flex items-center bg-zinc-800 rounded border border-zinc-700">
