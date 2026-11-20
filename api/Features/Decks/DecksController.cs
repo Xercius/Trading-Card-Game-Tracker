@@ -400,7 +400,7 @@ public class DecksController : ControllerBase
         }
 
         var cards = await _db.DeckCards
-            .Where(card => card.DeckId == deckId && card.QuantityInDeck > 0)
+            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantityIdea > 0))
             .Include(card => card.CardPrinting!)
                 .ThenInclude(printing => printing.RarityLookup)
             .Include(card => card.CardPrinting!)
@@ -430,7 +430,7 @@ public class DecksController : ControllerBase
         }
 
         var cards = await _db.DeckCards
-            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantitySideboard > 0))
+            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantitySideboard > 0 || card.QuantityIdea > 0))
             .Include(card => card.CardPrinting!)
                 .ThenInclude(printing => printing.Card)
                     .ThenInclude(card => card.CardTypes)
@@ -1104,7 +1104,7 @@ public class DecksController : ControllerBase
             maxAllowedCopies);
     }
 
-    private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
+    private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies, bool includeIdeas = false)
     {
         var (deck, cards, err) = await LoadDeckWithCards(deckId);
         if (err != null) return err;
@@ -1126,7 +1126,7 @@ public class DecksController : ControllerBase
             var printing = dc.CardPrinting;
             var card = printing?.Card;
             if (printing is null || card is null) continue;
-            if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0) continue;
+            if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0 && (!includeIdeas || dc.QuantityIdea == 0)) continue;
 
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;
@@ -1137,6 +1137,8 @@ public class DecksController : ControllerBase
             {
                 availableWithProxy = available;
             }
+            var ownedForMissing = includeProxies ? (owned + proxy) : owned;
+            var missingQuantity = Math.Max(0, assigned - ownedForMissing);
 
             var cardType = card.CardTypes?.OrderBy(type => type.SourceRole == "Type" ? 0 : 1).FirstOrDefault()?.CardType?.Name;
             var isHorizontal = printing.ArtFrontHorizontal == true;
@@ -1169,7 +1171,11 @@ public class DecksController : ControllerBase
                 isMtg && MtgCardMetadataHelper.CanBeCommander(card),
                 isMtg && MtgCardMetadataHelper.IsBasicLand(card),
                 hasUnlimitedCopies,
-                maxAllowedCopies
+                maxAllowedCopies,
+                dc.QuantityIdea,
+                owned,
+                proxy,
+                missingQuantity
             ));
         }
 
@@ -1302,8 +1308,11 @@ public class DecksController : ControllerBase
     // GET /api/decks/{deckId}/cards-with-availability
     [HttpGet("/api/deck/{deckId:int}/cards-with-availability")]
     [HttpGet("/api/decks/{deckId:int}/cards-with-availability")] // alias
-    public async Task<IActionResult> GetDeckCardsWithAvailability(int deckId, [FromQuery] bool includeProxies = false)
-        => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies);
+    public async Task<IActionResult> GetDeckCardsWithAvailability(
+        int deckId,
+        [FromQuery] bool includeProxies = false,
+        [FromQuery] bool includeIdeas = false)
+        => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies, includeIdeas);
 
     // POST /api/deck/{deckId}/cards/quantity-delta
     [HttpPost("/api/deck/{deckId:int}/cards/quantity-delta")]
@@ -1493,6 +1502,68 @@ public class DecksController : ControllerBase
     [HttpDelete("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
     public async Task<IActionResult> RemoveDeckCard(int deckId, int cardPrintingId)
         => await RemoveDeckCardCore(deckId, cardPrintingId);
+
+    // POST /api/decks/{deckId}/wishlist-missing
+    [HttpPost("/api/deck/{deckId:int}/wishlist-missing")]
+    [HttpPost("/api/decks/{deckId:int}/wishlist-missing")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<AddMissingToWishlistResponse>> AddMissingToWishlist(
+        int deckId,
+        [FromBody] AddMissingToWishlistRequest? request)
+    {
+        var ct = HttpContext.RequestAborted;
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
+        if (err is not null) return (ActionResult)err;
+        if (deck is null) return Forbid();
+
+        var targetPrintingId = request?.CardPrintingId;
+        if (targetPrintingId.HasValue && targetPrintingId.Value <= 0)
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
+
+        var includeProxies = request?.IncludeProxies ?? false;
+        var candidates = targetPrintingId.HasValue
+            ? cards.Where(dc => dc.CardPrintingId == targetPrintingId.Value).ToList()
+            : cards;
+
+        if (targetPrintingId.HasValue && candidates.Count == 0)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {targetPrintingId.Value} was not found in deck {deckId}.");
+        }
+
+        var printIds = candidates.Select(dc => dc.CardPrintingId).Distinct().ToList();
+        var userCards = await _db.UserCards
+            .AsNoTracking()
+            .Where(uc => printIds.Contains(uc.CardPrintingId))
+            .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
+
+        int cardsUpdated = 0;
+        int totalCopiesNeeded = 0;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var dc in candidates)
+        {
+            var needed = dc.QuantityInDeck + dc.QuantitySideboard;
+            if (needed <= 0) continue;
+
+            userCards.TryGetValue(dc.CardPrintingId, out var uc);
+            var owned = uc?.QuantityOwned ?? 0;
+            var proxy = uc?.QuantityProxyOwned ?? 0;
+            var ownedForMissing = includeProxies ? (owned + proxy) : owned;
+            var missing = Math.Max(0, needed - ownedForMissing);
+            if (missing <= 0) continue;
+
+            await _sourceSync.SetSourceQuantityAsync(dc.CardPrintingId, deckId, missing, ct);
+            cardsUpdated++;
+            totalCopiesNeeded += missing;
+        }
+        await tx.CommitAsync(ct);
+
+        return Ok(new AddMissingToWishlistResponse(cardsUpdated, totalCopiesNeeded));
+    }
 
     // ----- Availability -----
 

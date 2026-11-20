@@ -12,10 +12,12 @@ import { buildPrintingQuery } from "@/features/printings/api/usePrintings";
 import StickyDeckSidebar from "./StickyDeckSidebar";
 import { PrintingPickerPopover } from "./components/PrintingPickerPopover";
 import {
+  useAddMissingToWishlistMutation,
   useDeckCardsWithAvailability,
   useDeckDetails,
   useDeckQuantityMutation,
   useDeckValueHistory,
+  usePatchDeckCardMutation,
   useSwitchDeckCardPrintingMutation,
 } from "./api";
 import { useGame } from "@/state/useGame";
@@ -89,6 +91,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
   const deckCardsQuery = useDeckCardsWithAvailability(deckId, includeProxies);
   const deckQuantityMutation = useDeckQuantityMutation(deckId, includeProxies);
+  const patchDeckCardMutation = usePatchDeckCardMutation(deckId, includeProxies);
+  const addMissingWishlistMutation = useAddMissingToWishlistMutation(deckId, includeProxies);
   const switchPrintingMutation = useSwitchDeckCardPrintingMutation(deckId);
   const deckValueHistoryQuery = useDeckValueHistory(deckId);
   const deckValuePoints = deckValueHistoryQuery.data ?? EMPTY_DECK_VALUE_POINTS;
@@ -264,6 +268,20 @@ export default function DeckBuilderPage({ deckId }: Props) {
         onAdjustQuantity={handleQuantityChange}
         onSwitchPrinting={(fromId, toId) =>
           switchPrintingMutation.mutate({ fromPrintingId: fromId, toPrintingId: toId })
+        }
+        onAddMissingToWishlist={(printingId) => addMissingWishlistMutation.mutate(printingId)}
+        isAddingMissing={addMissingWishlistMutation.isPending}
+        onAdjustIdea={(printingId, nextIdeaQty) =>
+          patchDeckCardMutation.mutate({ printingId, updates: { quantityIdea: nextIdeaQty } })
+        }
+        onPromoteIdea={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: {
+              quantityInDeck: row.quantityInDeck + 1,
+              quantityIdea: Math.max(0, (row.quantityIdea ?? 0) - 1),
+            },
+          })
         }
         isLoading={deckCardsQuery.isLoading}
         valueHistory={{

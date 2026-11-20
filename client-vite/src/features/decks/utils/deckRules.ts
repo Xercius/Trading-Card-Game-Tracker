@@ -10,6 +10,7 @@ export type DeckCardItem = {
   aspects?: Array<{ name: string; count: number }> | null;
   isStarting?: boolean;
   quantitySideboard?: number;
+  quantityIdea?: number;
   isCommander?: boolean;
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
@@ -179,11 +180,12 @@ export function validateSwuDeck(
     );
   }
 
-  // Check copy counts grouped by Card Name / ID
+  // Check copy counts grouped by Card Name / ID (across Deck + Sideboard + Ideas)
   const countsByName: Record<string, number> = {};
   for (const c of deckCards) {
-    if (c.quantityInDeck <= 0) continue;
-    countsByName[c.cardName] = (countsByName[c.cardName] || 0) + c.quantityInDeck;
+    const total = c.quantityInDeck + (c.quantitySideboard ?? 0) + (c.quantityIdea ?? 0);
+    if (total <= 0) continue;
+    countsByName[c.cardName] = (countsByName[c.cardName] || 0) + total;
   }
 
   const copyViolations: Array<{ cardName: string; count: number; max: number }> = [];
@@ -384,11 +386,12 @@ export function validateMtgDeck(
       string,
       { count: number; isUnlimited: boolean; maxOverride: number | null }
     > = {};
-    for (const c of active) {
-      if (c.quantityInDeck <= 0) continue;
+    for (const c of deckCards) {
+      const total = c.quantityInDeck + (c.quantitySideboard ?? 0) + (c.quantityIdea ?? 0);
+      if (total <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {
-        count: (existing?.count ?? 0) + c.quantityInDeck,
+        count: (existing?.count ?? 0) + total,
         isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
         maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
       };
@@ -434,8 +437,8 @@ export function validateMtgDeck(
       string,
       { count: number; isUnlimited: boolean; maxOverride: number | null }
     > = {};
-    for (const c of active) {
-      const total = c.quantityInDeck + (c.quantitySideboard ?? 0);
+    for (const c of deckCards) {
+      const total = c.quantityInDeck + (c.quantitySideboard ?? 0) + (c.quantityIdea ?? 0);
       if (total <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {

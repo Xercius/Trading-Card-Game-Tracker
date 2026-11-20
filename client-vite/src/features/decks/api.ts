@@ -70,6 +70,10 @@ export type DeckCardWithAvailability = {
   side?: string | null;
   setName?: string | null;
   quantitySideboard?: number;
+  quantityIdea?: number;
+  quantityOwned?: number;
+  quantityProxyOwned?: number;
+  missingQuantity?: number;
   isCommander?: boolean;
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
@@ -209,6 +213,7 @@ export async function patchDeckCard(
     isStarting?: boolean;
     quantityInDeck?: number;
     quantitySideboard?: number;
+    quantityIdea?: number;
     isCommander?: boolean;
   }
 ): Promise<void> {
@@ -233,6 +238,7 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
         isStarting?: boolean;
         quantityInDeck?: number;
         quantitySideboard?: number;
+        quantityIdea?: number;
         isCommander?: boolean;
       };
     }) => {
@@ -307,7 +313,7 @@ export async function fetchDeckCards(
   try {
     const response = await http.get<DeckCardWithAvailability[]>(
       `decks/${deckId}/cards-with-availability`,
-      { params: { includeProxies } }
+      { params: { includeProxies, includeIdeas: true } }
     );
     return response.data;
   } catch (error) {
@@ -549,6 +555,34 @@ export async function postDeckQuantityDelta(
   }
 }
 
+/**
+ * Adds missing deck cards to the wishlist tagged with this deck as their source.
+ */
+export function useAddMissingToWishlistMutation(deckId: number | null, includeProxies: boolean) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cardPrintingId?: number) => {
+      if (deckId == null) throw new Error("Deck not selected");
+      try {
+        const res = await http.post<{ cardsUpdated: number; totalCopiesNeeded: number }>(
+          `decks/${deckId}/wishlist-missing`,
+          {
+            cardPrintingId: cardPrintingId ?? null,
+            includeProxies,
+          }
+        );
+        return res.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      queryClient.invalidateQueries({ queryKey: ["collection"] });
+    },
+  });
+}
 /**
  * Switches a deck card entry to a different printing of the same card.
  */
