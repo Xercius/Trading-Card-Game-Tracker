@@ -19,6 +19,7 @@ export type PrintingListItem = {
   backImageUrl?: string | null;
   imageOrientation?: "horizontal" | "vertical" | null;
   backImageOrientation?: "horizontal" | "vertical" | null;
+  printingNotes?: string | null;
   cardTypes?: string[];
   aspects?: { name: string; count: number }[];
 };

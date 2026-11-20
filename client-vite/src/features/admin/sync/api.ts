@@ -315,3 +315,56 @@ export function useRunMtgCardsSyncMutation() {
     },
   });
 }
+
+export type SwccgCsvRowIssue = {
+  fileName: string;
+  rowNumber: number;
+  cardName: string;
+  side: string;
+  originalSet: string;
+  expansion: string;
+  reason: string;
+};
+
+export type AdminSwccgAlternatePrintingsSyncResponse = {
+  source: string;
+  status: string;
+  dryRun: boolean;
+  startedAt: string;
+  completedAt: string;
+  totalRowsProcessed: number;
+  newCardsCreated: number;
+  printingsCreated: number;
+  skippedExisting: number;
+  setsCreated: number;
+  raritiesCreated: number;
+  treatmentsCreated: number;
+  failedCount: number;
+  failures: SwccgCsvRowIssue[];
+  messages: string[];
+};
+
+/**
+ * Imports SWCCG new cards and alternate printings from repository CSV files.
+ * Requires at least one completed base SWCCG catalog sync.
+ */
+export function useRunStarWarsCcgAlternatePrintingsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<AdminSwccgAlternatePrintingsSyncResponse, Error, SwccgSyncOptions | undefined>({
+    mutationFn: async (options) => {
+      try {
+        const response = await http.post<AdminSwccgAlternatePrintingsSyncResponse>(
+          "admin/sync/star-wars-ccg/alternate-printings",
+          options ?? {}
+        );
+        return response.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsCcgStatus() });
+    },
+  });
+}

@@ -247,6 +247,82 @@ public sealed class AdminSwccgSyncControllerTests(CustomWebApplicationFactory fa
         Assert.DoesNotContain(payload.Messages, message => message.Contains("missing face title"));
     }
 
+    [Fact]
+    public async Task RunStarWarsCcgAlternatePrintings_BeforeBaseSync_ReturnsConflict()
+    {
+        await factory.ResetDatabaseAsync();
+        var (client, _) = CreateClientWithSwccgImporter(factory);
+        client.AsAdmin();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/admin/sync/star-wars-ccg/alternate-printings",
+            new { dryRun = false });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RunStarWarsCcgAlternatePrintings_AfterBaseSync_PersistsNewCardsAndLogs()
+    {
+        await factory.ResetDatabaseAsync();
+        var apiClient = new RecordingSwccgApiClient(
+            sets: [new SwccgSet("1", "Premiere", "Premiere", "P", "1995-12-01")],
+            cards: [CreateCard(168, "•Darth Vader")]);
+
+        var (client, services) = CreateClientWithSwccgImporter(factory, apiClient);
+        client.AsAdmin();
+
+        var baseResponse = await client.PostAsync("/api/admin/sync/star-wars-ccg", null);
+        baseResponse.EnsureSuccessStatusCode();
+
+        // Dry run first should not persist CSV cards
+        var dryResponse = await client.PostAsJsonAsync(
+            "/api/admin/sync/star-wars-ccg/alternate-printings",
+            new { dryRun = true });
+        dryResponse.EnsureSuccessStatusCode();
+
+        var dryPayload = await dryResponse.Content.ReadFromJsonAsync<AdminSwccgAlternatePrintingsSyncResponse>();
+        Assert.NotNull(dryPayload);
+        Assert.True(dryPayload!.DryRun);
+        Assert.Equal(17, dryPayload.NewCardsCreated);
+
+        using (var checkScope = services.CreateScope())
+        {
+            var checkDb = checkScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.False(await checkDb.Cards.AnyAsync(c => c.Side == "ANA"));
+        }
+
+        // Live import
+        var liveResponse = await client.PostAsJsonAsync(
+            "/api/admin/sync/star-wars-ccg/alternate-printings",
+            new { dryRun = false });
+        liveResponse.EnsureSuccessStatusCode();
+
+        var livePayload = await liveResponse.Content.ReadFromJsonAsync<AdminSwccgAlternatePrintingsSyncResponse>();
+        Assert.NotNull(livePayload);
+        Assert.False(livePayload!.DryRun);
+        Assert.Equal("swccg-alt-csv", livePayload.Source);
+        Assert.Equal(17, livePayload.NewCardsCreated);
+        Assert.True(livePayload.PrintingsCreated > 17);
+        Assert.True(livePayload.FailedCount > 0);
+        Assert.Equal(livePayload.FailedCount, livePayload.Failures.Count);
+
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.Cards.AnyAsync(c => c.Side == "ANA"));
+
+        var altLog = await db.SyncLogs
+            .OrderByDescending(l => l.Id)
+            .FirstOrDefaultAsync(l => l.CatalogScope == "SwccgAltPrintings" && l.Status != "DryRun");
+        Assert.NotNull(altLog);
+
+        var logsResponse = await client.GetAsync("/api/admin/sync/star-wars-ccg/logs");
+        logsResponse.EnsureSuccessStatusCode();
+        var logsPayload = await logsResponse.Content.ReadFromJsonAsync<AdminSyncLogsResponse>();
+        Assert.NotNull(logsPayload);
+        Assert.Contains(logsPayload!.Logs, entry => entry.Id == altLog!.Id);
+    }
+
     private static SwccgCardRecord CreateCard(int id, string? title)
     {
         return new SwccgCardRecord(

@@ -50,6 +50,7 @@ public sealed record PrintingDto(
     public string? BackImageUrl { get; init; }
     public string? ImageOrientation { get; init; }
     public string? BackImageOrientation { get; init; }
+    public string? PrintingNotes { get; init; }
     public IReadOnlyList<string> CardTypes { get; init; } = Array.Empty<string>();
     public IReadOnlyList<CardAspectResponse> Aspects { get; init; } = Array.Empty<CardAspectResponse>();
 }

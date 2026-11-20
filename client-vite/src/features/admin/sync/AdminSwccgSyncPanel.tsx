@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import SwccgAlternatePrintingsReport from "./SwccgAlternatePrintingsReport";
 import {
+  useRunStarWarsCcgAlternatePrintingsMutation,
   useRunStarWarsCcgSyncMutation,
   useStarWarsCcgSyncStatusQuery,
+  type AdminSwccgAlternatePrintingsSyncResponse,
   type SwccgSyncOptions,
 } from "./api";
 
@@ -19,12 +22,30 @@ function formatDateTime(value: string | null) {
 export default function AdminSwccgSyncPanel() {
   const statusQuery = useStarWarsCcgSyncStatusQuery();
   const runSync = useRunStarWarsCcgSyncMutation();
+  const runAltSync = useRunStarWarsCcgAlternatePrintingsMutation();
   const [feedback, setFeedback] = useState<SyncFeedback | null>(null);
+  const [altPrintingsResult, setAltPrintingsResult] =
+    useState<AdminSwccgAlternatePrintingsSyncResponse | null>(null);
+  const [altErrorMessage, setAltErrorMessage] = useState<string | null>(null);
   const [dryRun, setDryRun] = useState(false);
 
-  const isRunning = statusQuery.data?.status === "Running" || runSync.isPending;
+  const hasCompletedBaseSync = Boolean(statusQuery.data?.lastCompletedAt);
+  const isRunning = statusQuery.data?.status === "Running" || runSync.isPending || runAltSync.isPending;
   const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
   const progressMessage = isRunning ? "SWCCG sync is running…" : "";
+
+  async function handleRunAltSync() {
+    setAltErrorMessage(null);
+    try {
+      const response = await runAltSync.mutateAsync({ dryRun });
+      setAltPrintingsResult(response);
+    } catch (error) {
+      setAltPrintingsResult(null);
+      setAltErrorMessage(
+        error instanceof Error ? error.message : "Failed to run SWCCG alternate printings sync."
+      );
+    }
+  }
 
   const handleRunSync = async (overrideOptions?: SwccgSyncOptions) => {
     setFeedback(null);
@@ -179,15 +200,26 @@ export default function AdminSwccgSyncPanel() {
         >
           Dry run preview
         </Button>
+        {hasCompletedBaseSync ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => handleRunAltSync()}
+            disabled={runAltSync.isPending || isRunning}
+          >
+            {runAltSync.isPending ? "Syncing alternate printings…" : "Sync Alternate Printings"}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
           onClick={() => statusQuery.refetch()}
-          disabled={statusQuery.isFetching || runSync.isPending}
+          disabled={statusQuery.isFetching || runSync.isPending || runAltSync.isPending}
         >
           Refresh
         </Button>
       </div>
+      <SwccgAlternatePrintingsReport result={altPrintingsResult} errorMessage={altErrorMessage} />
     </section>
   );
 }

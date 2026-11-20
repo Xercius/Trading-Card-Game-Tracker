@@ -40,6 +40,7 @@ internal static class PrintingMapper
             BackImageUrl = printing.BackImageUrl,
             ImageOrientation = GetOrientation(printing.ArtFrontHorizontal),
             BackImageOrientation = GetOrientation(printing.ArtBackHorizontal),
+            PrintingNotes = printing.PrintingNotes,
             CardTypes = printing.Card.CardTypes.Select(type => type.CardType.Name)
                 .Distinct().OrderBy(name => name).ToList(),
             Aspects = printing.Card.CardAspects.OrderBy(aspect => aspect.Aspect.Name)

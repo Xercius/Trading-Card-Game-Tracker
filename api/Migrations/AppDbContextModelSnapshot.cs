@@ -425,6 +425,10 @@ namespace api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PrintingNotes")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("RarityId")
                         .HasColumnType("INTEGER");
 
