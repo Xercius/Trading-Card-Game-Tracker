@@ -25,6 +25,7 @@ public class DecksController : ControllerBase
     private readonly ILogger<DecksController> _logger;
     private readonly PokemonDeckValidationService _pokemonDeckValidationService;
     private readonly MtgDeckValidationService _mtgDeckValidationService;
+    private readonly DecklistTextService _decklistTextService;
     private readonly WishlistSourceSyncService _sourceSync;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
@@ -34,6 +35,7 @@ public class DecksController : ControllerBase
         ILogger<DecksController> logger,
         PokemonDeckValidationService pokemonDeckValidationService,
         MtgDeckValidationService mtgDeckValidationService,
+        DecklistTextService decklistTextService,
         WishlistSourceSyncService sourceSync)
     {
         _db = db;
@@ -41,6 +43,7 @@ public class DecksController : ControllerBase
         _logger = logger;
         _pokemonDeckValidationService = pokemonDeckValidationService;
         _mtgDeckValidationService = mtgDeckValidationService;
+        _decklistTextService = decklistTextService;
         _sourceSync = sourceSync;
     }
 
@@ -1572,4 +1575,55 @@ public class DecksController : ControllerBase
     [HttpGet("/api/decks/{deckId:int}/availability")] // alias
     public async Task<IActionResult> GetDeckAvailability(int deckId, [FromQuery] bool includeProxies = false)
         => await GetDeckAvailabilityCore(deckId, includeProxies);
+
+    // POST /api/decks/{deckId}/import-text/preview
+    [HttpPost("/api/deck/{deckId:int}/import-text/preview")]
+    [HttpPost("/api/decks/{deckId:int}/import-text/preview")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<DecklistImportPreviewResponse>> PreviewImportDecklistText(
+        int deckId,
+        [FromBody] DecklistImportPreviewRequest? request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Text))
+            return this.CreateValidationProblem("text", "Decklist text is required.");
+
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        var preview = await _decklistTextService.PreviewImportAsync(deck!, request.Text, HttpContext.RequestAborted);
+        return Ok(preview);
+    }
+
+    // POST /api/decks/{deckId}/import-text/apply
+    [HttpPost("/api/deck/{deckId:int}/import-text/apply")]
+    [HttpPost("/api/decks/{deckId:int}/import-text/apply")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<DecklistImportApplyResponse>> ApplyImportDecklistText(
+        int deckId,
+        [FromBody] DecklistImportApplyRequest? request)
+    {
+        if (request is null || request.Items is null || request.Items.Count == 0)
+            return this.CreateValidationProblem("items", "At least one decklist item is required.");
+
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        var (response, errorKey, errorMessage) = await _decklistTextService.ApplyImportAsync(
+            deck!, request, HttpContext.RequestAborted);
+        if (errorKey is not null)
+            return this.CreateValidationProblem(errorKey, errorMessage ?? "Invalid decklist import item.");
+
+        return Ok(response);
+    }
+
+    // GET /api/decks/{deckId}/export-text
+    [HttpGet("/api/deck/{deckId:int}/export-text")]
+    [HttpGet("/api/decks/{deckId:int}/export-text")]
+    public async Task<ActionResult<DecklistExportTextResponse>> ExportDecklistText(int deckId)
+    {
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        return Ok(_decklistTextService.ExportText(deck!, cards));
+    }
 }

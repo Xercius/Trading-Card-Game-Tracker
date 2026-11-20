@@ -30,4 +30,7 @@ export const queryKeys = {
   value: {
     summary: (game?: string) => ["value", "summary", game ?? "all"] as const,
   },
+  importExport: {
+    all: () => ["import-export"] as const,
+  },
 } as const;

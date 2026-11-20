@@ -10,6 +10,8 @@ import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { fetchPrintings } from "@/features/printings/api/printings";
 import { buildPrintingQuery } from "@/features/printings/api/usePrintings";
 import StickyDeckSidebar from "./StickyDeckSidebar";
+import { DecklistExportDialog } from "./components/DecklistExportDialog";
+import { DecklistImportDialog } from "./components/DecklistImportDialog";
 import { PrintingPickerPopover } from "./components/PrintingPickerPopover";
 import {
   useAddMissingToWishlistMutation,
@@ -55,6 +57,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
   const { filters, setFilters, clearAll } = useCardFilters();
   const [isFiltersOpen, setFiltersOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const deckDetailsQuery = useDeckDetails(deckId);
   const currentGame = deckDetailsQuery.data?.game || activeGame;
@@ -262,6 +266,9 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
       <StickyDeckSidebar
         deckName={deckName}
+        game={currentGame}
+        format={deckDetailsQuery.data?.format}
+        side={deckDetailsQuery.data?.side}
         rows={sidebarRows}
         includeProxies={includeProxies}
         onIncludeProxiesChange={setIncludeProxies}
@@ -271,6 +278,30 @@ export default function DeckBuilderPage({ deckId }: Props) {
         }
         onAddMissingToWishlist={(printingId) => addMissingWishlistMutation.mutate(printingId)}
         isAddingMissing={addMissingWishlistMutation.isPending}
+        onAdjustSideboard={(row, delta) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { quantitySideboard: Math.max(0, (row.quantitySideboard ?? 0) + delta) },
+          })
+        }
+        onToggleCommander={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { isCommander: !row.isCommander },
+          })
+        }
+        onToggleStarting={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { isStarting: !row.isStarting },
+          })
+        }
+        onMoveToIdea={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { quantityIdea: (row.quantityIdea ?? 0) + 1 },
+          })
+        }
         onAdjustIdea={(printingId, nextIdeaQty) =>
           patchDeckCardMutation.mutate({ printingId, updates: { quantityIdea: nextIdeaQty } })
         }
@@ -283,6 +314,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
             },
           })
         }
+        onOpenImport={() => setImportOpen(true)}
+        onOpenExport={() => setExportOpen(true)}
         isLoading={deckCardsQuery.isLoading}
         valueHistory={{
           points: deckValuePoints,
@@ -317,6 +350,12 @@ export default function DeckBuilderPage({ deckId }: Props) {
         hasActiveFilters={hasActiveFilters}
         game={currentGame}
       />
+      {importOpen && (
+        <DecklistImportDialog deckId={deckId} open={importOpen} onOpenChange={setImportOpen} />
+      )}
+      {exportOpen && (
+        <DecklistExportDialog deckId={deckId} open={exportOpen} onOpenChange={setExportOpen} />
+      )}
     </div>
   );
 }

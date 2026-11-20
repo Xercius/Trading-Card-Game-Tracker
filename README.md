@@ -11,6 +11,44 @@ The goal is start with Star Wars Unlimited, then expand to Star Wars CCG and the
 --Pokémon TCG
 --Transformers
 
+## Quick Start (Windows)
+
+### Download & Run (Standalone Release — No SDK Required)
+
+For non-developers on Windows (no `.NET 10 SDK`, `Node.js`, or `Git` required):
+
+1. Open the repository's **GitHub Releases** page and download `TradingCardGameTracker-vX.Y.Z-win-x64.zip` from the latest release.
+2. Extract the `.zip` archive to a folder on your computer.
+3. Double-click **`Start-TCGTracker.bat`** (or run `.\Start-TCGTracker.ps1` in PowerShell).
+4. The launcher starts the local server, waits for `/api/health`, creates a clean `app.db` on first launch, and opens the app in your browser at `http://localhost:5229`.
+5. Use the **Importers** menu in the top navigation bar to sync card catalogs for Star Wars: Unlimited, Star Wars CCG, Pokémon TCG, or Magic: The Gathering, and use **Backup & Restore** to export or restore JSON backups of your collection, decks, and wishlist.
+
+### One-Click Local Launch (From Source Repository)
+
+From the repository root on Windows, double-click **`Start-TCGTracker.bat`** or run:
+
+```powershell
+.\Start-TCGTracker.ps1
+```
+
+- On first launch (or when `api/wwwroot/index.html` is missing), the launcher installs frontend dependencies if needed and builds `client-vite` into `api/wwwroot`.
+- Warm starts skip the frontend rebuild for faster startup; pass `-Rebuild` (`.\Start-TCGTracker.ps1 -Rebuild`) to force a fresh frontend build.
+- Press `Ctrl+C` in the launcher window to stop the server cleanly.
+
+### Single-Server Mode (Manual Build)
+
+To build and serve the production `client-vite` bundle directly from the `.NET 10` API without running the Vite dev server:
+
+```bash
+cd client-vite
+npm ci
+npm run build
+cd ..
+dotnet run --project ./api/api.csproj --launch-profile "TradingCardApi (HTTPS)"
+```
+
+`npm run build` outputs the compiled bundle into `api/wwwroot`, and the `.NET` API serves the UI at `https://localhost:7226` alongside `/api/*` endpoints (with SPA fallback routing for direct links and page refreshes).
+
 ## Development Environment
 
 - **.NET SDK**: 10.0 (pinned via `global.json`)

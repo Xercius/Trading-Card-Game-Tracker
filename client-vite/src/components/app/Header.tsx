@@ -6,6 +6,7 @@ import { useGame } from "@/state/useGame";
 import { resolveImageUrl } from "@/lib/http";
 import { paths } from "@/routes/paths";
 import { WhatsNewFlyout } from "@/features/changelog/components/WhatsNewFlyout";
+import { BackupRestoreDialog } from "@/features/import-export/components/BackupRestoreDialog";
 
 type NavLinkItem = {
   to: string;
@@ -131,6 +132,7 @@ export default function Header() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [importersOpen, setImportersOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   const [brandImgError, setBrandImgError] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const importersDropdownRef = useRef<HTMLDivElement>(null);
@@ -347,6 +349,15 @@ export default function Header() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => setBackupOpen(true)}
+            >
+              Backup &amp; Restore
+            </Button>
             <WhatsNewFlyout />
             <button
               ref={menuBtnRef}
@@ -456,10 +467,26 @@ export default function Header() {
                   ))}
                 </ul>
               </div>
+
+              <div className="pt-3 border-t mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setBackupOpen(true);
+                  }}
+                >
+                  Backup &amp; Restore
+                </Button>
+              </div>
             </nav>
           </>
         )}
       </div>
+      <BackupRestoreDialog open={backupOpen} onOpenChange={setBackupOpen} />
     </header>
   );
 }

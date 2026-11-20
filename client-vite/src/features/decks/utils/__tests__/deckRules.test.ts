@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   computeDeckAspects,
   calculateAspectPenalty,
+  getGameCapabilities,
+  groupDeckCardsByZone,
   isCardInAspect,
   validateSwuDeck,
   validateSwccgDeck,
@@ -431,5 +433,99 @@ describe("deckRules - Magic: The Gathering", () => {
     );
     expect(invalid.isValid).toBe(false);
     expect(invalid.copyViolations).toEqual([{ cardName: "Nazgûl", count: 10, max: 9 }]);
+  });
+});
+
+describe("deckRules - Zone grouping & game capabilities", () => {
+  it("scopes capabilities accurately by game and format", () => {
+    expect(getGameCapabilities("Magic The Gathering", "Constructed")).toMatchObject({
+      hasSideboard: true,
+      hasCommander: false,
+      hasStartingCards: false,
+      hasLeadersAndBase: false,
+    });
+    expect(getGameCapabilities("Magic The Gathering", "Commander")).toMatchObject({
+      hasSideboard: false,
+      hasCommander: true,
+    });
+    expect(getGameCapabilities("Star Wars CCG", "Standard")).toMatchObject({
+      hasStartingCards: true,
+      hasDefensiveShields: true,
+      hasCommander: false,
+      hasSideboard: false,
+    });
+    expect(getGameCapabilities("Star Wars Unlimited", "Premier")).toMatchObject({
+      hasLeadersAndBase: true,
+      hasStartingCards: false,
+    });
+  });
+
+  it("groups cards by game-specific zones including Sideboard and Ideas", () => {
+    const mtgGroups = groupDeckCardsByZone(
+      [
+        {
+          printingId: 1,
+          cardName: "Lightning Bolt",
+          quantityInDeck: 3,
+          quantitySideboard: 1,
+          quantityIdea: 1,
+          cardType: "Instant",
+        },
+      ],
+      "Magic The Gathering",
+      "Constructed"
+    );
+    expect(mtgGroups.map((g) => g.label)).toEqual(["Instant", "Sideboard", "Ideas"]);
+
+    const swccgGroups = groupDeckCardsByZone(
+      [
+        {
+          printingId: 1,
+          cardName: "Heading For The Medical Frigate",
+          quantityInDeck: 1,
+          isStarting: true,
+          cardType: "Effect",
+        },
+        {
+          printingId: 2,
+          cardName: "Battle Order",
+          quantityInDeck: 1,
+          cardType: "Defensive Shield",
+        },
+        { printingId: 3, cardName: "Luke Skywalker", quantityInDeck: 2, cardType: "Character" },
+      ],
+      "Star Wars CCG"
+    );
+    expect(swccgGroups.map((g) => g.label)).toEqual([
+      "⭐ Starting Cards",
+      "🛡️ Defensive Shields",
+      "Character",
+    ]);
+
+    const pokemonGroups = groupDeckCardsByZone(
+      [
+        { printingId: 1, cardName: "Fire Energy", quantityInDeck: 10, cardType: "Energy" },
+        { printingId: 2, cardName: "Pikachu", quantityInDeck: 4, cardType: "Pokemon" },
+        { printingId: 3, cardName: "Professor's Research", quantityInDeck: 4, cardType: "Trainer" },
+      ],
+      "Pokemon TCG"
+    );
+    expect(pokemonGroups.map((g) => g.label)).toEqual(["Pokémon", "Trainer", "Energy"]);
+  });
+
+  it("includes zone breakdown when copy violations span Main, Sideboard, and Ideas", () => {
+    const res = validateMtgDeck(
+      [
+        {
+          printingId: 1,
+          cardName: "Lightning Bolt",
+          quantityInDeck: 2,
+          quantitySideboard: 2,
+          quantityIdea: 1,
+        },
+      ],
+      "Constructed"
+    );
+    expect(res.issues.some((i) => i.includes("2 Main, 2 Sideboard, 1 Ideas"))).toBe(true);
   });
 });

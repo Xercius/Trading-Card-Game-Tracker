@@ -9,11 +9,18 @@ internal static class WebApplicationExtensions
         app.UseForwardedHeaders();
         app.UseExceptionHandler();
 
-        if (!app.Environment.IsEnvironment("Testing"))
+        var configuredUrls = app.Configuration["urls"]
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
+            ?? string.Empty;
+        var hasHttpsEndpoint = configuredUrls.Contains("https://", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(app.Configuration["Kestrel:Endpoints:Https:Url"]);
+
+        if (!app.Environment.IsEnvironment("Testing") && (app.Environment.IsDevelopment() || hasHttpsEndpoint))
         {
             app.UseHttpsRedirection();
         }
 
+        app.UseDefaultFiles();
         app.UseStaticFiles();
         app.UseRouting();
         app.UseRateLimiter();

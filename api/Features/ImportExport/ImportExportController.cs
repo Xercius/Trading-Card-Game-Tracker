@@ -50,10 +50,10 @@ public sealed class ImportExportController(ImportExportService service) : Contro
         if (payload.Version != 1)
             return this.CreateValidationProblem("version", "Unsupported version.");
 
-        var missing = await service.FindMissingPrintingIdsAsync(payload, ct);
-        if (missing.Count > 0)
-            return this.CreateValidationProblem("cardPrintingId", $"Unknown CardPrintingId(s): {string.Join(", ", missing)}");
+        var (response, legacyMissing) = await service.TryImportJsonAsync(payload, normalizedMode == "replace", ct);
+        if (legacyMissing.Count > 0)
+            return this.CreateValidationProblem("cardPrintingId", $"Unknown CardPrintingId(s): {string.Join(", ", legacyMissing)}");
 
-        return Ok(await service.ImportJsonAsync(payload, normalizedMode == "replace", ct));
+        return Ok(response);
     }
 }

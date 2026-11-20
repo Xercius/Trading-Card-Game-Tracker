@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node ../scripts/copy-client-to-wwwroot.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\"",
     "lint:fix": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --fix",
