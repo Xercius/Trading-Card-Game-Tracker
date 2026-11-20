@@ -122,12 +122,15 @@ public sealed class SwccgJsonImporter : ISourceImporter
 
             var existingCards = await _db.Cards.Where(c => c.GameId == game.Id).ToListAsync(ct);
             var cardsByUid = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
+            var cardsByTitleAndSide = new Dictionary<string, Card>(StringComparer.OrdinalIgnoreCase);
             var existingCardSet = new HashSet<Card>(ReferenceEqualityComparer.Instance);
             foreach (var c in existingCards)
             {
                 existingCardSet.Add(c);
                 if (!string.IsNullOrWhiteSpace(c.CardUid))
                     cardsByUid[c.CardUid] = c;
+                if (!string.IsNullOrWhiteSpace(c.Name))
+                    cardsByTitleAndSide.TryAdd(BuildTitleSideKey(c.Name, c.Side), c);
             }
 
             var printings = await _db.CardPrintings
@@ -148,13 +151,16 @@ public sealed class SwccgJsonImporter : ISourceImporter
             {
                 _db.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                foreach (var record in records)
+                var orderedRecords = records
+                    .OrderBy(r => SwccgCatalog.ParseTitleAndAiTreatment((r.Front ?? r.Back)?.Title).AiTreatment is not null ? 1 : 0);
+
+                foreach (var record in orderedRecords)
                 {
                     if (processed++ >= limit) break;
 
                     try
                     {
-                        UpsertCard(record, catalog, identity, cardsByUid, existingCardSet, updatedCards, summary, updatedPrintings);
+                        UpsertCard(record, catalog, identity, cardsByUid, cardsByTitleAndSide, existingCardSet, updatedCards, summary, updatedPrintings);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -176,11 +182,15 @@ public sealed class SwccgJsonImporter : ISourceImporter
         });
     }
 
+    private static string BuildTitleSideKey(string title, string? side) =>
+        $"{title.Trim()}|{SwccgCatalog.NormalizeSide(side) ?? side?.Trim() ?? string.Empty}";
+
     private void UpsertCard(
         SwccgCardRecord record,
         SwccgCatalog catalog,
         SwccgSharedIdentity identity,
         Dictionary<string, Card> cardsByUid,
+        Dictionary<string, Card> cardsByTitleAndSide,
         HashSet<Card> existingCardSet,
         HashSet<Card> updatedCards,
         ImportSummary summary,
@@ -192,7 +202,7 @@ public sealed class SwccgJsonImporter : ISourceImporter
             throw new InvalidOperationException($"Record ID {record.Id} missing face title.");
         }
 
-        var (cleanTitle, inferredUniqueness) = SwccgCatalog.ParseTitleUniqueness(face.Title);
+        var (cleanTitle, inferredUniqueness, aiTreatment) = SwccgCatalog.ParseTitleAndAiTreatment(face.Title);
         var title = !string.IsNullOrWhiteSpace(cleanTitle) ? cleanTitle : face.Title.Trim();
         var cardUid = !string.IsNullOrWhiteSpace(record.GempId)
             ? record.GempId.Trim()
@@ -205,11 +215,16 @@ public sealed class SwccgJsonImporter : ISourceImporter
         // 1. Resolve Printing
         var printing = identity.FindPrinting(cardUid, set, number);
 
-        // 2. Resolve Card
+        // 2. Resolve Card (by printing, by UID, or by cleaned base title + side for AI variants)
+        var titleSideKey = BuildTitleSideKey(title, record.Side);
         var card = printing?.Card;
         if (card is null)
         {
             cardsByUid.TryGetValue(cardUid, out card);
+        }
+        if (card is null && !string.IsNullOrWhiteSpace(aiTreatment))
+        {
+            cardsByTitleAndSide.TryGetValue(titleSideKey, out card);
         }
 
         var now = _timeProvider.GetUtcNow();
@@ -225,12 +240,16 @@ public sealed class SwccgJsonImporter : ISourceImporter
             };
             _db.Cards.Add(card);
             cardsByUid[cardUid] = card;
+            cardsByTitleAndSide.TryAdd(titleSideKey, card);
             summary.CardsCreated++;
         }
 
-        // Apply card properties
+        // Apply card properties (preserve base CardUid when attaching an alternate-image variant)
         card!.Name = title;
-        card.CardUid = cardUid;
+        if (isNewCard || string.IsNullOrWhiteSpace(aiTreatment))
+        {
+            card.CardUid = cardUid;
+        }
         card.Text = face.Gametext;
         card.TextStyled = face.Gametext;
         card.Lore = face.Lore;

@@ -416,6 +416,10 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
         return false;
     }
 
+    private static readonly System.Text.RegularExpressions.Regex AiSuffixRegex = new(
+        @"\s*\((?<ai>(?:BORDER BREAKER |C-SLIP |HOLO )?AI(?:\s+2)?)\)\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     /// <summary>
     /// Removes uniqueness indicators (dots such as • or * and diamonds such as &lt;&gt;) from the beginning of a card title,
     /// returning the cleaned title and any extracted uniqueness marker.
@@ -469,14 +473,36 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>
-    /// Removes uniqueness indicators (dots such as • or * and diamonds such as &lt;&gt;) from the beginning of a card title.
+    /// Parses uniqueness markers and strips any trailing SWCCG alternate-image suffix
+    /// (<c>(AI)</c>, <c>(BORDER BREAKER AI)</c>, <c>(C-SLIP AI)</c>, <c>(C-SLIP AI 2)</c>, <c>(HOLO AI)</c>).
+    /// </summary>
+    internal static (string CleanTitle, string? ExtractedUniqueness, string? AiTreatment) ParseTitleAndAiTreatment(string? title)
+    {
+        var (clean, uniqueness) = ParseTitleUniqueness(title);
+        if (string.IsNullOrWhiteSpace(clean))
+            return (clean, uniqueness, null);
+
+        var match = AiSuffixRegex.Match(clean);
+        if (!match.Success)
+            return (clean, uniqueness, null);
+
+        var aiTreatment = System.Text.RegularExpressions.Regex.Replace(
+            match.Groups["ai"].Value.Trim(),
+            @"\s+",
+            " ").ToUpperInvariant();
+        var stripped = clean[..match.Index].TrimEnd();
+        return (stripped, uniqueness, aiTreatment);
+    }
+
+    /// <summary>
+    /// Removes uniqueness indicators and trailing AI treatment suffixes from a card title.
     /// </summary>
     internal static string? CleanTitle(string? title)
     {
         if (string.IsNullOrWhiteSpace(title))
             return null;
 
-        var (clean, _) = ParseTitleUniqueness(title);
+        var (clean, _, _) = ParseTitleAndAiTreatment(title);
         return clean;
     }
 
@@ -580,12 +606,13 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
 
     internal static string ResolveTreatmentName(SwccgCardRecord record)
     {
-        var title = record.Front?.Title ?? "";
+        var rawTitle = record.Front?.Title ?? "";
+        var (cleanTitle, _, aiTreatment) = ParseTitleAndAiTreatment(rawTitle);
         var treatments = new List<string>(3);
-        if (title.Contains("(V)", StringComparison.OrdinalIgnoreCase))
+        if (cleanTitle.Contains("(V)", StringComparison.OrdinalIgnoreCase))
             treatments.Add("Virtual");
-        if (title.Contains("(AI)", StringComparison.OrdinalIgnoreCase))
-            treatments.Add("Alternate Image");
+        if (!string.IsNullOrWhiteSpace(aiTreatment))
+            treatments.Add(aiTreatment);
         if (IsFoilRarity(record.Rarity))
             treatments.Add("Foil");
 
