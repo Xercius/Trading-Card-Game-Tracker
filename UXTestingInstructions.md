@@ -178,7 +178,51 @@ Click **Decks** in the top navigation bar and practice creating and editing deck
 
 ---
 
-## 5. Sharing Your Feedback (Creating GitHub Issues)
+## 5. New Features to Test on the `NextSteps` Branch
+
+In addition to the core walkthrough above, please specifically test the following additions introduced on the `NextSteps` branch:
+
+### A. SWCCG `(AI)` Treatments & CSV Alternate Printings Importer (`Importers → SWCCG Sync` & `/cards`)
+1. **Prerequisite Gate Before Base Sync:**
+   - On a fresh database, open **Importers → SWCCG Sync** and verify the **Sync Alternate Printings** button is **not** shown until the base SWCCG sync has completed.
+2. **Base Sync & `(AI)` Suffix Grouping:**
+   - Click **Run SWCCG sync** and wait for it to finish.
+   - Search SWCCG cards on `/cards` and verify variants that previously ended in `(AI)`, `(BORDER BREAKER AI)`, `(C-SLIP AI)`, `(C-SLIP AI 2)`, or `(HOLO AI)` are grouped onto their base card as printings with those labels as their **Treatment** (rather than separate duplicate cards).
+3. **Alternate Printings & New Cards CSV Import:**
+   - After the base sync completes, verify **Sync Alternate Printings** is now visible.
+   - Test with the **Dry run** option first (if toggled on) to preview counts without persisting, then run **Sync Alternate Printings** live.
+   - Review the **Alternate Printings Import Summary** counts (*Rows processed*, *New cards*, *Printings created*, *Skipped existing*, *Sets/Rarities/Treatments created*, *Failed rows*).
+   - If any rows fail, verify the red alert banner, structured **Failures** table, and **Copy Failure Report** button make it obvious what failed; if zero fail, verify the clean completion status message.
+   - Click **Sync Alternate Printings** a second time and confirm existing rows are skipped cleanly (*Skipped existing*) with no duplicates created.
+4. **Printing Notes in Card Details:**
+   - Open an alternate printing or misprint card in the **Card Details Modal** (`/cards`) and verify **Printing Notes** displays when present, alongside inherited artwork/collector number and `Standard` treatment when the CSV treatment column was blank.
+
+### B. Fast Collection Quantity Updates (`/collection`)
+1. Open a set detail page (`/collection/sets/:id`) and **rapid-click `+` and `−`** on **Owned** and **Proxy** steppers across multiple rows — controls should stay responsive without locking between requests, and values should persist accurately after a brief pause/refresh.
+2. Click directly into a stepper input, type a multi-digit number (e.g., `12`), and press `Enter` or click away to verify it commits cleanly.
+3. Open a large set (>50 cards) and verify smooth scrolling and live updates to the set completion summary.
+
+### C. Wishlist Source Tracking (`/wishlist`)
+1. Add wanted cards both generally (from **Cards** / **Wishlist**) and from a deck (see **Section E** below).
+2. On `/wishlist`, verify per-source badges (e.g., *General* vs a deck name) appear on each wanted card.
+3. For cards wanted by **multiple sources**, adjust quantities with the per-source `+`/`−` controls and verify the total **Edit** button is disabled so ambiguous edits are prevented.
+4. Click **Move to Collection** on a multi-source item and verify you can choose which source to move quantities from.
+
+### D. Deck Printing Selection (`/decks`)
+1. Open a deck in the **Deck Builder / Deck Construction Modal** and use **`+ Printing`** on a search result to add a specific printing.
+2. On an existing row in the deck list, use the inline printing switcher to change to another printing; switch to a printing already in the deck and verify quantities merge cleanly.
+
+### E. Deck Card Ideas Zone & Missing-Cards Wishlist Sync (`/decks`)
+1. **Ideas Zone:**
+   - Add cards to a deck's **Ideas** zone, adjust their quantities with `+`/`−`, and test **Move to Deck**.
+   - Verify copy-limit validation counts copies across Main Deck + Sideboard + Ideas, while deck-size limits exclude Ideas.
+2. **Missing-Cards Check & Wishlist Sync:**
+   - Review **Missing N** badges against your owned/proxy collection and toggle the **Missing Only** filter.
+   - Click per-row **+ Wishlist** and the header **Add Missing (N)** button, then check `/wishlist` to verify those cards are tracked under that deck's source.
+
+---
+
+## 6. Sharing Your Feedback (Creating GitHub Issues)
 
 Please submit any bugs you encounter or feature/UX improvement ideas directly as **GitHub Issues** in the repository:
 
