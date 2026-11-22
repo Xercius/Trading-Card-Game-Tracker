@@ -47,7 +47,7 @@ From the repository root, double-click **`Start-TCGTracker.bat`** in File Explor
 .\Start-TCGTracker.ps1
 ```
 
-The launcher automatically handles first-time client bundling, starts the single-server app at **`https://localhost:7226`**, waits for `/api/health`, opens your default browser automatically, and cleans up the server process when you press `Ctrl+C` or close the window.
+The launcher automatically handles first-time client bundling, starts the single-server app at **`http://localhost:5229`**, waits for `/api/health`, opens your default browser automatically, and cleans up the server process when you press `Ctrl+C` or close the window.
 
 - **Useful PowerShell flags:**
   - `.\Start-TCGTracker.ps1 -Rebuild` — Rebuild the frontend (`client-vite`) and backend after pulling updates.
@@ -58,7 +58,7 @@ The launcher automatically handles first-time client bundling, starts the single
   $env:ConnectionStrings__DefaultConnection = "Data Source=$(Join-Path $env:TEMP 'tcg-test.db')"
   .\Start-TCGTracker.ps1
   ```
-- **Testing a Standalone Windows Release ZIP (no .NET SDK or Node.js required):** Extract `TradingCardGameTracker-vX.Y.Z-win-x64.zip` and run **`Start-TCGTracker.bat`** inside the extracted folder. It launches the self-contained `api.exe` at **`http://localhost:5229`**.
+- **Testing a Standalone Windows Release ZIP (no .NET SDK or Node.js required):** Extract `TradingCardGameTracker-vX.Y.Z-win-x64.zip` and run **`Start-TCGTracker.bat`** inside the extracted folder. It launches the self-contained `api.exe` at **`http://localhost:5229`** without needing any SDK or frontend build.
 
 ---
 
@@ -266,7 +266,7 @@ In addition to the core walkthrough above, please specifically test the followin
 
 1. **Launcher Startup & Shutdown (`#839`):**
    - Run `Start-TCGTracker.bat` or `.\Start-TCGTracker.ps1` from the repository root (or run `Start-TCGTracker.bat` from an extracted Windows release ZIP `TradingCardGameTracker-vX.Y.Z-win-x64.zip`).
-   - Verify the server starts (`https://localhost:7226` from source, or `http://localhost:5229` from the release ZIP), waits for `/api/health`, and automatically opens the app in your default browser.
+   - Verify the server starts at `http://localhost:5229` (in both source and release ZIP modes; override with `-Url` in PowerShell if needed), waits for `/api/health`, and automatically opens the app in your default browser.
    - Press `Ctrl+C` in the launcher window (or close it) and confirm the backend process shuts down cleanly without leaving an orphaned server running.
 2. **Single-Server SPA & API Error Routing (`#838`, `#845`):**
    - Navigate directly to or refresh (`F5`) SPA routes such as `/cards`, `/collection`, `/decks`, `/wishlist`, and `/value`, and verify card images and pages load properly.
@@ -302,54 +302,6 @@ Test both the full **`DeckBuilderPage`** (`/decks/:deckId`) and the **`DeckConst
 
 ### D. Flexible Decklist Text Import & Export (`#841`)
 
-1. **Export Decklist:**
-   - Open a deck in `/decks/:deckId` or the `/decks` edit modal and click **`Export`** in the deck header.
-   - In **`Export Decklist`**, verify zones and quantities render cleanly, then test both **`Copy to Clipboard`** (`Copied!`) and **`Download .txt`**.
-2. **Import Preview, Ambiguity Resolution & Apply:**
-   - Click **`Import`** in the deck header to open **`Import Decklist`**.
-   - Paste decklist text into **`Decklist text`** or load a file via **`Upload decklist file`** (`.txt`), mixing formats such as `4x Lightning Bolt`, `2 Sol Ring (CMM) 412`, section headers like `[Sideboard]` / `// Sideboard` / `SIDEBOARD:`, Commander/Starting headers, and an ambiguous or misspelled card name.
-   - Click **`Preview`** and verify `Resolved`, `Ambiguous`, and `Unmatched` badges appear accurately; use the **`Select printing for <cardName>`** dropdown for any ambiguous card.
-   - Verify both merge mode (default) and **`Replace existing cards in deck (unchecked merges with current cards)`**, then click **`Apply Import (N)`** and confirm all resolved cards appear in the expected deck zones.
-
----
-
-## 7. Sharing Your Feedback (Creating GitHub Issues)
-
-### A. Single-Server Hosting, SPA Routing & One-Click Windows Launcher (`#838`, `#839`, `#845`)
-1. **Launcher Startup & Shutdown (`#839`):**
-   - Run `Start-TCGTracker.bat` or `.\Start-TCGTracker.ps1` from the repository root (or run `Start-TCGTracker.bat` from an extracted Windows release ZIP `TradingCardGameTracker-vX.Y.Z-win-x64.zip`).
-   - Verify the server starts (`https://localhost:7226` from source, or `http://localhost:5229` from the release ZIP), waits for `/api/health`, and automatically opens the app in your default browser.
-   - Press `Ctrl+C` in the launcher window (or close it) and confirm the backend process shuts down cleanly without leaving an orphaned server running.
-2. **Single-Server SPA & API Error Routing (`#838`, `#845`):**
-   - Navigate directly to or refresh (`F5`) SPA routes such as `/cards`, `/collection`, `/decks`, `/wishlist`, and `/value`, and verify card images and pages load properly.
-   - Visit a nonexistent API route such as `/api/does-not-exist` and confirm the backend returns an HTTP `404` `application/problem+json` response rather than serving the SPA `index.html`.
-
-### B. Portable JSON Backup & Restore (`#840`)
-1. **Export Backup:**
-   - Click **`Backup & Restore`** in the header (or mobile menu) and click **`Download JSON Backup`**.
-   - Verify a `.json` backup file downloads with your collection, wishlist, and decks.
-2. **Merge vs. Replace Restore Modes:**
-   - Create a temporary edit (such as adding/removing a collection quantity or test deck), then reopen **`Backup & Restore`** and select your `.json` file under **`Backup JSON file`**.
-   - Test **`Merge (keep existing items and add backup entries)`** and verify existing items remain while missing backup items are restored.
-   - Test **`Replace (overwrite all current collection, wishlist, and deck data)`**, check **`I understand Replace mode deletes my existing collection, wishlist, and decks.`**, and click **`Restore Backup`**.
-3. **Result Summary & Cross-DB Portability:**
-   - Verify the **`Backup restored successfully`** banner shows updated **`Collection`**, **`Wishlist`**, and **`Decks`** counts along with natural-key match info (`Matched N printing(s) using card/set identifiers.`), and test importing into a fresh SQLite database where numeric database IDs differ.
-
-### C. Deck Builder Zone & Role UX Polish (`#843`)
-Test both the full **`DeckBuilderPage`** (`/decks/:deckId`) and the **`DeckConstructionModal`** editor on `/decks` across all 4 supported games:
-1. **Magic: The Gathering:**
-   - In a **Commander** deck, verify the **`★ Commander`** section appears, **`★ Cmdr`** / **`☆ Cmdr`** toggles work on eligible cards, and **`+SB`** is hidden.
-   - In a **Constructed** deck (e.g. Standard/Modern), verify the **`Sideboard`** section shows `count / 15` and **`+SB`** moves cards cleanly between main deck and sideboard.
-2. **Star Wars Unlimited (`SWU`):**
-   - Verify **`Leaders`**, **`Base`**, main deck card type groups, and **`Ideas`** render cleanly with accurate totals.
-3. **Star Wars CCG (`SWCCG`):**
-   - Verify **`⭐ Starting Cards`** and **`🛡️ Defensive Shields`** sections display properly alongside main deck cards and **`Ideas`**, and confirm **`★ Start`** / **`☆ Start`** toggles work on non-Defensive-Shield cards.
-4. **Pokémon TCG:**
-   - Verify cards group cleanly under **`Pokémon`**, **`Trainer`**, **`Energy`**, and **`Ideas`** without irrelevant MTG/SWCCG role buttons.
-5. **Zone & Layout Consistency:**
-   - Verify **`+Idea`** on main rows and **`Move to Deck`**, `+`, `−` inside **`Ideas`** work smoothly across both desktop and narrow layouts without overlapping text or clipped buttons.
-
-### D. Flexible Decklist Text Import & Export (`#841`)
 1. **Export Decklist:**
    - Open a deck in `/decks/:deckId` or the `/decks` edit modal and click **`Export`** in the deck header.
    - In **`Export Decklist`**, verify zones and quantities render cleanly, then test both **`Copy to Clipboard`** (`Copied!`) and **`Download .txt`**.

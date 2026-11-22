@@ -31,7 +31,7 @@ From the repository root on Windows, double-click **`Start-TCGTracker.bat`** or 
 .\Start-TCGTracker.ps1
 ```
 
-- On first launch (or when `api/wwwroot/index.html` is missing), the launcher installs frontend dependencies if needed and builds `client-vite` into `api/wwwroot`.
+- On first launch (or when `api/wwwroot/index.html` is missing), the launcher installs frontend dependencies if needed, builds `client-vite` into `api/wwwroot`, applies database migrations, and opens the app in your browser at `http://localhost:5229` (override with `-Url`, e.g. `.\Start-TCGTracker.ps1 -Url https://localhost:7226`).
 - Warm starts skip the frontend rebuild for faster startup; pass `-Rebuild` (`.\Start-TCGTracker.ps1 -Rebuild`) to force a fresh frontend build.
 - Press `Ctrl+C` in the launcher window to stop the server cleanly.
 

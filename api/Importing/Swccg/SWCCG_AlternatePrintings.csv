@@ -80,21 +80,21 @@ Tauntaun,Light,Empire Strikes Back Introductory Two Player Game,Vehicle,,Hoth,WB
 Fall Back!,Light,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
 It Can Wait,Light,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
 Nice Of You Guys To Drop By,Light,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
-Hoth: Defensive Perimeter,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Echo Corridor,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Echo Docking Bay,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Echo Med Lab,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Snow Trench,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Defensive Perimeter (3rd Marker),Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Defensive Perimeter (3rd Marker),Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Defensive Perimeter (3rd Marker),Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Defensive Perimeter (3rd Marker),Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Echo Command Center (War Room),Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
 FX-10 (Effex-ten),Dark,Empire Strikes Back Introductory Two Player Game,Character,,Hoth,WB,,C2,Matched
 AT-AT Driver,Dark,Empire Strikes Back Introductory Two Player Game,Character,,Hoth,WB,,C2,Matched
 Infantry Mine,Dark,Empire Strikes Back Introductory Two Player Game,Weapon,,Hoth,WB,,C2,Matched
 Cold Feet,Dark,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
 He Hasn't Come Back Yet,Dark,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
 I'd Just As Soon Kiss A Wookiee,Dark,Empire Strikes Back Introductory Two Player Game,Interrupt,,Hoth,WB,,C2,Matched
-Hoth: Defensive Perimeter,Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Echo Docking Bay,Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: Ice Plains,Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
-Hoth: North Ridge,Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Echo Command Center (War Room),Dark,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
+Hoth: Echo Corridor,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Echo Corridor,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Echo Corridor,Dark,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
 Rebel Guard,Light,Empire Strikes Back Introductory Two Player Game,Character,,Premiere,WB,,C2,Matched
 Restraining Bolt,Light,Empire Strikes Back Introductory Two Player Game,Device,,Premiere,WB,,C2,Matched
 Timer Mine,Light,Empire Strikes Back Introductory Two Player Game,Weapon,,Premiere,WB,,C2,Matched
@@ -731,8 +731,8 @@ Death Star II: Throne Room,Dark,Reflections II Foils,Location,Foil,Death Star II
 Commander Igar,Dark,Reflections II Foils,Character,Foil,Endor,BB,,VR,Matched
 IG-88 In IG-2000,Dark,Reflections II Foils,Starship,Foil,Enhanced Jabba's Palace,BB,,VR,Matched
 Lone Rogue,Light,Reflections II Foils,Interrupt,Foil,Empire Strikes Back Introductory Two Player Game,BB,,VR,Matched
-"Run Luke, Run!",Light,Reflections II Foils,Interrupt,Foil,Hoth,BB,,VR,Not matched
-Hoth: Wampa Cave,Dark,Reflections II Foils,Location,Foil,Hoth,BB,,VR,Matched
+"Run Luke, Run!",Light,Reflections II Foils,Interrupt,Foil,Premiere Introductory Two Player Game,BB,,VR,Not matched
+Hoth: Echo Docking Bay,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
 Kiffex,Light,Reflections II Foils,Location,Foil,Jabba's Palace,BB,,VR,Matched
 Scum And Villainy,Dark,Reflections II Foils,Effect,Foil,Jabba's Palace,BB,,VR,Matched
 Arleil Schous,Light,Reflections II Foils,Character,Foil,Official Tournament Sealed Deck,BB,,VR,Matched
@@ -943,12 +943,12 @@ It Can Wait,Light,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Matched
 Nice Of You Guys To Drop By,Light,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Matched
 Perimeter Scan,Light,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Matched
 Frostbite,Light,Hoth Revised,Effect,Revised,Hoth,WB,,C2,Matched
-Hoth: Defensive Perimeter,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: Echo Corridor,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Echo Docking Bay,Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
 Hoth: Echo Docking Bay,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Echo Docking Bay,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Echo Med Lab,Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
 Hoth: Echo Med Lab,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: North Ridge,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: Snow Trench,Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Ice Plains (5th Marker),Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
 FX-10 (Effex-ten),Dark,Hoth Revised,Character,Revised,Hoth,WB,,C2,Matched
 Probe Droid,Dark,Hoth Revised,Character,Revised,Hoth,WB,,C2,Matched
 AT-AT Driver,Dark,Hoth Revised,Character,Revised,Hoth,WB,,C2,Matched
@@ -965,10 +965,10 @@ Our First Catch Of The Day,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Match
 Probe Telemetry,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Matched
 Stop Motion,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,C2,Matched
 Frostbite,Dark,Hoth Revised,Effect,Revised,Hoth,WB,,C2,Matched
-Hoth: Defensive Perimeter,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: Echo Docking Bay,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: Ice Plains,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
-Hoth: North Ridge,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Ice Plains (5th Marker),Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
+Hoth: Main Power Generators (1st Marker),Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
+Hoth: North Ridge (4th Marker),Dark,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: North Ridge (4th Marker),Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
 Ord Mantell,Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
 Rebel Squad Leader,Light,A New Hope Revised,Character,Revised,A New Hope,WB,,C3,Matched
 Imperial Squad Leader,Dark,A New Hope Revised,Character,Revised,A New Hope,WB,,C3,Matched
@@ -1161,7 +1161,7 @@ Scruffy-Looking Nerf Herder,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,R2,Matc
 Tactical Support,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,R2,Matched
 Yaggle Gakkle,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,R2,Matched
 Image Of The Dark Lord,Dark,Hoth Revised,Effect,Revised,Hoth,WB,,R2,Matched
-Hoth: Wampa Cave,Dark,Hoth Revised,Location,Revised,Hoth,WB,,R2,Matched
+Hoth: North Ridge (4th Marker),Dark,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
 A Jedi's Strength,Light,Dagobah Revised,Jedi Test,Revised,Dagobah,WB,,U,Matched
 Domain Of Evil,Light,Dagobah Revised,Jedi Test,Revised,Dagobah,WB,,U,Matched
 Away Put Your Weapon,Light,Dagobah Revised,Interrupt,Revised,Dagobah,WB,,U,Matched
@@ -1304,8 +1304,8 @@ Atgar Laser Cannon,Light,Hoth Revised,Weapon,Revised,Hoth,WB,,U2,Matched
 Snowspeeder,Light,Hoth Revised,Vehicle,Revised,Hoth,WB,,U2,Matched
 Medium Transport,Light,Hoth Revised,Starship,Revised,Hoth,WB,,U2,Matched
 Walker Sighting,Light,Hoth Revised,Interrupt,Revised,Hoth,WB,,U2,Matched
-Hoth: Echo Command Center (War Room),Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
-Hoth: Main Power Generators,Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
+Hoth: Snow Trench (2nd Marker),Light,Empire Strikes Back Introductory Two Player Game,Location,,Hoth,WB,,C2,Matched
+Hoth: Snow Trench (2nd Marker),Light,Hoth Revised,Location,Revised,Hoth,WB,,C2,Matched
 Hoth,Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
 Ord Mantell,Light,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
 Lieutenant Cabbel,Dark,Hoth Revised,Character,Revised,Hoth,WB,,U2,Matched
@@ -1317,6 +1317,6 @@ Exhaustion,Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,U2,Matched
 "That's It, The Rebels Are There!",Dark,Hoth Revised,Interrupt,Revised,Hoth,WB,,U2,Matched
 Breached Defenses,Dark,Hoth Revised,Effect,Revised,Hoth,WB,,U2,Matched
 Silence Is Golden,Dark,Hoth Revised,Effect,Revised,Hoth,WB,,U2,Matched
-Hoth: Echo Command Center (War Room),Dark,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
-Hoth: Echo Corridor,Dark,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched
+Hoth: Wampa Cave (7th Marker),Dark,Reflections II Foils,Location,Foil,Hoth,BB,,VR,Matched
+Hoth: Wampa Cave (7th Marker),Dark,Hoth Revised,Location,Revised,Hoth,WB,,R2,Matched
 Hoth,Dark,Hoth Revised,Location,Revised,Hoth,WB,,U2,Matched

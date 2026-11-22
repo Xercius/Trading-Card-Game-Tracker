@@ -13,7 +13,7 @@
 
 .PARAMETER Url
     Optional base URL to probe and open in the browser. Defaults to http://localhost:5229
-    in standalone release mode or https://localhost:7226 in repository mode.
+    in both standalone release and source repository modes.
 
 .PARAMETER NoBrowser
     Starts the server and waits for /api/health without opening the browser.
@@ -41,6 +41,19 @@ function Stop-ProcessTree {
     catch {
         Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
     }
+}
+
+function Format-ProcessArgument {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) {
+        return '""'
+    }
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+    $escaped = $Value -replace '(\\*)"', '$1$1\"'
+    $escaped = $escaped -replace '(\\+)$', '$1$1'
+    return '"' + $escaped + '"'
 }
 
 function Test-HealthEndpoint {
@@ -72,7 +85,7 @@ $standaloneExe = Join-Path $RepoRoot "api.exe"
 $isStandalone = Test-Path $standaloneExe
 
 if ([string]::IsNullOrWhiteSpace($Url)) {
-    $Url = if ($isStandalone) { "http://localhost:5229" } else { "https://localhost:7226" }
+    $Url = "http://localhost:5229"
 }
 $Url = $Url.TrimEnd("/")
 
@@ -81,8 +94,9 @@ $serverProcess = $null
 try {
     if ($isStandalone) {
         Write-Host "Starting Trading Card Game Tracker (standalone) at $Url ..." -ForegroundColor Cyan
+        $standaloneArgs = (@("--urls", $Url, "--contentRoot", $RepoRoot) | ForEach-Object { Format-ProcessArgument $_ }) -join " "
         $serverProcess = Start-Process -FilePath $standaloneExe `
-            -ArgumentList @("--urls", $Url, "--contentRoot", $RepoRoot) `
+            -ArgumentList $standaloneArgs `
             -WorkingDirectory $RepoRoot `
             -PassThru `
             -NoNewWindow
@@ -92,7 +106,9 @@ try {
             Write-Error ".NET SDK ('dotnet') was not found on PATH. Install .NET 10 SDK from https://dotnet.microsoft.com/download/dotnet/10.0"
         }
 
-        $wwwrootIndex = Join-Path $RepoRoot "api\wwwroot\index.html"
+        $apiDir = Join-Path $RepoRoot "api"
+        $apiProject = Join-Path $apiDir "api.csproj"
+        $wwwrootIndex = Join-Path $apiDir "wwwroot\index.html"
         $clientDir = Join-Path $RepoRoot "client-vite"
         $needsFrontendBuild = $Rebuild -or (-not (Test-Path $wwwrootIndex))
 
@@ -126,20 +142,31 @@ try {
         }
 
         Write-Host "Applying database migrations..." -ForegroundColor Cyan
-        & dotnet run --project (Join-Path $RepoRoot "api\api.csproj") --no-launch-profile -- seed
-        if ($LASTEXITCODE -ne 0) {
-            throw "Database migration failed with exit code $LASTEXITCODE"
+        Push-Location $apiDir
+        try {
+            & dotnet run --project $apiProject --no-launch-profile -- seed
+            if ($LASTEXITCODE -ne 0) {
+                throw "Database migration failed with exit code $LASTEXITCODE"
+            }
+        }
+        finally {
+            Pop-Location
         }
 
         Write-Host "Starting Trading Card Game Tracker server at $Url ..." -ForegroundColor Cyan
+        $serverArgs = (@(
+            "run",
+            "--project", $apiProject,
+            "--no-launch-profile",
+            "--no-build",
+            "--",
+            "--urls", $Url,
+            "--contentRoot", $apiDir
+        ) | ForEach-Object { Format-ProcessArgument $_ }) -join " "
+
         $serverProcess = Start-Process -FilePath "dotnet" `
-            -ArgumentList @(
-                "run",
-                "--project", (Join-Path $RepoRoot "api\api.csproj"),
-                "--launch-profile", "TradingCardApi (HTTPS)",
-                "--no-launch-browser"
-            ) `
-            -WorkingDirectory $RepoRoot `
+            -ArgumentList $serverArgs `
+            -WorkingDirectory $apiDir `
             -PassThru `
             -NoNewWindow
     }

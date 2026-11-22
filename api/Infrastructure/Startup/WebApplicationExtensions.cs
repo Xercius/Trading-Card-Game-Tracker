@@ -13,9 +13,11 @@ internal static class WebApplicationExtensions
             ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
             ?? string.Empty;
         var hasHttpsEndpoint = configuredUrls.Contains("https://", StringComparison.OrdinalIgnoreCase)
-            || !string.IsNullOrWhiteSpace(app.Configuration["Kestrel:Endpoints:Https:Url"]);
+            || !string.IsNullOrWhiteSpace(app.Configuration["Kestrel:Endpoints:Https:Url"])
+            || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORT"))
+            || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS"));
 
-        if (!app.Environment.IsEnvironment("Testing") && (app.Environment.IsDevelopment() || hasHttpsEndpoint))
+        if (!app.Environment.IsEnvironment("Testing") && hasHttpsEndpoint)
         {
             app.UseHttpsRedirection();
         }
