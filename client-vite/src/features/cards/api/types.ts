@@ -16,6 +16,7 @@ export type CardPrintingDetail = CardPrintingImages & {
   style: string;
   releaseDate?: string | null;
   artist?: string | null;
+  printingNotes?: string | null;
 };
 
 export type CardAspect = {
@@ -84,6 +85,7 @@ export type PrintingSummary = CardPrintingImages & {
   style?: string;
   releaseDate?: string | null;
   artist?: string | null;
+  printingNotes?: string | null;
   imageUrl: string;
 };
 

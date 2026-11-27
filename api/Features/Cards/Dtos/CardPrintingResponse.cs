@@ -32,6 +32,7 @@ namespace api.Features.Cards.Dtos;
 /// <param name="BackImageOrientation">Orientation of the back art.</param>
 /// <param name="Artist">Optional artist credited for this printing.</param>
 /// <param name="SetLogoUrl">Optional URL to the set's logo image.</param>
+/// <param name="PrintingNotes">Optional printing-specific notes (e.g., misprints, errata, or release context).</param>
 public sealed record CardPrintingResponse(
     int Id,
     string Set,
@@ -45,4 +46,5 @@ public sealed record CardPrintingResponse(
     string? ImageOrientation = null,
     string? BackImageOrientation = null,
     string? Artist = null,
-    string? SetLogoUrl = null);
+    string? SetLogoUrl = null,
+    string? PrintingNotes = null);

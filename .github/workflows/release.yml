@@ -1,10 +1,7 @@
 name: Release
 
 on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - 'CHANGELOG.md'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -64,6 +61,29 @@ jobs:
           custom_tag: ${{ steps.tag_calc.outputs.new_tag }}
           release_branches: master
 
+      - name: Setup .NET
+        if: steps.tag.outputs.new_tag != ''
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build frontend into api/wwwroot
+        if: steps.tag.outputs.new_tag != ''
+        working-directory: client-vite
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish self-contained Windows x64 bundle
+        if: steps.tag.outputs.new_tag != ''
+        env:
+          NEW_TAG: ${{ steps.tag.outputs.new_tag }}
+        run: |
+          dotnet publish ./api/api.csproj -c Release -r win-x64 --self-contained true -o ./dist/win-x64
+          cp Start-TCGTracker.ps1 Start-TCGTracker.bat ./dist/win-x64/
+          rm -f ./dist/win-x64/*.db ./dist/win-x64/*.db-shm ./dist/win-x64/*.db-wal ./dist/win-x64/*.db-journal
+          (cd ./dist/win-x64 && zip -r "../../TradingCardGameTracker-${NEW_TAG}-win-x64.zip" .)
+
       - name: Create GitHub Release
         if: steps.tag.outputs.new_tag != ''
         uses: softprops/action-gh-release@v3
@@ -71,3 +91,5 @@ jobs:
           tag_name: ${{ steps.tag.outputs.new_tag }}
           name: Release ${{ steps.tag.outputs.new_tag }}
           generate_release_notes: true
+          prerelease: false
+          files: TradingCardGameTracker-${{ steps.tag.outputs.new_tag }}-win-x64.zip

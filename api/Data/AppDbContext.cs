@@ -11,6 +11,7 @@ namespace api.Data
         public DbSet<Card> Cards => Set<Card>();
         public DbSet<CardPrinting> CardPrintings => Set<CardPrinting>();
         public DbSet<UserCard> UserCards => Set<UserCard>();
+        public DbSet<WishlistSource> WishlistSources => Set<WishlistSource>();
         public DbSet<Deck> Decks => Set<Deck>();
         public DbSet<DeckCard> DeckCards => Set<DeckCard>();
         public DbSet<ValueHistory> ValueHistories => Set<ValueHistory>();

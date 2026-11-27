@@ -10,6 +10,7 @@ export type DeckCardItem = {
   aspects?: Array<{ name: string; count: number }> | null;
   isStarting?: boolean;
   quantitySideboard?: number;
+  quantityIdea?: number;
   isCommander?: boolean;
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
@@ -35,6 +36,229 @@ export const SWU_ASPECT_NAMES = [
   "Vigilance",
   "Villainy",
 ] as const;
+
+export type GameCapabilities = {
+  isSwu: boolean;
+  isSwccg: boolean;
+  isMtg: boolean;
+  isPokemon: boolean;
+  hasLeadersAndBase: boolean;
+  hasStartingCards: boolean;
+  hasDefensiveShields: boolean;
+  hasCommander: boolean;
+  hasSideboard: boolean;
+};
+
+/**
+ * Returns game- and format-scoped deck building capabilities so UI zones and role controls
+ * only appear where relevant.
+ */
+export function getGameCapabilities(game: string, format?: string | null): GameCapabilities {
+  const g = (game || "").trim().toLowerCase();
+  const f = (format || "").trim().toLowerCase();
+  const isSwu = g.includes("unlimited");
+  const isSwccg = g.includes("ccg");
+  const isMtg = g.includes("magic");
+  const isPokemon = g.includes("pokemon");
+  const isCommander = isMtg && f === "commander";
+
+  return {
+    isSwu,
+    isSwccg,
+    isMtg,
+    isPokemon,
+    hasLeadersAndBase: isSwu,
+    hasStartingCards: isSwccg,
+    hasDefensiveShields: isSwccg,
+    hasCommander: isCommander,
+    hasSideboard: isMtg && !isCommander,
+  };
+}
+
+export type DeckZoneKind = "main" | "sideboard" | "ideas";
+
+export type DeckZoneGroup<T extends DeckCardItem = DeckCardItem> = {
+  key: string;
+  label: string;
+  zone: DeckZoneKind;
+  cards: T[];
+  count: number;
+  maxCount?: number;
+};
+
+function appendTypedGroups<T extends DeckCardItem>(
+  groups: DeckZoneGroup<T>[],
+  cards: T[],
+  fallbackType: string
+) {
+  const byType = new Map<string, T[]>();
+  for (const card of cards) {
+    const type = card.cardType || fallbackType;
+    const list = byType.get(type);
+    if (list) list.push(card);
+    else byType.set(type, [card]);
+  }
+  for (const [type, list] of byType.entries()) {
+    groups.push({
+      key: `type:${type.toLowerCase()}`,
+      label: type,
+      zone: "main",
+      cards: list,
+      count: list.reduce((sum, c) => sum + c.quantityInDeck, 0),
+    });
+  }
+}
+
+function getPokemonBucket(cardType?: string | null): string {
+  const lower = (cardType || "").trim().toLowerCase();
+  if (lower.includes("pokemon") || lower.includes("pokémon")) return "Pokémon";
+  if (lower.includes("trainer")) return "Trainer";
+  if (lower.includes("energy")) return "Energy";
+  return cardType || "Other";
+}
+
+/**
+ * Groups deck cards into ordered, game-appropriate zone sections (Leaders/Base, Commander,
+ * Starting Cards, Defensive Shields, Main Deck categories, Sideboard, and Ideas).
+ */
+export function groupDeckCardsByZone<T extends DeckCardItem>(
+  deckCards: T[],
+  game: string,
+  format?: string | null
+): DeckZoneGroup<T>[] {
+  const caps = getGameCapabilities(game, format);
+  const mainCards = deckCards.filter((c) => c.quantityInDeck > 0);
+  const groups: DeckZoneGroup<T>[] = [];
+
+  if (caps.isSwccg) {
+    const starting = mainCards.filter((c) => c.isStarting);
+    const shields = mainCards.filter((c) => !c.isStarting && isDefensiveShield(c));
+    const others = mainCards.filter((c) => !c.isStarting && !isDefensiveShield(c));
+    if (starting.length > 0) {
+      groups.push({
+        key: "starting",
+        label: "⭐ Starting Cards",
+        zone: "main",
+        cards: starting,
+        count: starting.reduce((s, c) => s + c.quantityInDeck, 0),
+      });
+    }
+    if (shields.length > 0) {
+      groups.push({
+        key: "shields",
+        label: "🛡️ Defensive Shields",
+        zone: "main",
+        cards: shields,
+        count: shields.reduce((s, c) => s + c.quantityInDeck, 0),
+      });
+    }
+    appendTypedGroups(groups, others, "Other");
+  } else if (caps.isMtg) {
+    if (caps.hasCommander) {
+      const commanders = mainCards.filter((c) => c.isCommander);
+      if (commanders.length > 0) {
+        groups.push({
+          key: "commander",
+          label: "★ Commander",
+          zone: "main",
+          cards: commanders,
+          count: commanders.reduce((s, c) => s + c.quantityInDeck, 0),
+        });
+      }
+    }
+    const nonCommanders = mainCards.filter((c) => !(caps.hasCommander && c.isCommander));
+    appendTypedGroups(groups, nonCommanders, "Other");
+
+    const sideboard = deckCards.filter((c) => (c.quantitySideboard ?? 0) > 0);
+    if (sideboard.length > 0) {
+      groups.push({
+        key: "sideboard",
+        label: "Sideboard",
+        zone: "sideboard",
+        cards: sideboard,
+        count: sideboard.reduce((s, c) => s + (c.quantitySideboard ?? 0), 0),
+        maxCount: caps.hasSideboard ? 15 : 0,
+      });
+    }
+  } else if (caps.isSwu) {
+    const leaders = mainCards.filter((c) => c.cardType?.toLowerCase() === "leader");
+    const bases = mainCards.filter((c) => c.cardType?.toLowerCase() === "base");
+    const others = mainCards.filter(
+      (c) => c.cardType?.toLowerCase() !== "leader" && c.cardType?.toLowerCase() !== "base"
+    );
+    if (leaders.length > 0) {
+      groups.push({
+        key: "leaders",
+        label: "Leaders",
+        zone: "main",
+        cards: leaders,
+        count: leaders.reduce((s, c) => s + c.quantityInDeck, 0),
+      });
+    }
+    if (bases.length > 0) {
+      groups.push({
+        key: "base",
+        label: "Base",
+        zone: "main",
+        cards: bases,
+        count: bases.reduce((s, c) => s + c.quantityInDeck, 0),
+      });
+    }
+    appendTypedGroups(groups, others, "Units & Events");
+  } else if (caps.isPokemon) {
+    const buckets = new Map<string, T[]>();
+    for (const card of mainCards) {
+      const bucket = getPokemonBucket(card.cardType);
+      const list = buckets.get(bucket);
+      if (list) list.push(card);
+      else buckets.set(bucket, [card]);
+    }
+    const order = ["Pokémon", "Trainer", "Energy"];
+    for (const name of order) {
+      const list = buckets.get(name);
+      if (list && list.length > 0) {
+        groups.push({
+          key: `pokemon:${name.toLowerCase()}`,
+          label: name,
+          zone: "main",
+          cards: list,
+          count: list.reduce((s, c) => s + c.quantityInDeck, 0),
+        });
+        buckets.delete(name);
+      }
+    }
+    for (const [name, list] of buckets.entries()) {
+      groups.push({
+        key: `pokemon:${name.toLowerCase()}`,
+        label: name,
+        zone: "main",
+        cards: list,
+        count: list.reduce((s, c) => s + c.quantityInDeck, 0),
+      });
+    }
+  } else if (mainCards.length > 0) {
+    groups.push({
+      key: "main",
+      label: "Main Deck",
+      zone: "main",
+      cards: mainCards,
+      count: mainCards.reduce((s, c) => s + c.quantityInDeck, 0),
+    });
+  }
+
+  const ideas = deckCards.filter((c) => (c.quantityIdea ?? 0) > 0);
+  if (ideas.length > 0) {
+    groups.push({
+      key: "ideas",
+      label: "Ideas",
+      zone: "ideas",
+      cards: ideas,
+      count: ideas.reduce((s, c) => s + (c.quantityIdea ?? 0), 0),
+    });
+  }
+
+  return groups;
+}
 
 /**
  * Aggregates all aspects provided by the Leaders and Base of a Star Wars: Unlimited deck.
@@ -129,9 +353,14 @@ export type SwuValidationResult = {
   copyViolations: Array<{ cardName: string; count: number; max: number }>;
 };
 
-/**
- * Validates a Star Wars: Unlimited deck against Premier or Twin Suns rules.
- */
+function formatZoneBreakdown(main: number, sideboard: number, ideas: number): string {
+  if (sideboard === 0 && ideas === 0) return "";
+  const parts: string[] = [];
+  if (main > 0) parts.push(`${main} Main`);
+  if (sideboard > 0) parts.push(`${sideboard} Sideboard`);
+  if (ideas > 0) parts.push(`${ideas} Ideas`);
+  return parts.length > 0 ? `: ${parts.join(", ")}` : "";
+}
 export function validateSwuDeck(
   deckCards: DeckCardItem[],
   format: string = "Premier"
@@ -179,21 +408,33 @@ export function validateSwuDeck(
     );
   }
 
-  // Check copy counts grouped by Card Name / ID
-  const countsByName: Record<string, number> = {};
+  // Check copy counts grouped by Card Name / ID (across Deck + Sideboard + Ideas)
+  const countsByName: Record<string, { main: number; sb: number; ideas: number; total: number }> =
+    {};
   for (const c of deckCards) {
-    if (c.quantityInDeck <= 0) continue;
-    countsByName[c.cardName] = (countsByName[c.cardName] || 0) + c.quantityInDeck;
+    const main = c.quantityInDeck;
+    const sb = c.quantitySideboard ?? 0;
+    const ideas = c.quantityIdea ?? 0;
+    const total = main + sb + ideas;
+    if (total <= 0) continue;
+    const existing = countsByName[c.cardName];
+    countsByName[c.cardName] = {
+      main: (existing?.main ?? 0) + main,
+      sb: (existing?.sb ?? 0) + sb,
+      ideas: (existing?.ideas ?? 0) + ideas,
+      total: (existing?.total ?? 0) + total,
+    };
   }
 
   const copyViolations: Array<{ cardName: string; count: number; max: number }> = [];
-  for (const [name, count] of Object.entries(countsByName)) {
-    if (count > maxCopiesAllowed) {
-      copyViolations.push({ cardName: name, count, max: maxCopiesAllowed });
+  for (const [name, info] of Object.entries(countsByName)) {
+    if (info.total > maxCopiesAllowed) {
+      copyViolations.push({ cardName: name, count: info.total, max: maxCopiesAllowed });
+      const breakdown = formatZoneBreakdown(info.main, info.sb, info.ideas);
       issues.push(
         `"${name}" exceeds the limit of ${maxCopiesAllowed} ${
           maxCopiesAllowed === 1 ? "copy" : "copies"
-        } (${count} present).`
+        } (${info.total} present${breakdown}).`
       );
     }
   }
@@ -382,13 +623,27 @@ export function validateMtgDeck(
 
     const countsByName: Record<
       string,
-      { count: number; isUnlimited: boolean; maxOverride: number | null }
+      {
+        main: number;
+        sb: number;
+        ideas: number;
+        count: number;
+        isUnlimited: boolean;
+        maxOverride: number | null;
+      }
     > = {};
-    for (const c of active) {
-      if (c.quantityInDeck <= 0) continue;
+    for (const c of deckCards) {
+      const main = c.quantityInDeck;
+      const sb = c.quantitySideboard ?? 0;
+      const ideas = c.quantityIdea ?? 0;
+      const total = main + sb + ideas;
+      if (total <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {
-        count: (existing?.count ?? 0) + c.quantityInDeck,
+        main: (existing?.main ?? 0) + main,
+        sb: (existing?.sb ?? 0) + sb,
+        ideas: (existing?.ideas ?? 0) + ideas,
+        count: (existing?.count ?? 0) + total,
         isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
         maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
       };
@@ -399,8 +654,9 @@ export function validateMtgDeck(
       const limit = info.maxOverride ?? 1;
       if (info.count > limit) {
         copyViolations.push({ cardName: name, count: info.count, max: limit });
+        const breakdown = formatZoneBreakdown(info.main, info.sb, info.ideas);
         issues.push(
-          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present${breakdown}).`
         );
       }
     }
@@ -432,13 +688,26 @@ export function validateMtgDeck(
 
     const countsByName: Record<
       string,
-      { count: number; isUnlimited: boolean; maxOverride: number | null }
+      {
+        main: number;
+        sb: number;
+        ideas: number;
+        count: number;
+        isUnlimited: boolean;
+        maxOverride: number | null;
+      }
     > = {};
-    for (const c of active) {
-      const total = c.quantityInDeck + (c.quantitySideboard ?? 0);
+    for (const c of deckCards) {
+      const main = c.quantityInDeck;
+      const sb = c.quantitySideboard ?? 0;
+      const ideas = c.quantityIdea ?? 0;
+      const total = main + sb + ideas;
       if (total <= 0) continue;
       const existing = countsByName[c.cardName];
       countsByName[c.cardName] = {
+        main: (existing?.main ?? 0) + main,
+        sb: (existing?.sb ?? 0) + sb,
+        ideas: (existing?.ideas ?? 0) + ideas,
         count: (existing?.count ?? 0) + total,
         isUnlimited: Boolean(existing?.isUnlimited || c.isBasicLand || c.hasUnlimitedCopies),
         maxOverride: existing?.maxOverride ?? c.maxAllowedCopies ?? null,
@@ -450,8 +719,9 @@ export function validateMtgDeck(
       const limit = info.maxOverride ?? 4;
       if (info.count > limit) {
         copyViolations.push({ cardName: name, count: info.count, max: limit });
+        const breakdown = formatZoneBreakdown(info.main, info.sb, info.ideas);
         issues.push(
-          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present).`
+          `"${name}" exceeds the limit of ${limit} ${limit === 1 ? "copy" : "copies"} (${info.count} present${breakdown}).`
         );
       }
     }

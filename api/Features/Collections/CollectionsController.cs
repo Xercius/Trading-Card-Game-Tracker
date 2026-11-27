@@ -23,11 +23,13 @@ public class CollectionsController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
+    private readonly WishlistSourceSyncService _sourceSync;
 
-    public CollectionsController(AppDbContext db, IMapper mapper)
+    public CollectionsController(AppDbContext db, IMapper mapper, WishlistSourceSyncService sourceSync)
     {
         _db = db;
         _mapper = mapper;
+        _sourceSync = sourceSync;
     }
 
     // -----------------------------
@@ -101,38 +103,47 @@ public class CollectionsController : ControllerBase
                 detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
+        var ct = HttpContext.RequestAborted;
         var existing = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId, ct);
 
+        var clampedWanted = QuantityGuards.Clamp(dto.QuantityWanted);
         if (existing is null)
         {
             var newCard = new UserCard
             {
                 CardPrintingId = dto.CardPrintingId,
                 QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned),
-                QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted),
+                QuantityWanted = clampedWanted,
                 QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned)
             };
 
-            if (IsZero(newCard)) return NoContent();
+            if (IsZero(newCard))
+            {
+                await _sourceSync.SyncSourcesToTotalWantedAsync(dto.CardPrintingId, 0, ct);
+                await _db.SaveChangesAsync(ct);
+                return NoContent();
+            }
 
             _db.UserCards.Add(newCard);
         }
         else
         {
             existing.QuantityOwned = QuantityGuards.Clamp(dto.QuantityOwned);
-            existing.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted);
+            existing.QuantityWanted = clampedWanted;
             existing.QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned);
         }
 
-        await _db.SaveChangesAsync();
+        await _sourceSync.SyncSourcesToTotalWantedAsync(dto.CardPrintingId, clampedWanted, ct);
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 
     private async Task<IActionResult> SetQuantitiesCore(int cardPrintingId, SetUserCardQuantitiesRequest dto)
     {
+        var ct = HttpContext.RequestAborted;
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId, ct);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -147,13 +158,14 @@ public class CollectionsController : ControllerBase
         if (dto.QuantityWanted.HasValue)
         {
             uc.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted.Value);
+            await _sourceSync.SyncSourcesToTotalWantedAsync(cardPrintingId, uc.QuantityWanted, ct);
         }
         if (dto.QuantityProxyOwned.HasValue)
         {
             uc.QuantityProxyOwned = QuantityGuards.Clamp(dto.QuantityProxyOwned.Value);
         }
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 
@@ -167,8 +179,9 @@ public class CollectionsController : ControllerBase
                 detail: "JSON object required.");
         }
 
+        var ct = HttpContext.RequestAborted;
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId, ct);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -189,6 +202,7 @@ public class CollectionsController : ControllerBase
             TryGetInt(updates, "wantedQty", "WantedQty", out wanted))
         {
             uc.QuantityWanted = QuantityGuards.Clamp(wanted);
+            await _sourceSync.SyncSourcesToTotalWantedAsync(cardPrintingId, uc.QuantityWanted, ct);
             touched = true;
         }
 
@@ -201,7 +215,7 @@ public class CollectionsController : ControllerBase
 
         if (!touched) return NoContent();
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 
@@ -244,6 +258,8 @@ public class CollectionsController : ControllerBase
             .Where(uc => printingIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
+        var ct = HttpContext.RequestAborted;
+        var wantedChangedIds = new HashSet<int>();
         foreach (var d in deltaList)
         {
             if (!map.TryGetValue(d.CardPrintingId, out var row))
@@ -260,12 +276,21 @@ public class CollectionsController : ControllerBase
             }
 
             row.QuantityOwned = QuantityGuards.ClampDelta(row.QuantityOwned, d.DeltaOwned);
-            row.QuantityWanted = QuantityGuards.ClampDelta(row.QuantityWanted, d.DeltaWanted);
+            if (d.DeltaWanted != 0)
+            {
+                row.QuantityWanted = QuantityGuards.ClampDelta(row.QuantityWanted, d.DeltaWanted);
+                wantedChangedIds.Add(d.CardPrintingId);
+            }
             row.QuantityProxyOwned = QuantityGuards.ClampDelta(row.QuantityProxyOwned, d.DeltaProxyOwned);
         }
 
-        await _db.SaveChangesAsync();
-        await tx.CommitAsync();
+        foreach (var id in wantedChangedIds)
+        {
+            await _sourceSync.SyncSourcesToTotalWantedAsync(id, map[id].QuantityWanted, ct);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -291,16 +316,18 @@ public class CollectionsController : ControllerBase
 
     private async Task<IActionResult> RemoveCore(int cardPrintingId)
     {
+        var ct = HttpContext.RequestAborted;
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId, ct);
         if (uc is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"Card printing {cardPrintingId} was not found in your collection.");
         }
+        await _sourceSync.SyncSourcesToTotalWantedAsync(cardPrintingId, 0, ct);
         _db.UserCards.Remove(uc);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
         return NoContent();
     }
 
@@ -492,6 +519,8 @@ public class CollectionsController : ControllerBase
             .Where(uc => printingIds.Contains(uc.CardPrintingId))
             .ToDictionaryAsync(uc => uc.CardPrintingId);
 
+        var ct = HttpContext.RequestAborted;
+        var finalWantedByPrinting = new Dictionary<int, int>();
         foreach (var item in request.Items)
         {
             if (!validSet.Contains(item.CardPrintingId)) continue;
@@ -499,6 +528,7 @@ public class CollectionsController : ControllerBase
             var owned = QuantityGuards.Clamp(item.QuantityOwned);
             var proxy = QuantityGuards.Clamp(item.QuantityProxyOwned);
             var wanted = QuantityGuards.Clamp(item.QuantityWanted);
+            finalWantedByPrinting[item.CardPrintingId] = wanted;
 
             if (!map.TryGetValue(item.CardPrintingId, out var row))
             {
@@ -523,8 +553,13 @@ public class CollectionsController : ControllerBase
             }
         }
 
-        await _db.SaveChangesAsync();
-        await tx.CommitAsync();
+        foreach (var (printingId, wanted) in finalWantedByPrinting)
+        {
+            await _sourceSync.SyncSourcesToTotalWantedAsync(printingId, wanted, ct);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -597,6 +632,7 @@ public class CollectionsController : ControllerBase
             .ToDictionaryAsync(uc => uc.CardPrintingId, uc => new { uc.QuantityOwned, uc.QuantityProxyOwned }, ct);
 
         // 5. Build set summaries
+        var printingsBySet = printings.ToLookup(p => p.SetId);
         var setSummaries = new List<CollectionSetSummaryDto>();
         var allPrintingIdsInGame = new HashSet<int>();
         var allOwnedPrintingIdsInGame = new HashSet<int>();
@@ -604,7 +640,7 @@ public class CollectionsController : ControllerBase
         foreach (var set in sets)
         {
             bool isVirtualSet = IsVirtualSet(set.Game?.Name, set.Name);
-            var setPrintings = printings.Where(p => p.SetId == set.Id).ToList();
+            var setPrintings = printingsBySet[set.Id].ToList();
             if (setPrintings.Count == 0)
             {
                 continue;

@@ -5,4 +5,5 @@ namespace api.Features._Common;
 /// </summary>
 public sealed record QuickAddRequest(
     int PrintingId,
-    int Quantity);
+    int Quantity,
+    int? DeckId = null);

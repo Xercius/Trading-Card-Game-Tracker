@@ -66,6 +66,7 @@ internal sealed class CardPrintingConfiguration : IEntityTypeConfiguration<CardP
         e.Property(p => p.ImageUrl).HasMaxLength(1024);
         e.Property(p => p.BackImageUrl).HasMaxLength(1024);
         e.Property(p => p.Artist).HasMaxLength(256);
+        e.Property(p => p.PrintingNotes).HasMaxLength(1024);
         e.Property(p => p.CardUid).HasMaxLength(64);
 
         e.HasIndex(p => p.CardId)

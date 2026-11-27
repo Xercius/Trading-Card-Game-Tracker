@@ -1,7 +1,6 @@
 using api.Data;
 using api.Features.ImportExport.Dtos;
 using api.Infrastructure.Startup;
-using api.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -20,29 +19,9 @@ public sealed class ImportExportService(
     /// <summary>Exports the user's collection, wishlist, and decks as formatted JSON bytes.</summary>
     public async Task<(byte[] Bytes, string FileName)> ExportJsonAsync(CancellationToken ct)
     {
-        var collection = await db.UserCards.AsNoTracking()
-            .OrderBy(x => x.CardPrintingId)
-            .Select(x => new ExportCollectionItem(x.CardPrintingId, x.QuantityOwned, x.QuantityProxyOwned))
-            .ToListAsync(ct);
-
-        var wishlist = await db.UserCards.AsNoTracking()
-            .Where(x => x.QuantityWanted > 0)
-            .OrderBy(x => x.CardPrintingId)
-            .Select(x => new ExportWishlistItem(x.CardPrintingId, x.QuantityWanted))
-            .ToListAsync(ct);
-
-        var deckEntities = await db.Decks.AsNoTracking()
-            .Include(d => d.Cards)
-            .OrderBy(d => d.Game).ThenBy(d => d.Name)
-            .ToListAsync(ct);
-
-        var decks = deckEntities.Select(d => new ExportDeck(
-            d.Game,
-            d.Name,
-            d.Description,
-            d.Cards.OrderBy(c => c.CardPrintingId)
-                .Select(c => new ExportDeckCard(c.CardPrintingId, c.QuantityInDeck, c.QuantityIdea, c.QuantityAcquire, c.QuantityProxy))
-                .ToList())).ToList();
+        var collection = await LoadCollectionExportAsync(ct);
+        var wishlist = await LoadWishlistExportAsync(ct);
+        var decks = await LoadDecksExportAsync(ct);
 
         var payload = new ExportPayload(1, collection, wishlist, decks);
         var jsonOptions = JsonOptionsConfigurator.CreateSerializerOptions();
@@ -145,145 +124,178 @@ public sealed class ImportExportService(
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
-    /// <summary>Finds any referenced card printing IDs that do not exist in the catalog.</summary>
-    public async Task<IReadOnlyList<int>> FindMissingPrintingIdsAsync(ImportPayload payload, CancellationToken ct)
-    {
-        var collection = payload.Collection ?? [];
-        var wishlist = payload.Wishlist ?? [];
-        var decks = payload.Decks ?? [];
-
-        var allIds = collection.Select(c => c.CardPrintingId)
-            .Concat(wishlist.Select(w => w.CardPrintingId))
-            .Concat(decks.SelectMany(d => d.Cards.Select(c => c.CardPrintingId)))
-            .ToHashSet();
-
-        if (allIds.Count == 0)
-            return Array.Empty<int>();
-
-        var present = await db.CardPrintings.AsNoTracking()
-            .Where(cp => allIds.Contains(cp.Id))
-            .Select(cp => cp.Id)
-            .ToListAsync(ct);
-        return allIds.Except(present).ToList();
-    }
-
-    /// <summary>Applies a validated JSON import in merge or replace mode inside a transaction.</summary>
-    public async Task<ImportJsonResponse> ImportJsonAsync(ImportPayload payload, bool replaceMode, CancellationToken ct)
-    {
-        var collection = payload.Collection ?? [];
-        var wishlist = payload.Wishlist ?? [];
-        var decks = payload.Decks ?? [];
-
-        using var trx = await db.Database.BeginTransactionAsync(ct);
-
-        if (replaceMode)
-        {
-            var existingDecks = await db.Decks.ToListAsync(ct);
-            if (existingDecks.Count > 0) db.Decks.RemoveRange(existingDecks);
-
-            var existingUserCards = await db.UserCards.ToListAsync(ct);
-            if (existingUserCards.Count > 0) db.UserCards.RemoveRange(existingUserCards);
-
-            await db.SaveChangesAsync(ct);
-        }
-
-        await ApplyUserCardsAsync(collection, wishlist, replaceMode, ct);
-        await ApplyDecksAsync(decks, replaceMode, ct);
-
-        await db.SaveChangesAsync(ct);
-        await trx.CommitAsync(ct);
-
-        logger.LogInformation(ImportCompletedEventId, "Imported user backup ({Mode}): {Collection} collection, {Wishlist} wishlist, {Decks} decks",
-            replaceMode ? "replace" : "merge", collection.Count, wishlist.Count, decks.Count);
-
-        return new ImportJsonResponse(new ImportSummaryCounts(
-            collection.Count,
-            wishlist.Count,
-            decks.Count,
-            decks.SelectMany(d => d.Cards).Count()));
-    }
-
-    private async Task ApplyUserCardsAsync(
-        IReadOnlyList<ExportCollectionItem> collection,
-        IReadOnlyList<ExportWishlistItem> wishlist,
+    /// <summary>
+    /// Validates and imports JSON backup data, resolving shifted CardPrintingIds via natural keys when supplied.
+    /// Returns legacy missing IDs when an ID-only item cannot be resolved.
+    /// </summary>
+    public async Task<(ImportJsonResponse? Response, IReadOnlyList<int> LegacyMissingIds)> TryImportJsonAsync(
+        ImportPayload payload,
         bool replaceMode,
         CancellationToken ct)
     {
-        var userCardMap = await db.UserCards.ToDictionaryAsync(uc => uc.CardPrintingId, ct);
-
-        foreach (var c in collection)
+        var resolver = await PrintingNaturalKeyResolver.LoadAsync(db, ct);
+        var plan = BuildResolvedPlan(payload, resolver);
+        if (plan.LegacyMissingIds.Count > 0)
         {
-            var row = GetOrCreateUserCard(userCardMap, c.CardPrintingId);
-            var owned = Math.Max(0, c.QtyOwned);
-            var proxy = Math.Max(0, c.QtyProxyOwned);
-            row.QuantityOwned = replaceMode ? owned : Math.Max(0, row.QuantityOwned + owned);
-            row.QuantityProxyOwned = replaceMode ? proxy : Math.Max(0, row.QuantityProxyOwned + proxy);
+            return (null, plan.LegacyMissingIds);
         }
 
-        foreach (var w in wishlist)
-        {
-            var row = GetOrCreateUserCard(userCardMap, w.CardPrintingId);
-            var wanted = Math.Max(0, w.Qty);
-            row.QuantityWanted = replaceMode ? wanted : Math.Max(row.QuantityWanted, wanted);
-        }
+        using var trx = await db.Database.BeginTransactionAsync(ct);
+        var applier = new UserBackupApplier(db, timeProvider);
+        var response = await applier.ApplyAsync(plan, replaceMode, ct);
+        await trx.CommitAsync(ct);
+
+        logger.LogInformation(ImportCompletedEventId,
+            "Imported user backup ({Mode}): {Collection} collection, {Wishlist} wishlist, {Decks} decks ({NaturalMatches} via natural key, {Unresolved} unresolved)",
+            replaceMode ? "replace" : "merge", response.Imported.Collection, response.Imported.Wishlist,
+            response.Imported.Decks, response.Imported.ResolvedByNaturalKey, response.Imported.UnresolvedCount);
+
+        return (response, Array.Empty<int>());
     }
 
-    private UserCard GetOrCreateUserCard(Dictionary<int, UserCard> map, int printingId)
-    {
-        if (map.TryGetValue(printingId, out var row))
-            return row;
+    private async Task<List<ExportCollectionItem>> LoadCollectionExportAsync(CancellationToken ct) =>
+        await db.UserCards.AsNoTracking()
+            .OrderBy(x => x.CardPrintingId)
+            .Select(x => new ExportCollectionItem(
+                x.CardPrintingId,
+                x.QuantityOwned,
+                x.QuantityProxyOwned,
+                x.CardPrinting.Card.Game.Name,
+                x.CardPrinting.Card.Name,
+                x.CardPrinting.CatalogSet != null ? x.CardPrinting.CatalogSet.Code : null,
+                x.CardPrinting.CatalogSet != null ? x.CardPrinting.CatalogSet.Name : null,
+                x.CardPrinting.Number,
+                x.CardPrinting.Treatment != null ? x.CardPrinting.Treatment.Name : "Standard"))
+            .ToListAsync(ct);
 
-        row = new UserCard { CardPrintingId = printingId };
-        map[printingId] = row;
-        db.UserCards.Add(row);
-        return row;
+    private async Task<List<ExportWishlistItem>> LoadWishlistExportAsync(CancellationToken ct)
+    {
+        var sourcesByPrinting = await db.WishlistSources.AsNoTracking()
+            .Include(ws => ws.Deck)
+            .OrderBy(ws => ws.DeckId)
+            .ToListAsync(ct);
+        var sourceLookup = sourcesByPrinting
+            .GroupBy(ws => ws.CardPrintingId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(ws => new ExportWishlistSourceItem(ws.Deck?.Game, ws.Deck?.Name, ws.Quantity)).ToList());
+
+        var rows = await db.UserCards.AsNoTracking()
+            .Where(x => x.QuantityWanted > 0)
+            .OrderBy(x => x.CardPrintingId)
+            .Select(x => new
+            {
+                x.CardPrintingId,
+                x.QuantityWanted,
+                Game = x.CardPrinting.Card.Game.Name,
+                CardName = x.CardPrinting.Card.Name,
+                SetCode = x.CardPrinting.CatalogSet != null ? x.CardPrinting.CatalogSet.Code : null,
+                SetName = x.CardPrinting.CatalogSet != null ? x.CardPrinting.CatalogSet.Name : null,
+                x.CardPrinting.Number,
+                Style = x.CardPrinting.Treatment != null ? x.CardPrinting.Treatment.Name : "Standard"
+            })
+            .ToListAsync(ct);
+
+        return rows.Select(x => new ExportWishlistItem(
+            x.CardPrintingId,
+            x.QuantityWanted,
+            x.Game,
+            x.CardName,
+            x.SetCode,
+            x.SetName,
+            x.Number,
+            x.Style,
+            sourceLookup.TryGetValue(x.CardPrintingId, out var list) ? list : null)).ToList();
     }
 
-    private async Task ApplyDecksAsync(IReadOnlyList<ExportDeck> decks, bool replaceMode, CancellationToken ct)
+    private async Task<List<ExportDeck>> LoadDecksExportAsync(CancellationToken ct)
     {
-        var decksByKey = await db.Decks.Include(d => d.Cards)
-            .ToDictionaryAsync(d => (d.Game, d.Name), ct);
+        var deckEntities = await db.Decks.AsNoTracking()
+            .Include(d => d.Cards).ThenInclude(dc => dc.CardPrinting!).ThenInclude(cp => cp.Card)
+            .Include(d => d.Cards).ThenInclude(dc => dc.CardPrinting!).ThenInclude(cp => cp.CatalogSet)
+            .Include(d => d.Cards).ThenInclude(dc => dc.CardPrinting!).ThenInclude(cp => cp.Treatment)
+            .AsSplitQuery()
+            .OrderBy(d => d.Game).ThenBy(d => d.Name)
+            .ToListAsync(ct);
 
-        foreach (var d in decks)
-        {
-            if (!decksByKey.TryGetValue((d.Game, d.Name), out var deck))
-            {
-                deck = new Deck { Game = d.Game, Name = d.Name, Description = d.Description };
-                decksByKey[(d.Game, d.Name)] = deck;
-                db.Decks.Add(deck);
-            }
-            else if (replaceMode || d.Description != deck.Description)
-            {
-                deck.Description = d.Description;
-            }
-
-            ApplyDeckCards(deck, d.Cards, replaceMode);
-        }
+        return deckEntities.Select(d => new ExportDeck(
+            d.Game,
+            d.Name,
+            d.Description,
+            d.Cards.OrderBy(c => c.CardPrintingId)
+                .Select(c => new ExportDeckCard(
+                    c.CardPrintingId,
+                    c.QuantityInDeck,
+                    c.QuantityIdea,
+                    c.QuantityAcquire,
+                    c.QuantityProxy,
+                    c.QuantitySideboard,
+                    c.IsStarting,
+                    c.IsCommander,
+                    c.CardPrinting?.Card.Name,
+                    c.CardPrinting?.CatalogSet?.Code,
+                    c.CardPrinting?.CatalogSet?.Name,
+                    c.CardPrinting?.Number,
+                    c.CardPrinting?.Treatment?.Name ?? "Standard"))
+                .ToList(),
+            d.Format,
+            d.Side)).ToList();
     }
 
-    private void ApplyDeckCards(Deck deck, IReadOnlyList<ExportDeckCard> cards, bool replaceMode)
+    private static UserBackupApplier.ResolvedPlan BuildResolvedPlan(ImportPayload payload, PrintingNaturalKeyResolver resolver)
     {
-        var existingCards = deck.Cards.ToDictionary(c => c.CardPrintingId);
-        foreach (var card in cards)
+        var collection = new List<(int, ExportCollectionItem)>();
+        var wishlist = new List<(int, ExportWishlistItem)>();
+        var decks = new List<UserBackupApplier.ResolvedDeck>();
+        var legacyMissing = new HashSet<int>();
+        var unresolved = new List<ImportUnresolvedItem>();
+        var naturalKeyHits = 0;
+
+        foreach (var item in payload.Collection ?? [])
         {
-            if (!existingCards.TryGetValue(card.CardPrintingId, out var deckCard))
+            var res = resolver.Resolve(item.CardPrintingId, item.Game, item.CardName, item.SetCode, item.SetName, item.Number, item.Style);
+            if (!res.ResolvedPrintingId.HasValue)
             {
-                deckCard = new DeckCard { Deck = deck, CardPrintingId = card.CardPrintingId };
-                existingCards[card.CardPrintingId] = deckCard;
-                deck.Cards.Add(deckCard);
-                db.DeckCards.Add(deckCard);
+                if (!res.HasNaturalKey) legacyMissing.Add(item.CardPrintingId);
+                else unresolved.Add(new ImportUnresolvedItem("collection", item.CardPrintingId, item.Game, item.CardName, item.SetCode, item.Number, res.Reason!));
+                continue;
             }
-
-            var inDeck = Math.Max(0, card.InDeck);
-            var idea = Math.Max(0, card.Idea);
-            var acquire = Math.Max(0, card.Acquire);
-            var proxy = Math.Max(0, card.Proxy);
-
-            deckCard.QuantityInDeck = replaceMode ? inDeck : Math.Max(0, deckCard.QuantityInDeck + inDeck);
-            deckCard.QuantityIdea = replaceMode ? idea : Math.Max(0, deckCard.QuantityIdea + idea);
-            deckCard.QuantityAcquire = replaceMode ? acquire : Math.Max(0, deckCard.QuantityAcquire + acquire);
-            deckCard.QuantityProxy = replaceMode ? proxy : Math.Max(0, deckCard.QuantityProxy + proxy);
+            if (res.UsedNaturalKey) naturalKeyHits++;
+            collection.Add((res.ResolvedPrintingId.Value, item));
         }
+
+        foreach (var item in payload.Wishlist ?? [])
+        {
+            var res = resolver.Resolve(item.CardPrintingId, item.Game, item.CardName, item.SetCode, item.SetName, item.Number, item.Style);
+            if (!res.ResolvedPrintingId.HasValue)
+            {
+                if (!res.HasNaturalKey) legacyMissing.Add(item.CardPrintingId);
+                else unresolved.Add(new ImportUnresolvedItem("wishlist", item.CardPrintingId, item.Game, item.CardName, item.SetCode, item.Number, res.Reason!));
+                continue;
+            }
+            if (res.UsedNaturalKey) naturalKeyHits++;
+            wishlist.Add((res.ResolvedPrintingId.Value, item));
+        }
+
+        foreach (var deck in payload.Decks ?? [])
+        {
+            var resolvedCards = new List<UserBackupApplier.ResolvedDeckCard>();
+            foreach (var card in deck.Cards)
+            {
+                var res = resolver.Resolve(card.CardPrintingId, deck.Game, card.CardName, card.SetCode, card.SetName, card.Number, card.Style);
+                if (!res.ResolvedPrintingId.HasValue)
+                {
+                    if (!res.HasNaturalKey) legacyMissing.Add(card.CardPrintingId);
+                    else unresolved.Add(new ImportUnresolvedItem($"deck:{deck.Name}", card.CardPrintingId, deck.Game, card.CardName, card.SetCode, card.Number, res.Reason!));
+                    continue;
+                }
+                if (res.UsedNaturalKey) naturalKeyHits++;
+                resolvedCards.Add(new UserBackupApplier.ResolvedDeckCard(res.ResolvedPrintingId.Value, card));
+            }
+            decks.Add(new UserBackupApplier.ResolvedDeck(deck, resolvedCards));
+        }
+
+        return new UserBackupApplier.ResolvedPlan(collection, wishlist, decks, legacyMissing.ToList(), unresolved, naturalKeyHits);
     }
 
     private static string Csv(string? s)

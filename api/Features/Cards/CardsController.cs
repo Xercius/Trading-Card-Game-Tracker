@@ -728,7 +728,8 @@ public class CardsController : ControllerBase
             PrintingMapper.GetOrientation(printing.ArtFrontHorizontal),
             PrintingMapper.GetOrientation(printing.ArtBackHorizontal),
             printing.Artist,
-            printing.CatalogSet?.LogoUrl);
+            printing.CatalogSet?.LogoUrl,
+            printing.PrintingNotes);
 
     private async Task<Treatment> GetOrCreateTreatmentAsync(int? gameId, string? name)
     {

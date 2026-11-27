@@ -34,11 +34,11 @@ public sealed class MtgDeckValidationService
 
         if (string.Equals(normalizedFormat, "Constructed", StringComparison.OrdinalIgnoreCase))
         {
-            ValidateConstructed(activeCards, mainDeckCount, sideboardCount, violations);
+            ValidateConstructed(deckCards, mainDeckCount, sideboardCount, violations);
         }
         else if (string.Equals(normalizedFormat, "Commander", StringComparison.OrdinalIgnoreCase))
         {
-            ValidateCommander(activeCards, mainDeckCount, sideboardCount, commanderCards, commanderCount, commanderIdentity, violations);
+            ValidateCommander(activeCards, deckCards, mainDeckCount, sideboardCount, commanderCards, commanderCount, commanderIdentity, violations);
         }
         else
         {
@@ -56,7 +56,7 @@ public sealed class MtgDeckValidationService
     }
 
     private static void ValidateConstructed(
-        IReadOnlyCollection<DeckCard> activeCards,
+        IReadOnlyCollection<DeckCard> copyLimitCards,
         long mainDeckCount,
         long sideboardCount,
         ICollection<string> violations)
@@ -71,11 +71,12 @@ public sealed class MtgDeckValidationService
             violations.Add($"Constructed sideboards may contain at most {ConstructedMaxSideboardSize} cards (currently {sideboardCount}).");
         }
 
-        AddCopyLimitViolations(activeCards, ConstructedDefaultMaxCopies, includeSideboard: true, violations);
+        AddCopyLimitViolations(copyLimitCards, ConstructedDefaultMaxCopies, includeSideboard: true, violations);
     }
 
     private static void ValidateCommander(
         IReadOnlyCollection<DeckCard> activeCards,
+        IReadOnlyCollection<DeckCard> copyLimitCards,
         long mainDeckCount,
         long sideboardCount,
         IReadOnlyList<DeckCard> commanderCards,
@@ -108,7 +109,7 @@ public sealed class MtgDeckValidationService
         }
 
         var mainCards = activeCards.Where(c => c.QuantityInDeck > 0).ToList();
-        AddCopyLimitViolations(mainCards, CommanderDefaultMaxCopies, includeSideboard: false, violations);
+        AddCopyLimitViolations(copyLimitCards, CommanderDefaultMaxCopies, includeSideboard: false, violations);
 
         if (commanderCount == 1)
         {
@@ -142,7 +143,8 @@ public sealed class MtgDeckValidationService
                 continue;
             }
 
-            var totalCount = group.Sum(c => (long)c.QuantityInDeck + (includeSideboard ? c.QuantitySideboard : 0));
+            var totalCount = group.Sum(c =>
+                (long)c.QuantityInDeck + (includeSideboard ? c.QuantitySideboard : 0) + c.QuantityIdea);
             if (totalCount > maxAllowed.Value)
             {
                 var copyLabel = maxAllowed.Value == 1 ? "copy" : "copies";

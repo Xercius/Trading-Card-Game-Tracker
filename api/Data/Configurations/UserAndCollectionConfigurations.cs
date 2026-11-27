@@ -60,6 +60,43 @@ internal sealed class UserCardConfiguration : IEntityTypeConfiguration<UserCard>
     }
 }
 
+internal sealed class WishlistSourceConfiguration : IEntityTypeConfiguration<WishlistSource>
+{
+    public void Configure(EntityTypeBuilder<WishlistSource> e)
+    {
+        e.ToTable("WishlistSources");
+        e.HasKey(w => w.Id);
+
+        e.Property(w => w.Quantity).HasDefaultValue(0);
+
+        // Cascade: wishlist source rows are owned by the printing if a printing is removed.
+        e.HasOne(w => w.CardPrinting)
+            .WithMany()
+            .HasForeignKey(w => w.CardPrintingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Restrict: DeleteDeckCore explicitly removes deck wishlist sources and recalculates UserCard.QuantityWanted.
+        e.HasOne(w => w.Deck)
+            .WithMany()
+            .HasForeignKey(w => w.DeckId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        e.HasIndex(w => w.DeckId)
+            .HasDatabaseName("IX_WishlistSources_DeckId");
+
+        e.HasIndex(w => new { w.CardPrintingId, w.DeckId })
+            .IsUnique()
+            .HasFilter("[DeckId] IS NOT NULL")
+            .HasDatabaseName("UX_WishlistSources_CardPrintingId_DeckId");
+
+        e.HasIndex(w => w.CardPrintingId)
+            .IsUnique()
+            .HasFilter("[DeckId] IS NULL")
+            .HasDatabaseName("UX_WishlistSources_CardPrintingId_General");
+    }
+}
+
 internal sealed class ValueHistoryConfiguration : IEntityTypeConfiguration<ValueHistory>
 {
     public void Configure(EntityTypeBuilder<ValueHistory> e)

@@ -4,9 +4,10 @@ import { toProblemDetailsError } from "./problemDetails";
 // ------------------------------------
 // Base URL setup
 // ------------------------------------
-const envBase = import.meta.env.VITE_API_BASE as string | undefined;
+const envBase = (import.meta.env.VITE_API_BASE as string | undefined)?.trim();
 
-const rawBase = envBase ?? "/api";
+// Production builds are served same-origin by the .NET API under /api, even if .env.local sets VITE_API_BASE for Vite dev mode.
+const rawBase = import.meta.env.DEV && envBase ? envBase : "/api";
 const baseURL = String(rawBase).replace(/\/+$/, "") + "/";
 
 const http = axios.create({
@@ -90,7 +91,8 @@ http.interceptors.response.use(
 // ------------------------------------
 // Image URL resolver
 // ------------------------------------
-const API_ORIGIN = new URL(import.meta.env.VITE_API_BASE ?? "/api", location.origin).origin;
+const browserOrigin = typeof location !== "undefined" ? location.origin : "http://localhost";
+const API_ORIGIN = new URL(rawBase, browserOrigin).origin;
 
 /**
  * Converts a stored image path into a usable browser URL.

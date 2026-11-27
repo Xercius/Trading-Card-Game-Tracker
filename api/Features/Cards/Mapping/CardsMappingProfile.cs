@@ -45,7 +45,8 @@ public sealed class CardsMappingProfile : Profile
                 s.ArtBackHorizontal == true ? "horizontal" : s.ArtBackHorizontal == false ? "vertical" : null))
             .ForCtorParam(nameof(CardPrintingResponse.Artist), o => o.MapFrom(s => s.Artist))
             .ForCtorParam(nameof(CardPrintingResponse.SetLogoUrl), o => o.MapFrom(s =>
-                s.CatalogSet == null ? null : s.CatalogSet.LogoUrl));
+                s.CatalogSet == null ? null : s.CatalogSet.LogoUrl))
+            .ForCtorParam(nameof(CardPrintingResponse.PrintingNotes), o => o.MapFrom(s => s.PrintingNotes));
         CreateMap<CardPrinting, CardListItemResponse.PrimaryPrintingResponse>()
             .ForMember(d => d.Set, o => o.MapFrom(s =>
                 s.CatalogSet == null ? string.Empty : s.CatalogSet.Name ?? s.CatalogSet.Code))

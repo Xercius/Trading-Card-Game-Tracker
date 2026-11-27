@@ -64,7 +64,7 @@ public sealed class PokemonDeckValidationService
             .Where(card => !IsBasicEnergy(card.CardPrinting?.Card))
             .GroupBy(card => card.CardPrinting?.Card?.Name ?? string.Empty, StringComparer.Ordinal))
         {
-            var nameCount = group.Sum(card => (long)card.QuantityInDeck);
+            var nameCount = group.Sum(card => (long)card.QuantityInDeck + card.QuantityIdea);
             if (nameCount > MaxCopiesPerName)
             {
                 violations.Add($"\"{group.Key}\" exceeds the limit of 4 copies ({nameCount} present).");

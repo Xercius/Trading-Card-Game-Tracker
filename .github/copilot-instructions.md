@@ -30,7 +30,7 @@ Path-specific rules: `.github/instructions/{api,client,database,importers,swu-im
 - A new endpoint requires a function in `client-vite/src/features/<area>/api.ts` (or `features/<area>/api/`) and a key in `lib/queryKeys.ts`.
 - Model changes require an EF migration in the same change. Never edit or delete applied migrations; schema changes are additive.
 - Do not break routes/response shapes the client uses; if unavoidable, change API and client together.
-- User-facing features, improvements, or bug fixes must add a concise summary bullet under `## [Unreleased]` (`### New Features`, `### Improvements`, or `### Bug Fixes`) in `CHANGELOG.md`; `.github/workflows/release.yml` automatically promotes `## [Unreleased]` (or generates entries from commit history) into a versioned release on merge to `master`.
+- User-facing features, improvements, or bug fixes must add a concise summary bullet under `## [Unreleased]` (`### New Features`, `### Improvements`, or `### Bug Fixes`) in `CHANGELOG.md`; `.github/workflows/release.yml` is triggered manually via `workflow_dispatch` to promote `## [Unreleased]` (or generate entries from commit history) into a versioned GitHub Release with the Windows x64 bundle.
 
 ## Errors
 - API: unhandled exceptions become RFC 7807 `ProblemDetails` (registered via `AddProblemDetails()`; shape customized in `api/Common/Errors/`). Never expose exception text. For new exception-to-status mappings, implement `IExceptionHandler` and write through `IProblemDetailsService`; do not add more inline `UseExceptionHandler` lambdas or hand-built `ProblemDetails`. Log business-rule failures at `Warning`, unexpected ones at `Error`.

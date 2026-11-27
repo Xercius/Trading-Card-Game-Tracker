@@ -425,6 +425,10 @@ namespace api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PrintingNotes")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("RarityId")
                         .HasColumnType("INTEGER");
 
@@ -953,6 +957,44 @@ namespace api.Migrations
                     b.ToTable("ValueHistories");
                 });
 
+            modelBuilder.Entity("api.Models.WishlistSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CardPrintingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("DeckId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CardPrintingId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WishlistSources_CardPrintingId_General")
+                        .HasFilter("[DeckId] IS NULL");
+
+                    b.HasIndex("DeckId")
+                        .HasDatabaseName("IX_WishlistSources_DeckId");
+
+                    b.HasIndex("CardPrintingId", "DeckId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WishlistSources_CardPrintingId_DeckId")
+                        .HasFilter("[DeckId] IS NOT NULL");
+
+                    b.ToTable("WishlistSources", (string)null);
+                });
+
             modelBuilder.Entity("api.Models.Arena", b =>
                 {
                     b.HasOne("api.Models.Game", "Game")
@@ -1301,6 +1343,24 @@ namespace api.Migrations
                         .IsRequired();
 
                     b.Navigation("CardPrinting");
+                });
+
+            modelBuilder.Entity("api.Models.WishlistSource", b =>
+                {
+                    b.HasOne("api.Models.CardPrinting", "CardPrinting")
+                        .WithMany()
+                        .HasForeignKey("CardPrintingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Deck", "Deck")
+                        .WithMany()
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CardPrinting");
+
+                    b.Navigation("Deck");
                 });
 
             modelBuilder.Entity("api.Models.Arena", b =>

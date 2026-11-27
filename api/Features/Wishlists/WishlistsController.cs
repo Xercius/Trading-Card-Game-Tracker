@@ -24,11 +24,13 @@ public class WishlistsController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly IMapper _mapper;
+    private readonly WishlistSourceSyncService _sourceSync;
 
-    public WishlistsController(AppDbContext db, IMapper mapper)
+    public WishlistsController(AppDbContext db, IMapper mapper, WishlistSourceSyncService sourceSync)
     {
         _db = db;
         _mapper = mapper;
+        _sourceSync = sourceSync;
     }
 
     // -----------------------------
@@ -65,6 +67,38 @@ public class WishlistsController : ControllerBase
             .ProjectTo<WishlistItemDto>(_mapper.ConfigurationProvider)
             .ToListAsync(ct);
 
+        if (items.Count > 0)
+        {
+            var printingIds = items.Select(i => i.CardPrintingId).ToList();
+            var rawSources = await _db.WishlistSources
+                .AsNoTracking()
+                .Where(w => printingIds.Contains(w.CardPrintingId) && w.Quantity > 0)
+                .Select(w => new
+                {
+                    w.CardPrintingId,
+                    w.DeckId,
+                    DeckName = w.Deck != null ? w.Deck.Name : "General",
+                    w.Quantity
+                })
+                .ToListAsync(ct);
+
+            var sourcesByPrinting = rawSources
+                .GroupBy(s => s.CardPrintingId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<WishlistSourceDto>)g
+                        .OrderBy(s => s.DeckId.HasValue ? 1 : 0)
+                        .ThenBy(s => s.DeckName, StringComparer.OrdinalIgnoreCase)
+                        .Select(s => new WishlistSourceDto(s.DeckId, s.DeckName, s.Quantity))
+                        .ToList());
+
+            items = items
+                .Select(i => sourcesByPrinting.TryGetValue(i.CardPrintingId, out var s)
+                    ? i with { Sources = s }
+                    : i)
+                .ToList();
+        }
+
         return (new Paged<WishlistItemDto>(items, total, page, pageSize), null);
     }
 
@@ -90,26 +124,14 @@ public class WishlistsController : ControllerBase
                 detail: $"Card printing {dto.CardPrintingId} was not found.");
         }
 
-        var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
-
-        if (uc is null)
+        if (dto.DeckId.HasValue && !await _db.Decks.AnyAsync(d => d.Id == dto.DeckId.Value, HttpContext.RequestAborted))
         {
-            uc = new UserCard
-            {
-                CardPrintingId = dto.CardPrintingId,
-                QuantityOwned = 0,
-                QuantityProxyOwned = 0,
-                QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted)
-            };
-            _db.UserCards.Add(uc);
-        }
-        else
-        {
-            uc.QuantityWanted = QuantityGuards.Clamp(dto.QuantityWanted);
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {dto.DeckId.Value} was not found.");
         }
 
-        await _db.SaveChangesAsync();
+        await _sourceSync.SetSourceQuantityAsync(dto.CardPrintingId, dto.DeckId, dto.QuantityWanted, HttpContext.RequestAborted);
         return NoContent();
     }
 
@@ -130,8 +152,9 @@ public class WishlistsController : ControllerBase
             return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
         }
 
+        var ct = HttpContext.RequestAborted;
         var ids = list.Select(i => i.CardPrintingId).Distinct().ToList();
-        var validIds = await _db.CardPrintings.Where(cp => ids.Contains(cp.Id)).Select(cp => cp.Id).ToListAsync();
+        var validIds = await _db.CardPrintings.Where(cp => ids.Contains(cp.Id)).Select(cp => cp.Id).ToListAsync(ct);
         var missing = ids.FirstOrDefault(id => !validIds.Contains(id));
         if (missing != 0)
         {
@@ -140,29 +163,26 @@ public class WishlistsController : ControllerBase
                 detail: $"CardPrinting {missing} was not found.");
         }
 
-        var map = await _db.UserCards
-            .Where(uc => ids.Contains(uc.CardPrintingId))
-            .ToDictionaryAsync(uc => uc.CardPrintingId);
-
-        foreach (var i in list)
+        var deckIds = list.Where(i => i.DeckId.HasValue).Select(i => i.DeckId!.Value).Distinct().ToList();
+        if (deckIds.Count > 0)
         {
-            if (!map.TryGetValue(i.CardPrintingId, out var uc))
+            var validDeckIds = await _db.Decks.Where(d => deckIds.Contains(d.Id)).Select(d => d.Id).ToListAsync(ct);
+            var missingDeck = deckIds.FirstOrDefault(id => !validDeckIds.Contains(id));
+            if (missingDeck != 0)
             {
-                uc = new UserCard
-                {
-                    CardPrintingId = i.CardPrintingId,
-                    QuantityOwned = 0,
-                    QuantityProxyOwned = 0,
-                    QuantityWanted = 0
-                };
-                _db.UserCards.Add(uc);
-                map[i.CardPrintingId] = uc;
+                return this.CreateProblem(
+                    StatusCodes.Status404NotFound,
+                    detail: $"Deck {missingDeck} was not found.");
             }
-
-            uc.QuantityWanted = QuantityGuards.Clamp(i.QuantityWanted);
         }
 
-        await _db.SaveChangesAsync();
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var i in list)
+        {
+            await _sourceSync.SetSourceQuantityAsync(i.CardPrintingId, i.DeckId, i.QuantityWanted, ct);
+        }
+        await tx.CommitAsync(ct);
+
         return NoContent();
     }
 
@@ -192,8 +212,9 @@ public class WishlistsController : ControllerBase
             return this.CreateValidationProblem(errors);
         }
 
+        var ct = HttpContext.RequestAborted;
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.CardPrintingId, ct);
 
         if (uc is null)
         {
@@ -206,7 +227,7 @@ public class WishlistsController : ControllerBase
                 QuantityProxyOwned = dto.UseProxy ? initialMoveQuantity : 0
             };
             _db.UserCards.Add(newUserCard);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
             var (initialAvailability, initialAvailabilityWithProxies) = CardAvailabilityHelper.Calculate(
                 newUserCard.QuantityOwned,
@@ -221,13 +242,25 @@ public class WishlistsController : ControllerBase
                 initialAvailabilityWithProxies));
         }
 
-        var desiredQuantity = QuantityGuards.Clamp(uc.QuantityWanted);
-        var moveQuantity = Math.Min(dto.Quantity, desiredQuantity);
+        var sources = await _db.WishlistSources
+            .Where(w => w.CardPrintingId == dto.CardPrintingId && w.Quantity > 0)
+            .ToListAsync(ct);
+
+        if (sources.Count > 1 && !dto.SourceSpecified && dto.DeckId is null)
+        {
+            return this.CreateValidationProblem("deckId", "Specify which wishlist source to move when multiple sources exist.");
+        }
+
+        var targetSource = sources.Count == 1 && !dto.SourceSpecified && dto.DeckId is null
+            ? sources[0]
+            : sources.FirstOrDefault(s => s.DeckId == dto.DeckId);
+
+        var availableWanted = targetSource?.Quantity ?? (sources.Count == 0 ? QuantityGuards.Clamp(uc.QuantityWanted) : 0);
+        var moveQuantity = Math.Min(dto.Quantity, availableWanted);
 
         if (moveQuantity > 0)
         {
-            uc.QuantityWanted = QuantityGuards.ClampDelta(uc.QuantityWanted, -moveQuantity);
-
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
             if (dto.UseProxy)
             {
                 uc.QuantityProxyOwned = QuantityGuards.ClampDelta(uc.QuantityProxyOwned, moveQuantity);
@@ -237,7 +270,17 @@ public class WishlistsController : ControllerBase
                 uc.QuantityOwned = QuantityGuards.ClampDelta(uc.QuantityOwned, moveQuantity);
             }
 
-            await _db.SaveChangesAsync();
+            if (targetSource is not null)
+            {
+                await _db.SaveChangesAsync(ct);
+                uc = await _sourceSync.DeltaSourceQuantityAsync(dto.CardPrintingId, targetSource.DeckId, -moveQuantity, ct) ?? uc;
+            }
+            else
+            {
+                uc.QuantityWanted = QuantityGuards.ClampDelta(uc.QuantityWanted, -moveQuantity);
+                await _db.SaveChangesAsync(ct);
+            }
+            await tx.CommitAsync(ct);
         }
 
         var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(
@@ -253,10 +296,11 @@ public class WishlistsController : ControllerBase
             availabilityWithProxies));
     }
 
-    private async Task<IActionResult> RemoveCore(int cardPrintingId)
+    private async Task<IActionResult> RemoveCore(int cardPrintingId, int? deckId = null, bool generalOnly = false)
     {
+        var ct = HttpContext.RequestAborted;
         var uc = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId);
+            .FirstOrDefaultAsync(x => x.CardPrintingId == cardPrintingId, ct);
         if (uc is null)
         {
             return this.CreateProblem(
@@ -264,12 +308,19 @@ public class WishlistsController : ControllerBase
                 detail: $"Card printing {cardPrintingId} was not found in your wishlist.");
         }
 
-        uc.QuantityWanted = 0;
+        if (deckId.HasValue)
+        {
+            await _sourceSync.SetSourceQuantityAsync(cardPrintingId, deckId.Value, 0, ct);
+        }
+        else if (generalOnly)
+        {
+            await _sourceSync.SetSourceQuantityAsync(cardPrintingId, null, 0, ct);
+        }
+        else
+        {
+            await _sourceSync.RemoveAllSourcesForPrintingAsync(cardPrintingId, ct);
+        }
 
-        if (uc.QuantityOwned == 0 && uc.QuantityProxyOwned == 0 && uc.QuantityWanted == 0)
-            _db.UserCards.Remove(uc);
-
-        await _db.SaveChangesAsync();
         return NoContent();
     }
 
@@ -327,27 +378,15 @@ public class WishlistsController : ControllerBase
                 detail: $"Card printing {dto.PrintingId} was not found.");
         }
 
-        var card = await _db.UserCards
-            .FirstOrDefaultAsync(x => x.CardPrintingId == dto.PrintingId);
-
-        if (card is null)
+        if (dto.DeckId.HasValue && !await _db.Decks.AnyAsync(d => d.Id == dto.DeckId.Value, HttpContext.RequestAborted))
         {
-            card = new UserCard
-            {
-                CardPrintingId = dto.PrintingId,
-                QuantityOwned = 0,
-                QuantityProxyOwned = 0,
-                QuantityWanted = QuantityGuards.Clamp(dto.Quantity)
-            };
-            _db.UserCards.Add(card);
-        }
-        else
-        {
-            card.QuantityWanted = QuantityGuards.ClampDelta(card.QuantityWanted, dto.Quantity);
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Deck {dto.DeckId.Value} was not found.");
         }
 
-        await _db.SaveChangesAsync();
-        return Ok(new QuickAddResponse(dto.PrintingId, card.QuantityWanted));
+        var card = await _sourceSync.DeltaSourceQuantityAsync(dto.PrintingId, dto.DeckId, dto.Quantity, HttpContext.RequestAborted);
+        return Ok(new QuickAddResponse(dto.PrintingId, card?.QuantityWanted ?? 0));
     }
 
     [HttpPost]
@@ -369,8 +408,11 @@ public class WishlistsController : ControllerBase
     }
 
     [HttpDelete("{cardPrintingId:int}")]
-    public async Task<IActionResult> Remove(int cardPrintingId)
+    public async Task<IActionResult> Remove(
+        int cardPrintingId,
+        [FromQuery] int? deckId = null,
+        [FromQuery] bool generalOnly = false)
     {
-        return await RemoveCore(cardPrintingId);
+        return await RemoveCore(cardPrintingId, deckId, generalOnly);
     }
 }

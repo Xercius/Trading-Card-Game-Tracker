@@ -4,6 +4,22 @@ All notable changes to Trading Card Game Tracker are documented in this file.
 
 ## [Unreleased]
 
+### New Features
+
+- Serve the built `client-vite` frontend directly from the .NET API in single-server mode with SPA fallback routing (#838).
+- Add one-click Windows local launcher scripts (`Start-TCGTracker.ps1` and `Start-TCGTracker.bat`) (#839).
+- Package and attach a self-contained Windows x64 release ZIP (`TradingCardGameTracker-<tag>-win-x64.zip`) in GitHub Releases (#845).
+- Enhance portable JSON backup/restore with natural-key printing fallback, full v1.0.0 deck/wishlist source fields, and an in-app Backup & Restore dialog (#840).
+- Add flexible plain-text decklist import (with printing disambiguation preview) and formatted text/file export across MTG, Pokémon TCG, Star Wars: Unlimited, and Star Wars CCG (#841).
+- Add Star Wars CCG JSON catalog sync, alternate printings CSV import, and admin sync UI panel.
+- Add wishlist sources tracking (General vs. per-deck) with deck missing-card wishlist synchronization and source-aware Move to Collection.
+- Add deck card printing switching and Deck Ideas zone support.
+- Add virtualized Collection Set Detail table with non-blocking quantity steppers.
+
+### Improvements
+
+- Polish Deck Builder zone grouping and game-scoped role controls (Sideboard, Commander, Starting Cards, Defensive Shields, and Ideas) across the sidebar and construction modal (#843).
+
 ## [v0.28.0] - 2026-11-19
 
 ### New Features

@@ -25,6 +25,8 @@ public class DecksController : ControllerBase
     private readonly ILogger<DecksController> _logger;
     private readonly PokemonDeckValidationService _pokemonDeckValidationService;
     private readonly MtgDeckValidationService _mtgDeckValidationService;
+    private readonly DecklistTextService _decklistTextService;
+    private readonly WishlistSourceSyncService _sourceSync;
     private static readonly JsonSerializerOptions JsonWebOptions = JsonOptionsConfigurator.CreateSerializerOptions();
 
     public DecksController(
@@ -32,13 +34,17 @@ public class DecksController : ControllerBase
         IMapper mapper,
         ILogger<DecksController> logger,
         PokemonDeckValidationService pokemonDeckValidationService,
-        MtgDeckValidationService mtgDeckValidationService)
+        MtgDeckValidationService mtgDeckValidationService,
+        DecklistTextService decklistTextService,
+        WishlistSourceSyncService sourceSync)
     {
         _db = db;
         _mapper = mapper;
         _logger = logger;
         _pokemonDeckValidationService = pokemonDeckValidationService;
         _mtgDeckValidationService = mtgDeckValidationService;
+        _decklistTextService = decklistTextService;
+        _sourceSync = sourceSync;
     }
 
     private static string ResolveDefaultFormat(string? game) =>
@@ -397,7 +403,7 @@ public class DecksController : ControllerBase
         }
 
         var cards = await _db.DeckCards
-            .Where(card => card.DeckId == deckId && card.QuantityInDeck > 0)
+            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantityIdea > 0))
             .Include(card => card.CardPrinting!)
                 .ThenInclude(printing => printing.RarityLookup)
             .Include(card => card.CardPrinting!)
@@ -427,7 +433,7 @@ public class DecksController : ControllerBase
         }
 
         var cards = await _db.DeckCards
-            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantitySideboard > 0))
+            .Where(card => card.DeckId == deckId && (card.QuantityInDeck > 0 || card.QuantitySideboard > 0 || card.QuantityIdea > 0))
             .Include(card => card.CardPrinting!)
                 .ThenInclude(printing => printing.Card)
                     .ThenInclude(card => card.CardTypes)
@@ -629,15 +635,20 @@ public class DecksController : ControllerBase
 
     private async Task<IActionResult> DeleteDeckCore(int deckId)
     {
-        var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId);
+        var ct = HttpContext.RequestAborted;
+        var d = await _db.Decks.FirstOrDefaultAsync(x => x.Id == deckId, ct);
         if (d is null)
         {
             return this.CreateProblem(
                 StatusCodes.Status404NotFound,
                 detail: $"Deck {deckId} was not found.");
         }
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await _sourceSync.RemoveDeckSourcesAsync(deckId, ct);
         _db.Decks.Remove(d);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -1096,7 +1107,7 @@ public class DecksController : ControllerBase
             maxAllowedCopies);
     }
 
-    private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies)
+    private async Task<IActionResult> GetDeckCardsWithAvailabilityCore(int deckId, bool includeProxies, bool includeIdeas = false)
     {
         var (deck, cards, err) = await LoadDeckWithCards(deckId);
         if (err != null) return err;
@@ -1118,7 +1129,7 @@ public class DecksController : ControllerBase
             var printing = dc.CardPrinting;
             var card = printing?.Card;
             if (printing is null || card is null) continue;
-            if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0) continue;
+            if (dc.QuantityInDeck == 0 && dc.QuantitySideboard == 0 && (!includeIdeas || dc.QuantityIdea == 0)) continue;
 
             userCards.TryGetValue(dc.CardPrintingId, out var uc);
             var owned = uc?.QuantityOwned ?? 0;
@@ -1129,6 +1140,8 @@ public class DecksController : ControllerBase
             {
                 availableWithProxy = available;
             }
+            var ownedForMissing = includeProxies ? (owned + proxy) : owned;
+            var missingQuantity = Math.Max(0, assigned - ownedForMissing);
 
             var cardType = card.CardTypes?.OrderBy(type => type.SourceRole == "Type" ? 0 : 1).FirstOrDefault()?.CardType?.Name;
             var isHorizontal = printing.ArtFrontHorizontal == true;
@@ -1161,7 +1174,11 @@ public class DecksController : ControllerBase
                 isMtg && MtgCardMetadataHelper.CanBeCommander(card),
                 isMtg && MtgCardMetadataHelper.IsBasicLand(card),
                 hasUnlimitedCopies,
-                maxAllowedCopies
+                maxAllowedCopies,
+                dc.QuantityIdea,
+                owned,
+                proxy,
+                missingQuantity
             ));
         }
 
@@ -1294,8 +1311,11 @@ public class DecksController : ControllerBase
     // GET /api/decks/{deckId}/cards-with-availability
     [HttpGet("/api/deck/{deckId:int}/cards-with-availability")]
     [HttpGet("/api/decks/{deckId:int}/cards-with-availability")] // alias
-    public async Task<IActionResult> GetDeckCardsWithAvailability(int deckId, [FromQuery] bool includeProxies = false)
-        => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies);
+    public async Task<IActionResult> GetDeckCardsWithAvailability(
+        int deckId,
+        [FromQuery] bool includeProxies = false,
+        [FromQuery] bool includeIdeas = false)
+        => await GetDeckCardsWithAvailabilityCore(deckId, includeProxies, includeIdeas);
 
     // POST /api/deck/{deckId}/cards/quantity-delta
     [HttpPost("/api/deck/{deckId:int}/cards/quantity-delta")]
@@ -1410,11 +1430,144 @@ public class DecksController : ControllerBase
     public async Task<IActionResult> PatchDeckCardQuantities(int deckId, int cardPrintingId, [FromBody] JsonElement patch)
         => await PatchDeckCardQuantitiesCore(deckId, cardPrintingId, patch);
 
+    // PATCH /api/decks/{deckId}/cards/{cardPrintingId}/printing
+    [HttpPatch("/api/deck/{deckId:int}/cards/{cardPrintingId:int}/printing")]
+    [HttpPatch("/api/decks/{deckId:int}/cards/{cardPrintingId:int}/printing")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<IActionResult> SwitchDeckCardPrinting(
+        int deckId,
+        int cardPrintingId,
+        [FromBody] SwitchDeckCardPrintingRequest? request)
+    {
+        if (request is null || request.TargetCardPrintingId <= 0)
+        {
+            return this.CreateValidationProblem("targetCardPrintingId", "TargetCardPrintingId must be positive.");
+        }
+
+        var ct = HttpContext.RequestAborted;
+        var source = await _db.DeckCards
+            .Include(dc => dc.CardPrinting)
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == cardPrintingId, ct);
+        if (source is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {cardPrintingId} was not found in deck {deckId}.");
+        }
+
+        if (request.TargetCardPrintingId == cardPrintingId)
+        {
+            return NoContent();
+        }
+
+        var targetPrinting = await _db.CardPrintings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cp => cp.Id == request.TargetCardPrintingId, ct);
+        if (targetPrinting is null)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {request.TargetCardPrintingId} was not found.");
+        }
+
+        if (source.CardPrinting is not null && targetPrinting.CardId != source.CardPrinting.CardId)
+        {
+            return this.CreateValidationProblem("targetCardPrintingId", "Target printing must belong to the same card.");
+        }
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        var existingTarget = await _db.DeckCards
+            .FirstOrDefaultAsync(dc => dc.DeckId == deckId && dc.CardPrintingId == request.TargetCardPrintingId, ct);
+
+        if (existingTarget is null)
+        {
+            source.CardPrintingId = request.TargetCardPrintingId;
+        }
+        else
+        {
+            existingTarget.QuantityInDeck += source.QuantityInDeck;
+            existingTarget.QuantityIdea += source.QuantityIdea;
+            existingTarget.QuantityProxy += source.QuantityProxy;
+            existingTarget.QuantityAcquire += source.QuantityAcquire;
+            existingTarget.QuantitySideboard += source.QuantitySideboard;
+            existingTarget.IsStarting |= source.IsStarting;
+            existingTarget.IsCommander |= source.IsCommander;
+            _db.DeckCards.Remove(source);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await _sourceSync.MigrateDeckSourceAsync(deckId, cardPrintingId, request.TargetCardPrintingId, ct);
+        await tx.CommitAsync(ct);
+        return NoContent();
+    }
+
     // DELETE /api/deck/{deckId}/cards/{cardPrintingId}
     [HttpDelete("/api/deck/{deckId:int}/cards/{cardPrintingId:int}")]
     [HttpDelete("/api/decks/{deckId:int}/cards/{cardPrintingId:int}")] // alias
     public async Task<IActionResult> RemoveDeckCard(int deckId, int cardPrintingId)
         => await RemoveDeckCardCore(deckId, cardPrintingId);
+
+    // POST /api/decks/{deckId}/wishlist-missing
+    [HttpPost("/api/deck/{deckId:int}/wishlist-missing")]
+    [HttpPost("/api/decks/{deckId:int}/wishlist-missing")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<AddMissingToWishlistResponse>> AddMissingToWishlist(
+        int deckId,
+        [FromBody] AddMissingToWishlistRequest? request)
+    {
+        var ct = HttpContext.RequestAborted;
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
+        if (err is not null) return (ActionResult)err;
+        if (deck is null) return Forbid();
+
+        var targetPrintingId = request?.CardPrintingId;
+        if (targetPrintingId.HasValue && targetPrintingId.Value <= 0)
+        {
+            return this.CreateValidationProblem("cardPrintingId", "CardPrintingId must be positive.");
+        }
+
+        var includeProxies = request?.IncludeProxies ?? false;
+        var candidates = targetPrintingId.HasValue
+            ? cards.Where(dc => dc.CardPrintingId == targetPrintingId.Value).ToList()
+            : cards;
+
+        if (targetPrintingId.HasValue && candidates.Count == 0)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status404NotFound,
+                detail: $"Card printing {targetPrintingId.Value} was not found in deck {deckId}.");
+        }
+
+        var printIds = candidates.Select(dc => dc.CardPrintingId).Distinct().ToList();
+        var userCards = await _db.UserCards
+            .AsNoTracking()
+            .Where(uc => printIds.Contains(uc.CardPrintingId))
+            .ToDictionaryAsync(uc => uc.CardPrintingId, ct);
+
+        int cardsUpdated = 0;
+        int totalCopiesNeeded = 0;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var dc in candidates)
+        {
+            var needed = dc.QuantityInDeck + dc.QuantitySideboard;
+            if (needed <= 0) continue;
+
+            userCards.TryGetValue(dc.CardPrintingId, out var uc);
+            var owned = uc?.QuantityOwned ?? 0;
+            var proxy = uc?.QuantityProxyOwned ?? 0;
+            var ownedForMissing = includeProxies ? (owned + proxy) : owned;
+            var missing = Math.Max(0, needed - ownedForMissing);
+            if (missing <= 0) continue;
+
+            await _sourceSync.SetSourceQuantityAsync(dc.CardPrintingId, deckId, missing, ct);
+            cardsUpdated++;
+            totalCopiesNeeded += missing;
+        }
+        await tx.CommitAsync(ct);
+
+        return Ok(new AddMissingToWishlistResponse(cardsUpdated, totalCopiesNeeded));
+    }
 
     // ----- Availability -----
 
@@ -1423,4 +1576,55 @@ public class DecksController : ControllerBase
     [HttpGet("/api/decks/{deckId:int}/availability")] // alias
     public async Task<IActionResult> GetDeckAvailability(int deckId, [FromQuery] bool includeProxies = false)
         => await GetDeckAvailabilityCore(deckId, includeProxies);
+
+    // POST /api/decks/{deckId}/import-text/preview
+    [HttpPost("/api/deck/{deckId:int}/import-text/preview")]
+    [HttpPost("/api/decks/{deckId:int}/import-text/preview")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<DecklistImportPreviewResponse>> PreviewImportDecklistText(
+        int deckId,
+        [FromBody] DecklistImportPreviewRequest? request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Text))
+            return this.CreateValidationProblem("text", "Decklist text is required.");
+
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        var preview = await _decklistTextService.PreviewImportAsync(deck!, request.Text, HttpContext.RequestAborted);
+        return Ok(preview);
+    }
+
+    // POST /api/decks/{deckId}/import-text/apply
+    [HttpPost("/api/deck/{deckId:int}/import-text/apply")]
+    [HttpPost("/api/decks/{deckId:int}/import-text/apply")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<DecklistImportApplyResponse>> ApplyImportDecklistText(
+        int deckId,
+        [FromBody] DecklistImportApplyRequest? request)
+    {
+        if (request is null || request.Items is null || request.Items.Count == 0)
+            return this.CreateValidationProblem("items", "At least one decklist item is required.");
+
+        var (deck, err) = await GetDeckForCaller(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        var (response, errorKey, errorMessage) = await _decklistTextService.ApplyImportAsync(
+            deck!, request, HttpContext.RequestAborted);
+        if (errorKey is not null)
+            return this.CreateValidationProblem(errorKey, errorMessage ?? "Invalid decklist import item.");
+
+        return Ok(response);
+    }
+
+    // GET /api/decks/{deckId}/export-text
+    [HttpGet("/api/deck/{deckId:int}/export-text")]
+    [HttpGet("/api/decks/{deckId:int}/export-text")]
+    public async Task<ActionResult<DecklistExportTextResponse>> ExportDecklistText(int deckId)
+    {
+        var (deck, cards, err) = await LoadDeckWithCards(deckId);
+        if (err is not null) return (ActionResult)err;
+
+        return Ok(_decklistTextService.ExportText(deck!, cards));
+    }
 }

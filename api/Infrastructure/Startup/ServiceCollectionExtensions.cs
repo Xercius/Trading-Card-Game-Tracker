@@ -212,6 +212,7 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<MtgScryfallImporter>();
         services.AddScoped<PokemonDeckValidationService>();
         services.AddScoped<MtgDeckValidationService>();
+        services.AddScoped<DecklistTextService>();
         services.AddScoped<api.Features.Cards.Services.PokemonFilterService>();
         services.AddScoped<api.Features.Cards.Services.PokemonEvolutionService>();
         services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<PokemonTcgdexImporter>());
@@ -233,6 +234,8 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<FileParser>();
         services.AddScoped<api.Features.Admin.Prices.AdminPricesService>();
         services.AddScoped<api.Features.ImportExport.Services.ImportExportService>();
+        services.AddScoped<api.Shared.WishlistSourceSyncService>();
+        services.AddScoped<api.Importing.Swccg.SwccgAlternatePrintingsImporter>();
         services.AddSingleton<AdminSyncExecutionTracker>();
     }
 

@@ -646,6 +646,13 @@ export default function CardModal({
                       : "—"}
                 </span>
               </div>
+
+              {(printingDetail?.printingNotes || selectedPrinting?.printingNotes) && (
+                <div className="pt-1 border-t border-border/50 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Printing Notes: </span>
+                  <span>{printingDetail?.printingNotes || selectedPrinting?.printingNotes}</span>
+                </div>
+              )}
             </div>
 
             {/* Accessible label for printing details */}

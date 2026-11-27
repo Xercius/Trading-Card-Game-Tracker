@@ -3,4 +3,6 @@ namespace api.Features.Wishlists.Dtos;
 public sealed record MoveToCollectionRequest(
     int CardPrintingId,
     int Quantity,
-    bool UseProxy = false);
+    bool UseProxy = false,
+    int? DeckId = null,
+    bool SourceSpecified = false);

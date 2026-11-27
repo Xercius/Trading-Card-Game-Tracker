@@ -70,6 +70,10 @@ export type DeckCardWithAvailability = {
   side?: string | null;
   setName?: string | null;
   quantitySideboard?: number;
+  quantityIdea?: number;
+  quantityOwned?: number;
+  quantityProxyOwned?: number;
+  missingQuantity?: number;
   isCommander?: boolean;
   colorIdentity?: string[] | null;
   canBeCommander?: boolean;
@@ -107,6 +111,7 @@ export const deckBuilderKeys = {
     ["deck-builder", "cards", deckId, { includeProxies }] as const,
   validation: (deckId: number | null) => ["deck-builder", "validation", deckId] as const,
   mtgValidation: (deckId: number | null) => ["deck-builder", "mtg-validation", deckId] as const,
+  exportText: (deckId: number | null) => ["deck-builder", "export-text", deckId] as const,
   valueHistory: (deckId: number | null, days: number) =>
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
@@ -209,6 +214,7 @@ export async function patchDeckCard(
     isStarting?: boolean;
     quantityInDeck?: number;
     quantitySideboard?: number;
+    quantityIdea?: number;
     isCommander?: boolean;
   }
 ): Promise<void> {
@@ -233,6 +239,7 @@ export function usePatchDeckCardMutation(deckId: number | null, includeProxies: 
         isStarting?: boolean;
         quantityInDeck?: number;
         quantitySideboard?: number;
+        quantityIdea?: number;
         isCommander?: boolean;
       };
     }) => {
@@ -307,7 +314,7 @@ export async function fetchDeckCards(
   try {
     const response = await http.get<DeckCardWithAvailability[]>(
       `decks/${deckId}/cards-with-availability`,
-      { params: { includeProxies } }
+      { params: { includeProxies, includeIdeas: true } }
     );
     return response.data;
   } catch (error) {
@@ -461,7 +468,10 @@ function applyQuantityDelta(
   if (found) {
     return updated.filter(
       (row) =>
-        row.printingId !== printingId || row.quantityInDeck > 0 || (row.quantitySideboard ?? 0) > 0
+        row.printingId !== printingId ||
+        row.quantityInDeck > 0 ||
+        (row.quantitySideboard ?? 0) > 0 ||
+        (row.quantityIdea ?? 0) > 0
     );
   }
 
@@ -544,6 +554,171 @@ export async function postDeckQuantityDelta(
     await http.post(`decks/${deckId}/cards/quantity-delta`, payload, {
       params: { includeProxies },
     });
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Adds missing deck cards to the wishlist tagged with this deck as their source.
+ */
+export function useAddMissingToWishlistMutation(deckId: number | null, includeProxies: boolean) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cardPrintingId?: number) => {
+      if (deckId == null) throw new Error("Deck not selected");
+      try {
+        const res = await http.post<{ cardsUpdated: number; totalCopiesNeeded: number }>(
+          `decks/${deckId}/wishlist-missing`,
+          {
+            cardPrintingId: cardPrintingId ?? null,
+            includeProxies,
+          }
+        );
+        return res.data;
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      queryClient.invalidateQueries({ queryKey: ["collection"] });
+    },
+  });
+}
+/**
+ * Switches a deck card entry to a different printing of the same card.
+ */
+export function useSwitchDeckCardPrintingMutation(deckId: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      fromPrintingId,
+      toPrintingId,
+    }: {
+      fromPrintingId: number;
+      toPrintingId: number;
+    }) => {
+      if (deckId == null) throw new Error("Deck not selected");
+      try {
+        await http.patch(`decks/${deckId}/cards/${fromPrintingId}/printing`, {
+          targetCardPrintingId: toPrintingId,
+        });
+      } catch (error) {
+        throw toProblemDetailsError(error);
+      }
+    },
+    onSuccess: () => {
+      if (deckId != null) {
+        queryClient.invalidateQueries({ queryKey: deckBuilderKeys.all });
+        queryClient.invalidateQueries({ queryKey: ["decks", deckId] });
+      }
+    },
+  });
+}
+
+export interface DecklistPrintingCandidate {
+  printingId: number;
+  cardId: number;
+  cardName: string;
+  subtitle?: string | null;
+  setCode?: string | null;
+  setName?: string | null;
+  number: string;
+  style: string;
+  imageUrl?: string | null;
+}
+
+export interface DecklistImportLineResult {
+  lineNumber: number;
+  rawLine: string;
+  quantity: number;
+  parsedName: string;
+  parsedSet?: string | null;
+  parsedNumber?: string | null;
+  zone: string;
+  status: "resolved" | "ambiguous" | "unmatched" | string;
+  selectedPrintingId: number | null;
+  candidates: DecklistPrintingCandidate[];
+  message?: string | null;
+}
+
+export interface DecklistImportPreviewResponse {
+  lines: DecklistImportLineResult[];
+  resolvedCount: number;
+  ambiguousCount: number;
+  unmatchedCount: number;
+}
+
+export interface DecklistImportApplyItem {
+  cardPrintingId: number;
+  quantity: number;
+  zone: string;
+}
+
+export interface DecklistImportApplyRequest {
+  items: DecklistImportApplyItem[];
+  replaceExisting?: boolean;
+}
+
+export interface DecklistImportApplyResponse {
+  appliedLines: number;
+  totalCopies: number;
+}
+
+export interface DecklistExportTextResponse {
+  deckName: string;
+  game: string;
+  format?: string | null;
+  text: string;
+  fileName: string;
+}
+
+/**
+ * Parses and previews plain-text decklist lines against the deck's game catalog.
+ */
+export async function previewDecklistImport(
+  deckId: number,
+  text: string
+): Promise<DecklistImportPreviewResponse> {
+  try {
+    const res = await http.post<DecklistImportPreviewResponse>(
+      `decks/${deckId}/import-text/preview`,
+      { text }
+    );
+    return res.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Applies resolved decklist entries to the specified deck.
+ */
+export async function applyDecklistImport(
+  deckId: number,
+  payload: DecklistImportApplyRequest
+): Promise<DecklistImportApplyResponse> {
+  try {
+    const res = await http.post<DecklistImportApplyResponse>(
+      `decks/${deckId}/import-text/apply`,
+      payload
+    );
+    return res.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Exports a deck as formatted plain text suitable for copy/paste or .txt download.
+ */
+export async function fetchDecklistExportText(deckId: number): Promise<DecklistExportTextResponse> {
+  try {
+    const res = await http.get<DecklistExportTextResponse>(`decks/${deckId}/export-text`);
+    return res.data;
   } catch (error) {
     throw toProblemDetailsError(error);
   }

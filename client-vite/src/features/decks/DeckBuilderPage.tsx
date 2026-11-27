@@ -10,11 +10,17 @@ import { useCardFilters } from "@/features/cards/filters/useCardFilters";
 import { fetchPrintings } from "@/features/printings/api/printings";
 import { buildPrintingQuery } from "@/features/printings/api/usePrintings";
 import StickyDeckSidebar from "./StickyDeckSidebar";
+import { DecklistExportDialog } from "./components/DecklistExportDialog";
+import { DecklistImportDialog } from "./components/DecklistImportDialog";
+import { PrintingPickerPopover } from "./components/PrintingPickerPopover";
 import {
+  useAddMissingToWishlistMutation,
   useDeckCardsWithAvailability,
   useDeckDetails,
   useDeckQuantityMutation,
   useDeckValueHistory,
+  usePatchDeckCardMutation,
+  useSwitchDeckCardPrintingMutation,
 } from "./api";
 import { useGame } from "@/state/useGame";
 import { useIncludeProxies } from "@/hooks/useIncludeProxies";
@@ -51,6 +57,8 @@ export default function DeckBuilderPage({ deckId }: Props) {
   const [includeProxies, setIncludeProxies] = useIncludeProxies();
   const { filters, setFilters, clearAll } = useCardFilters();
   const [isFiltersOpen, setFiltersOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const deckDetailsQuery = useDeckDetails(deckId);
   const currentGame = deckDetailsQuery.data?.game || activeGame;
@@ -87,6 +95,9 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
   const deckCardsQuery = useDeckCardsWithAvailability(deckId, includeProxies);
   const deckQuantityMutation = useDeckQuantityMutation(deckId, includeProxies);
+  const patchDeckCardMutation = usePatchDeckCardMutation(deckId, includeProxies);
+  const addMissingWishlistMutation = useAddMissingToWishlistMutation(deckId, includeProxies);
+  const switchPrintingMutation = useSwitchDeckCardPrintingMutation(deckId);
   const deckValueHistoryQuery = useDeckValueHistory(deckId);
   const deckValuePoints = deckValueHistoryQuery.data ?? EMPTY_DECK_VALUE_POINTS;
   const deckLatestValue = useMemo(() => latestValue(deckValuePoints), [deckValuePoints]);
@@ -105,19 +116,6 @@ export default function DeckBuilderPage({ deckId }: Props) {
       event.dataTransfer.setData(DRAG_SOURCE_DATA, DRAG_SOURCE_GRID);
     },
     []
-  );
-
-  const renderCard = useCallback(
-    (card: CardSummary) => (
-      <div
-        className="h-full w-full"
-        draggable={normalizePrintingId(card.primaryPrintingId) != null}
-        onDragStart={(event) => handleCardDragStart(event, card)}
-      >
-        <CardTile card={card} />
-      </div>
-    ),
-    [handleCardDragStart]
   );
 
   const handleQuantityChange = useCallback(
@@ -142,6 +140,39 @@ export default function DeckBuilderPage({ deckId }: Props) {
       });
     },
     [deckQuantityMutation]
+  );
+
+  const renderCard = useCallback(
+    (card: CardSummary) => {
+      const printingId = normalizePrintingId(card.primaryPrintingId);
+      const numericCardId = typeof card.id === "number" ? card.id : Number(card.id);
+      return (
+        <div
+          className="relative h-full w-full"
+          draggable={printingId != null}
+          onDragStart={(event) => handleCardDragStart(event, card)}
+        >
+          <CardTile card={card} />
+          {Number.isFinite(numericCardId) && numericCardId > 0 && printingId != null && (
+            <div className="absolute bottom-2 right-2 z-10">
+              <PrintingPickerPopover
+                cardId={numericCardId}
+                currentPrintingId={printingId}
+                actionLabel="+ Printing"
+                ariaLabel="Choose printing"
+                onSelectPrinting={(targetId) =>
+                  handleQuantityChange(targetId, 1, {
+                    cardName: card.name,
+                    imageUrl: card.imageUrl,
+                  })
+                }
+              />
+            </div>
+          )}
+        </div>
+      );
+    },
+    [handleCardDragStart, handleQuantityChange]
   );
 
   const deckName = deckDetailsQuery.data?.name ?? "Deck";
@@ -235,10 +266,56 @@ export default function DeckBuilderPage({ deckId }: Props) {
 
       <StickyDeckSidebar
         deckName={deckName}
+        game={currentGame}
+        format={deckDetailsQuery.data?.format}
+        side={deckDetailsQuery.data?.side}
         rows={sidebarRows}
         includeProxies={includeProxies}
         onIncludeProxiesChange={setIncludeProxies}
         onAdjustQuantity={handleQuantityChange}
+        onSwitchPrinting={(fromId, toId) =>
+          switchPrintingMutation.mutate({ fromPrintingId: fromId, toPrintingId: toId })
+        }
+        onAddMissingToWishlist={(printingId) => addMissingWishlistMutation.mutate(printingId)}
+        isAddingMissing={addMissingWishlistMutation.isPending}
+        onAdjustSideboard={(row, delta) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { quantitySideboard: Math.max(0, (row.quantitySideboard ?? 0) + delta) },
+          })
+        }
+        onToggleCommander={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { isCommander: !row.isCommander },
+          })
+        }
+        onToggleStarting={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { isStarting: !row.isStarting },
+          })
+        }
+        onMoveToIdea={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: { quantityIdea: (row.quantityIdea ?? 0) + 1 },
+          })
+        }
+        onAdjustIdea={(printingId, nextIdeaQty) =>
+          patchDeckCardMutation.mutate({ printingId, updates: { quantityIdea: nextIdeaQty } })
+        }
+        onPromoteIdea={(row) =>
+          patchDeckCardMutation.mutate({
+            printingId: row.printingId,
+            updates: {
+              quantityInDeck: row.quantityInDeck + 1,
+              quantityIdea: Math.max(0, (row.quantityIdea ?? 0) - 1),
+            },
+          })
+        }
+        onOpenImport={() => setImportOpen(true)}
+        onOpenExport={() => setExportOpen(true)}
         isLoading={deckCardsQuery.isLoading}
         valueHistory={{
           points: deckValuePoints,
@@ -273,6 +350,12 @@ export default function DeckBuilderPage({ deckId }: Props) {
         hasActiveFilters={hasActiveFilters}
         game={currentGame}
       />
+      {importOpen && (
+        <DecklistImportDialog deckId={deckId} open={importOpen} onOpenChange={setImportOpen} />
+      )}
+      {exportOpen && (
+        <DecklistExportDialog deckId={deckId} open={exportOpen} onOpenChange={setExportOpen} />
+      )}
     </div>
   );
 }

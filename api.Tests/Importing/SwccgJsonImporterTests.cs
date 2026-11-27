@@ -526,6 +526,130 @@ public sealed class SwccgJsonImporterTests(CustomWebApplicationFactory factory)
         Assert.Equal("<><><>", asteroidCard.Uniqueness);
     }
 
+    [Theory]
+    [InlineData("(AI)", "AI")]
+    [InlineData("(BORDER BREAKER AI)", "BORDER BREAKER AI")]
+    [InlineData("(C-SLIP AI)", "C-SLIP AI")]
+    [InlineData("(C-SLIP AI 2)", "C-SLIP AI 2")]
+    [InlineData("(HOLO AI)", "HOLO AI")]
+    public async Task ImportFromFileAsync_AiSuffixVariants_AttachAsPrintingsWithTreatment(
+        string suffix,
+        string expectedTreatment)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..6];
+        var baseName = $"Darth Vader {uniqueSuffix}";
+
+        var json = $$"""
+        [
+          {
+            "id": 9101,
+            "gempId": "9_{{uniqueSuffix}}1",
+            "side": "Dark",
+            "rarity": "R",
+            "set": "Premiere",
+            "front": {
+              "title": "•{{baseName}}",
+              "type": "Character",
+              "subType": "Imperial",
+              "gametext": "Dark Lord of the Sith."
+            }
+          },
+          {
+            "id": 9102,
+            "gempId": "9_{{uniqueSuffix}}2",
+            "side": "Dark",
+            "rarity": "R",
+            "set": "Premiere",
+            "front": {
+              "title": "•{{baseName}} {{suffix}}",
+              "type": "Character",
+              "subType": "Imperial",
+              "gametext": "Dark Lord of the Sith."
+            }
+          }
+        ]
+        """;
+
+        var importer = CreateImporter(db);
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false));
+
+        Assert.Equal(1, summary.CardsCreated);
+        Assert.Equal(0, summary.Errors);
+
+        var cards = await db.Cards
+            .Where(c => c.Name == baseName)
+            .ToListAsync();
+        Assert.Single(cards);
+
+        var printings = await db.CardPrintings
+            .Include(p => p.Treatment)
+            .Where(p => p.CardId == cards[0].Id)
+            .ToListAsync();
+        Assert.Equal(2, printings.Count);
+        Assert.Contains(printings, p => p.Treatment?.Name == "Standard");
+        Assert.Contains(printings, p => p.Treatment?.Name == expectedTreatment);
+
+        // Re-importing is idempotent
+        var replay = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false));
+        Assert.Equal(0, replay.CardsCreated);
+        Assert.Equal(0, replay.PrintingsCreated);
+    }
+
+    [Fact]
+    public async Task ImportFromFileAsync_VirtualAndAiSuffix_CombinesTreatmentAndPreservesVirtualInTitle()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..6];
+        var baseName = $"4-LOM With Concussion Rifle {uniqueSuffix} (V)";
+
+        var json = $$"""
+        [
+          {
+            "id": 9201,
+            "gempId": "9_v{{uniqueSuffix}}1",
+            "side": "Dark",
+            "rarity": "R",
+            "set": "Premiere",
+            "front": {
+              "title": "•{{baseName}}",
+              "type": "Character",
+              "gametext": "Virtual text."
+            }
+          },
+          {
+            "id": 9202,
+            "gempId": "9_v{{uniqueSuffix}}2",
+            "side": "Dark",
+            "rarity": "R",
+            "set": "Premiere",
+            "front": {
+              "title": "•{{baseName}} (AI)",
+              "type": "Character",
+              "gametext": "Virtual text."
+            }
+          }
+        ]
+        """;
+
+        var importer = CreateImporter(db);
+        var summary = await importer.ImportFromFileAsync(ToStream(json), new ImportOptions(DryRun: false));
+
+        Assert.Equal(1, summary.CardsCreated);
+        var cards = await db.Cards.Where(c => c.Name == baseName).ToListAsync();
+        Assert.Single(cards);
+
+        var printings = await db.CardPrintings
+            .Include(p => p.Treatment)
+            .Where(p => p.CardId == cards[0].Id)
+            .ToListAsync();
+        Assert.Equal(2, printings.Count);
+        Assert.Contains(printings, p => p.Treatment?.Name == "Virtual");
+        Assert.Contains(printings, p => p.Treatment?.Name == "Virtual / AI");
+    }
+
     private sealed class StubSwccgApiClient : ISwccgApiClient
     {
         public Task<List<SwccgSet>> GetSetsAsync(CancellationToken ct = default)

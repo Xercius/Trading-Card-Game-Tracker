@@ -44,4 +44,9 @@
     <Folder Include="wwwroot\images\transformers\" />
     <Folder Include="wwwroot\images\swccg\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Importing\Swccg\SWCCG_AlternatePrintings.csv" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Importing\Swccg\SWCCG_NewCards.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

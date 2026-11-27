@@ -283,5 +283,360 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ImportExport_PortableNaturalKeyFallbackAndV1Fields_RestoresAccurately()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var magicDeck = await db.Decks.SingleAsync(d => d.Id == TestDataSeeder.AliceMagicDeckId);
+            magicDeck.Format = "Constructed";
+
+            var betaDeckCard = await db.DeckCards.SingleAsync(dc =>
+                dc.DeckId == TestDataSeeder.AliceMagicDeckId &&
+                dc.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            betaDeckCard.QuantitySideboard = 2;
+            betaDeckCard.IsCommander = true;
+            betaDeckCard.IsStarting = true;
+
+            db.WishlistSources.AddRange(
+                new api.Models.WishlistSource
+                {
+                    CardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                    DeckId = null,
+                    Quantity = 1,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                },
+                new api.Models.WishlistSource
+                {
+                    CardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                    DeckId = TestDataSeeder.AliceMagicDeckId,
+                    Quantity = 1,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            await db.SaveChangesAsync();
+        }
+
+        var exportResponse = await client.GetAsync("/api/export/json");
+        exportResponse.EnsureSuccessStatusCode();
+        var exportedJson = await exportResponse.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(exportedJson);
+        var root = doc.RootElement;
+
+        // Verify natural keys and new fields are emitted on export
+        var firstCollection = root.GetProperty("collection").EnumerateArray().First();
+        Assert.False(string.IsNullOrWhiteSpace(firstCollection.GetProperty("cardName").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(firstCollection.GetProperty("game").GetString()));
+
+        // Rewrite all cardPrintingIds to bogus shifted IDs so natural-key resolution is exercised
+        var shiftedPayload = new
+        {
+            version = 1,
+            collection = root.GetProperty("collection").EnumerateArray().Select((el, i) => new
+            {
+                cardPrintingId = 80000 + i,
+                qtyOwned = el.GetProperty("qtyOwned").GetInt32(),
+                qtyProxyOwned = el.GetProperty("qtyProxyOwned").GetInt32(),
+                game = el.GetProperty("game").GetString(),
+                cardName = el.GetProperty("cardName").GetString(),
+                setCode = el.GetProperty("setCode").GetString(),
+                setName = el.GetProperty("setName").GetString(),
+                number = el.GetProperty("number").GetString(),
+                style = el.GetProperty("style").GetString()
+            }).ToList(),
+            wishlist = root.GetProperty("wishlist").EnumerateArray().Select((el, i) => new
+            {
+                cardPrintingId = 81000 + i,
+                qty = el.GetProperty("qty").GetInt32(),
+                game = el.GetProperty("game").GetString(),
+                cardName = el.GetProperty("cardName").GetString(),
+                setCode = el.GetProperty("setCode").GetString(),
+                setName = el.GetProperty("setName").GetString(),
+                number = el.GetProperty("number").GetString(),
+                style = el.GetProperty("style").GetString(),
+                sources = el.TryGetProperty("sources", out var s) && s.ValueKind == JsonValueKind.Array
+                    ? JsonSerializer.Deserialize<List<object>>(s.GetRawText(), JsonOptions)
+                    : null
+            }).ToList(),
+            decks = root.GetProperty("decks").EnumerateArray().Select(d => new
+            {
+                game = d.GetProperty("game").GetString(),
+                name = d.GetProperty("name").GetString(),
+                description = d.GetProperty("description").GetString(),
+                format = d.GetProperty("format").GetString(),
+                side = d.GetProperty("side").GetString(),
+                cards = d.GetProperty("cards").EnumerateArray().Select((c, idx) => new
+                {
+                    cardPrintingId = 82000 + idx,
+                    inDeck = c.GetProperty("inDeck").GetInt32(),
+                    idea = c.GetProperty("idea").GetInt32(),
+                    acquire = c.GetProperty("acquire").GetInt32(),
+                    proxy = c.GetProperty("proxy").GetInt32(),
+                    sideboard = c.GetProperty("sideboard").GetInt32(),
+                    isStarting = c.GetProperty("isStarting").GetBoolean(),
+                    isCommander = c.GetProperty("isCommander").GetBoolean(),
+                    cardName = c.GetProperty("cardName").GetString(),
+                    setCode = c.GetProperty("setCode").GetString(),
+                    setName = c.GetProperty("setName").GetString(),
+                    number = c.GetProperty("number").GetString(),
+                    style = c.GetProperty("style").GetString()
+                }).ToList()
+            }).ToList()
+        };
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.WishlistSources.RemoveRange(db.WishlistSources);
+            db.UserCards.RemoveRange(db.UserCards);
+            db.Decks.RemoveRange(db.Decks);
+            await db.SaveChangesAsync();
+        }
+
+        var importResponse = await client.PostAsJsonAsync("/api/import/json?mode=replace", shiftedPayload);
+        importResponse.EnsureSuccessStatusCode();
+        var body = await importResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("imported").GetProperty("resolvedByNaturalKey").GetInt32() > 0);
+        Assert.Equal(0, body.GetProperty("imported").GetProperty("unresolvedCount").GetInt32());
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var deck = await db.Decks.Include(d => d.Cards).SingleAsync(d => d.Game == "Magic" && d.Name == "Alice Aggro");
+            Assert.Equal("Constructed", deck.Format);
+            var restoredBeta = Assert.Single(deck.Cards, c => c.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            Assert.Equal(2, restoredBeta.QuantitySideboard);
+            Assert.True(restoredBeta.IsCommander);
+            Assert.True(restoredBeta.IsStarting);
+
+            var sources = await db.WishlistSources
+                .Where(ws => ws.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId)
+                .ToListAsync();
+            Assert.Equal(2, sources.Count);
+            Assert.Contains(sources, s => s.DeckId == null && s.Quantity == 1);
+            Assert.Contains(sources, s => s.DeckId == deck.Id && s.Quantity == 1);
+        }
+    }
+
+    [Fact]
+    public async Task ImportJson_PortablePayloadWithMissingCard_ImportsResolvableAndReportsUnresolved()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        var payload = new
+        {
+            version = 1,
+            collection = new object[]
+            {
+                new
+                {
+                    cardPrintingId = 999991,
+                    qtyOwned = 3,
+                    qtyProxyOwned = 0,
+                    game = "Magic",
+                    cardName = "Goblin Guide",
+                    setCode = "Zendikar",
+                    number = "Z3",
+                    style = "Standard"
+                },
+                new
+                {
+                    cardPrintingId = 999992,
+                    qtyOwned = 1,
+                    qtyProxyOwned = 0,
+                    game = "Magic",
+                    cardName = "Nonexistent Card XYZ",
+                    setCode = "NONE",
+                    number = "999",
+                    style = "Standard"
+                }
+            },
+            wishlist = Array.Empty<object>(),
+            decks = Array.Empty<object>()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/import/json?mode=merge", payload);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, body.GetProperty("imported").GetProperty("collection").GetInt32());
+        Assert.Equal(1, body.GetProperty("imported").GetProperty("unresolvedCount").GetInt32());
+        Assert.Equal("Nonexistent Card XYZ", body.GetProperty("unresolved")[0].GetProperty("cardName").GetString());
+    }
+
+    [Fact]
+    public async Task ImportJson_ReplaceModeWithInvalidLegacyId_RollsBackWithoutClearingExistingData()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        var payload = new
+        {
+            version = 1,
+            collection = new[] { new { cardPrintingId = 999999, qtyOwned = 1, qtyProxyOwned = 0 } },
+            wishlist = Array.Empty<object>(),
+            decks = Array.Empty<object>()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/import/json?mode=replace", payload);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.True(await db.UserCards.AnyAsync());
+        Assert.True(await db.Decks.AnyAsync());
+    }
+
+    [Fact]
+    public async Task ImportJson_DirectIdCollidesWithDifferentStyle_ResolvesByNaturalKeyStyle()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        int foilPrintingId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var basePrinting = await db.CardPrintings
+                .AsNoTracking()
+                .Include(cp => cp.Card)
+                .SingleAsync(cp => cp.Id == TestDataSeeder.LightningBoltAlphaPrintingId);
+
+            var foilTreatment = await db.Treatments
+                .FirstOrDefaultAsync(t => t.GameId == basePrinting.Card.GameId && t.Name == "Foil");
+            if (foilTreatment is null)
+            {
+                foilTreatment = new api.Models.Treatment
+                {
+                    GameId = basePrinting.Card.GameId,
+                    Name = "Foil"
+                };
+                db.Treatments.Add(foilTreatment);
+                await db.SaveChangesAsync();
+            }
+
+            var foilPrinting = new api.Models.CardPrinting
+            {
+                CardId = basePrinting.CardId,
+                SetId = basePrinting.SetId,
+                Number = basePrinting.Number,
+                TreatmentId = foilTreatment.Id,
+                IsFoil = true
+            };
+            db.CardPrintings.Add(foilPrinting);
+            await db.SaveChangesAsync();
+            foilPrintingId = foilPrinting.Id;
+        }
+
+        // Payload has the Standard printing's ID, but requests style = "Foil" for the same card/set/number.
+        var payload = new
+        {
+            version = 1,
+            collection = new[]
+            {
+                new
+                {
+                    cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                    qtyOwned = 4,
+                    qtyProxyOwned = 0,
+                    game = "Magic",
+                    cardName = "Lightning Bolt",
+                    setCode = "Alpha",
+                    number = "A1",
+                    style = "Foil"
+                }
+            },
+            wishlist = Array.Empty<object>(),
+            decks = Array.Empty<object>()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/import/json?mode=replace", payload);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, body.GetProperty("imported").GetProperty("resolvedByNaturalKey").GetInt32());
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var foilCard = await db.UserCards.SingleOrDefaultAsync(uc => uc.CardPrintingId == foilPrintingId);
+            var standardCard = await db.UserCards.SingleOrDefaultAsync(uc => uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+            Assert.NotNull(foilCard);
+            Assert.Equal(4, foilCard!.QuantityOwned);
+            Assert.Null(standardCard);
+        }
+    }
+
+    [Fact]
+    public async Task ImportJson_LegacyWishlistWithoutSources_CreatesGeneralSourceSoDeckSyncAddsRatherThanOverwrites()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        // Legacy backup payload without any `sources` array
+        var payload = new
+        {
+            version = 1,
+            collection = Array.Empty<object>(),
+            wishlist = new[]
+            {
+                new
+                {
+                    cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                    qty = 5
+                }
+            },
+            decks = new[]
+            {
+                new
+                {
+                    game = "Magic",
+                    name = "Burn Deck",
+                    description = "Test",
+                    cards = new[]
+                    {
+                        new
+                        {
+                            cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                            inDeck = 2,
+                            idea = 0,
+                            acquire = 0,
+                            proxy = 0
+                        }
+                    }
+                }
+            }
+        };
+
+        var importRes = await client.PostAsJsonAsync("/api/import/json?mode=replace", payload);
+        importRes.EnsureSuccessStatusCode();
+
+        int deckId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var generalSource = await db.WishlistSources.SingleOrDefaultAsync(
+                ws => ws.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId && ws.DeckId == null);
+            Assert.NotNull(generalSource);
+            Assert.Equal(5, generalSource!.Quantity);
+
+            deckId = (await db.Decks.SingleAsync(d => d.Name == "Burn Deck")).Id;
+        }
+
+        // Adding 2 missing copies from the deck should yield 5 (General) + 2 (Deck) = 7, not 2
+        var syncRes = await client.PostAsJsonAsync($"/api/decks/{deckId}/wishlist-missing", new { includeProxies = false });
+        syncRes.EnsureSuccessStatusCode();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var uc = await db.UserCards.SingleAsync(u => u.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            Assert.Equal(7, uc.QuantityWanted);
+        }
+    }
+
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);
 }

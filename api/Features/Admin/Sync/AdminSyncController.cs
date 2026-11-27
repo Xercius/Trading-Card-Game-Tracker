@@ -6,6 +6,7 @@ using api.Features.Admin.Sync.Services;
 using api.Importing;
 using api.Importing.Mtg;
 using api.Importing.Pokemon;
+using api.Importing.Swccg;
 using api.Models;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,7 @@ public sealed class AdminSyncController(
     ILogger<AdminSyncController> logger,
     PokemonTcgdexImporter pokemonImporter,
     MtgScryfallImporter mtgImporter,
+    SwccgAlternatePrintingsImporter swccgAltImporter,
     IValidator<AdminSwccgSyncRequest> swccgSyncValidator,
     IValidator<AdminMtgCardsSyncRequest> mtgCardsSyncValidator) : ControllerBase
 {
@@ -35,6 +37,7 @@ public sealed class AdminSyncController(
     private const string SwccgImporterKey = "swccg";
     private const string SwccgCatalogHistoryKey = "swccg-catalog";
     private const string SwccgCatalogScope = "SwccgCatalog";
+    private const string SwccgAltCatalogScope = "SwccgAltPrintings";
     private const string SwccgSyncRouteKey = "star-wars-ccg";
 
     private const string PokemonImporterKey = "pokemon";
@@ -197,7 +200,7 @@ public sealed class AdminSyncController(
         CancellationToken ct = default)
         => GetSyncLogsAsync(
             SwccgImporterKey,
-            l => l.CatalogScope == SwccgCatalogScope,
+            l => l.CatalogScope == SwccgCatalogScope || l.CatalogScope == SwccgAltCatalogScope,
             limit,
             usePokemonSetFallback: false,
             ct);
@@ -359,6 +362,70 @@ public sealed class AdminSyncController(
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
                 BuildResponse("Failed", startedAt, completedAt, setCodes.Length, combined, SwccgImporterKey, "Sync failed. See server logs for details."));
+        }
+        finally
+        {
+            executionTracker.Complete(SwccgSyncRouteKey);
+        }
+    }
+
+    [HttpPost("star-wars-ccg/alternate-printings")]
+    public async Task<ActionResult<AdminSwccgAlternatePrintingsSyncResponse>> RunStarWarsCcgAlternatePrintings(
+        CancellationToken ct,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AdminSwccgSyncRequest? request = null)
+    {
+        var hasCompletedBaseSync = await db.ImportSyncHistories
+            .AsNoTracking()
+            .AnyAsync(h => h.ImporterKey == SwccgCatalogHistoryKey && h.SetCode == "", ct);
+
+        if (!hasCompletedBaseSync)
+        {
+            return this.CreateProblem(
+                StatusCodes.Status409Conflict,
+                title: "Prerequisite sync required",
+                detail: "Star Wars CCG must be successfully synced before syncing alternate printings.");
+        }
+
+        var startedAt = timeProvider.GetUtcNow();
+        if (!executionTracker.TryStart(SwccgSyncRouteKey, startedAt))
+        {
+            return this.CreateProblem(
+                StatusCodes.Status409Conflict,
+                title: "Sync already running",
+                detail: "A Star Wars CCG sync is already running.");
+        }
+
+        var dryRun = request?.DryRun ?? false;
+        var syncLog = await CreatePendingSyncLogAsync(startedAt, null, SwccgAltCatalogScope, ct);
+        try
+        {
+            var result = await swccgAltImporter.ImportFromRepoFilesAsync(dryRun, ct);
+            syncLog.CompletedAt = result.CompletedAt;
+            syncLog.CardsReturned = result.TotalRowsProcessed;
+            syncLog.CardsUpserted = result.NewCardsCreated + result.PrintingsCreated;
+            syncLog.Status = result.FailedCount == 0 ? "Succeeded" : "Partial";
+            syncLog.ErrorMessage = result.FailedCount > 0
+                ? $"{result.FailedCount} row(s) could not be imported: " + string.Join(
+                    "; ",
+                    result.Failures.Take(10).Select(f => $"{f.FileName}:{f.RowNumber} ({f.CardName}) - {f.Reason}"))
+                : null;
+            await db.SaveChangesAsync(ct);
+
+            return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            await UpdateSyncLogFailedAsync(syncLog, "Alternate printings sync was cancelled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "SWCCG alternate printings sync failed.");
+            await UpdateSyncLogFailedAsync(syncLog, "Alternate printings sync failed. See server logs for details.");
+            return this.CreateProblem(
+                StatusCodes.Status500InternalServerError,
+                title: "Alternate printings sync failed",
+                detail: "Alternate printings sync failed. See server logs for details.");
         }
         finally
         {

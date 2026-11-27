@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using api.Data;
 using api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +21,7 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
     private readonly Dictionary<string, SwccgSet> _setMetaByGempName = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, Set> _setsByCode = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Set> _setsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Treatment> _treatmentsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Rarity> _raritiesByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CardType> _cardTypesByName = new(StringComparer.OrdinalIgnoreCase);
@@ -103,12 +106,45 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
         new("R", "Rare", "Rare"),
         new("R1", "Rare 1", "Rare"),
         new("R2", "Rare 2", "Rare"),
+        new("SR", "Super Rare", "Super Rare"),
+        new("TF", "Tournament Foil", "Tournament Foil"),
         new("U", "Uncommon", "Uncommon"),
         new("U1", "Uncommon 1", "Uncommon"),
         new("U2", "Uncommon 2", "Uncommon"),
-        new("UR", "Ultra-Rare", "Ultra-Rare"),
+        new("UR", "Ultra Rare", "Ultra Rare"),
+        new("VR", "Very Rare", "Very Rare"),
         new("XR", "Exclusive Rare", "Exclusive Rare")
     ];
+
+    private static readonly Dictionary<string, string> SetNameAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Reflections 2"] = "Reflections II",
+        ["Reflections 3"] = "Reflections III"
+    };
+
+    private static readonly Dictionary<string, string> KnownCsvSetCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Premiere Unlimited"] = "PU",
+        ["A New Hope Revised"] = "ANHR",
+        ["Hoth Revised"] = "HOTHR",
+        ["Dagobah Revised"] = "DAGR",
+        ["Death Star II Pre-Con"] = "DS2PC",
+        ["Endor Foils"] = "ENDF",
+        ["Reflections Foils"] = "REFF",
+        ["Reflections II Foils"] = "REF2F",
+        ["Reflections III Foils"] = "REF3F",
+        ["Tournament Foils"] = "TF",
+        ["Misprints/Corrections"] = "MISC",
+        ["First Anthology"] = "1A",
+        ["Second Anthology"] = "2A",
+        ["Third Anthology"] = "3A",
+        ["Empire Strikes Back Introductory Two Player Game"] = "ESB2P",
+        ["Premiere Introductory Two Player Game"] = "P2P",
+        ["Reflections II"] = "R2",
+        ["Coruscant"] = "Cor",
+        ["Tatooine"] = "Tat",
+        ["Theed Palace"] = "TP"
+    };
 
     private static readonly Dictionary<string, SwccgRarityDefinition> RarityByCharacter =
         RarityDefinitions.ToDictionary(r => r.Character, StringComparer.OrdinalIgnoreCase);
@@ -155,7 +191,11 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
             if (!string.IsNullOrWhiteSpace(s.Code))
                 _setsByCode[s.Code.Trim()] = s;
             if (!string.IsNullOrWhiteSpace(s.Name))
-                _setNames.Add(s.Name.Trim());
+            {
+                var trimmedSetName = s.Name.Trim();
+                _setsByName[trimmedSetName] = s;
+                _setNames.Add(trimmedSetName);
+            }
         }
 
         var treatments = await db.Treatments.Where(t => t.GameId == _game.Id).ToListAsync(ct);
@@ -293,16 +333,47 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
         return associationsChanged;
     }
 
+    internal int SetCount => _setsByCode.Count;
+    internal int RarityCount => _raritiesByName.Count;
+    internal int TreatmentCount => _treatmentsByName.Count;
+
+    internal void ApplyCsvNewCardAssociations(Card card, string? cardTypeName, string? rawSide)
+    {
+        if (!string.IsNullOrWhiteSpace(cardTypeName))
+        {
+            var primaryType = Lookup(cardTypeName.Trim(), _cardTypesByName, n => new CardType { Game = _game, Name = n });
+            card.CardTypes.Add(new CardCardType { Card = card, CardType = primaryType, SourceRole = "Type" });
+        }
+
+        var sideName = NormalizeSide(rawSide);
+        if (sideName is "Dark Side" or "Light Side")
+        {
+            var aspect = Lookup(sideName, _aspectsByName, n => new Aspect
+            {
+                Game = _game,
+                Name = n,
+                Color = n.Contains("Dark", StringComparison.OrdinalIgnoreCase) ? "#dc2626" : "#2563eb"
+            });
+            card.CardAspects.Add(new CardAspect { Card = card, Aspect = aspect, Count = 1 });
+        }
+    }
+
     internal Set GetOrAddSet(string? setCodeOrName)
     {
         string code = "UNK";
         string? name = null;
         DateOnly? releasedAt = null;
         string? legacyId = null;
+        bool hasAuthoritativeMeta = false;
 
         if (!string.IsNullOrWhiteSpace(setCodeOrName))
         {
             var key = setCodeOrName.Trim();
+            if (SetNameAliases.TryGetValue(key, out var aliased))
+            {
+                key = aliased;
+            }
+
             if (_setMetaById.TryGetValue(key, out var meta)
                 || _setMetaByAbbr.TryGetValue(key, out meta)
                 || _setMetaByName.TryGetValue(key, out meta)
@@ -312,6 +383,12 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
                 name = meta.Name.Trim();
                 releasedAt = ParseReleaseDate(meta.DateRelease);
                 legacyId = meta.Id.Trim();
+                hasAuthoritativeMeta = true;
+            }
+            else if (KnownCsvSetCodes.TryGetValue(key, out var knownCode))
+            {
+                code = knownCode;
+                name = key;
             }
             else
             {
@@ -322,7 +399,7 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
 
         if (!_setsByCode.TryGetValue(code, out var set))
         {
-            // Check if a set was previously saved with the numeric/string id as Code
+            // Check if a set was previously saved with the numeric/string id as Code or by full Name
             if (!string.IsNullOrWhiteSpace(legacyId)
                 && !string.Equals(legacyId, code, StringComparison.OrdinalIgnoreCase)
                 && _setsByCode.TryGetValue(legacyId, out var legacySet))
@@ -332,6 +409,17 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
                 MarkModified(legacySet, nameof(Set.Code));
                 _setsByCode[code] = legacySet;
                 set = legacySet;
+            }
+            else if (!string.IsNullOrWhiteSpace(name) && _setsByName.TryGetValue(name, out var byName))
+            {
+                if (hasAuthoritativeMeta && !string.Equals(byName.Code, code, StringComparison.OrdinalIgnoreCase))
+                {
+                    _setsByCode.Remove(byName.Code);
+                    byName.Code = code;
+                    MarkModified(byName, nameof(Set.Code));
+                    _setsByCode[code] = byName;
+                }
+                set = byName;
             }
         }
 
@@ -347,6 +435,11 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
             };
             db.Sets.Add(set);
             _setsByCode[code] = set;
+            if (!string.IsNullOrWhiteSpace(set.Name))
+            {
+                _setsByName[set.Name] = set;
+            }
+            _setNames.Add(set.Name);
         }
         else
         {
@@ -365,6 +458,10 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
             {
                 set.LastSyncedAt = now;
                 MarkModified(set, nameof(Set.LastSyncedAt));
+            }
+            if (!string.IsNullOrWhiteSpace(set.Name))
+            {
+                _setsByName[set.Name] = set;
             }
         }
 
@@ -415,6 +512,10 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
 
         return false;
     }
+
+    private static readonly System.Text.RegularExpressions.Regex AiSuffixRegex = new(
+        @"\s*\((?<ai>(?:BORDER BREAKER |C-SLIP |HOLO )?AI(?:\s+2)?)\)\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// Removes uniqueness indicators (dots such as • or * and diamonds such as &lt;&gt;) from the beginning of a card title,
@@ -469,15 +570,105 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
     }
 
     /// <summary>
-    /// Removes uniqueness indicators (dots such as • or * and diamonds such as &lt;&gt;) from the beginning of a card title.
+    /// Parses uniqueness markers and strips any trailing SWCCG alternate-image suffix
+    /// (<c>(AI)</c>, <c>(BORDER BREAKER AI)</c>, <c>(C-SLIP AI)</c>, <c>(C-SLIP AI 2)</c>, <c>(HOLO AI)</c>).
+    /// </summary>
+    internal static (string CleanTitle, string? ExtractedUniqueness, string? AiTreatment) ParseTitleAndAiTreatment(string? title)
+    {
+        var (clean, uniqueness) = ParseTitleUniqueness(title);
+        if (string.IsNullOrWhiteSpace(clean))
+            return (clean, uniqueness, null);
+
+        var match = AiSuffixRegex.Match(clean);
+        if (!match.Success)
+            return (clean, uniqueness, null);
+
+        var aiTreatment = System.Text.RegularExpressions.Regex.Replace(
+            match.Groups["ai"].Value.Trim(),
+            @"\s+",
+            " ").ToUpperInvariant();
+        var stripped = clean[..match.Index].TrimEnd();
+        return (stripped, uniqueness, aiTreatment);
+    }
+
+    /// <summary>
+    /// Removes uniqueness indicators and trailing AI treatment suffixes from a card title.
     /// </summary>
     internal static string? CleanTitle(string? title)
     {
         if (string.IsNullOrWhiteSpace(title))
             return null;
 
-        var (clean, _) = ParseTitleUniqueness(title);
+        var (clean, _, _) = ParseTitleAndAiTreatment(title);
         return clean;
+    }
+
+    /// <summary>
+    /// Strips leading and internal uniqueness markers (including mojibake bullets) for CSV card matching.
+    /// </summary>
+    internal static string StripAllUniquenessMarkers(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return string.Empty;
+
+        var stripped = title
+            .Replace("â€¢", string.Empty, StringComparison.Ordinal)
+            .Replace("<>", string.Empty, StringComparison.Ordinal);
+
+        var sb = new StringBuilder(stripped.Length);
+        foreach (var ch in stripped)
+        {
+            if (ch is '•' or '*' or '·' or '●' or '∙' or '◇' or '◆' or '◊')
+                continue;
+            sb.Append(ch);
+        }
+
+        return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+    }
+
+    /// <summary>
+    /// Normalizes a card title by stripping uniqueness markers, diacritics, and punctuation for relaxed fallback matching.
+    /// </summary>
+    internal static string NormalizeForRelaxedMatch(string? title)
+    {
+        var stripped = StripAllUniquenessMarkers(title);
+        if (string.IsNullOrEmpty(stripped))
+            return string.Empty;
+
+        var decomposed = stripped.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(decomposed.Length);
+        foreach (var ch in decomposed)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (category == UnicodeCategory.NonSpacingMark)
+                continue;
+
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
+            else if (char.IsWhiteSpace(ch))
+            {
+                sb.Append(' ');
+            }
+        }
+
+        return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+    }
+
+    /// <summary>
+    /// Normalizes a set name or code for CSV Original Set matching, applying aliases such as "Reflections 2" → "Reflections II".
+    /// </summary>
+    internal static string NormalizeSetMatchKey(string? setNameOrCode)
+    {
+        if (string.IsNullOrWhiteSpace(setNameOrCode))
+            return string.Empty;
+
+        var trimmed = setNameOrCode.Trim();
+        if (SetNameAliases.TryGetValue(trimmed, out var aliased))
+            trimmed = aliased;
+
+        return trimmed.ToLowerInvariant();
     }
 
     internal static DateOnly? ParseReleaseDate(string? dateRelease)
@@ -528,7 +719,7 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
 
         if (!_raritiesByName.TryGetValue(name, out var rarity))
         {
-            // Check if a rarity was previously saved with the abbreviation as its Name
+            // Check if a rarity was previously saved with the abbreviation as its Name or legacy hyphenation
             if (!string.IsNullOrWhiteSpace(character)
                 && !string.Equals(character, name, StringComparison.OrdinalIgnoreCase)
                 && _raritiesByName.TryGetValue(character, out var legacyRarity))
@@ -538,6 +729,11 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
                 MarkModified(legacyRarity, nameof(Rarity.Name));
                 _raritiesByName[name] = legacyRarity;
                 rarity = legacyRarity;
+            }
+            else if (string.Equals(name, "Ultra Rare", StringComparison.OrdinalIgnoreCase)
+                && _raritiesByName.TryGetValue("Ultra-Rare", out var legacyDashRarity))
+            {
+                rarity = legacyDashRarity;
             }
         }
 
@@ -580,12 +776,13 @@ internal sealed class SwccgCatalog(AppDbContext db, TimeProvider clock)
 
     internal static string ResolveTreatmentName(SwccgCardRecord record)
     {
-        var title = record.Front?.Title ?? "";
+        var rawTitle = record.Front?.Title ?? "";
+        var (cleanTitle, _, aiTreatment) = ParseTitleAndAiTreatment(rawTitle);
         var treatments = new List<string>(3);
-        if (title.Contains("(V)", StringComparison.OrdinalIgnoreCase))
+        if (cleanTitle.Contains("(V)", StringComparison.OrdinalIgnoreCase))
             treatments.Add("Virtual");
-        if (title.Contains("(AI)", StringComparison.OrdinalIgnoreCase))
-            treatments.Add("Alternate Image");
+        if (!string.IsNullOrWhiteSpace(aiTreatment))
+            treatments.Add(aiTreatment);
         if (IsFoilRarity(record.Rarity))
             treatments.Add("Foil");
 

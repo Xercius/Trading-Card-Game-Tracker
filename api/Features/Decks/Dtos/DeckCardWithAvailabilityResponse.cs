@@ -23,4 +23,8 @@ public sealed record DeckCardWithAvailabilityResponse(
     bool CanBeCommander = false,
     bool IsBasicLand = false,
     bool HasUnlimitedCopies = false,
-    int? MaxAllowedCopies = null);
+    int? MaxAllowedCopies = null,
+    int QuantityIdea = 0,
+    int QuantityOwned = 0,
+    int QuantityProxyOwned = 0,
+    int MissingQuantity = 0);

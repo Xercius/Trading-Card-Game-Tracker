@@ -73,7 +73,10 @@ export function MtgColorIdentityFilter({
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className="truncate text-left text-sm font-medium">{summary}</span>
-        <span aria-hidden="true" className={`ml-2 text-xs transition-transform ${open ? "rotate-180" : ""}`}>
+        <span
+          aria-hidden="true"
+          className={`ml-2 text-xs transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </Button>
