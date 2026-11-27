@@ -289,9 +289,7 @@ export default function CollectionSetDetailPage() {
                 Set Completion
               </div>
               <div className="mt-0.5 flex items-baseline justify-end gap-1.5 font-mono text-zinc-200">
-                <span className="text-xl font-bold text-zinc-100">
-                  {liveCompletion.ownedCards}
-                </span>
+                <span className="text-xl font-bold text-zinc-100">{liveCompletion.ownedCards}</span>
                 <span className="text-zinc-500">/ {liveCompletion.totalCards} cards</span>
                 <span className="ml-1 text-sm font-semibold text-purple-400">
                   ({liveCompletion.completionPercentage.toFixed(1)}%)

@@ -53,9 +53,7 @@ export function SwuFiltersSection({
         options={availableFacets.traits ?? []}
         placeholder="Search traits…"
         method={filters.traitMethod ?? "or"}
-        onMethodChange={(traitMethod) =>
-          setFilters((prev) => ({ ...prev, traitMethod, page: 1 }))
-        }
+        onMethodChange={(traitMethod) => setFilters((prev) => ({ ...prev, traitMethod, page: 1 }))}
         onChange={(traits) =>
           setFilters((prev) => ({
             ...prev,

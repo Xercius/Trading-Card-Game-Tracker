@@ -351,20 +351,22 @@ export type AdminSwccgAlternatePrintingsSyncResponse = {
 export function useRunStarWarsCcgAlternatePrintingsMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<AdminSwccgAlternatePrintingsSyncResponse, Error, SwccgSyncOptions | undefined>({
-    mutationFn: async (options) => {
-      try {
-        const response = await http.post<AdminSwccgAlternatePrintingsSyncResponse>(
-          "admin/sync/star-wars-ccg/alternate-printings",
-          options ?? {}
-        );
-        return response.data;
-      } catch (error) {
-        throw toProblemDetailsError(error);
-      }
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsCcgStatus() });
-    },
-  });
+  return useMutation<AdminSwccgAlternatePrintingsSyncResponse, Error, SwccgSyncOptions | undefined>(
+    {
+      mutationFn: async (options) => {
+        try {
+          const response = await http.post<AdminSwccgAlternatePrintingsSyncResponse>(
+            "admin/sync/star-wars-ccg/alternate-printings",
+            options ?? {}
+          );
+          return response.data;
+        } catch (error) {
+          throw toProblemDetailsError(error);
+        }
+      },
+      onSettled: async () => {
+        await queryClient.invalidateQueries({ queryKey: adminSyncKeys.starWarsCcgStatus() });
+      },
+    }
+  );
 }

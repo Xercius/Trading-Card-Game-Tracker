@@ -38,7 +38,9 @@ export function MtgColorCheckboxes({
             key={color.name}
             htmlFor={id}
             className={`flex w-full cursor-pointer items-center gap-2.5 rounded px-1.5 py-1 text-left text-sm transition-colors ${
-              isSelected ? "bg-white/10 font-medium text-white" : "text-foreground/80 hover:bg-white/5"
+              isSelected
+                ? "bg-white/10 font-medium text-white"
+                : "text-foreground/80 hover:bg-white/5"
             } ${!isAvailable && !isSelected ? "opacity-50" : ""}`}
           >
             <input
@@ -131,7 +133,10 @@ export function MtgColorFilter({
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className="truncate text-left text-sm font-medium">{summary}</span>
-        <span aria-hidden="true" className={`ml-2 text-xs transition-transform ${open ? "rotate-180" : ""}`}>
+        <span
+          aria-hidden="true"
+          className={`ml-2 text-xs transition-transform ${open ? "rotate-180" : ""}`}
+        >
           ▾
         </span>
       </Button>

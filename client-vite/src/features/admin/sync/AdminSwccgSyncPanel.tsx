@@ -30,7 +30,8 @@ export default function AdminSwccgSyncPanel() {
   const [dryRun, setDryRun] = useState(false);
 
   const hasCompletedBaseSync = Boolean(statusQuery.data?.lastCompletedAt);
-  const isRunning = statusQuery.data?.status === "Running" || runSync.isPending || runAltSync.isPending;
+  const isRunning =
+    statusQuery.data?.status === "Running" || runSync.isPending || runAltSync.isPending;
   const syncStatus = isRunning ? "Running" : statusQuery.data?.status;
   const progressMessage = isRunning ? "SWCCG sync is running…" : "";
 

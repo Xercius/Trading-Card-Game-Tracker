@@ -53,7 +53,9 @@ describe("AdminSwccgSyncPanel", () => {
     renderPanel();
 
     expect(await screen.findByRole("button", { name: "Run SWCCG sync" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sync Alternate Printings" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sync Alternate Printings" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows Sync Alternate Printings after base sync and renders failure report when rows fail", async () => {
@@ -112,7 +114,9 @@ describe("AdminSwccgSyncPanel", () => {
     expect(screen.getByText("Missing Example Card")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Copy Failure Report" }));
-    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining("[SWCCG_AlternatePrintings.csv:792]"));
+    expect(writeTextMock).toHaveBeenCalledWith(
+      expect.stringContaining("[SWCCG_AlternatePrintings.csv:792]")
+    );
   });
 
   it("renders clean completion message with zero failures", async () => {

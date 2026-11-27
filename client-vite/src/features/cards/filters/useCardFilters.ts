@@ -150,7 +150,10 @@ function sanitizeList(values: string[]): string[] {
 function sanitizeFilters(input: CardFilters): CardFilters {
   const rawMethod = (input.aspectMethod || "or").toLowerCase();
   const validMethod: AspectMethod =
-    rawMethod === "and" || rawMethod === "exclude" || rawMethod === "subset" || rawMethod === "exact"
+    rawMethod === "and" ||
+    rawMethod === "exclude" ||
+    rawMethod === "subset" ||
+    rawMethod === "exact"
       ? rawMethod
       : "or";
 
@@ -216,7 +219,10 @@ function parseFilters(params: URLSearchParams): CardFilters {
   const aspects = parseCsv(params.get("aspect"));
   const rawMethod = params.get("aspectMethod")?.toLowerCase();
   const aspectMethod: AspectMethod =
-    rawMethod === "and" || rawMethod === "exclude" || rawMethod === "subset" || rawMethod === "exact"
+    rawMethod === "and" ||
+    rawMethod === "exclude" ||
+    rawMethod === "subset" ||
+    rawMethod === "exact"
       ? rawMethod
       : "or";
   const colorIdentities = parseCsv(params.get("colorIdentity"));

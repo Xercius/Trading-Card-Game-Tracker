@@ -70,7 +70,7 @@ internal sealed class PrintingNaturalKeyResolver
             || (!string.IsNullOrWhiteSpace(number)
                 && (!string.IsNullOrWhiteSpace(setCode) || !string.IsNullOrWhiteSpace(setName)));
 
-        if (_byId.TryGetValue(cardPrintingId, out var direct) && MatchesDirectKey(direct, game, cardName, setCode, number))
+        if (_byId.TryGetValue(cardPrintingId, out var direct) && MatchesDirectKey(direct, game, cardName, setCode, number, style))
         {
             return new ResolutionResult(direct.Id, UsedNaturalKey: false, hasNaturalKey, null);
         }
@@ -97,7 +97,8 @@ internal sealed class PrintingNaturalKeyResolver
         string? game,
         string? cardName,
         string? setCode,
-        string? number)
+        string? number,
+        string? style)
     {
         if (!string.IsNullOrWhiteSpace(game) && !Eq(direct.Game, game))
         {
@@ -112,6 +113,10 @@ internal sealed class PrintingNaturalKeyResolver
             return false;
         }
         if (!string.IsNullOrWhiteSpace(number) && !Eq(direct.Number, number))
+        {
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(style) && !Eq(direct.Style, style))
         {
             return false;
         }

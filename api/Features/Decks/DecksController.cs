@@ -1496,6 +1496,7 @@ public class DecksController : ControllerBase
         }
 
         await _db.SaveChangesAsync(ct);
+        await _sourceSync.MigrateDeckSourceAsync(deckId, cardPrintingId, request.TargetCardPrintingId, ct);
         await tx.CommitAsync(ct);
         return NoContent();
     }

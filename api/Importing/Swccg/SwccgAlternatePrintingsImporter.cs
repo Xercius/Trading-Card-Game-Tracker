@@ -223,9 +223,12 @@ public sealed class SwccgAlternatePrintingsImporter
             var treatment = catalog.GetOrAddTreatment(treatmentName);
             var rarity = catalog.GetOrAddRarity(rawRarity);
             var inheritedNumber = match.BasePrinting?.Number ?? string.Empty;
-            var uid = ComputeDeterministicUid("swccg-csv:alt", match.Card.Id.ToString(), expansionSet.Code, treatment.Name, border, notes);
+            var cardIdentity = !string.IsNullOrWhiteSpace(match.Card.CardUid)
+                ? match.Card.CardUid
+                : $"{match.Card.Name}|{match.Card.Side}";
+            var uid = ComputeDeterministicUid("swccg-csv:alt", cardIdentity, expansionSet.Code, treatment.Name, border, notes);
 
-            if (HasMatchingPrinting(match.Card, uid, expansionSet, inheritedNumber, treatment))
+            if (HasMatchingPrinting(match.Card, uid, expansionSet, inheritedNumber, treatment, notes))
             {
                 counters.SkippedExisting++;
                 continue;
@@ -367,18 +370,22 @@ public sealed class SwccgAlternatePrintingsImporter
         string uid,
         Set expansionSet,
         string number,
-        Treatment treatment)
+        Treatment treatment,
+        string? notes = null)
     {
+        var normalizedNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         return card.Printings.Any(p =>
             string.Equals(p.CardUid, uid, StringComparison.OrdinalIgnoreCase)
             || (p.SetId == expansionSet.Id
                 && expansionSet.Id > 0
                 && string.Equals(p.Number, number, StringComparison.OrdinalIgnoreCase)
                 && p.TreatmentId == treatment.Id
-                && treatment.Id > 0)
+                && treatment.Id > 0
+                && string.Equals(p.PrintingNotes?.Trim(), normalizedNotes, StringComparison.OrdinalIgnoreCase))
             || (ReferenceEquals(p.CatalogSet, expansionSet)
                 && string.Equals(p.Number, number, StringComparison.OrdinalIgnoreCase)
-                && ReferenceEquals(p.Treatment, treatment)));
+                && ReferenceEquals(p.Treatment, treatment)
+                && string.Equals(p.PrintingNotes?.Trim(), normalizedNotes, StringComparison.OrdinalIgnoreCase)));
     }
 
     private AdminSwccgAlternatePrintingsSyncResponse BuildResponse(

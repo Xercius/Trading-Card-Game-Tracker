@@ -150,4 +150,74 @@ public class WishlistSourceTests(TestingWebAppFactory factory) : IClassFixture<T
             uc!.QuantityWanted.Should().Be(1);
         });
     }
+
+    [Fact]
+    public async Task CollectionWantedEdit_ThenWishlistQuickAdd_PreservesEditedQuantityInSources()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClient();
+
+        // Start with General source = 2
+        var initial = await client.PostAsJsonAsync("/api/wishlist", new
+        {
+            cardPrintingId = Seed.GoblinPrintingId,
+            quantityWanted = 2
+        });
+        initial.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Edit QuantityWanted to 5 through collection upsert (same path as EditCardModal / CollectionSetTable)
+        var edit = await client.PostAsJsonAsync("/api/collection", new
+        {
+            cardPrintingId = Seed.GoblinPrintingId,
+            quantityOwned = 1,
+            quantityProxyOwned = 0,
+            quantityWanted = 5
+        });
+        edit.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Quick-add 1 more to wishlist: must become 6 (not 3)
+        var quickAdd = await client.PostAsJsonAsync("/api/wishlist/items", new
+        {
+            printingId = Seed.GoblinPrintingId,
+            quantity = 1
+        });
+        quickAdd.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await _factory.ExecuteDbContextAsync(async db =>
+        {
+            var uc = await db.UserCards.FindAsync(Seed.GoblinPrintingId);
+            uc!.QuantityWanted.Should().Be(6);
+
+            var sources = await db.WishlistSources
+                .Where(w => w.CardPrintingId == Seed.GoblinPrintingId)
+                .ToListAsync();
+            sources.Should().ContainSingle();
+            sources[0].DeckId.Should().BeNull();
+            sources[0].Quantity.Should().Be(6);
+        });
+    }
+
+    [Fact]
+    public async Task CollectionRemove_RemovesOrphanedWishlistSources()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClient();
+
+        await client.PostAsJsonAsync("/api/wishlist", new
+        {
+            cardPrintingId = Seed.GoblinPrintingId,
+            quantityWanted = 2
+        });
+
+        var del = await client.DeleteAsync($"/api/collection/{Seed.GoblinPrintingId}");
+        del.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await _factory.ExecuteDbContextAsync(async db =>
+        {
+            var sources = await db.WishlistSources
+                .Where(w => w.CardPrintingId == Seed.GoblinPrintingId)
+                .ToListAsync();
+            sources.Should().BeEmpty();
+        });
+    }
 }

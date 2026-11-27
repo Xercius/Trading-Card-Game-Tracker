@@ -85,18 +85,46 @@ internal sealed class UserBackupApplier(AppDbContext db, TimeProvider timeProvid
         {
             var row = GetOrCreateUserCard(userCardMap, printingId);
             var wanted = Math.Max(0, w.Qty);
-            row.QuantityWanted = replaceMode ? wanted : Math.Max(row.QuantityWanted, wanted);
 
-            if (w.Sources is not { Count: > 0 }) continue;
-
-            var aggregated = AggregateWishlistSources(w.Sources, w.Game, deckMap);
-            foreach (var (key, qty) in aggregated)
+            if (w.Sources is { Count: > 0 })
             {
-                if (qty > 0) UpsertWishlistSource(sourceMap, printingId, key.DeckId, qty, replaceMode);
-            }
+                var aggregated = AggregateWishlistSources(w.Sources, w.Game, deckMap);
+                foreach (var (key, qty) in aggregated)
+                {
+                    if (qty > 0) UpsertWishlistSource(sourceMap, printingId, key.DeckId, qty, replaceMode);
+                }
 
-            var totalFromSources = sourceMap.Values.Where(s => s.CardPrintingId == printingId).Sum(s => s.Quantity);
-            row.QuantityWanted = replaceMode ? Math.Max(wanted, totalFromSources) : Math.Max(row.QuantityWanted, totalFromSources);
+                var totalFromSources = sourceMap.Values.Where(s => s.CardPrintingId == printingId).Sum(s => s.Quantity);
+                var desiredTotal = replaceMode
+                    ? Math.Max(wanted, totalFromSources)
+                    : Math.Max(row.QuantityWanted, Math.Max(wanted, totalFromSources));
+                if (desiredTotal > totalFromSources)
+                {
+                    var existingGeneral = sourceMap.TryGetValue((printingId, null), out var gen) ? gen.Quantity : 0;
+                    UpsertWishlistSource(
+                        sourceMap,
+                        printingId,
+                        null,
+                        existingGeneral + (desiredTotal - totalFromSources),
+                        replaceMode: true);
+                    totalFromSources = desiredTotal;
+                }
+                row.QuantityWanted = totalFromSources;
+            }
+            else
+            {
+                var desiredTotal = replaceMode ? wanted : Math.Max(row.QuantityWanted, wanted);
+                var deckTotal = sourceMap.Values
+                    .Where(s => s.CardPrintingId == printingId && s.DeckId is not null)
+                    .Sum(s => s.Quantity);
+                if (desiredTotal > deckTotal)
+                {
+                    UpsertWishlistSource(sourceMap, printingId, null, desiredTotal - deckTotal, replaceMode);
+                }
+
+                var totalFromSources = sourceMap.Values.Where(s => s.CardPrintingId == printingId).Sum(s => s.Quantity);
+                row.QuantityWanted = Math.Max(desiredTotal, totalFromSources);
+            }
         }
     }
 

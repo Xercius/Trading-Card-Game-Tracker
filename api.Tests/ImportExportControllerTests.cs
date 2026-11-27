@@ -491,5 +491,152 @@ public class ImportExportControllerTests(CustomWebApplicationFactory factory) : 
         Assert.True(await db.Decks.AnyAsync());
     }
 
+    [Fact]
+    public async Task ImportJson_DirectIdCollidesWithDifferentStyle_ResolvesByNaturalKeyStyle()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        int foilPrintingId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var basePrinting = await db.CardPrintings
+                .AsNoTracking()
+                .Include(cp => cp.Card)
+                .SingleAsync(cp => cp.Id == TestDataSeeder.LightningBoltAlphaPrintingId);
+
+            var foilTreatment = await db.Treatments
+                .FirstOrDefaultAsync(t => t.GameId == basePrinting.Card.GameId && t.Name == "Foil");
+            if (foilTreatment is null)
+            {
+                foilTreatment = new api.Models.Treatment
+                {
+                    GameId = basePrinting.Card.GameId,
+                    Name = "Foil"
+                };
+                db.Treatments.Add(foilTreatment);
+                await db.SaveChangesAsync();
+            }
+
+            var foilPrinting = new api.Models.CardPrinting
+            {
+                CardId = basePrinting.CardId,
+                SetId = basePrinting.SetId,
+                Number = basePrinting.Number,
+                TreatmentId = foilTreatment.Id,
+                IsFoil = true
+            };
+            db.CardPrintings.Add(foilPrinting);
+            await db.SaveChangesAsync();
+            foilPrintingId = foilPrinting.Id;
+        }
+
+        // Payload has the Standard printing's ID, but requests style = "Foil" for the same card/set/number.
+        var payload = new
+        {
+            version = 1,
+            collection = new[]
+            {
+                new
+                {
+                    cardPrintingId = TestDataSeeder.LightningBoltAlphaPrintingId,
+                    qtyOwned = 4,
+                    qtyProxyOwned = 0,
+                    game = "Magic",
+                    cardName = "Lightning Bolt",
+                    setCode = "Alpha",
+                    number = "A1",
+                    style = "Foil"
+                }
+            },
+            wishlist = Array.Empty<object>(),
+            decks = Array.Empty<object>()
+        };
+
+        var response = await client.PostAsJsonAsync("/api/import/json?mode=replace", payload);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, body.GetProperty("imported").GetProperty("resolvedByNaturalKey").GetInt32());
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var foilCard = await db.UserCards.SingleOrDefaultAsync(uc => uc.CardPrintingId == foilPrintingId);
+            var standardCard = await db.UserCards.SingleOrDefaultAsync(uc => uc.CardPrintingId == TestDataSeeder.LightningBoltAlphaPrintingId);
+            Assert.NotNull(foilCard);
+            Assert.Equal(4, foilCard!.QuantityOwned);
+            Assert.Null(standardCard);
+        }
+    }
+
+    [Fact]
+    public async Task ImportJson_LegacyWishlistWithoutSources_CreatesGeneralSourceSoDeckSyncAddsRatherThanOverwrites()
+    {
+        await factory.ResetDatabaseAsync();
+        using var client = factory.CreateClient();
+
+        // Legacy backup payload without any `sources` array
+        var payload = new
+        {
+            version = 1,
+            collection = Array.Empty<object>(),
+            wishlist = new[]
+            {
+                new
+                {
+                    cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                    qty = 5
+                }
+            },
+            decks = new[]
+            {
+                new
+                {
+                    game = "Magic",
+                    name = "Burn Deck",
+                    description = "Test",
+                    cards = new[]
+                    {
+                        new
+                        {
+                            cardPrintingId = TestDataSeeder.LightningBoltBetaPrintingId,
+                            inDeck = 2,
+                            idea = 0,
+                            acquire = 0,
+                            proxy = 0
+                        }
+                    }
+                }
+            }
+        };
+
+        var importRes = await client.PostAsJsonAsync("/api/import/json?mode=replace", payload);
+        importRes.EnsureSuccessStatusCode();
+
+        int deckId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var generalSource = await db.WishlistSources.SingleOrDefaultAsync(
+                ws => ws.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId && ws.DeckId == null);
+            Assert.NotNull(generalSource);
+            Assert.Equal(5, generalSource!.Quantity);
+
+            deckId = (await db.Decks.SingleAsync(d => d.Name == "Burn Deck")).Id;
+        }
+
+        // Adding 2 missing copies from the deck should yield 5 (General) + 2 (Deck) = 7, not 2
+        var syncRes = await client.PostAsJsonAsync($"/api/decks/{deckId}/wishlist-missing", new { includeProxies = false });
+        syncRes.EnsureSuccessStatusCode();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var uc = await db.UserCards.SingleAsync(u => u.CardPrintingId == TestDataSeeder.LightningBoltBetaPrintingId);
+            Assert.Equal(7, uc.QuantityWanted);
+        }
+    }
+
     private record UserCardExpectation(int Owned, int Proxy, int Wishlist);
 }

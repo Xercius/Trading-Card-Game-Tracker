@@ -69,7 +69,10 @@ export default function SwccgAlternatePrintingsReport({ result, errorMessage }: 
   return (
     <div className="space-y-3 border-t border-border pt-3">
       {errorMessage ? (
-        <div role="alert" className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+        >
           {errorMessage}
         </div>
       ) : null}
@@ -95,28 +98,61 @@ export default function SwccgAlternatePrintingsReport({ result, errorMessage }: 
           </div>
 
           <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-            <div><dt className="text-muted-foreground">Rows processed</dt><dd className="font-semibold">{result.totalRowsProcessed}</dd></div>
-            <div><dt className="text-muted-foreground">New cards</dt><dd className="font-semibold">{result.newCardsCreated}</dd></div>
-            <div><dt className="text-muted-foreground">Printings created</dt><dd className="font-semibold">{result.printingsCreated}</dd></div>
-            <div><dt className="text-muted-foreground">Skipped existing</dt><dd className="font-semibold">{result.skippedExisting}</dd></div>
-            <div><dt className="text-muted-foreground">Sets created</dt><dd className="font-semibold">{result.setsCreated}</dd></div>
-            <div><dt className="text-muted-foreground">Rarities created</dt><dd className="font-semibold">{result.raritiesCreated}</dd></div>
-            <div><dt className="text-muted-foreground">Treatments created</dt><dd className="font-semibold">{result.treatmentsCreated}</dd></div>
-            <div><dt className="text-muted-foreground">Failed rows</dt><dd className="font-semibold">{result.failedCount}</dd></div>
+            <div>
+              <dt className="text-muted-foreground">Rows processed</dt>
+              <dd className="font-semibold">{result.totalRowsProcessed}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">New cards</dt>
+              <dd className="font-semibold">{result.newCardsCreated}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Printings created</dt>
+              <dd className="font-semibold">{result.printingsCreated}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Skipped existing</dt>
+              <dd className="font-semibold">{result.skippedExisting}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Sets created</dt>
+              <dd className="font-semibold">{result.setsCreated}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Rarities created</dt>
+              <dd className="font-semibold">{result.raritiesCreated}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Treatments created</dt>
+              <dd className="font-semibold">{result.treatmentsCreated}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Failed rows</dt>
+              <dd className="font-semibold">{result.failedCount}</dd>
+            </div>
           </dl>
 
           {hasFailures ? (
-            <div role="alert" className="space-y-2 rounded-md border border-destructive bg-destructive/10 p-3">
+            <div
+              role="alert"
+              className="space-y-2 rounded-md border border-destructive bg-destructive/10 p-3"
+            >
               <p className="text-sm font-medium text-destructive">
-                {result.failedCount} row(s) were not imported successfully. Review the table below before re-running.
+                {result.failedCount} row(s) were not imported successfully. Review the table below
+                before re-running.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
                   <caption className="sr-only">Unimported SWCCG CSV rows</caption>
-                  <thead><FailureTableHeader /></thead>
+                  <thead>
+                    <FailureTableHeader />
+                  </thead>
                   <tbody>
                     {result.failures.map((issue) => (
-                      <FailureTableRow key={`${issue.fileName}-${issue.rowNumber}-${issue.cardName}`} issue={issue} />
+                      <FailureTableRow
+                        key={`${issue.fileName}-${issue.rowNumber}-${issue.cardName}`}
+                        issue={issue}
+                      />
                     ))}
                   </tbody>
                 </table>

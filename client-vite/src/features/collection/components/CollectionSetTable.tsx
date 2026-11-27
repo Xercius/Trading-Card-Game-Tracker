@@ -21,11 +21,7 @@ export interface SetPrintingRow {
 type CollectionSetTableProps = {
   rows: SetPrintingRow[];
   ready: boolean;
-  onUpdateQty: (
-    row: SetPrintingRow,
-    field: "owned" | "proxy" | "wanted",
-    nextVal: number
-  ) => void;
+  onUpdateQty: (row: SetPrintingRow, field: "owned" | "proxy" | "wanted", nextVal: number) => void;
   onEditRow: (row: SetPrintingRow) => void;
 };
 

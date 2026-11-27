@@ -111,4 +111,40 @@ public class DeckPrintingSwitchTests(TestingWebAppFactory factory) : IClassFixtu
 
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task SwitchDeckCardPrinting_MigratesDeckWishlistSourceToTargetPrinting()
+    {
+        await SeedDataAsync();
+        using var client = _factory.CreateClient();
+
+        // Create a deck-linked wishlist source on LightningBetaPrintingId (currently in AdminDeckId)
+        var wishRes = await client.PostAsJsonAsync("/api/wishlist", new
+        {
+            cardPrintingId = Seed.LightningBetaPrintingId,
+            quantityWanted = 2,
+            deckId = Seed.AdminDeckId
+        });
+        wishRes.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var switchRes = await client.PatchAsJsonAsync(
+            $"/api/decks/{Seed.AdminDeckId}/cards/{Seed.LightningBetaPrintingId}/printing",
+            new { targetCardPrintingId = Seed.LightningAlphaPrintingId });
+        switchRes.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await _factory.ExecuteDbContextAsync(async db =>
+        {
+            var oldSource = await db.WishlistSources.FirstOrDefaultAsync(
+                w => w.DeckId == Seed.AdminDeckId && w.CardPrintingId == Seed.LightningBetaPrintingId);
+            var newSource = await db.WishlistSources.FirstOrDefaultAsync(
+                w => w.DeckId == Seed.AdminDeckId && w.CardPrintingId == Seed.LightningAlphaPrintingId);
+
+            oldSource.Should().BeNull();
+            newSource.Should().NotBeNull();
+            newSource!.Quantity.Should().Be(2);
+
+            var targetUserCard = await db.UserCards.FindAsync(Seed.LightningAlphaPrintingId);
+            targetUserCard!.QuantityWanted.Should().Be(2);
+        });
+    }
 }

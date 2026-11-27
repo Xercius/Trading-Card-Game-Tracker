@@ -176,7 +176,16 @@ export default function CardsPage() {
       sort: filters.sort || "name",
       pageSize: effectivePageSize,
     }),
-    [filters, activeGame, isSwccg, isPokemon, isMtg, isSwu, effectiveAspectMethod, effectivePageSize]
+    [
+      filters,
+      activeGame,
+      isSwccg,
+      isPokemon,
+      isMtg,
+      isSwu,
+      effectiveAspectMethod,
+      effectivePageSize,
+    ]
   );
 
   const { data, isLoading, isError, error } = usePrintings(scopedFilters);

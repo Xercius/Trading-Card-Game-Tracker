@@ -176,10 +176,12 @@ public class WishlistsController : ControllerBase
             }
         }
 
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
         foreach (var i in list)
         {
             await _sourceSync.SetSourceQuantityAsync(i.CardPrintingId, i.DeckId, i.QuantityWanted, ct);
         }
+        await tx.CommitAsync(ct);
 
         return NoContent();
     }
@@ -258,6 +260,7 @@ public class WishlistsController : ControllerBase
 
         if (moveQuantity > 0)
         {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
             if (dto.UseProxy)
             {
                 uc.QuantityProxyOwned = QuantityGuards.ClampDelta(uc.QuantityProxyOwned, moveQuantity);
@@ -277,6 +280,7 @@ public class WishlistsController : ControllerBase
                 uc.QuantityWanted = QuantityGuards.ClampDelta(uc.QuantityWanted, -moveQuantity);
                 await _db.SaveChangesAsync(ct);
             }
+            await tx.CommitAsync(ct);
         }
 
         var (availability, availabilityWithProxies) = CardAvailabilityHelper.Calculate(

@@ -44,13 +44,7 @@ describe("QuantityStepper", () => {
 
   it("commits multi-digit typed values on blur without firing per keystroke", () => {
     const onCommit = vi.fn();
-    render(
-      <QuantityStepper
-        value={1}
-        ariaLabel="Sol Ring owned quantity"
-        onCommit={onCommit}
-      />
-    );
+    render(<QuantityStepper value={1} ariaLabel="Sol Ring owned quantity" onCommit={onCommit} />);
 
     const input = screen.getByRole("spinbutton", { name: "Sol Ring owned quantity" });
     fireEvent.focus(input);

@@ -1,6 +1,7 @@
 using api.Data;
 using api.Features.Decks.Dtos;
 using api.Models;
+using api.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 
@@ -10,7 +11,7 @@ namespace api.Features.Decks.Services;
 /// Resolves plain-text decklist imports against a game's card catalog, applies confirmed entries to a deck,
 /// and formats existing decks into round-trippable plain-text decklists.
 /// </summary>
-public sealed class DecklistTextService(AppDbContext db, TimeProvider timeProvider)
+public sealed class DecklistTextService(AppDbContext db, TimeProvider timeProvider, WishlistSourceSyncService sourceSync)
 {
     private sealed record CatalogPrintingRow(
         int PrintingId,
@@ -90,6 +91,7 @@ public sealed class DecklistTextService(AppDbContext db, TimeProvider timeProvid
 
         if (request.ReplaceExisting)
         {
+            await sourceSync.RemoveDeckSourcesAsync(deck.Id, ct);
             var existing = await db.DeckCards.Where(dc => dc.DeckId == deck.Id).ToListAsync(ct);
             if (existing.Count > 0) db.DeckCards.RemoveRange(existing);
             await db.SaveChangesAsync(ct);
