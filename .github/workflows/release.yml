@@ -2,6 +2,12 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional version override (e.g. 1.0.0 or v1.0.0). Leave blank for automatic semver bump."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -33,11 +39,18 @@ jobs:
 
       - name: Normalize release tag
         id: version
-        if: steps.tag_calc.outputs.new_tag != ''
+        if: inputs.version != '' || steps.tag_calc.outputs.new_tag != ''
         env:
+          INPUT_VERSION: ${{ inputs.version }}
           RAW_TAG: ${{ steps.tag_calc.outputs.new_tag }}
         run: |
-          CLEAN_VERSION="$(printf '%s' "$RAW_TAG" | sed -E 's/^[vV]+//')"
+          SELECTED="${INPUT_VERSION:-$RAW_TAG}"
+          SELECTED="$(printf '%s' "$SELECTED" | xargs)"
+          CLEAN_VERSION="$(printf '%s' "$SELECTED" | sed -E 's/^[vV]+//')"
+          if ! printf '%s' "$CLEAN_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
+            echo "Invalid version '${SELECTED}'. Expected semver like 1.0.0 or v1.0.0." >&2
+            exit 1
+          fi
           echo "tag=v${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
