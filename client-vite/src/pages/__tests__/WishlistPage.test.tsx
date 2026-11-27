@@ -138,9 +138,14 @@ describe("WishlistPage", () => {
       imageUrl: null,
     };
 
-    const getMock = vi.spyOn(http, "get").mockResolvedValue({
-      data: { items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged,
-    });
+    const getMock = vi
+      .spyOn(http, "get")
+      .mockResolvedValueOnce({
+        data: { items: [wishlistItem], total: 1, page: 1, pageSize: 50 } satisfies WishlistPaged,
+      })
+      .mockResolvedValue({
+        data: { items: [], total: 0, page: 1, pageSize: 50 } satisfies WishlistPaged,
+      });
     const postMock = vi.spyOn(http, "post").mockResolvedValue({
       data: {
         printingId: 1001,
@@ -198,6 +203,8 @@ describe("WishlistPage", () => {
       cardPrintingId: 1001,
       quantity: 2,
       useProxy: false,
+      deckId: null,
+      sourceSpecified: false,
     });
 
     const toast = container.querySelector("div.mb-3");
@@ -277,6 +284,8 @@ describe("WishlistPage", () => {
       cardPrintingId: 2001,
       quantity: 5,
       useProxy: false,
+      deckId: null,
+      sourceSpecified: false,
     });
 
     const toast = container.querySelector("div.mb-3");

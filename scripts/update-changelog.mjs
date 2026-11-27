@@ -64,7 +64,7 @@ function ensurePeriod(str) {
 }
 
 function parseSemver(version) {
-  const clean = version.replace(/^v/i, "").trim();
+  const clean = version.replace(/^v+/i, "").trim();
   const parts = clean.split(".").map((n) => Number.parseInt(n, 10) || 0);
   return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
 }
@@ -82,7 +82,7 @@ function compareSemver(a, b) {
  * Formats a versioned release markdown section from categorized bullet lists.
  */
 export function formatReleaseSection(version, date, sectionsByCategory) {
-  const normalizedVersion = version.startsWith("v") ? version : `v${version}`;
+  const normalizedVersion = `v${version.replace(/^v+/i, "").trim()}`;
   const lines = [`## [${normalizedVersion}] - ${date}`];
 
   for (const category of CATEGORY_ORDER) {
