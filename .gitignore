@@ -58,6 +58,11 @@ pnpm-debug.log*
 # ---- Source data imports (not tracked) ----
 Imports/
 
+# ---- Generated SPA bundle in api/wwwroot ----
+api/wwwroot/index.html
+api/wwwroot/assets/
+api/wwwroot/vite.svg
+
 # ---- Static assets (local images, not source-controlled) ----
 api/wwwroot/images/**/*
 !api/wwwroot/images/**/

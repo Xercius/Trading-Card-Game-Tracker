@@ -17,6 +17,11 @@ if (!app.Environment.IsEnvironment("Testing"))
     db.Database.Migrate();
 }
 
+if (args.Any(a => string.Equals(a, "seed", StringComparison.OrdinalIgnoreCase)))
+{
+    return;
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperApi();

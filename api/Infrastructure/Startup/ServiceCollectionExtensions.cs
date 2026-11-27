@@ -212,6 +212,7 @@ internal static class ServiceCollectionExtensions
         services.AddScoped<MtgScryfallImporter>();
         services.AddScoped<PokemonDeckValidationService>();
         services.AddScoped<MtgDeckValidationService>();
+        services.AddScoped<DecklistTextService>();
         services.AddScoped<api.Features.Cards.Services.PokemonFilterService>();
         services.AddScoped<api.Features.Cards.Services.PokemonEvolutionService>();
         services.AddScoped<ISourceImporter>(sp => sp.GetRequiredService<PokemonTcgdexImporter>());

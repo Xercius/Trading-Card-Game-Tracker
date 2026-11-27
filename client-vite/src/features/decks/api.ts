@@ -111,6 +111,7 @@ export const deckBuilderKeys = {
     ["deck-builder", "cards", deckId, { includeProxies }] as const,
   validation: (deckId: number | null) => ["deck-builder", "validation", deckId] as const,
   mtgValidation: (deckId: number | null) => ["deck-builder", "mtg-validation", deckId] as const,
+  exportText: (deckId: number | null) => ["deck-builder", "export-text", deckId] as const,
   valueHistory: (deckId: number | null, days: number) =>
     ["deck-builder", "value-history", deckId, { days }] as const,
 };
@@ -467,7 +468,10 @@ function applyQuantityDelta(
   if (found) {
     return updated.filter(
       (row) =>
-        row.printingId !== printingId || row.quantityInDeck > 0 || (row.quantitySideboard ?? 0) > 0
+        row.printingId !== printingId ||
+        row.quantityInDeck > 0 ||
+        (row.quantitySideboard ?? 0) > 0 ||
+        (row.quantityIdea ?? 0) > 0
     );
   }
 
@@ -613,4 +617,109 @@ export function useSwitchDeckCardPrintingMutation(deckId: number | null) {
       }
     },
   });
+}
+
+export interface DecklistPrintingCandidate {
+  printingId: number;
+  cardId: number;
+  cardName: string;
+  subtitle?: string | null;
+  setCode?: string | null;
+  setName?: string | null;
+  number: string;
+  style: string;
+  imageUrl?: string | null;
+}
+
+export interface DecklistImportLineResult {
+  lineNumber: number;
+  rawLine: string;
+  quantity: number;
+  parsedName: string;
+  parsedSet?: string | null;
+  parsedNumber?: string | null;
+  zone: string;
+  status: "resolved" | "ambiguous" | "unmatched" | string;
+  selectedPrintingId: number | null;
+  candidates: DecklistPrintingCandidate[];
+  message?: string | null;
+}
+
+export interface DecklistImportPreviewResponse {
+  lines: DecklistImportLineResult[];
+  resolvedCount: number;
+  ambiguousCount: number;
+  unmatchedCount: number;
+}
+
+export interface DecklistImportApplyItem {
+  cardPrintingId: number;
+  quantity: number;
+  zone: string;
+}
+
+export interface DecklistImportApplyRequest {
+  items: DecklistImportApplyItem[];
+  replaceExisting?: boolean;
+}
+
+export interface DecklistImportApplyResponse {
+  appliedLines: number;
+  totalCopies: number;
+}
+
+export interface DecklistExportTextResponse {
+  deckName: string;
+  game: string;
+  format?: string | null;
+  text: string;
+  fileName: string;
+}
+
+/**
+ * Parses and previews plain-text decklist lines against the deck's game catalog.
+ */
+export async function previewDecklistImport(
+  deckId: number,
+  text: string
+): Promise<DecklistImportPreviewResponse> {
+  try {
+    const res = await http.post<DecklistImportPreviewResponse>(
+      `decks/${deckId}/import-text/preview`,
+      { text }
+    );
+    return res.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Applies resolved decklist entries to the specified deck.
+ */
+export async function applyDecklistImport(
+  deckId: number,
+  payload: DecklistImportApplyRequest
+): Promise<DecklistImportApplyResponse> {
+  try {
+    const res = await http.post<DecklistImportApplyResponse>(
+      `decks/${deckId}/import-text/apply`,
+      payload
+    );
+    return res.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
+}
+
+/**
+ * Exports a deck as formatted plain text suitable for copy/paste or .txt download.
+ */
+export async function fetchDecklistExportText(deckId: number): Promise<DecklistExportTextResponse> {
+  try {
+    const res = await http.get<DecklistExportTextResponse>(`decks/${deckId}/export-text`);
+    return res.data;
+  } catch (error) {
+    throw toProblemDetailsError(error);
+  }
 }

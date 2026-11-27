@@ -14,11 +14,14 @@ Before cloning and running the app, make sure you have the following installed o
 4. **Node.js** (v22 LTS or v24 recommended, which includes `npm`): [https://nodejs.org/](https://nodejs.org/)
 
 ### Trust the Local .NET HTTPS Certificate (One-Time)
+
 Open a PowerShell terminal and run:
+
 ```powershell
 dotnet dev-certs https --trust
 ```
-*(If Windows prompts you to trust the localhost certificate, click **Yes**.)*
+
+_(If Windows prompts you to trust the localhost certificate, click **Yes**.)_
 
 ---
 
@@ -36,9 +39,34 @@ dotnet dev-certs https --trust
 
 ## 3. Launch the Application
 
-You will run two PowerShell terminals in VS Code (`Ctrl+Shift+\`` to open a terminal, and click the `+` icon in the terminal panel to open a second one).
+### Option A: One-Click Single-Server Launch (Recommended on Windows)
 
-### Terminal 1 — Start the Backend API
+From the repository root, double-click **`Start-TCGTracker.bat`** in File Explorer, or run **`.\Start-TCGTracker.ps1`** in PowerShell:
+
+```powershell
+.\Start-TCGTracker.ps1
+```
+
+The launcher automatically handles first-time client bundling, starts the single-server app at **`http://localhost:5229`**, waits for `/api/health`, opens your default browser automatically, and cleans up the server process when you press `Ctrl+C` or close the window.
+
+- **Useful PowerShell flags:**
+  - `.\Start-TCGTracker.ps1 -Rebuild` — Rebuild the frontend (`client-vite`) and backend after pulling updates.
+  - `.\Start-TCGTracker.ps1 -NoBrowser` — Start the server without opening a browser tab automatically.
+  - `.\Start-TCGTracker.ps1 -Url https://localhost:7226` — Override the listening URL.
+- **Tip for an isolated test database:** By default, source-repo launches use `api/app.db`. To test against a fresh temporary SQLite database instead, set `ConnectionStrings__DefaultConnection` before running the launcher:
+  ```powershell
+  $env:ConnectionStrings__DefaultConnection = "Data Source=$(Join-Path $env:TEMP 'tcg-test.db')"
+  .\Start-TCGTracker.ps1
+  ```
+- **Testing a Standalone Windows Release ZIP (no .NET SDK or Node.js required):** Extract `TradingCardGameTracker-vX.Y.Z-win-x64.zip` and run **`Start-TCGTracker.bat`** inside the extracted folder. It launches the self-contained `api.exe` at **`http://localhost:5229`** without needing any SDK or frontend build.
+
+---
+
+### Option B: Two-Terminal Developer Mode (Hot Reload)
+
+Use this mode if you want Vite frontend hot reload while developing UI changes. You will run two PowerShell terminals in VS Code (`Ctrl+Shift+\`` to open a terminal, and click the `+` icon in the terminal panel to open a second one).
+
+#### Terminal 1 — Start the Backend API
 
 From the repository root in your first PowerShell terminal, run:
 
@@ -60,7 +88,7 @@ Wait until you see output similar to `Now listening on: https://localhost:7226`.
 
 ---
 
-### Terminal 2 — Install & Start the Frontend
+#### Terminal 2 — Install & Start the Frontend
 
 Open a **second** PowerShell terminal at the repository root.
 
@@ -79,16 +107,20 @@ Open a **second** PowerShell terminal at the repository root.
 ## 4. What to Test
 
 ### Phase A: Global Header & Navigation
+
 1. **What's New Flyout:**
    - Click the **bell icon** in the top-right corner of the header.
    - Verify the unread dot indicator clears when opened, and review the recent release notes flyout.
-2. **Game Switcher Bar:**
+2. **Backup & Restore Dialog (`#840`):**
+   - Click the **`Backup & Restore`** button in the top-right corner of the header (next to the **What's New** bell icon; also accessible in the mobile navigation drawer).
+   - Verify the **`Backup & Restore`** modal opens and displays both export and restore controls.
+3. **Game Switcher Bar:**
    - Click through the game logos in the second row of the header:
      - **Star Wars Unlimited**
      - **Star Wars CCG**
      - **Magic: The Gathering**
      - **Pokemon TCG**
-   - Verify **Hellbreak TCG** appears disabled with a *(Coming soon)* tooltip.
+   - Verify **Hellbreak TCG** appears disabled with a _(Coming soon)_ tooltip.
 
 ---
 
@@ -110,10 +142,11 @@ Because you are starting with a brand-new database, you'll first sync card data 
 4. **Magic: The Gathering (`Importers → MTG Sync`):**
    - Magic also uses the **two-step "Sync Sets First"** workflow:
      1. Click **Sync Sets** to load Scryfall set metadata.
-     2. Expand a category (e.g., *Core & Expansions* or *Commander*) and select **1 to 3 sets**.
+     2. Expand a category (e.g., _Core & Expansions_ or _Commander_) and select **1 to 3 sets**.
      3. Click **Sync Cards** and verify progress and completion.
 
 **Importer UX Feedback to Note:**
+
 - Was it clear what to click first on each sync page?
 - Did progress indicators, set selection checkboxes, and logs behave as expected?
 
@@ -172,7 +205,7 @@ Click **Decks** in the top navigation bar and practice creating and editing deck
 
 ---
 
-### Phase F: Value Hub (`/value`) — *Skip for Now*
+### Phase F: Value Hub (`/value`) — _Skip for Now_
 
 > **Note:** The **Value** page in the top navigation bar is not implemented yet — please skip testing it during this review.
 
@@ -183,6 +216,7 @@ Click **Decks** in the top navigation bar and practice creating and editing deck
 In addition to the core walkthrough above, please specifically test the following additions introduced on the `NextSteps` branch:
 
 ### A. SWCCG `(AI)` Treatments & CSV Alternate Printings Importer (`Importers → SWCCG Sync` & `/cards`)
+
 1. **Prerequisite Gate Before Base Sync:**
    - On a fresh database, open **Importers → SWCCG Sync** and verify the **Sync Alternate Printings** button is **not** shown until the base SWCCG sync has completed.
 2. **Base Sync & `(AI)` Suffix Grouping:**
@@ -191,28 +225,32 @@ In addition to the core walkthrough above, please specifically test the followin
 3. **Alternate Printings & New Cards CSV Import:**
    - After the base sync completes, verify **Sync Alternate Printings** is now visible.
    - Test with the **Dry run** option first (if toggled on) to preview counts without persisting, then run **Sync Alternate Printings** live.
-   - Review the **Alternate Printings Import Summary** counts (*Rows processed*, *New cards*, *Printings created*, *Skipped existing*, *Sets/Rarities/Treatments created*, *Failed rows*).
+   - Review the **Alternate Printings Import Summary** counts (_Rows processed_, _New cards_, _Printings created_, _Skipped existing_, _Sets/Rarities/Treatments created_, _Failed rows_).
    - If any rows fail, verify the red alert banner, structured **Failures** table, and **Copy Failure Report** button make it obvious what failed; if zero fail, verify the clean completion status message.
-   - Click **Sync Alternate Printings** a second time and confirm existing rows are skipped cleanly (*Skipped existing*) with no duplicates created.
+   - Click **Sync Alternate Printings** a second time and confirm existing rows are skipped cleanly (_Skipped existing_) with no duplicates created.
 4. **Printing Notes in Card Details:**
    - Open an alternate printing or misprint card in the **Card Details Modal** (`/cards`) and verify **Printing Notes** displays when present, alongside inherited artwork/collector number and `Standard` treatment when the CSV treatment column was blank.
 
 ### B. Fast Collection Quantity Updates (`/collection`)
+
 1. Open a set detail page (`/collection/sets/:id`) and **rapid-click `+` and `−`** on **Owned** and **Proxy** steppers across multiple rows — controls should stay responsive without locking between requests, and values should persist accurately after a brief pause/refresh.
 2. Click directly into a stepper input, type a multi-digit number (e.g., `12`), and press `Enter` or click away to verify it commits cleanly.
 3. Open a large set (>50 cards) and verify smooth scrolling and live updates to the set completion summary.
 
 ### C. Wishlist Source Tracking (`/wishlist`)
+
 1. Add wanted cards both generally (from **Cards** / **Wishlist**) and from a deck (see **Section E** below).
-2. On `/wishlist`, verify per-source badges (e.g., *General* vs a deck name) appear on each wanted card.
+2. On `/wishlist`, verify per-source badges (e.g., _General_ vs a deck name) appear on each wanted card.
 3. For cards wanted by **multiple sources**, adjust quantities with the per-source `+`/`−` controls and verify the total **Edit** button is disabled so ambiguous edits are prevented.
 4. Click **Move to Collection** on a multi-source item and verify you can choose which source to move quantities from.
 
 ### D. Deck Printing Selection (`/decks`)
+
 1. Open a deck in the **Deck Builder / Deck Construction Modal** and use **`+ Printing`** on a search result to add a specific printing.
 2. On an existing row in the deck list, use the inline printing switcher to change to another printing; switch to a printing already in the deck and verify quantities merge cleanly.
 
 ### E. Deck Card Ideas Zone & Missing-Cards Wishlist Sync (`/decks`)
+
 1. **Ideas Zone:**
    - Add cards to a deck's **Ideas** zone, adjust their quantities with `+`/`−`, and test **Move to Deck**.
    - Verify copy-limit validation counts copies across Main Deck + Sideboard + Ideas, while deck-size limits exclude Ideas.
@@ -222,7 +260,60 @@ In addition to the core walkthrough above, please specifically test the followin
 
 ---
 
-## 6. Sharing Your Feedback (Creating GitHub Issues)
+## 6. New Features to Test on the `HomeStretchto1point0` Branch
+
+### A. Single-Server Hosting, SPA Routing & One-Click Windows Launcher (`#838`, `#839`, `#845`)
+
+1. **Launcher Startup & Shutdown (`#839`):**
+   - Run `Start-TCGTracker.bat` or `.\Start-TCGTracker.ps1` from the repository root (or run `Start-TCGTracker.bat` from an extracted Windows release ZIP `TradingCardGameTracker-vX.Y.Z-win-x64.zip`).
+   - Verify the server starts at `http://localhost:5229` (in both source and release ZIP modes; override with `-Url` in PowerShell if needed), waits for `/api/health`, and automatically opens the app in your default browser.
+   - Press `Ctrl+C` in the launcher window (or close it) and confirm the backend process shuts down cleanly without leaving an orphaned server running.
+2. **Single-Server SPA & API Error Routing (`#838`, `#845`):**
+   - Navigate directly to or refresh (`F5`) SPA routes such as `/cards`, `/collection`, `/decks`, `/wishlist`, and `/value`, and verify card images and pages load properly.
+   - Visit a nonexistent API route such as `/api/does-not-exist` and confirm the backend returns an HTTP `404` `application/problem+json` response rather than serving the SPA `index.html`.
+
+### B. Portable JSON Backup & Restore (`#840`)
+
+1. **Export Backup:**
+   - Click **`Backup & Restore`** in the header (or mobile menu) and click **`Download JSON Backup`**.
+   - Verify a `.json` backup file downloads with your collection, wishlist, and decks.
+2. **Merge vs. Replace Restore Modes:**
+   - Create a temporary edit (such as adding/removing a collection quantity or test deck), then reopen **`Backup & Restore`** and select your `.json` file under **`Backup JSON file`**.
+   - Test **`Merge (keep existing items and add backup entries)`** and verify existing items remain while missing backup items are restored.
+   - Test **`Replace (overwrite all current collection, wishlist, and deck data)`**, check **`I understand Replace mode deletes my existing collection, wishlist, and decks.`**, and click **`Restore Backup`**.
+3. **Result Summary & Cross-DB Portability:**
+   - Verify the **`Backup restored successfully`** banner shows updated **`Collection`**, **`Wishlist`**, and **`Decks`** counts along with natural-key match info (`Matched N printing(s) using card/set identifiers.`), and test importing into a fresh SQLite database where numeric database IDs differ.
+
+### C. Deck Builder Zone & Role UX Polish (`#843`)
+
+Test both the full **`DeckBuilderPage`** (`/decks/:deckId`) and the **`DeckConstructionModal`** editor on `/decks` across all 4 supported games:
+
+1. **Magic: The Gathering:**
+   - In a **Commander** deck, verify the **`★ Commander`** section appears, **`★ Cmdr`** / **`☆ Cmdr`** toggles work on eligible cards, and **`+SB`** is hidden.
+   - In a **Constructed** deck (e.g. Standard/Modern), verify the **`Sideboard`** section shows `count / 15` and **`+SB`** moves cards cleanly between main deck and sideboard.
+2. **Star Wars Unlimited (`SWU`):**
+   - Verify **`Leaders`**, **`Base`**, main deck card type groups, and **`Ideas`** render cleanly with accurate totals.
+3. **Star Wars CCG (`SWCCG`):**
+   - Verify **`⭐ Starting Cards`** and **`🛡️ Defensive Shields`** sections display properly alongside main deck cards and **`Ideas`**, and confirm **`★ Start`** / **`☆ Start`** toggles work on non-Defensive-Shield cards.
+4. **Pokémon TCG:**
+   - Verify cards group cleanly under **`Pokémon`**, **`Trainer`**, **`Energy`**, and **`Ideas`** without irrelevant MTG/SWCCG role buttons.
+5. **Zone & Layout Consistency:**
+   - Verify **`+Idea`** on main rows and **`Move to Deck`**, `+`, `−` inside **`Ideas`** work smoothly across both desktop and narrow layouts without overlapping text or clipped buttons.
+
+### D. Flexible Decklist Text Import & Export (`#841`)
+
+1. **Export Decklist:**
+   - Open a deck in `/decks/:deckId` or the `/decks` edit modal and click **`Export`** in the deck header.
+   - In **`Export Decklist`**, verify zones and quantities render cleanly, then test both **`Copy to Clipboard`** (`Copied!`) and **`Download .txt`**.
+2. **Import Preview, Ambiguity Resolution & Apply:**
+   - Click **`Import`** in the deck header to open **`Import Decklist`**.
+   - Paste decklist text into **`Decklist text`** or load a file via **`Upload decklist file`** (`.txt`), mixing formats such as `4x Lightning Bolt`, `2 Sol Ring (CMM) 412`, section headers like `[Sideboard]` / `// Sideboard` / `SIDEBOARD:`, Commander/Starting headers, and an ambiguous or misspelled card name.
+   - Click **`Preview`** and verify `Resolved`, `Ambiguous`, and `Unmatched` badges appear accurately; use the **`Select printing for <cardName>`** dropdown for any ambiguous card.
+   - Verify both merge mode (default) and **`Replace existing cards in deck (unchecked merges with current cards)`**, then click **`Apply Import (N)`** and confirm all resolved cards appear in the expected deck zones.
+
+---
+
+## 7. Sharing Your Feedback (Creating GitHub Issues)
 
 Please submit any bugs you encounter or feature/UX improvement ideas directly as **GitHub Issues** in the repository:
 
@@ -231,10 +322,12 @@ Please submit any bugs you encounter or feature/UX improvement ideas directly as
 2. Choose the template that matches your feedback:
 
 ### Reporting a Bug → Select **Bug Report**
+
 Use this when something is broken, throws an error, or doesn't behave as expected:
+
 - **Title:** Add a short summary after `[Bug]: ` (e.g., `[Bug]: MTG filter drawer doesn't close on Escape`).
-- **Impact:** Choose how much the issue affects normal use (*Minor*, *Moderate*, *Major*, or *Critical*).
-- **Area:** Select one or more affected areas (e.g., *Client/Frontend*, *Card Import*, *Collections*, *Decks*, *Wishlist*, *Card Details*).
+- **Impact:** Choose how much the issue affects normal use (_Minor_, _Moderate_, _Major_, or _Critical_).
+- **Area:** Select one or more affected areas (e.g., _Client/Frontend_, _Card Import_, _Collections_, _Decks_, _Wishlist_, _Card Details_).
 - **Affected Game (if applicable):** Select the trading card game(s) where you saw the issue.
 - **Bug Description:** Describe what you did and what happened (steps to reproduce).
 - **Expected Behavior:** Describe what you expected to happen instead.
@@ -242,11 +335,13 @@ Use this when something is broken, throws an error, or doesn't behave as expecte
 - Click **Create** at the bottom of the form.
 
 ### Suggesting a Feature or UX Improvement → Select **Feature Request**
+
 Use this for usability improvements, layout/polish ideas, or new capabilities you would like to see:
+
 - **Title:** Add a short summary after `[Feature]: ` (e.g., `[Feature]: Add a "Select All" button to set filters`).
-- **Area:** Choose the part of the app affected (e.g., *Client/Frontend*, *Collections*, *Decks*, *Wishlist*, *Card Import*).
+- **Area:** Choose the part of the app affected (e.g., _Client/Frontend_, _Collections_, _Decks_, _Wishlist_, _Card Import_).
 - **Affected Game (if applicable):** Select the relevant game(s), if any.
-- **Problem / Motivation:** Explain what felt confusing, slow, or missing during your walkthrough (*"As a user, I want to ... so that I can ..."*).
+- **Problem / Motivation:** Explain what felt confusing, slow, or missing during your walkthrough (_"As a user, I want to ... so that I can ..."_).
 - **Proposed Solution:** Describe how you think it should work or look.
 - **Screenshots:** Attach any helpful screenshots or mockups.
 - Click **Create** at the bottom of the form.

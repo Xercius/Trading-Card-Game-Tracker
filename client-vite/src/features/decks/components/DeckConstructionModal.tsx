@@ -23,17 +23,21 @@ import {
   useUpdateDeckMutation,
   type DeckCardWithAvailability,
 } from "../api";
-import { PrintingPickerPopover } from "./PrintingPickerPopover";
+import { DeckModalCardRow } from "./DeckModalCardRow";
+import { DecklistExportDialog } from "./DecklistExportDialog";
+import { DecklistImportDialog } from "./DecklistImportDialog";
 import {
   SWU_ASPECT_IMAGES,
   computeDeckAspects,
   calculateAspectPenalty,
+  getGameCapabilities,
+  groupDeckCardsByZone,
   validateSwuDeck,
   validateSwccgDeck,
   validateMtgDeck,
-  isWithinColorIdentity,
   isDefensiveShield,
   isVirtualCard,
+  type DeckZoneKind,
 } from "../utils/deckRules";
 
 export type DeckConstructionModalProps = {
@@ -129,6 +133,8 @@ export function DeckConstructionModal({
 
   // Validation details popover state
   const [showValidationDetails, setShowValidationDetails] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(false);
 
   // Compute deck aspects from Leader and Base
   const deckAspects = React.useMemo(() => {
@@ -267,75 +273,16 @@ export function DeckConstructionModal({
     return { mainDeckCount: total, defensiveShieldCount: 0 };
   }, [deckCards, isSwccg]);
 
-  // Group deck cards for right sidebar
-  const groupedDeckCards = React.useMemo(() => {
-    if (isSwccg) {
-      const starting = deckCards.filter((c) => c.quantityInDeck > 0 && c.isStarting);
-      const shields = deckCards.filter((c) => c.quantityInDeck > 0 && isDefensiveShield(c));
-      const otherCards = deckCards.filter(
-        (c) => c.quantityInDeck > 0 && !c.isStarting && !isDefensiveShield(c)
-      );
+  // Group deck cards for right sidebar using shared game-scoped zone rules
+  const gameCapabilities = React.useMemo(
+    () => getGameCapabilities(currentGame, currentFormat),
+    [currentGame, currentFormat]
+  );
 
-      const groups: Record<string, DeckCardWithAvailability[]> = {};
-      if (starting.length > 0) groups["⭐ Starting Cards"] = starting;
-      if (shields.length > 0) groups["🛡️ Defensive Shields"] = shields;
-
-      for (const card of otherCards) {
-        const type = card.cardType || "Other";
-        if (!groups[type]) groups[type] = [];
-        groups[type].push(card);
-      }
-      return groups;
-    }
-
-    if (isMtg) {
-      const groups: Record<string, DeckCardWithAvailability[]> = {};
-      if (isMtgCommander) {
-        const commanders = deckCards.filter((c) => c.quantityInDeck > 0 && c.isCommander);
-        if (commanders.length > 0) groups["★ Commander"] = commanders;
-      }
-
-      const mainCards = deckCards.filter(
-        (c) => c.quantityInDeck > 0 && !(isMtgCommander && c.isCommander)
-      );
-      for (const card of mainCards) {
-        const type = card.cardType || "Other";
-        if (!groups[type]) groups[type] = [];
-        groups[type].push(card);
-      }
-
-      const sideboardCards = deckCards.filter((c) => (c.quantitySideboard ?? 0) > 0);
-      if (sideboardCards.length > 0) {
-        groups["Sideboard"] = sideboardCards;
-      }
-      return groups;
-    }
-
-    // SWU: Leaders, Base, then other categories
-    const leaders = deckCards.filter(
-      (c) => c.quantityInDeck > 0 && c.cardType?.toLowerCase() === "leader"
-    );
-    const bases = deckCards.filter(
-      (c) => c.quantityInDeck > 0 && c.cardType?.toLowerCase() === "base"
-    );
-    const others = deckCards.filter(
-      (c) =>
-        c.quantityInDeck > 0 &&
-        c.cardType?.toLowerCase() !== "leader" &&
-        c.cardType?.toLowerCase() !== "base"
-    );
-
-    const groups: Record<string, DeckCardWithAvailability[]> = {};
-    if (leaders.length > 0) groups["Leaders"] = leaders;
-    if (bases.length > 0) groups["Base"] = bases;
-
-    for (const card of others) {
-      const type = card.cardType || "Units & Events";
-      if (!groups[type]) groups[type] = [];
-      groups[type].push(card);
-    }
-    return groups;
-  }, [deckCards, isSwccg, isMtg, isMtgCommander]);
+  const deckZoneGroups = React.useMemo(
+    () => groupDeckCardsByZone(deckCards, currentGame, currentFormat),
+    [deckCards, currentGame, currentFormat]
+  );
 
   const handleUpdateName = (nextName: string) => {
     if (!deckId || !nextName.trim()) return;
@@ -439,13 +386,21 @@ export function DeckConstructionModal({
     });
   };
 
-  const handleRemoveCard = (card: DeckCardWithAvailability, isSideboard = false) => {
+  const handleRemoveCard = (card: DeckCardWithAvailability, zone: DeckZoneKind = "main") => {
     setQuantityError(null);
-    if (isSideboard) {
+    if (zone === "sideboard") {
       if (!deckId) return;
       patchCardMutation.mutate({
         printingId: card.printingId,
         updates: { quantitySideboard: 0 },
+      });
+      return;
+    }
+    if (zone === "ideas") {
+      if (!deckId) return;
+      patchCardMutation.mutate({
+        printingId: card.printingId,
+        updates: { quantityIdea: 0 },
       });
       return;
     }
@@ -454,6 +409,36 @@ export function DeckConstructionModal({
       qtyDelta: -card.quantityInDeck,
       cardName: card.cardName,
       imageUrl: card.imageUrl,
+    });
+  };
+
+  const handleAdjustIdea = (card: DeckCardWithAvailability, delta: number) => {
+    if (!deckId) return;
+    setQuantityError(null);
+    patchCardMutation.mutate({
+      printingId: card.printingId,
+      updates: { quantityIdea: Math.max(0, (card.quantityIdea ?? 0) + delta) },
+    });
+  };
+
+  const handlePromoteIdea = (card: DeckCardWithAvailability) => {
+    if (!deckId) return;
+    setQuantityError(null);
+    patchCardMutation.mutate({
+      printingId: card.printingId,
+      updates: {
+        quantityInDeck: card.quantityInDeck + 1,
+        quantityIdea: Math.max(0, (card.quantityIdea ?? 0) - 1),
+      },
+    });
+  };
+
+  const handleMoveToIdea = (card: DeckCardWithAvailability) => {
+    if (!deckId) return;
+    setQuantityError(null);
+    patchCardMutation.mutate({
+      printingId: card.printingId,
+      updates: { quantityIdea: (card.quantityIdea ?? 0) + 1 },
     });
   };
 
@@ -1356,7 +1341,7 @@ export function DeckConstructionModal({
 
           {/* Right Column: Deck Cards Sidebar */}
           <div className="lg:col-span-4 flex flex-col min-h-0 bg-zinc-900/30 p-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-zinc-800">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-zinc-200">Deck Cards</h3>
                 <Badge
@@ -1367,20 +1352,44 @@ export function DeckConstructionModal({
                   {isSwccg && defensiveShieldCount > 0 ? ` (+${defensiveShieldCount} shields)` : ""}
                 </Badge>
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeProxies}
-                  onChange={(e) => setIncludeProxies(e.target.checked)}
-                  className="rounded border-zinc-700 bg-zinc-800 text-sky-500 focus:ring-0"
-                />
-                <span>Include proxies</span>
-              </label>
+              <div className="flex items-center gap-2">
+                {deckId != null && (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                      onClick={() => setImportOpen(true)}
+                    >
+                      Import
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                      onClick={() => setExportOpen(true)}
+                    >
+                      Export
+                    </Button>
+                  </>
+                )}
+                <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeProxies}
+                    onChange={(e) => setIncludeProxies(e.target.checked)}
+                    className="rounded border-zinc-700 bg-zinc-800 text-sky-500 focus:ring-0"
+                  />
+                  <span>Include proxies</span>
+                </label>
+              </div>
             </div>
 
             {/* Deck Card List */}
             <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800/60 pt-2 space-y-4">
-              {deckCards.length === 0 ? (
+              {deckZoneGroups.length === 0 ? (
                 <div className="py-12 px-4 text-center text-sm text-zinc-500">
                   <p>Your deck is empty.</p>
                   <p className="mt-1 text-xs text-zinc-600">
@@ -1388,209 +1397,43 @@ export function DeckConstructionModal({
                   </p>
                 </div>
               ) : (
-                Object.entries(groupedDeckCards).map(([groupName, cards]) => {
-                  const isSideboardGroup = groupName === "Sideboard";
-                  const groupCount = cards.reduce(
-                    (sum, c) =>
-                      sum + (isSideboardGroup ? (c.quantitySideboard ?? 0) : c.quantityInDeck),
-                    0
-                  );
-                  return (
-                    <div key={groupName} className="space-y-1 pt-2 first:pt-0">
-                      <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1 uppercase tracking-wider">
-                        <span>{groupName}</span>
-                        <span className="text-zinc-500">
-                          {isSideboardGroup ? `${groupCount} / 15` : groupCount}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        {cards.map((card) => {
-                          const penalty = isSwu
-                            ? calculateAspectPenalty(card.aspects, deckAspects, card.cost)
-                            : null;
-                          const isShield = isSwccg && isDefensiveShield(card);
-                          const isOutOfIdentity =
-                            isMtgCommander &&
-                            !isSideboardGroup &&
-                            !card.isCommander &&
-                            mtgValidation?.commanderCount === 1 &&
-                            !isWithinColorIdentity(
-                              card.colorIdentity,
-                              mtgValidation.commanderColorIdentity
-                            );
-                          const displayQty = isSideboardGroup
-                            ? (card.quantitySideboard ?? 0)
-                            : card.quantityInDeck;
-
-                          return (
-                            <div
-                              key={card.printingId}
-                              className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-zinc-900/70 hover:bg-zinc-800/80 border border-zinc-800/80 transition-colors"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="flex items-center justify-center w-12 h-11 shrink-0">
-                                  <CardImageHoverPreview
-                                    imageUrl={card.imageUrl}
-                                    cardName={card.cardName}
-                                    isHorizontal={card.isHorizontal}
-                                  />
-                                </div>
-                                <div className="min-w-0">
-                                  <div
-                                    className="text-xs font-medium text-zinc-200 truncate"
-                                    title={card.cardName}
-                                  >
-                                    {card.cardName}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-                                    {isSwu && penalty && penalty.penaltyCost > 0 && (
-                                      <span className="text-amber-400">
-                                        Cost: {penalty.effectiveCost} (+{penalty.penaltyCost})
-                                      </span>
-                                    )}
-                                    {isOutOfIdentity && (
-                                      <span className="text-red-400 font-semibold">
-                                        Out of Identity
-                                      </span>
-                                    )}
-                                    <span>
-                                      Avail:{" "}
-                                      {includeProxies
-                                        ? card.availabilityWithProxies
-                                        : card.availability}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {/* SWCCG Starting Card Toggle Button */}
-                                {isSwccg && !isShield && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleStartingCard(card)}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-all ${
-                                      card.isStarting
-                                        ? "border-amber-400/60 bg-amber-500/20 text-amber-300"
-                                        : "border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                                    }`}
-                                    title={
-                                      card.isStarting
-                                        ? "Marked as Starting Card"
-                                        : "Click to mark as Starting Card"
-                                    }
-                                  >
-                                    {card.isStarting ? "★ Start" : "☆ Start"}
-                                  </button>
-                                )}
-
-                                {/* MTG Commander Toggle Button */}
-                                {isMtgCommander &&
-                                  !isSideboardGroup &&
-                                  (card.canBeCommander || card.isCommander) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleCommander(card)}
-                                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-all ${
-                                        card.isCommander
-                                          ? "border-amber-400/60 bg-amber-500/20 text-amber-300"
-                                          : "border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
-                                      }`}
-                                      title={
-                                        card.isCommander
-                                          ? "Designated Commander"
-                                          : "Set as Commander"
-                                      }
-                                    >
-                                      {card.isCommander ? "★ Cmdr" : "☆ Cmdr"}
-                                    </button>
-                                  )}
-
-                                {/* MTG Constructed Sideboard Quick-Add */}
-                                {isMtg && !isMtgCommander && !isSideboardGroup && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAdjustSideboard(card, 1)}
-                                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-sky-300 hover:border-zinc-700 transition-all"
-                                    title="Add 1 copy to Sideboard"
-                                  >
-                                    +SB
-                                  </button>
-                                )}
-
-                                {card.cardId != null && (
-                                  <PrintingPickerPopover
-                                    cardId={card.cardId}
-                                    currentPrintingId={card.printingId}
-                                    currentLabel={card.setName ?? "Printing"}
-                                    ariaLabel={`Switch printing for ${card.cardName}`}
-                                    onSelectPrinting={(targetId) => {
-                                      if (targetId !== card.printingId) {
-                                        switchPrintingMutation.mutate({
-                                          fromPrintingId: card.printingId,
-                                          toPrintingId: targetId,
-                                        });
-                                      }
-                                    }}
-                                  />
-                                )}
-
-                                <div className="flex items-center bg-zinc-800 rounded border border-zinc-700">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      isSideboardGroup
-                                        ? handleAdjustSideboard(card, -1)
-                                        : handleAdjustQuantity(card, -1)
-                                    }
-                                    aria-label={`Decrease ${card.cardName} quantity`}
-                                    className="w-5 h-5 flex items-center justify-center text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                                    title="Decrement"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="w-5 text-center text-xs font-bold text-sky-400">
-                                    {displayQty}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    disabled={isShield && card.quantityInDeck >= 1}
-                                    onClick={() =>
-                                      isSideboardGroup
-                                        ? handleAdjustSideboard(card, 1)
-                                        : handleAdjustQuantity(card, 1)
-                                    }
-                                    aria-label={`Increase ${card.cardName} quantity`}
-                                    className="w-5 h-5 flex items-center justify-center text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-                                    title={
-                                      isShield && card.quantityInDeck >= 1
-                                        ? "Max 1 per Defensive Shield"
-                                        : "Increment"
-                                    }
-                                  >
-                                    +
-                                  </button>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveCard(card, isSideboardGroup)}
-                                  aria-label={`Remove ${card.cardName} from ${isSideboardGroup ? "sideboard" : "deck"}`}
-                                  className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-red-400 hover:bg-red-950/30 transition-colors"
-                                  title={
-                                    isSideboardGroup ? "Remove from sideboard" : "Remove from deck"
-                                  }
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                deckZoneGroups.map((group) => (
+                  <div key={group.key} className="space-y-1 pt-2 first:pt-0">
+                    <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1 uppercase tracking-wider">
+                      <span>{group.label}</span>
+                      <span className="text-zinc-500">
+                        {group.maxCount != null
+                          ? `${group.count} / ${group.maxCount}`
+                          : group.count}
+                      </span>
                     </div>
-                  );
-                })
+                    <div className="space-y-1">
+                      {group.cards.map((card) => (
+                        <DeckModalCardRow
+                          key={`${group.key}-${card.printingId}`}
+                          card={card}
+                          zone={group.zone}
+                          capabilities={gameCapabilities}
+                          includeProxies={includeProxies}
+                          deckAspects={deckAspects}
+                          commanderCount={mtgValidation?.commanderCount ?? 0}
+                          commanderColorIdentity={mtgValidation?.commanderColorIdentity ?? []}
+                          onToggleStarting={handleToggleStartingCard}
+                          onToggleCommander={handleToggleCommander}
+                          onAdjustSideboard={handleAdjustSideboard}
+                          onAdjustQuantity={handleAdjustQuantity}
+                          onAdjustIdea={handleAdjustIdea}
+                          onPromoteIdea={handlePromoteIdea}
+                          onMoveToIdea={handleMoveToIdea}
+                          onRemoveCard={handleRemoveCard}
+                          onSwitchPrinting={(fromPrintingId, toPrintingId) =>
+                            switchPrintingMutation.mutate({ fromPrintingId, toPrintingId })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -1729,6 +1572,12 @@ export function DeckConstructionModal({
         hasActiveFilters={activeFilterCount > 0}
         game={currentGame}
       />
+      {deckId != null && importOpen && (
+        <DecklistImportDialog deckId={deckId} open={importOpen} onOpenChange={setImportOpen} />
+      )}
+      {deckId != null && exportOpen && (
+        <DecklistExportDialog deckId={deckId} open={exportOpen} onOpenChange={setExportOpen} />
+      )}
     </div>,
     document.body
   );
