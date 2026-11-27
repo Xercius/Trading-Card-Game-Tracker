@@ -16,6 +16,12 @@ ZIP (`TradingCardGameTracker-<tag>-win-x64.zip`) in GitHub Releases (#845).
 
 - Polish Deck Builder zone grouping and game-scoped role controls (Sideboard, Commander, Starting Cards, Defensive Shields, and Ideas) across the sidebar and construction modal (#843).
 
+## [v0.29.1] - 2026-11-27
+
+### Improvements
+
+- Polish Deck Builder zone grouping and game-scoped role controls (Sideboard, Commander, Starting Cards, Defensive Shields, and Ideas) across the sidebar and construction modal (#843).
+
 ## [v0.29.0] - 2026-11-27
 
 ### New Features
